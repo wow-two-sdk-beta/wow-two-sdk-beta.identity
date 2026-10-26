@@ -1,13 +1,16 @@
 # WoW2.Sdk.Beta.Be.Identity.Client
 
-Forms 2 and 3 of the Identity capability: `IGreetingsBroker` over the running Identity service's HTTP API. The product
-changes form by configuration: swap `AddIdentity()` for `AddIdentityClient(…)` in its composition root; no other code
-changes.
+Forms 2 and 3 of Identity: a product signs in against a running Identity instance. Today it holds the OIDC client
+(Authorization Code + PKCE, `AddOpenIdConnectAuthentication`), paired with `AddCookieAuthentication` from
+`WoW2.Sdk.Beta.Be.Identity.Auth`.
 
 ```bash
 dotnet add package WoW2.Sdk.Beta.Be.Identity.Client --prerelease
 ```
 
 ```csharp
-services.AddIdentityClient(options => options.BaseAddress = new Uri("https://identity.example.com/"));
+services.AddCookieAuthentication();
+services.AddOpenIdConnectAuthentication(options => { options.Authority = "https://id.example.com"; options.ClientId = "app"; });
 ```
+
+Namespace unchanged from the be sdk: `WoW.Two.Sdk.Beta.Be.Identity.Oidc`.

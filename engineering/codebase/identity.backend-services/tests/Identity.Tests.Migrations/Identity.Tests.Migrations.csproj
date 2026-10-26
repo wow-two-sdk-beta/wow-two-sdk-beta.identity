@@ -7,6 +7,8 @@
   <!--
     Migrator-engine suite: the module's embedded Migrations/NNN/*.sql — apply, idempotency, rollback — against a
     throwaway SQLite file (no Docker). No HTTP, no EF model. Rides the SDK Testing.Data harness (MigratorHarness).
+    Empty until the module ships SQL migrations: its schema is EF-owned today (ApplyIdentitySchema), and T10 moves
+    schema authority to SQL.
   -->
   <ItemGroup>
     <PackageReference Include="WoW2.Sdk.Beta.Be.Testing.Data" />

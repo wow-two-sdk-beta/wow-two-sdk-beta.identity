@@ -1,13 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The Identity contract: the Greetings broker, its model, constants and error catalogue. It references the kernel
-    WoW2.Sdk.Beta.Be.Abstractions only (Result, AppError, IEvent) — no core, no framework reference, no third-party
-    package — and holds no options binding, DI registration or I/O.
+    The Identity contract (layer 1): the error codes and their ru/uz texts, and the organization claim types and readers.
+    It references the kernel WoW2.Sdk.Beta.Be.Abstractions only (Result, AppError, IEvent) — no core, no framework
+    reference, no third-party package — and holds no options binding, DI registration or I/O. The broker interfaces,
+    models and events of the T4 contract land here.
   -->
   <PropertyGroup>
     <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
-    <Description>Identity contract: the Greetings broker, model, constants and error catalogue every form implements.</Description>
+    <Description>Identity contract: the error codes and their ru/uz texts, and the organization claim types and readers every Identity form and consumer shares.</Description>
   </PropertyGroup>
 
   <ItemGroup>

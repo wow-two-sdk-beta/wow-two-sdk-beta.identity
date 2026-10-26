@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The edge (layer 2): the store-less part of Identity a product uses with no Identity store or service — cookies, API
+    keys, the allowlist and default-deny authorization, the guest session, the cookie current-user service, JWT bearer
+    validation and HMAC token issuance. Module and Client build on it; M0 products and API resources take it alone.
+  -->
+  <PropertyGroup>
+    <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
+    <Description>Identity edge: cookie and API-key authentication, allowlist authorization, guest sessions, the cookie current-user service, JWT bearer validation and token issuance — no Identity store needed.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="WoW2.Sdk.Beta.Be" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Abstractions\WoW.Two.Sdk.Beta.Be.Identity.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Identity.Tests.Unit" />
+  </ItemGroup>
+
+</Project>

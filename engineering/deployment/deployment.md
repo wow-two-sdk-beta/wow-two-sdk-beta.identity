@@ -18,9 +18,9 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
   same `X.Y.Z`, plus the build's commit after a `+`. Package releases (`be-v*`, `fe-v*`) never move it.
 - Settings a target provides in `/app/appsettings.Target.json`: `DatabaseSettings:ConnectionString`
   (`Data Source=/data/identity.db`); `Deployment:TrustedProxies` or `Deployment:TrustedNetworks` names the ingress.
-- Database: SQLite on the `data` volume, one instance per environment; the host applies the module's pending
-  migrations before it serves. `GET /health` answers 200 only while the database answers.
-- Dev check: after a dev rollout, `verify` curls `$VERIFY_SERVICE_IDENTITY/health` and `/api/greetings` with
+- Database: SQLite on the `data` volume, one instance per environment; the host creates the module's identity schema
+  on a new database before it serves (EF-owned until the module ships SQL migrations). `GET /health` answers 200 only while the database answers.
+- Dev check: after a dev rollout, `verify` curls `$VERIFY_SERVICE_IDENTITY/health` and `/api/system/status` with
   `Host: localhost`; `HostFilteringTests` replays the descriptor's requests.
 - After each main image publish, `conformance.yml` runs the contract suite against the released image.
 

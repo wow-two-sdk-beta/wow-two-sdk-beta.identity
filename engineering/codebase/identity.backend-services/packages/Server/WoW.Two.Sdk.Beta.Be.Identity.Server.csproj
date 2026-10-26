@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Extension (layer 4): the OIDC server the Identity service runs — OpenIddict server, keys and JWKS, the client
+    registry, the back-channel sender and exchange grants (slices I17–I19). Empty until those slices are built; it
+    takes OpenIddict (7.7.2, T1) with its first slice.
+  -->
+  <PropertyGroup>
+    <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
+    <Description>Identity server: the OIDC provider role the Identity service runs over the Form 1 module. Reserved; the server slices are not built yet.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="WoW2.Sdk.Beta.Be" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Module\WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
+  </ItemGroup>
+
+</Project>

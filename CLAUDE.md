@@ -19,7 +19,7 @@ engineering/             ← the HOW
 ├── deployment/          ← deploy.yml · Dockerfile · docker-compose.yml · deployment.md
 ├── research/ · scripts/ ← analyses · release helpers publish-packages.yml calls
 └── codebase/            ← THE CODE — only place code lives
-    ├── identity.backend-services/    ← Identity.BackendServices.slnx: packages/{Abstractions,Module,Client,Testing} · service/Identity.Api · tests/Identity.Tests.*
+    ├── identity.backend-services/    ← Identity.BackendServices.slnx: packages/{Abstractions,Auth,Module,Client,Providers,Server,Testing} · service/Identity.Api · tests/Identity.Tests.*
     └── identity.frontend-services/   ← pnpm workspace: packages/fe-identity (npm) · apps/web (hosted pages + console)
 ```
 
@@ -27,7 +27,8 @@ engineering/             ← the HOW
 
 - Shape: wow-two-ws/conventions/development/repo/structure/domain-structure.md; repo-specific deltas only in `engineering/development/`.
 - The contract lives in `packages/Abstractions`; Module (Form 1) and Client (Forms 2/3) implement it, and
-  `Identity.Tests.Conformance` runs the one suite (`GreetingsBrokerConformance`, in `packages/Testing`) against both.
+  `Identity.Tests.Conformance` runs each broker suite (in `packages/Testing`) against both. No broker exists yet: the
+  moved code exposes services and store ports (`engineering/architecture/contract.md` § Status).
 - A package references only what its layer row allows; the service takes the packages by `ProjectReference` and adds
   only hosting, the HTTP mirror of the contract and the hosted pages.
 - Package versions come from tags (`be-v*` NuGet, `fe-v*` npm) in `publish-packages.yml`; never commit a version,

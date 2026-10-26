@@ -2,7 +2,8 @@
 
   <!--
     The deployable Identity service: hosts the Form 1 module and adds only hosting, the HTTP mirror of the contract and
-    the hosted pages. It takes the domain's own packages by ProjectReference, never by a published version.
+    the hosted pages. It takes the domain's own packages by ProjectReference, never by a published version: Module (the
+    store it serves), Server (the OIDC provider role, not built yet), Providers (upstream sign-in) and Client.
   -->
   <ItemGroup>
     <PackageReference Include="WoW2.Sdk.Beta.Be" />
@@ -10,6 +11,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\packages\Module\WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
+    <ProjectReference Include="..\..\packages\Server\WoW.Two.Sdk.Beta.Be.Identity.Server.csproj" />
+    <ProjectReference Include="..\..\packages\Providers\WoW.Two.Sdk.Beta.Be.Identity.Providers.csproj" />
+    <ProjectReference Include="..\..\packages\Client\WoW.Two.Sdk.Beta.Be.Identity.Client.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

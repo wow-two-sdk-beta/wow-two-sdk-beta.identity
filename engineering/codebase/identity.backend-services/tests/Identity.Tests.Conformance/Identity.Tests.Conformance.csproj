@@ -5,9 +5,10 @@
   </PropertyGroup>
 
   <!--
-    Conformance tier — the one IGreetingsBroker suite (GreetingsBrokerConformance, shipped in the Testing package) run
-    against every implementation: the in-process Module over SQLite, the Client against the service host (in process,
-    or a running image when CONFORMANCE_BASE_URL is set), and the test kit's fake. No Docker needed by default.
+    Conformance tier — each broker suite of the contract (shipped in the Testing package) run against every
+    implementation: the in-process Module over SQLite, the Client against the service host (in process, or a running
+    image when CONFORMANCE_BASE_URL is set), and the test kit's fakes. Empty until the contract has brokers: the
+    template's Greetings suite left with the sample, and Identity's T4 brokers are not built yet. No Docker needed.
   -->
   <ItemGroup>
     <PackageReference Include="WoW2.Sdk.Beta.Be.Testing.Data" />

@@ -1,8 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The Identity test kit: a fake over the contract and the conformance suite every implementation must pass. -->
+  <!--
+    The Identity test kit: fakes over the contract, personas, the OTP code sink and the broker conformance bases. Empty
+    until the T4 brokers exist in Abstractions; it references the contract and the be sdk test kit only.
+  -->
   <PropertyGroup>
-    <Description>Identity test kit: a fake greetings broker and the conformance suite every implementation must pass.</Description>
+    <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
+    <Description>Identity test kit: fakes over the Identity contract and the conformance bases every implementation passes. Reserved until the contract's brokers exist.</Description>
   </PropertyGroup>
 
   <ItemGroup>

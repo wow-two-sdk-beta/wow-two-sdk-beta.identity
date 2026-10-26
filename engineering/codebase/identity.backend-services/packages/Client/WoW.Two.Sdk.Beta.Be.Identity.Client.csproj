@@ -1,17 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Forms 2 and 3: the greetings contract over the running Identity service's HTTP API. -->
+  <!--
+    Forms 2 and 3 (layer 3): a product signs in against a running Identity instance. Today the OIDC client
+    (Authorization Code + PKCE); the management API brokers, logout and webhook receivers and the projection land here.
+  -->
   <PropertyGroup>
-    <Description>Identity Forms 2 and 3: the greetings contract over the running Identity service's HTTP API.</Description>
+    <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
+    <Description>Identity Forms 2 and 3: the OIDC client (Authorization Code + PKCE) a product signs in through against a running Identity instance.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="WoW2.Sdk.Beta.Be" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Abstractions\WoW.Two.Sdk.Beta.Be.Identity.Abstractions.csproj" />
+    <ProjectReference Include="..\Auth\WoW.Two.Sdk.Beta.Be.Identity.Auth.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -67,7 +67,7 @@ jobs:
           CONFORMANCE_BASE_URL: http://127.0.0.1:8080
         run: >-
           dotnet test engineering/codebase/identity.backend-services/tests/Identity.Tests.Conformance -p:BuildSpa=false
-          --filter "FullyQualifiedName~ClientGreetingsConformanceTests"
+          --filter "FullyQualifiedName~Client"
 
       - name: Service log
         if: failure()

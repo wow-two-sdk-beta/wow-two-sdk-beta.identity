@@ -1,20 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Form 1: the greetings capability in the consumer's process, over the consumer's database. Ships its schema as
-    embedded Migrations/NNN-name/{Apply,Rollback}.sql; the host applies them (the service does on boot).
+    Form 1 (layer 3): Identity in the consumer's process, over the consumer's database — AddUserAccounts and its slices
+    (passwords, tokens, email, lockout, roles, claims, logins, two-factor, phones, refresh tokens, passkeys,
+    organizations, email sign-in, personal data, the account endpoints), OTP and its five channels, TOTP, WebAuthn and
+    Argon2. The schema is EF-owned today (ApplyIdentitySchema); SQL migrations ship as embedded
+    Migrations/NNN-name/{Apply,Rollback}.sql once T10 moves schema authority to SQL.
   -->
   <PropertyGroup>
-    <Description>Identity Form 1: the in-process greetings module over the consumer's database, with its SQL migrations.</Description>
+    <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
+    <Description>Identity Form 1: user accounts and their slices, OTP over email, SMS, Telegram and WhatsApp, TOTP, passkeys and Argon2, in the consumer's process over its own database.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="WoW2.Sdk.Beta.Be" />
+    <PackageReference Include="Fido2.AspNet" />
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
+    <PackageReference Include="Otp.NET" />
+    <PackageReference Include="Telegram.Bot" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Abstractions\WoW.Two.Sdk.Beta.Be.Identity.Abstractions.csproj" />
+    <ProjectReference Include="..\Auth\WoW.Two.Sdk.Beta.Be.Identity.Auth.csproj" />
   </ItemGroup>
 
   <!-- SQL migrations ship embedded (logical name "Migrations/NNN-name/Apply.sql"), resolved by the SDK migrator. -->

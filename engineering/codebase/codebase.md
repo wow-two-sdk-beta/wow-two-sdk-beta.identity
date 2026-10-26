@@ -5,15 +5,19 @@ The code lives in `identity.backend-services/` (.NET) and `identity.frontend-ser
 ## Backend
 
 - `Identity.BackendServices.slnx` groups `Packages/`, `Services/` and `Tests/`.
-- `packages/` holds the NuGet family `WoW2.Sdk.Beta.Be.Identity.*`: `Abstractions` (the contract), `Module` (Form 1,
-  with `Migrations/NNN-name/{Apply,Rollback}.sql`), `Client` (Forms 2/3) and `Testing` (fake + conformance suite).
+- `packages/` holds the NuGet family `WoW2.Sdk.Beta.Be.Identity.*`, moved out of the be sdk with namespaces kept:
+  `Abstractions` (the contract), `Auth` (store-less auth), `Module` (Form 1), `Client` (Forms 2/3), `Providers`
+  (upstream sign-in), `Server` (the OIDC server, reserved) and `Testing` (the test kit, reserved). Each folder under a
+  package is a namespace below `WoW.Two.Sdk.Beta.Be.Identity`, with its lead doc beside the code
+  (`packages/Module/Core/core.md`). Inventory: `engineering/architecture/package-registry.md`.
   `Directory.Build.props` makes them packable by path; the core pin in `Directory.Packages.props` is their floor.
-- `service/Identity.Api` hosts the module by `ProjectReference`: `AddApiDefaults()` / `UseApiDefaults()`, the migrator
-  over the module's SQL, `GreetingsController` (the HTTP mirror of the contract), `SystemController`, and the pages in
-  `wwwroot/` (filled by the `BuildSpa` target; `-p:BuildSpa=false` skips it).
-- Tests: `Unit` (package logic), `Integration` (the module over a throwaway SQLite file), `E2E` (the host in process:
-  wire, pages, `/health`, the descriptor's dev check), `Conformance` (one suite against module, client and fake),
-  `Migrations` (the module's SQL). None needs Docker. Run them with `dotnet test Identity.BackendServices.slnx`.
+- `service/Identity.Api` hosts the module by `ProjectReference`: `AddApiDefaults()` / `UseApiDefaults()`,
+  `AddUserAccounts` over its own SQLite context (`Accounts/`), `SystemController`, and the pages in `wwwroot/` (filled
+  by the `BuildSpa` target; `-p:BuildSpa=false` skips it).
+- Tests: `Unit` (package logic, no database), `Integration` (the module over SQLite), `E2E` (the host in process:
+  wire, pages, `/health`, the descriptor's dev check), `Conformance` (the broker suites, none until the contract has
+  brokers), `Migrations` (the module's SQL, none until it ships any). None needs Docker. Run them with
+  `dotnet test Identity.BackendServices.slnx`.
 
 ## Frontend
 

@@ -13,7 +13,7 @@ public sealed partial class HostFilteringTests(IdentityApiFixture fixture)
 
     [Theory]
     [InlineData("localhost", "/health")]
-    [InlineData("localhost", "/api/greetings")]
+    [InlineData("localhost", "/api/system/status")]
     [InlineData(IdentityApiFixture.PublicHost, "/health")]
     public async Task Get_ShouldReturn200_WhenTheHostIsAllowed(string host, string path)
     {
@@ -24,7 +24,7 @@ public sealed partial class HostFilteringTests(IdentityApiFixture fixture)
 
     [Theory]
     [InlineData(ServiceHost + ":8080", "/health")]
-    [InlineData(ServiceHost + ":8080", "/api/greetings")]
+    [InlineData(ServiceHost + ":8080", "/api/system/status")]
     public async Task Get_ShouldReturn400_WhenTheHostIsNotAllowed(string host, string path)
     {
         using var response = await SendAsync(host, path);

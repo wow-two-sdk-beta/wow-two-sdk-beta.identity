@@ -4,17 +4,25 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
-  <!-- Unit tier — per-package logic, zero I/O (no database, no network, no Docker). -->
+  <!--
+    Unit tier — per-package logic with no database, no network and no Docker: Auth (API keys, allowlist, guest, current
+    user, JWT), Module's OTP and error texts, Providers' Google ID-token authenticator. In-memory TestServer pipelines
+    count as unit here. Tests moved from the be sdk keep their namespaces (WoW.Two.Sdk.Beta.Be.Identity.Tests.*).
+  -->
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\packages\Auth\WoW.Two.Sdk.Beta.Be.Identity.Auth.csproj" />
     <ProjectReference Include="..\..\packages\Module\WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
     <ProjectReference Include="..\..\packages\Client\WoW.Two.Sdk.Beta.Be.Identity.Client.csproj" />
+    <ProjectReference Include="..\..\packages\Providers\WoW.Two.Sdk.Beta.Be.Identity.Providers.csproj" />
   </ItemGroup>
 
   <ItemGroup>

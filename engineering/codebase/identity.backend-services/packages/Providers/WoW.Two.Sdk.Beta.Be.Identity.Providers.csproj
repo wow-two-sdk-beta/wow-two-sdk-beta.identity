@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Extension (layer 4): upstream social sign-in, kept apart for its 18 provider packages — the OAuth wrappers, the
+    Google ID-token authenticator and the claim normalizer. It references core only, so a product takes it beside Auth
+    or Module without either pulling the provider set.
+  -->
+  <PropertyGroup>
+    <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
+    <Description>Identity providers: OAuth sign-in with 17 upstream providers, the Google ID-token authenticator and the normalized claim set.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="WoW2.Sdk.Beta.Be" />
+    <PackageReference Include="AspNet.Security.OAuth.Amazon" />
+    <PackageReference Include="AspNet.Security.OAuth.Apple" />
+    <PackageReference Include="AspNet.Security.OAuth.Discord" />
+    <PackageReference Include="AspNet.Security.OAuth.GitHub" />
+    <PackageReference Include="AspNet.Security.OAuth.GitLab" />
+    <PackageReference Include="AspNet.Security.OAuth.LinkedIn" />
+    <PackageReference Include="AspNet.Security.OAuth.Notion" />
+    <PackageReference Include="AspNet.Security.OAuth.Reddit" />
+    <PackageReference Include="AspNet.Security.OAuth.Slack" />
+    <PackageReference Include="AspNet.Security.OAuth.Spotify" />
+    <PackageReference Include="AspNet.Security.OAuth.Twitch" />
+    <PackageReference Include="AspNet.Security.OAuth.Twitter" />
+    <PackageReference Include="AspNet.Security.OAuth.Vkontakte" />
+    <PackageReference Include="AspNet.Security.OAuth.Yandex" />
+    <PackageReference Include="Google.Apis.Auth" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Facebook" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" />
+  </ItemGroup>
+
+</Project>

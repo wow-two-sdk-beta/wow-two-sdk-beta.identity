@@ -36,15 +36,18 @@
 ### `codebase/identity.backend-services/`
 | Project | What it is |
 |---|---|
-| `packages/Abstractions` | the contract: `IGreetingsBroker`, model, constants, error catalogue |
-| `packages/Module` | Form 1: the broker over the module's store, `AddIdentity()`, embedded SQL migrations |
-| `packages/Client` | Forms 2/3: the broker over the service's HTTP API, `AddIdentityClient()` |
-| `packages/Testing` | fake broker and the conformance suite |
-| `service/Identity.Api` | the deployable host: the module, the HTTP mirror, the hosted pages |
+| `packages/Abstractions` | the contract: error catalogue, organization claims (brokers not built) |
+| `packages/Auth` | store-less auth: JWT, cookies, API keys, allowlists, current user, guest sessions |
+| `packages/Module` | Form 1: `AddUserAccounts` and its slices, OTP and its channels, account HTTP API |
+| `packages/Client` | Forms 2/3: the broker over the service's HTTP API (empty until brokers exist) |
+| `packages/Providers` | upstream sign-in: OAuth providers and claim normalization |
+| `packages/Server` | the OIDC server (reserved) |
+| `packages/Testing` | fakes and the conformance suites (empty until brokers exist) |
+| `service/Identity.Api` | the deployable host: the module over its own context, the hosted pages |
 | `tests/Identity.Tests.{Unit,Integration,E2E,Conformance,Migrations}` | the test tiers |
 
 ### `codebase/identity.frontend-services/`
 | Project | What it is |
 |---|---|
-| `packages/fe-identity` | `@wow-two-beta/fe-identity`: contract mirror, `GreetingWidget`, forward to the hosted page |
-| `apps/web` | hosted pages (`/greet`) and the console (`/`), served by `Identity.Api` |
+| `packages/fe-identity` | `@wow-two-beta/fe-identity`: `./contracts` · `./kit` · `./admin`; still the template's Greetings sample, unpublished |
+| `apps/web` | hosted pages and the console, served by `Identity.Api`; still the template's sample |

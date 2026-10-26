@@ -1,8 +1,11 @@
 <Solution>
   <Folder Name="/Packages/">
     <Project Path="packages/Abstractions/WoW.Two.Sdk.Beta.Be.Identity.Abstractions.csproj" />
+    <Project Path="packages/Auth/WoW.Two.Sdk.Beta.Be.Identity.Auth.csproj" />
     <Project Path="packages/Client/WoW.Two.Sdk.Beta.Be.Identity.Client.csproj" />
     <Project Path="packages/Module/WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
+    <Project Path="packages/Providers/WoW.Two.Sdk.Beta.Be.Identity.Providers.csproj" />
+    <Project Path="packages/Server/WoW.Two.Sdk.Beta.Be.Identity.Server.csproj" />
     <Project Path="packages/Testing/WoW.Two.Sdk.Beta.Be.Identity.Testing.csproj" />
   </Folder>
   <Folder Name="/Services/">
