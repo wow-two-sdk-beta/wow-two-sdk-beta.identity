@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <!--
+    E2E tier — boots the real Identity.Api host in-process (WebApplicationFactory via the SDK WebApiTestHost) over a
+    throwaway SQLite file: the HTTP wire, the hosted pages, /health and the descriptor's dev check. No Docker needed.
+    The SDK testing package brings xunit and AwesomeAssertions transitively.
+  -->
+  <ItemGroup>
+    <PackageReference Include="WoW2.Sdk.Beta.Be.Testing" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\service\Identity.Api\Identity.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

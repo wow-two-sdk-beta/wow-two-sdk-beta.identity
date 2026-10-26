@@ -1,0 +1,21 @@
+# CodeQL through the shared workflow in wow-two-platform.pipelines: weekly and on main pushes that change more than
+# markdown, beside delivery, never inside it. Findings land in the Security tab.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**/*.md', 'product/**', 'engineering/planning/**', 'engineering/research/**']
+  schedule:
+    - cron: '37 2 * * 1'
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  codeql:
+    uses: wow-two-platform/wow-two-platform.pipelines/.github/workflows/codeql.yml@v0.10.0
+    with:
+      languages: '["csharp", "javascript-typescript", "actions"]'

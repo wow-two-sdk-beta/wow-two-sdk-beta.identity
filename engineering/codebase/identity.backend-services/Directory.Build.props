@@ -1,0 +1,59 @@
+<Project>
+
+  <!--
+    Solution-wide build defaults for the Identity domain (.NET 10). The folder decides the role:
+      packages/  the NuGet family WoW2.Sdk.Beta.Be.Identity.* — packable, XML docs, warnings as errors
+      service/   the deployable host — not packable
+      tests/     the test tiers — not packable
+    Per-project .csproj files stay minimal: they declare only references and a package description.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <DomainProjectFolder>$([MSBuild]::MakeRelative($(MSBuildThisFileDirectory), $(MSBuildProjectDirectory)).Replace('\', '/'))</DomainProjectFolder>
+    <IsDomainPackage Condition="$(DomainProjectFolder.StartsWith('packages/'))">true</IsDomainPackage>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(DomainProjectFolder.StartsWith('tests/'))">
+    <RunSettingsFilePath>$(MSBuildThisFileDirectory)tests.runsettings</RunSettingsFilePath>
+  </PropertyGroup>
+
+  <!--
+    Versions. A package release passes -p:Version (from the newest be-v* tag, engineering/scripts/next-version.sh),
+    which wins over everything here. The image build passes APP_VERSION (X.Y.Z from the version track). A local
+    build reports 0.0.0-dev. AssemblyVersion stays 10.0.0.0 so a patch never breaks binding.
+    See wow-two-ws/conventions/development/repo/structure/domain-structure.md § Releases.
+  -->
+  <PropertyGroup>
+    <Version Condition="'$(Version)' == '' and '$(APP_VERSION)' != ''">$(APP_VERSION)</Version>
+    <Version Condition="'$(Version)' == ''">0.0.0-dev</Version>
+    <AssemblyVersion>10.0.0.0</AssemblyVersion>
+  </PropertyGroup>
+
+  <!-- The NuGet family: one version line, MIT, symbols, Source Link, a README beside each csproj. -->
+  <PropertyGroup Condition="'$(IsDomainPackage)' == 'true'">
+    <IsPackable>true</IsPackable>
+    <PackageId>$(MSBuildProjectName.Replace('WoW.Two.Sdk.', 'WoW2.Sdk.'))</PackageId>
+    <Authors>WoW 2.0</Authors>
+    <Company>WoW 2.0</Company>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/wow-two-sdk-beta/wow-two-sdk-beta.identity</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/wow-two-sdk-beta/wow-two-sdk-beta.identity</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>wow2;sdk;identity</PackageTags>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsDomainPackage)' == 'true'">
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

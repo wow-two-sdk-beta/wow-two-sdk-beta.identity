@@ -1,0 +1,4 @@
+@import 'tailwindcss';
+@import '@wow-two-beta/fe/styles.css';
+@source '../../node_modules/@wow-two-beta/fe/dist';
+@source '../../node_modules/@wow-two-beta/fe-identity/dist';

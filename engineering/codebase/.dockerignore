@@ -1,0 +1,38 @@
+# Build context = engineering/codebase/ (parent of identity.backend-services + identity.frontend-services).
+
+# Test tiers never ship in the image
+identity.backend-services/tests/
+
+# Build outputs — restored/rebuilt fresh inside the image
+**/bin/
+**/obj/
+**/dist/
+**/node_modules/
+**/logs/
+
+# Local SQLite stores — don't ship a dev database into an image layer
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# Settings that never ship in an image: this machine's own, a target's (mounted at deploy) and the retired name
+**/appsettings.Local.json
+**/appsettings.Target.json
+**/appsettings.Machine.json
+
+# Local secrets — never baked into an image layer
+**/.env*
+**/*.pfx
+**/*.pem
+**/*.key
+
+# Locally-deployed SPA — the spa stage rebuilds it from source
+identity.backend-services/service/Identity.Api/wwwroot/
+
+# IDE / VCS / OS cruft
+**/.vs/
+**/.idea/
+**/.vite/
+**/.git/
+**/*.user
+**/.DS_Store

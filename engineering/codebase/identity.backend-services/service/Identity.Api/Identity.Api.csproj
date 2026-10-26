@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    The deployable Identity service: hosts the Form 1 module and adds only hosting, the HTTP mirror of the contract and
+    the hosted pages. It takes the domain's own packages by ProjectReference, never by a published version.
+  -->
+  <ItemGroup>
+    <PackageReference Include="WoW2.Sdk.Beta.Be" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\packages\Module\WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- identity.frontend-services (the pnpm workspace) is a sibling of identity.backend-services under engineering/codebase/. -->
+    <SpaRoot>$(MSBuildProjectDirectory)/../../../identity.frontend-services/</SpaRoot>
+    <SpaEnabled Condition="'$(BuildSpa)' != 'false' and '$(DesignTimeBuild)' != 'true' and '$(NoBuild)' != 'true'">true</SpaEnabled>
+  </PropertyGroup>
+  <!-- Reinstalls packages only when the lockfile changed since the last install. -->
+  <Target Name="RestoreSpa" Condition="'$(SpaEnabled)' == 'true'"
+          Inputs="$(SpaRoot)pnpm-lock.yaml" Outputs="$(SpaRoot)node_modules/.modules.yaml">
+    <Error Condition="!Exists('$(SpaRoot)package.json')" Text="SpaRoot must point to the frontend workspace." />
+    <Exec Command="pnpm install --frozen-lockfile" WorkingDirectory="$(SpaRoot)" />
+  </Target>
+  <!-- Builds the workspace (fe-identity, then apps/web) into wwwroot, so one build yields the host that serves API + pages. -->
+  <Target Name="BuildSpa" DependsOnTargets="RestoreSpa" BeforeTargets="PrepareForBuild;ResolveProjectStaticWebAssets"
+          Condition="'$(SpaEnabled)' == 'true'">
+    <Exec Command="pnpm run deploy" WorkingDirectory="$(SpaRoot)" />
+    <ItemGroup>
+      <Content Remove="@(Content)"
+               Condition="$([System.String]::Copy('%(Content.Identity)').Replace('\', '/').StartsWith('wwwroot/'))" />
+      <Content Include="wwwroot/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+
+</Project>

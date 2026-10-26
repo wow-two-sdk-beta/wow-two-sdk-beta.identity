@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/Packages/">
+    <Project Path="packages/Abstractions/WoW.Two.Sdk.Beta.Be.Identity.Abstractions.csproj" />
+    <Project Path="packages/Client/WoW.Two.Sdk.Beta.Be.Identity.Client.csproj" />
+    <Project Path="packages/Module/WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
+    <Project Path="packages/Testing/WoW.Two.Sdk.Beta.Be.Identity.Testing.csproj" />
+  </Folder>
+  <Folder Name="/Services/">
+    <Project Path="service/Identity.Api/Identity.Api.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/Identity.Tests.Conformance/Identity.Tests.Conformance.csproj" />
+    <Project Path="tests/Identity.Tests.E2E/Identity.Tests.E2E.csproj" />
+    <Project Path="tests/Identity.Tests.Integration/Identity.Tests.Integration.csproj" />
+    <Project Path="tests/Identity.Tests.Migrations/Identity.Tests.Migrations.csproj" />
+    <Project Path="tests/Identity.Tests.Unit/Identity.Tests.Unit.csproj" />
+  </Folder>
+</Solution>

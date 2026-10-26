@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The Identity test kit: a fake over the contract and the conformance suite every implementation must pass. -->
+  <PropertyGroup>
+    <Description>Identity test kit: a fake greetings broker and the conformance suite every implementation must pass.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="WoW2.Sdk.Beta.Be.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Abstractions\WoW.Two.Sdk.Beta.Be.Identity.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

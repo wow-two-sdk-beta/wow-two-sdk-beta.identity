@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../../../../conventions/deployment/descriptor/deploy.schema.json
+# What the Identity domain deploys: one service hosting the Form 1 module, its HTTP API, the hosted pages and the admin
+# console. Format and rules: wow-two-ws/conventions/deployment/descriptor/deploy-descriptor.md. Hostnames, secrets
+# and environments live in Wheelhouse targets, never here. Paths are relative to engineering/.
+descriptor: 2
+product: identity
+platform: linux/amd64
+# Dev runs as .NET Development, prod as Production; appsettings.Development.json holds defaults only, and an IDE
+# run's own values live in appsettings.Local.json.
+dotnetEnvironment: true
+# The dev check: once a dev rollout succeeds, the service's own image asks it for its health and a greeting over the
+# platform network. A pass lets auto-promote take the release. Each request carries the probe Host (localhost): a
+# target's AllowedHosts names its public hosts plus localhost, so the service's platform-network name in the URL
+# would answer 400 from host filtering.
+verify:
+  service: identity
+  command:
+    - sh
+    - -c
+    - >-
+      curl --fail --silent --show-error --max-time 10 --header "Host: localhost" --output /dev/null
+      "$VERIFY_SERVICE_IDENTITY/health"
+      && curl --fail --silent --show-error --max-time 10 --header "Host: localhost" --output /dev/null
+      "$VERIFY_SERVICE_IDENTITY/api/greetings"
+      && echo "health and greeting answered"
+  timeout: 1m
+# Two host roles: the public front door for the API and the hosted pages, and the private admin console. One app
+# serves both; Wheelhouse binds each site to its own host per environment.
+sites:
+  app: { primary: true }
+  console: { exposure: private }
+shared:
+  - codebase/identity.backend-services/Directory.*.props
+  - codebase/identity.backend-services/global.json
+services:
+  identity:
+    build:
+      dockerfile: deployment/Dockerfile
+    paths:
+      - codebase/identity.backend-services/**
+      - codebase/identity.frontend-services/**
+    health: /health
+    memory: 256m
+    # Typed keys (pipelines v0.10.0): Wheelhouse checks each saved value against its type; a required key joins
+    # settings.required. The target's settings file (/app/appsettings.Target.json) supplies the SQLite path on the
+    # data volume; the name ends in ConnectionString, so Wheelhouse keeps the value in its vault.
+    settings:
+      keys:
+        DatabaseSettings:ConnectionString: { required: true }
+    volumes:
+      data: /data
+    # The pages at /, the contract's HTTP mirror under the same host's /api: /api routes ahead of /, never /apiary.
+    sites:
+      app: { paths: [/, /api] }
+      console: { paths: [/, /api] }

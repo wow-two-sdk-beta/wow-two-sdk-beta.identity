@@ -1,0 +1,22 @@
+# Local verification only. Bring up from engineering/deployment/:
+#
+#   docker compose up -d --build     the service answers on http://127.0.0.1:8389
+#
+# The SQLite file lives on the named volume, so data survives container replacement. A deployed environment's path
+# comes from its Wheelhouse target settings, never from here.
+services:
+  identity:
+    image: identity:local
+    build:
+      context: ../codebase
+      dockerfile: ../deployment/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8389:8080"
+    environment:
+      DB_CONNECTION: "Data Source=/data/identity.db"
+    volumes:
+      - identity-data:/data
+
+volumes:
+  identity-data:

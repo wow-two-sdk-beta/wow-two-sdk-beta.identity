@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Form 1: the greetings capability in the consumer's process, over the consumer's database. Ships its schema as
+    embedded Migrations/NNN-name/{Apply,Rollback}.sql; the host applies them (the service does on boot).
+  -->
+  <PropertyGroup>
+    <Description>Identity Form 1: the in-process greetings module over the consumer's database, with its SQL migrations.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="WoW2.Sdk.Beta.Be" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Abstractions\WoW.Two.Sdk.Beta.Be.Identity.Abstractions.csproj" />
+  </ItemGroup>
+
+  <!-- SQL migrations ship embedded (logical name "Migrations/NNN-name/Apply.sql"), resolved by the SDK migrator. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Migrations\**\*.sql">
+      <LogicalName>Migrations/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Identity.Tests.Unit" />
+    <InternalsVisibleTo Include="Identity.Tests.Integration" />
+  </ItemGroup>
+
+</Project>

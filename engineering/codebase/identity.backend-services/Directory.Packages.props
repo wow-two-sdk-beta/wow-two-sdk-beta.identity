@@ -1,0 +1,31 @@
+<Project>
+
+  <!--
+    Central Package Management — one version per package for the whole solution; project files name packages only.
+    The family's own packages arrive by ProjectReference, never by version. core-latest.yml overrides
+    BackendSdkVersion with the newest published be sdk (-p:BackendSdkVersion=…) to catch drift nightly.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- The core pin; it is also each package's nuspec floor on WoW2.Sdk.Beta.Be and the kernel. -->
+    <BackendSdkVersion>10.0.77-beta</BackendSdkVersion>
+  </PropertyGroup>
+
+  <!-- be sdk: one family, bumped together. The kernel (Result, AppError, IEvent) is the only package the contract takes. -->
+  <ItemGroup>
+    <PackageVersion Include="WoW2.Sdk.Beta.Be.Abstractions" Version="$(BackendSdkVersion)" />
+    <PackageVersion Include="WoW2.Sdk.Beta.Be" Version="$(BackendSdkVersion)" />
+    <PackageVersion Include="WoW2.Sdk.Beta.Be.Testing" Version="$(BackendSdkVersion)" />
+    <PackageVersion Include="WoW2.Sdk.Beta.Be.Testing.Data" Version="$(BackendSdkVersion)" />
+  </ItemGroup>
+
+  <!-- Tests. -->
+  <ItemGroup>
+    <PackageVersion Include="AwesomeAssertions" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="9.1.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,25 @@
+{
+  "name": "identity-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Frontend workspace for the Identity domain: the @wow-two-beta/fe-identity package and the hosted pages app.",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=24.11.0 <25"
+  },
+  "scripts": {
+    "build:packages": "pnpm --filter \"./packages/**\" build",
+    "dev": "pnpm build:packages && pnpm --filter @identity/web dev",
+    "dev:http": "pnpm build:packages && pnpm --filter @identity/web dev:http",
+    "typecheck": "pnpm build:packages && pnpm -r typecheck",
+    "build": "pnpm -r build",
+    "preview": "pnpm --filter @identity/web preview",
+    "test": "pnpm build:packages && pnpm -r test",
+    "format": "pnpm -r format",
+    "format:check": "pnpm -r format:check",
+    "lint": "pnpm -r lint",
+    "check:package": "pnpm --filter @wow-two-beta/fe-identity check:package",
+    "deploy": "pnpm build && node scripts/deploy.mjs"
+  }
+}

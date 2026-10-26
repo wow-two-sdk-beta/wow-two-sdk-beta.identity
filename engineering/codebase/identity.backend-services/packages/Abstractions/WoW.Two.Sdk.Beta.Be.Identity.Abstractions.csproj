@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Identity contract: the Greetings broker, its model, constants and error catalogue. It references the kernel
+    WoW2.Sdk.Beta.Be.Abstractions only (Result, AppError, IEvent) — no core, no framework reference, no third-party
+    package — and holds no options binding, DI registration or I/O.
+  -->
+  <PropertyGroup>
+    <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
+    <Description>Identity contract: the Greetings broker, model, constants and error catalogue every form implements.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WoW2.Sdk.Beta.Be.Abstractions" />
+  </ItemGroup>
+
+</Project>

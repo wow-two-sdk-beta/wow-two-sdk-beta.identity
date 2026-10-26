@@ -1,0 +1,74 @@
+# The contract's conformance suite against the released image: pulls the image, starts it on a throwaway SQLite
+# volume, and runs the Client side of Identity.Tests.Conformance against it (CONFORMANCE_BASE_URL). Runs after each
+# image publish on main, nightly and on dispatch. It cannot block a publish; the descriptor's verify dev check is the
+# promotion gate.
+name: conformance
+
+on:
+  workflow_run:
+    workflows: [publish-docker-image]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: '41 3 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The image tag to test
+        required: false
+        default: latest
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: conformance
+  cancel-in-progress: true
+
+jobs:
+  image:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TAG: ${{ inputs.tag || 'latest' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: engineering/codebase/identity.backend-services/global.json
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Development mode skips the HTTPS redirect a production host applies behind its ingress.
+      - name: Start the released image
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/identity:$TAG"
+          docker run --detach --name identity --publish 127.0.0.1:8080:8080 \
+            --env ASPNETCORE_ENVIRONMENT=Development --env DB_CONNECTION="Data Source=/data/identity.db" \
+            --volume identity-data:/data "$image"
+          for _ in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:8080/health >/dev/null && exit 0
+            sleep 2
+          done
+          echo "::error::$image never reported healthy"
+          exit 1
+
+      - name: Run the conformance suite against the image
+        env:
+          CONFORMANCE_BASE_URL: http://127.0.0.1:8080
+        run: >-
+          dotnet test engineering/codebase/identity.backend-services/tests/Identity.Tests.Conformance -p:BuildSpa=false
+          --filter "FullyQualifiedName~ClientGreetingsConformanceTests"
+
+      - name: Service log
+        if: failure()
+        run: docker logs identity

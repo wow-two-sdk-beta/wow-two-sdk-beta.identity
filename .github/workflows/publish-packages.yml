@@ -1,0 +1,215 @@
+# Publishes the domain's packages from main, with versions derived from tags — CI never commits a version:
+#   job be  the NuGet family WoW2.Sdk.Beta.Be.Identity.*, line 10.y.z-beta, tag be-v{version}, nuget.org
+#   job fe  @wow-two-beta/fe-identity, line 0.0.z, tag fe-v{version}, npm
+# Each job runs only when its sources changed since its newest tag. The tag is pushed before the publish, so a failed
+# publish burns its number and never reuses it. No GitHub Release is created for a be-v or fe-v tag: the shared
+# publish workflow reads the newest release as the image's base.
+#
+# Both registries trust this file by name through OIDC (trusted publishing); the repository stores no token. Disarmed
+# until the repository variable PUBLISH_PACKAGES is true, which is set once nuget.org trusts this workflow; the npm job
+# also waits for the package's first version, published by hand, before its trusted publisher can exist.
+name: publish-packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'engineering/codebase/identity.backend-services/packages/**'
+      - 'engineering/codebase/identity.backend-services/Directory.*.props'
+      - 'engineering/codebase/identity.backend-services/global.json'
+      - 'engineering/codebase/identity.frontend-services/packages/**'
+      - 'engineering/codebase/identity.frontend-services/pnpm-lock.yaml'
+      - 'engineering/scripts/**'
+      - '.github/workflows/publish-packages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-packages
+  cancel-in-progress: false
+
+env:
+  BACKEND: engineering/codebase/identity.backend-services
+  FRONTEND: engineering/codebase/identity.frontend-services
+  FE_PACKAGE: '@wow-two-beta/fe-identity'
+
+jobs:
+  plan:
+    if: vars.PUBLISH_PACKAGES == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      be: ${{ steps.plan.outputs.be }}
+      fe: ${{ steps.plan.outputs.fe }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: engineering/codebase/identity.frontend-services/.nvmrc
+      - name: Pick the lines whose sources changed since their newest tag
+        id: plan
+        run: |
+          set -euo pipefail
+          changed() { # changed <tag glob> <path>...: true without a tag yet, or when a path changed since the tag
+            local tag
+            tag=$(git tag --list "$1" --sort=-v:refname | head -n 1)
+            shift
+            if [ -z "$tag" ] || ! git diff --quiet "$tag" HEAD -- "$@"; then echo true; else echo false; fi
+          }
+          be=$(changed 'be-v*' "$BACKEND/packages" "$BACKEND"/Directory.*.props "$BACKEND/global.json")
+          fe=$(changed 'fe-v*' "$FRONTEND/packages")
+          # npm creates a package only by hand: its first version has no trusted publisher to accept this workflow.
+          if [ "$fe" = true ] && npm view "$FE_PACKAGE" version 2>&1 | grep -q E404; then
+            echo "::notice::$FE_PACKAGE has no npm version yet; publish 0.0.1 by hand and add the trusted publisher."
+            fe=false
+          fi
+          echo "be=$be" >> "$GITHUB_OUTPUT"
+          echo "fe=$fe" >> "$GITHUB_OUTPUT"
+          echo "Lines to release: be=$be, fe=$fe" >> "$GITHUB_STEP_SUMMARY"
+
+  be:
+    needs: plan
+    if: needs.plan.outputs.be == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write # push the be-v tag
+      id-token: write # mint the OIDC token for NuGet trusted publishing
+    defaults:
+      run:
+        working-directory: engineering/codebase/identity.backend-services
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: engineering/codebase/identity.backend-services/global.json
+
+      - name: Next version
+        id: version
+        run: echo "version=$(bash ../../scripts/next-version.sh be)" >> "$GITHUB_OUTPUT"
+
+      # The packages build with the release version and commit, so the tested binaries are the packed ones. The
+      # service builds without the frontend: no package gate reads its pages.
+      - name: Build
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: >-
+          dotnet build Identity.BackendServices.slnx -c Release -p:BuildSpa=false -p:Version="$VERSION"
+          -p:ContinuousIntegrationBuild=true -p:RepositoryCommit="$GITHUB_SHA"
+
+      - name: Test the package gate (unit, integration, migrations, in-process conformance)
+        run: |
+          for tier in Unit Integration Migrations Conformance; do
+            dotnet test "tests/Identity.Tests.$tier" -c Release --no-build
+          done
+
+      - name: Pack
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for project in packages/*/*.csproj; do
+            dotnet pack "$project" -c Release --no-build -p:Version="$VERSION" \
+              -p:ContinuousIntegrationBuild=true -p:RepositoryCommit="$GITHUB_SHA" -o "$RUNNER_TEMP/packages"
+          done
+
+      - name: Verify the packages and restore them in a throwaway consumer
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          bash ../../scripts/verify-release-packages.sh "$RUNNER_TEMP/packages" "$VERSION" "$GITHUB_SHA"
+          bash ../../scripts/pack-smoke.sh "$RUNNER_TEMP/packages" "$VERSION"
+
+      - name: Keep the verified packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nuget-${{ steps.version.outputs.version }}
+          path: ${{ runner.temp }}/packages
+          if-no-files-found: error
+
+      # A rejected push means another run took the number: the job fails, and a rerun computes the next one.
+      - name: Tag the release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "be-v$VERSION" -m "NuGet family $VERSION"
+          git push origin "refs/tags/be-v$VERSION"
+
+      - name: Authenticate to nuget.org (trusted publishing)
+        id: nuget
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: MaxDev
+
+      - name: Publish to nuget.org
+        env:
+          NUGET_API_KEY: ${{ steps.nuget.outputs.NUGET_API_KEY }}
+        run: >-
+          dotnet nuget push "$RUNNER_TEMP/packages/*.nupkg" --source https://api.nuget.org/v3/index.json
+          --api-key "$NUGET_API_KEY" --skip-duplicate
+
+      - name: Verify the published family
+        timeout-minutes: 17
+        run: bash ../../scripts/verify-published-packages.sh "${{ steps.version.outputs.version }}"
+
+  fe:
+    needs: plan
+    if: needs.plan.outputs.fe == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # push the fe-v tag
+      id-token: write # npm trusted publishing and provenance
+    defaults:
+      run:
+        working-directory: engineering/codebase/identity.frontend-services
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: engineering/codebase/identity.frontend-services/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: engineering/codebase/identity.frontend-services/.nvmrc
+          cache: pnpm
+          cache-dependency-path: engineering/codebase/identity.frontend-services/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      - name: Next version, set in the checkout only
+        id: version
+        run: |
+          version=$(bash ../../scripts/next-version.sh fe)
+          (cd packages/fe-identity && npm version "$version" --no-git-tag-version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build and check the packed consumer
+        run: |
+          pnpm --filter "$FE_PACKAGE" build
+          node packages/fe-identity/scripts/check-package.mjs --output "$RUNNER_TEMP/fe-identity.tgz"
+
+      - name: Tag the release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "fe-v$VERSION" -m "$FE_PACKAGE $VERSION"
+          git push origin "refs/tags/fe-v$VERSION"
+
+      # Publishes exactly the archive the consumer check installed; the OIDC token also signs provenance.
+      - name: Publish to npm
+        run: npm publish "$RUNNER_TEMP/fe-identity.tgz" --access public --provenance --registry https://registry.npmjs.org

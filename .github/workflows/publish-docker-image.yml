@@ -1,0 +1,57 @@
+# Verifies, builds and publishes the Identity service image like every product, through the shared delivery workflow in
+# wow-two-platform.pipelines (current → plan → ci → publish):
+#   main          → release vX.Y.Z (X.Y from the newest version-track folder), bundle on the GitHub release
+#   other branches → candidate sha-<commit>; trunk only, no dev or test branch
+#   workflow_dispatch → a candidate for one commit that has no build yet
+#   pull request  → ci only
+# There is no deploy job: Wheelhouse deploys the published bundle to dev, then promotes it to prod. Wheelhouse detects
+# a publishable repository by this file's path, so it keeps the name. The NuGet family and the npm package ship from
+# publish-packages.yml on their own be-v / fe-v tags, which this workflow's v* tags never match.
+name: publish-docker-image
+
+on:
+  push:
+    branches: ['**', '!renovate/**']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: The full commit SHA to build
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
+concurrency:
+  group: delivery-${{ github.repository }}-${{ inputs.commit || github.ref }}
+  # main queues, so a newer push never cancels an active target operation; other refs cancel a superseded run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main') }}
+  queue: max
+
+jobs:
+  delivery:
+    uses: wow-two-platform/wow-two-platform.pipelines/.github/workflows/delivery.yml@v0.10.0
+    with:
+      commit: ${{ inputs.commit }}
+      # Backend: every tier (unit, integration, E2E, conformance in process, migrations) over SQLite, no Docker; the
+      # build also builds the frontend workspace into wwwroot, which the E2E tier reads. Release scripts: the tag
+      # version logic in throwaway repositories, and shellcheck.
+      backends: |
+        [{"name": "Backend", "dotnet": "engineering/codebase/identity.backend-services/global.json",
+          "node": "engineering/codebase/identity.frontend-services/.nvmrc",
+          "run": "dotnet test engineering/codebase/identity.backend-services/Identity.BackendServices.slnx",
+          "paths": ["engineering/codebase/identity.backend-services/**",
+                    "engineering/codebase/identity.frontend-services/**",
+                    "engineering/deployment/deploy.yml"]},
+         {"name": "Release scripts", "timeout": 10,
+          "run": ["bash engineering/scripts/test-next-version.sh",
+                  "command -v shellcheck >/dev/null || sudo apt-get install --yes --no-install-recommends shellcheck",
+                  "shellcheck engineering/scripts/*.sh"],
+          "paths": ["engineering/scripts/**"]}]
+      # Frontend: the fe-identity package and the hosted pages app; check:package installs the packed archive.
+      frontends: |
+        [{"name": "Frontend", "dir": "engineering/codebase/identity.frontend-services",
+          "scripts": ["lint", "test", "build", "check:package"],
+          "paths": ["engineering/codebase/identity.frontend-services/**"]}]

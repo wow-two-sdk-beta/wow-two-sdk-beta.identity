@@ -1,0 +1,118 @@
+# Compat run against the newest core: builds and tests the domain with the newest published be sdk and fe sdk, every
+# night and on dispatch, whether or not anything changed here — drift in core shows up before a product meets it.
+# A red run is a break to fix in the domain, never a release gate. The summary records the tested pair.
+name: core-latest
+
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-latest
+  cancel-in-progress: true
+
+jobs:
+  be:
+    name: be sdk (newest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: engineering/codebase/identity.backend-services
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: engineering/codebase/identity.backend-services/global.json
+      # The backend build also builds the frontend workspace (BuildSpa), which the E2E tier serves.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: engineering/codebase/identity.frontend-services/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: engineering/codebase/identity.frontend-services/.nvmrc
+
+      - name: Resolve the newest be sdk
+        id: core
+        run: |
+          set -euo pipefail
+          pinned=$(sed -n 's|.*<BackendSdkVersion>\(.*\)</BackendSdkVersion>.*|\1|p' Directory.Packages.props)
+          newest=$(curl --fail --silent --show-error https://api.nuget.org/v3-flatcontainer/wow2.sdk.beta.be/index.json \
+            | jq -r '.versions[-1]')
+          echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
+          echo "newest=$newest" >> "$GITHUB_OUTPUT"
+
+      - name: Test against the newest be sdk
+        env:
+          NEWEST: ${{ steps.core.outputs.newest }}
+        run: dotnet test Identity.BackendServices.slnx -p:BackendSdkVersion="$NEWEST"
+
+      - name: Record the tested pair
+        if: always()
+        env:
+          PINNED: ${{ steps.core.outputs.pinned }}
+          NEWEST: ${{ steps.core.outputs.newest }}
+          OUTCOME: ${{ job.status }}
+        run: |
+          {
+            echo "| be sdk | pinned | tested | result |"
+            echo "|---|---|---|---|"
+            echo "| \`WoW2.Sdk.Beta.Be\` | $PINNED | $NEWEST | $OUTCOME |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  fe:
+    name: fe sdk (newest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: engineering/codebase/identity.frontend-services
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: engineering/codebase/identity.frontend-services/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: engineering/codebase/identity.frontend-services/.nvmrc
+
+      - name: Resolve the newest fe sdk
+        id: core
+        run: |
+          set -euo pipefail
+          echo "pinned=$(node -p "require('./apps/web/package.json').dependencies['@wow-two-beta/fe']")" >> "$GITHUB_OUTPUT"
+          echo "newest=$(npm view @wow-two-beta/fe version)" >> "$GITHUB_OUTPUT"
+
+      # The checkout only: the lockfile moves to the newest fe sdk for this run and is never committed.
+      - name: Move to the newest fe sdk
+        env:
+          NEWEST: ${{ steps.core.outputs.newest }}
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm -r update "@wow-two-beta/fe@$NEWEST"
+
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Record the tested pair
+        if: always()
+        env:
+          PINNED: ${{ steps.core.outputs.pinned }}
+          NEWEST: ${{ steps.core.outputs.newest }}
+          OUTCOME: ${{ job.status }}
+        working-directory: .
+        run: |
+          {
+            echo "| fe sdk | pinned | tested | result |"
+            echo "|---|---|---|---|"
+            echo "| \`@wow-two-beta/fe\` | $PINNED | $NEWEST | $OUTCOME |"
+          } >> "$GITHUB_STEP_SUMMARY"
