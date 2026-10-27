@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Backlog
 
-*Last updated: 2026-10-26*
+*Last updated: 2026-10-27*
 
 Every unbuilt item, grouped; top of each group = next. Shipped work lives in [`version-track/`](version-track/).
 Shape: wow-two-ws/conventions/planning/version-track/version-track.md
@@ -23,7 +23,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 
 | Item | Type | Notes |
 |---|---|---|
-| I14 invitations and admin-created members | feature | by phone or email, single-use link, accepted on sign-in |
+| I14 invitations and admin-created members | feature | invite links with a role and a per-link expiry and use limit (one, a number, none); phone or email pre-registration; accepted on sign-in |
 | I15 durable OTP store | feature | hashed at rest, shared by instances, limits per phone, IP and client |
 | I16 sessions and sign-in log | feature | a session per device, revoke one or all, every attempt recorded |
 | I17 signing keys and JWKS | feature | key-source seam, startup validation, rotation with overlap |
