@@ -49,7 +49,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Oidc;
 
 var formOne = new ServiceCollection();
-formOne.AddUserAccounts<IdentityUser>();
+formOne.AddUserAccounts();
 
 var formThree = new ServiceCollection();
 formThree.AddCookieAuthentication();
