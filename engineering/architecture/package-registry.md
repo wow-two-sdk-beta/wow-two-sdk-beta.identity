@@ -13,27 +13,31 @@ folder under a package is a namespace below `WoW.Two.Sdk.Beta.Be.Identity`, kept
 
 | Package | Layer | Holds | References | Heavy deps | Forms |
 |---|---|---|---|---|---|
-| `WoW2.Sdk.Beta.Be.Identity.Abstractions` | contract | `Core/`: `IdentityErrorCodeConstants` (43 codes), `IdentityErrorTextConstants` (their ru/uz texts); `Core/Organizations/`: `OrganizationClaimTypeConstants`, `OrganizationClaimsPrincipalExtensions` | the kernel `WoW2.Sdk.Beta.Be.Abstractions` only; no framework reference | none | all |
+| `WoW2.Sdk.Beta.Be.Identity.Abstractions` | contract | `Core/`: `IdentityErrorCodeConstants` (43 codes), `IdentityErrorTextConstants` (their ru/uz texts), `AuthenticationMethodConstants` (`amr`); `Core/Organizations/`: `OrganizationClaimTypeConstants` (`org_id`, `org_role`, `org_permission`), `OrganizationClaimsPrincipalExtensions` | the kernel `WoW2.Sdk.Beta.Be.Abstractions` only; no framework reference | none | all |
 | `WoW2.Sdk.Beta.Be.Identity.Auth` | edge | `Cookies/`, `ApiKeys/`, `Authorization/` (allowlist, default deny), `Guest/`, `CurrentUser/` (`CookieCurrentUserService`), `Jwt/` (bearer validation, HMAC `ITokenIssuer`) | Abstractions, core | `Microsoft.AspNetCore.Authentication.JwtBearer`, `Microsoft.IdentityModel.JsonWebTokens`, `.Tokens` | all |
-| `WoW2.Sdk.Beta.Be.Identity.Module` | forms | `Core/` (`AddUserAccounts`, entities, `IdentityDbContext`, EF stores, 17 slices, account endpoints), `Migrations/` (the `identity` set per dialect), `Otp/` (service + 5 channels), `Mfa/` (TOTP, WebAuthn), `PasswordHashing/` (Argon2) | Auth, core | `Fido2.AspNet`, `Otp.NET`, `Konscious.Security.Cryptography.Argon2`, `Telegram.Bot` | 1 |
+| `WoW2.Sdk.Beta.Be.Identity.Module` | forms | `Core/` (`AddUserAccounts`, entities with the four OIDC entities, `IdentityDbContext`, EF stores, 17 slices, account endpoints), `Migrations/` (the `identity` set per dialect: `001-accounts`, `002-oidc`), `Otp/` (service + 5 channels), `Mfa/` (TOTP, WebAuthn), `PasswordHashing/` (Argon2) | Auth, core | `Fido2.AspNet`, `Otp.NET`, `Konscious.Security.Cryptography.Argon2`, `Telegram.Bot`; `OpenIddict.EntityFrameworkCore.Models` (entity classes only, no dependencies) | 1 |
 | `WoW2.Sdk.Beta.Be.Identity.Client` | forms | `Oidc/` (`AddOpenIdConnectAuthentication`, Authorization Code + PKCE) | Auth, core | `Microsoft.AspNetCore.Authentication.OpenIdConnect` | 2, 3 |
 | `WoW2.Sdk.Beta.Be.Identity.Providers` | extension | `OAuth/` (17 provider wrappers, Google ID-token authenticator), `Claims/` (claim normalizer, `NormalizedClaimTypeConstants`) | core | 14 `AspNet.Security.OAuth.*`, `Microsoft.AspNetCore.Authentication.{Facebook,Google,MicrosoftAccount}`, `Google.Apis.Auth` | 1, M0 |
-| `WoW2.Sdk.Beta.Be.Identity.Server` | extension | nothing yet: the OIDC server slices (I17–I19) land here | Module, core | none yet; OpenIddict 7.7.2 with its first slice | service only |
+| `WoW2.Sdk.Beta.Be.Identity.Server` | extension | `OidcServer/` (`AddOidcServer`, `MapOidcServerEndpoints`, options, claim mapping, client seeding), `Keys/` (`ISigningKeySource`, host-file source, boot check, per-token key pick, certificate generator, `keys generate`); I19 (back-channel, exchange grants) lands later | Module, core | `OpenIddict.AspNetCore`, `OpenIddict.EntityFrameworkCore` 7.7.2 | service only |
 | `WoW2.Sdk.Beta.Be.Identity.Testing` | test kit | nothing yet: fakes, personas and broker conformance bases land with the contract's brokers | Abstractions, `WoW2.Sdk.Beta.Be.Testing` | xunit (via be Testing) | all |
 | `@wow-two-beta/fe-identity` | fe | the template's `GreetingWidget` kit until the sign-in kit replaces it | peers `@wow-two-beta/fe` `>=0.0.n <0.1.0`, `vue` | none | all |
 
 | Package | Files | LOC |
 |---|---|---|
-| Abstractions | 4 `.cs` | ~290 |
+| Abstractions | 5 `.cs` | ~310 |
 | Auth | 39 `.cs` · 11 docs | ~1.4k |
-| Module | 184 `.cs` · 27 docs | ~8.4k |
+| Module | 192 `.cs` · 27 docs | ~8.4k |
 | Client | 2 `.cs` · 1 doc | ~70 |
 | Providers | 31 `.cs` · 10 docs | ~1.2k |
-| Server, Testing | 0 | 0 |
+| Server | 20 `.cs` · 2 docs | ~1.3k |
+| Testing | 0 | 0 |
 
 - Only Abstractions is new code beyond the move: `IdentityErrorTextConstants` carries the texts core held in
   `Web/ErrorTranslation/FieldCodeMessageConstants.cs`; `AddUserAccounts` contributes them through core's `AddErrorTexts`.
-- Server and Testing ship as empty assemblies so the family's ids exist from the first release.
+- Testing ships as an empty assembly so the family's ids exist from the first release.
+- OpenIddict 7.7.2 needs EF Core 10.0.11 or later, which the core pin carries from `10.0.86-beta`. The Module takes only
+  OpenIddict's entity classes, so a Form 1 product maps the OIDC tables without the server; a Form 3 product pulls no
+  OpenIddict package.
 
 ## Consumers
 

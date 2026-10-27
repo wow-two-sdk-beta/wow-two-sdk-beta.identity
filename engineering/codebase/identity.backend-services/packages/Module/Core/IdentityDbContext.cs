@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore;
 using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore.Sqlite;
 using WoW.Two.Sdk.Beta.Be.Foundation.Naming;
@@ -7,8 +8,9 @@ using WoW.Two.Sdk.Beta.Be.Foundation.Naming;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>
-/// The Module's own context over the identity schema: today's 11 <c>identity_*</c> tables, mapped only. The embedded SQL
-/// migration set <see cref="IdentityDatabaseOptions.MigrationSetName"/> creates and evolves them; EF never does.
+/// The Module's own context over the identity schema: 11 account tables and OpenIddict's four <c>identity_oidc_*</c>
+/// tables, mapped only. The embedded SQL migration set <see cref="IdentityDatabaseOptions.MigrationSetName"/> creates and
+/// evolves them; EF never does.
 /// </summary>
 /// <remarks>
 ///   - names are pinned here, whatever the host's naming convention: snake_case columns, <c>pk_{table}</c> keys and
@@ -16,6 +18,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 ///   - PostgreSQL qualifies every table with <see cref="IdentityDatabaseOptions.Schema"/>; SQLite has no schemas and
 ///     stores instants as binary <see cref="long"/> values, so range reads and ordering match PostgreSQL
 ///   - registered by <c>AddUserAccounts</c>; products never map these tables into their own context
+///   - the OIDC tables exist in every form (one schema shape everywhere); only the Server package reads or writes them,
+///     through OpenIddict's EF Core stores over this context
 /// </remarks>
 public sealed class IdentityDbContext : AppDbContextBase
 {
@@ -65,6 +69,18 @@ public sealed class IdentityDbContext : AppDbContextBase
     /// <summary>Organization memberships (<c>identity_memberships</c>).</summary>
     public DbSet<IdentityMembership> Memberships => Set<IdentityMembership>();
 
+    /// <summary>OpenID Connect clients (<c>identity_oidc_applications</c>).</summary>
+    public DbSet<IdentityOidcApplication> OidcApplications => Set<IdentityOidcApplication>();
+
+    /// <summary>OpenID Connect authorizations (<c>identity_oidc_authorizations</c>).</summary>
+    public DbSet<IdentityOidcAuthorization> OidcAuthorizations => Set<IdentityOidcAuthorization>();
+
+    /// <summary>OpenID Connect scopes (<c>identity_oidc_scopes</c>).</summary>
+    public DbSet<IdentityOidcScope> OidcScopes => Set<IdentityOidcScope>();
+
+    /// <summary>OpenID Connect tokens (<c>identity_oidc_tokens</c>).</summary>
+    public DbSet<IdentityOidcToken> OidcTokens => Set<IdentityOidcToken>();
+
     /// <inheritdoc />
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -87,6 +103,7 @@ public sealed class IdentityDbContext : AppDbContextBase
         MapAccounts(modelBuilder);
         MapCredentials(modelBuilder);
         MapOrganizations(modelBuilder);
+        MapOidc(modelBuilder);
         PinNames(modelBuilder);
 
         if (Database.IsSqlite())
@@ -209,7 +226,74 @@ public sealed class IdentityDbContext : AppDbContextBase
         });
     }
 
-    /// <summary>Pins snake_case column, key and index names, so the host's naming convention never reaches the identity tables.</summary>
+    /// <summary>
+    /// Maps OpenIddict's application, authorization, scope and token entities as OpenIddict's own EF Core configuration
+    /// does (lengths, indexes, concurrency tokens, the optional application and authorization links), under the
+    /// <c>identity_oidc_</c> prefix, with ids made in code.
+    /// </summary>
+    /// <remarks>The links are model relationships only: like every identity table, the SQL declares no foreign keys.</remarks>
+    private static void MapOidc(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<IdentityOidcApplication>(application =>
+        {
+            application.ToTable("identity_oidc_applications");
+            application.HasKey(a => a.Id);
+            application.Property(a => a.Id).ValueGeneratedNever();
+            application.HasIndex(a => a.ClientId).IsUnique();
+            application.Property(a => a.ApplicationType).HasMaxLength(50);
+            application.Property(a => a.ClientId).HasMaxLength(100);
+            application.Property(a => a.ClientType).HasMaxLength(50);
+            application.Property(a => a.ConcurrencyToken).HasMaxLength(50).IsConcurrencyToken();
+            application.Property(a => a.ConsentType).HasMaxLength(50);
+            application.HasMany(a => a.Authorizations).WithOne(a => a.Application).HasForeignKey("ApplicationId").IsRequired(false);
+            application.HasMany(a => a.Tokens).WithOne(t => t.Application).HasForeignKey("ApplicationId").IsRequired(false);
+        });
+
+        modelBuilder.Entity<IdentityOidcAuthorization>(authorization =>
+        {
+            authorization.ToTable("identity_oidc_authorizations");
+            authorization.HasKey(a => a.Id);
+            authorization.Property(a => a.Id).ValueGeneratedNever();
+            authorization.Property(a => a.ConcurrencyToken).HasMaxLength(50).IsConcurrencyToken();
+            authorization.Property(a => a.Status).HasMaxLength(50);
+            authorization.Property(a => a.Subject).HasMaxLength(400);
+            authorization.Property(a => a.Type).HasMaxLength(50);
+
+            // The pinned name would pass PostgreSQL's 63-character identifier limit.
+            authorization.HasIndex("ApplicationId", nameof(IdentityOidcAuthorization.Status), nameof(IdentityOidcAuthorization.Subject), nameof(IdentityOidcAuthorization.Type))
+                .HasDatabaseName("ix_identity_oidc_authorizations_app_status_subject_type");
+            authorization.HasMany(a => a.Tokens).WithOne(t => t.Authorization).HasForeignKey("AuthorizationId").IsRequired(false);
+        });
+
+        modelBuilder.Entity<IdentityOidcScope>(scope =>
+        {
+            scope.ToTable("identity_oidc_scopes");
+            scope.HasKey(s => s.Id);
+            scope.Property(s => s.Id).ValueGeneratedNever();
+            scope.HasIndex(s => s.Name).IsUnique();
+            scope.Property(s => s.ConcurrencyToken).HasMaxLength(50).IsConcurrencyToken();
+            scope.Property(s => s.Name).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<IdentityOidcToken>(token =>
+        {
+            token.ToTable("identity_oidc_tokens");
+            token.HasKey(t => t.Id);
+            token.Property(t => t.Id).ValueGeneratedNever();
+            token.HasIndex(t => t.ReferenceId).IsUnique();
+            token.HasIndex("ApplicationId", nameof(IdentityOidcToken.Status), nameof(IdentityOidcToken.Subject), nameof(IdentityOidcToken.Type));
+            token.Property(t => t.ConcurrencyToken).HasMaxLength(50).IsConcurrencyToken();
+            token.Property(t => t.ReferenceId).HasMaxLength(100);
+            token.Property(t => t.Status).HasMaxLength(50);
+            token.Property(t => t.Subject).HasMaxLength(400);
+            token.Property(t => t.Type).HasMaxLength(150);
+        });
+    }
+
+    /// <summary>
+    /// Pins snake_case column, key and index names, so the host's naming convention never reaches the identity tables. An
+    /// index already named in its mapping keeps that name.
+    /// </summary>
     private static void PinNames(ModelBuilder modelBuilder)
     {
         foreach (var entity in modelBuilder.Model.GetEntityTypes())
@@ -219,7 +303,7 @@ public sealed class IdentityDbContext : AppDbContextBase
                 property.SetColumnName(CaseMapper.ToSnakeCase(property.Name));
 
             entity.FindPrimaryKey()?.SetName($"pk_{table}");
-            foreach (var index in entity.GetIndexes())
+            foreach (var index in entity.GetIndexes().Where(index => index.FindAnnotation(RelationalAnnotationNames.Name) is null))
                 index.SetDatabaseName($"ix_{table}_{string.Join('_', index.Properties.Select(property => property.GetColumnName()))}");
         }
     }

@@ -13,6 +13,8 @@
 - ✅ Contract package: `Abstractions` holds what the moved code already shared across forms — the error catalogue and
   the organization claims — referencing the kernel only.
 - ⬜ Conformance: `Identity.Tests.Conformance` and `packages/Testing` are empty until the first broker exists.
+- ✅ OIDC wire: the Server package makes the service an OpenID Connect provider (code + PKCE, rotating refresh,
+  discovery, JWKS, userinfo, end-session) whose tokens carry the claims below; Forms 2/3 sign in against it.
 
 ## Abstractions — the contract as moved
 
@@ -33,12 +35,37 @@
 
 | Member | Contract |
 |---|---|
+| `OrganizationClaimTypeConstants.Id` = `org_id` | the active organization's id; an OIDC token carries one active organization |
 | `OrganizationClaimTypeConstants.Role` = `org_role` | one claim per membership, valued `{organizationId}:{role}` |
 | `OrganizationClaimTypeConstants.Permission` = `org_permission` | one claim per granted permission, valued `{organizationId}:{permission}` |
 | `ClaimsPrincipal.GetOrganizationRole(organizationId, claimType)` | the role in that organization, or `null` |
 | `ClaimsPrincipal.HasOrganizationPermission(organizationId, permission, claimType)` | whether the permission is granted there |
 
-- Module's `IdentityClaimOptions` may rename both claim types; the readers take the type as a parameter.
+- Module's `IdentityClaimOptions` may rename `org_role` and `org_permission`; the readers take the type as a parameter.
+  OIDC tokens always use the names above.
+
+### Authentication methods
+
+| Member | Contract |
+|---|---|
+| `AuthenticationMethodConstants.ClaimType` = `amr` | how the session signed in (RFC 8176), one claim per method in a principal, a JSON array in a token |
+| `Password` `pwd` · `HardwareKey` `hwk` · `OneTimePassword` `otp` · `MultipleFactors` `mfa` | the values the Module's `SignInService` records: a password, a passkey, a one-time code (authenticator, delivered code, recovery code, email link) and a second factor |
+
+- An app asks for step-up (such as `max_age=0` and a fresh `hwk`) by reading `amr` and `auth_time` from the ID token.
+
+### Token claims (Server)
+
+| Claim | ID token | Access token |
+|---|---|---|
+| `sub` (user id) · `amr` · `org_id` · `org_role` · `org_permission` | ✓ | ✓ |
+| `name` (with `profile`) · `email`, `email_verified` (with `email`) | ✓ | ✓ |
+| `auth_time` | ✓ | — |
+
+- One active organization per token: the one the grant carries while the person still belongs to it, else the
+  earliest membership. `org_role` is `{org}:{role}`; `org_permission` holds `{org}:{app}:{permission}` values of that
+  role, kept to the client's permission namespace.
+- Each client's access tokens carry its own `aud`; people are identified by `iss` + `sub`. Userinfo answers the same
+  profile and organization claims. `sid` arrives with sessions (I16).
 
 ## Seams by form, as moved
 
@@ -51,6 +78,7 @@ Namespaces are unchanged from the be sdk. Entities are not generic: one `Identit
 | 1 | Module | `AddUserAccounts(configure, configureDatabase)` → `IdentityBuilder`; `IdentityDbContext`; the `identity` migration set | store ports `IUserRepository`, `IRoleRepository`, `IUserRoleRepository`, `IUserClaimRepository`, `IUserLoginRepository`, `IUserTokenRepository`, `IRefreshTokenRepository`, `IUserPasskeyRepository`, `IOrganizationRepository` (EF defaults ship); hooks `IUserPasswordValidator`, `IAccountDeletionHandler`, `IPersonalDataExporter`, `IPwnedPasswordsClient` |
 | 1 | Module | OTP: `AddOtpService`, `Add{Email,Sms,Telegram,TelegramGateway,WhatsApp}OtpDelivery`; `AddTotp`; `AddFido2WebAuthn` | `IOtpService`, `IOtpRepository`, `IOtpCodeGenerator`, `IOtpMessageFormatter`, `IOtpDeliveryHandler` (keyed by `OtpChannelNameConstants`), `IOtpDeliveryHandlerFactory`, `ITotpService` |
 | 2/3 | Client | `AddOpenIdConnectAuthentication(OidcOptions)` | none: an OIDC client over cookies; brokers over the management API land here |
+| service | Server | `AddOidcServer(configure)` on the Module's builder; `MapOidcServerEndpoints()`; `Identity:Server` (issuer, sign-in path, lifetimes, keys, clients) | `ISigningKeySource` (host files by default); `SigningCertificateGenerator` and the service's `keys generate` |
 | providers | Providers | `Add{Provider}Authentication` × 17, `AddGoogleIdTokenAuthenticator`, `AddClaimNormalization` | `IGoogleIdTokenAuthenticator`; the normalized `wt:*` claim set (`NormalizedClaimTypeConstants`) |
 
 ### Form 1 services
@@ -91,13 +119,15 @@ registered.
 
 - Sign-in answers a bearer session (JWT through `ITokenIssuer`, plus a refresh token when registered) or, with
   `?useCookies=true`, a cookie; failures are problem details, translated when error translation is on.
-- `service/Identity.Api` hosts `AddUserAccounts` over its own SQLite context but maps no account routes yet: mapping
-  them needs a signing key and the sign-in slices configured per target.
+- `service/Identity.Api` hosts `AddUserAccounts` over its own SQLite context with Argon2 passwords, sign-in, lockout,
+  stamps and organizations, and maps the account API at `/api/account` for cookie sessions (the sign-in the OIDC
+  authorize endpoint reads). It registers no `ITokenIssuer`: its tokens come from the OIDC server, so bearer sign-in
+  and the routes of unregistered slices are not served yet.
 
 ## Forms map
 
 | Form | Implementation today | Wire |
 |---|---|---|
 | 1 | Module services over the consumer's `DbContext` | in process |
-| 2/3 | Client: OIDC sign-in against an instance | OIDC (`/authorize`, `/token`) once Server exists; no broker wire yet |
+| 2/3 | Client: OIDC sign-in against an instance | OIDC (`/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/endsession`, discovery, JWKS) served by Server; no broker wire yet |
 | fe | `@wow-two-beta/fe/auth` strategies in the fe sdk (default paths `/api/identity/*`); `fe-identity` still holds the template's greetings kit | the host's session routes |

@@ -10,6 +10,11 @@
     image when CONFORMANCE_BASE_URL is set), and the test kit's fakes. Empty until the contract has brokers: the
     template's Greetings suite left with the sample, and Identity's T4 brokers are not built yet. No Docker needed.
   -->
+  <!-- The shared framework, as the service has it: framework packages OpenIddict asks for (Data Protection) are pruned, not restored. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="WoW2.Sdk.Beta.Be.Testing.Data" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

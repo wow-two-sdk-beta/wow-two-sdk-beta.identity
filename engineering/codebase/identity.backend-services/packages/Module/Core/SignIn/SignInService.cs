@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passkeys;
@@ -13,10 +14,18 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
 /// principal the host issues as a cookie or a JWT; the session shape stays the host's choice. Lockout and two-factor
 /// steps apply when their slices are registered; a user with two-factor enabled always needs the second factor.
 /// </summary>
+/// <remarks>
+/// The principal records how the person signed in as <see cref="AuthenticationMethodConstants.ClaimType"/> claims:
+/// <c>pwd</c> for a password, <c>hwk</c> for a passkey, <c>otp</c> and <c>mfa</c> after a second factor, and whatever
+/// the caller names for a sign-in completed elsewhere; a renewal records none.
+/// </remarks>
 public sealed class SignInService
 {
     private static readonly SignInResult FailedResult = new() { Status = SignInStatus.Failed };
     private static readonly SignInResult LockedOutResult = new() { Status = SignInStatus.LockedOut };
+    private static readonly string[] PasswordMethods = [AuthenticationMethodConstants.Password];
+    private static readonly string[] PasskeyMethods = [AuthenticationMethodConstants.HardwareKey];
+    private static readonly string[] SecondFactorMethods = [AuthenticationMethodConstants.OneTimePassword, AuthenticationMethodConstants.MultipleFactors];
 
     private readonly UserAccountService _accounts;
     private readonly UserClaimsPrincipalFactory _principals;
@@ -107,18 +116,29 @@ public sealed class SignInService
                 : FailedResult;
         }
 
-        return await CompleteFirstFactorAsync(user, cancellationToken);
+        return await CompleteFirstFactorAsync(user, PasswordMethods, cancellationToken);
     }
 
     /// <summary>Sign in a user already authenticated elsewhere (external login, passwordless code); lockout and preconditions still apply.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<SignInResult> SignInAsync(IdentityUser user, CancellationToken cancellationToken = default)
+    public Task<SignInResult> SignInAsync(IdentityUser user, CancellationToken cancellationToken = default)
+        => SignInAsync(user, [], cancellationToken);
+
+    /// <summary>
+    /// Sign in a user already authenticated elsewhere, recording how as <see cref="AuthenticationMethodConstants.ClaimType"/>
+    /// claims; lockout and preconditions still apply.
+    /// </summary>
+    /// <param name="user">The user.</param>
+    /// <param name="methods">The methods used, such as <see cref="AuthenticationMethodConstants.OneTimePassword"/> for an emailed code.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<SignInResult> SignInAsync(IdentityUser user, IReadOnlyCollection<string> methods, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
+        ArgumentNullException.ThrowIfNull(methods);
         return _lockout?.IsLockedOut(user) == true
             ? LockedOutResult
-            : await CompleteFirstFactorAsync(user, cancellationToken);
+            : await CompleteFirstFactorAsync(user, methods, cancellationToken);
     }
 
     /// <summary>
@@ -140,7 +160,7 @@ public sealed class SignInService
         if ((_options.RequireConfirmedEmail && !user.EmailConfirmed) || (_options.RequireConfirmedPhoneNumber && !user.PhoneNumberConfirmed))
             return new SignInResult { Status = SignInStatus.NotAllowed, UserId = IdOf(user) };
 
-        return await SucceedAsync(user, cancellationToken);
+        return await SucceedAsync(user, PasskeyMethods, cancellationToken);
     }
 
     /// <summary>
@@ -250,10 +270,10 @@ public sealed class SignInService
                 : FailedResult;
         }
 
-        return await SucceedAsync(user, cancellationToken);
+        return await SucceedAsync(user, SecondFactorMethods, cancellationToken);
     }
 
-    private async Task<SignInResult> CompleteFirstFactorAsync(IdentityUser user, CancellationToken cancellationToken)
+    private async Task<SignInResult> CompleteFirstFactorAsync(IdentityUser user, IReadOnlyCollection<string> methods, CancellationToken cancellationToken)
     {
         if ((_options.RequireConfirmedEmail && !user.EmailConfirmed)
             || (_options.RequireConfirmedPhoneNumber && !user.PhoneNumberConfirmed))
@@ -272,20 +292,22 @@ public sealed class SignInService
             };
         }
 
-        return await SucceedAsync(user, cancellationToken);
+        return await SucceedAsync(user, methods, cancellationToken);
     }
 
-    private async Task<SignInResult> SucceedAsync(IdentityUser user, CancellationToken cancellationToken)
+    private async Task<SignInResult> SucceedAsync(IdentityUser user, IReadOnlyCollection<string> methods, CancellationToken cancellationToken)
     {
         if (_lockout is not null)
             await _lockout.ResetFailedAttemptsAsync(user, cancellationToken);
 
-        return new SignInResult
+        var principal = await _principals.CreateAsync(user, cancellationToken: cancellationToken);
+        if (principal.Identity is ClaimsIdentity identity)
         {
-            Status = SignInStatus.Succeeded,
-            UserId = IdOf(user),
-            Principal = await _principals.CreateAsync(user, cancellationToken: cancellationToken),
-        };
+            foreach (var method in methods.Distinct(StringComparer.Ordinal))
+                identity.AddClaim(new Claim(AuthenticationMethodConstants.ClaimType, method));
+        }
+
+        return new SignInResult { Status = SignInStatus.Succeeded, UserId = IdOf(user), Principal = principal };
     }
 
     /// <summary>Spends one hash verification on an unknown login so its timing matches a known one.</summary>

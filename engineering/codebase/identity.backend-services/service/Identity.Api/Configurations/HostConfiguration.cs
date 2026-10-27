@@ -26,6 +26,7 @@ public static partial class HostConfiguration
 
         return builder
             .AddIdentityModule()
+            .AddSignInSession()
             .AddControllers();
     }
 
@@ -36,8 +37,14 @@ public static partial class HostConfiguration
         // Apply the module's identity schema on a local run; a deployed boot only verifies the deploy's migrate step ran.
         await app.MigrateIdentitySchemaAsync();
 
-        // SDK pipeline: secure headers, compression, the SPA bundle, /health (database readiness) and the SPA fallback.
-        app.UseApiDefaults();
+        // SDK pipeline: secure headers, compression, the SPA bundle, the session and OpenIddict's own endpoints (discovery,
+        // JWKS) in authentication, /health (database readiness) and the SPA fallback.
+        app.UseApiDefaults(identity =>
+        {
+            identity.UseAuthentication();
+            identity.UseAuthorization();
+        });
+        app.MapIdentityEndpoints();
         app.MapControllers();
 
         return app;

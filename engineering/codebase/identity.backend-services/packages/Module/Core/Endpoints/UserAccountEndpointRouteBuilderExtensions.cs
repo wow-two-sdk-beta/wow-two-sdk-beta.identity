@@ -164,7 +164,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
             throw Unauthorized(IdentityErrorCodeConstants.InvalidEmailSignIn, "The link or code is invalid or has expired.").ToException();
 
         var signIn = services.GetRequiredService<SignInService>();
-        var result = await signIn.SignInAsync(user, cancellationToken);
+        var result = await signIn.SignInAsync(user, [AuthenticationMethodConstants.OneTimePassword], cancellationToken);
         if (result is { Status: SignInStatus.RequiresTwoFactor, TwoFactorTicket: { } ticket } && TryParseKey(result.UserId, out var userId))
         {
             var method = result.TwoFactorMethod ?? TwoFactorMethodNameConstants.Authenticator;

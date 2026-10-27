@@ -28,6 +28,9 @@ await signIn.TwoFactorSignInAsync(userId, ticket, code);          // or Recovery
 - Wrong passwords and wrong second factors both count toward lockout; the failure count resets only on success.
 - A user with `TwoFactorEnabled` always gets `RequiresTwoFactor`, even when the two-factor slice is absent.
 - The two-factor ticket is a purpose token (5 minutes by default) bound to the user and stamp.
-- `SignInAsync(user)` completes external-login and passwordless flows with the same lockout and precondition checks.
+- `SignInAsync(user)` completes external-login and passwordless flows with the same lockout and precondition checks;
+  `SignInAsync(user, methods)` also records how (an emailed code passes `otp`).
+- The principal carries `amr` claims (`AuthenticationMethodConstants`): `pwd` after a password, `hwk` after a passkey,
+  `otp` and `mfa` after a second factor; a renewal records none. The OIDC server copies them into tokens.
 - `PasskeySignInAsync(state, assertionJson)` verifies a passkey, then applies lockout and preconditions; no second factor.
 - Preconditions: `IdentityCoreOptions.SignIn` (`RequireConfirmedEmail`, `RequireConfirmedPhoneNumber`, `AllowEmailLogin`).

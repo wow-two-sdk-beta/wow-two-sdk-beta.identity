@@ -1,4 +1,9 @@
 using Identity.Api.Configurations;
+using WoW.Two.Sdk.Beta.Be.Identity.Keys;
+
+// The owner's key command (keys generate --role …): print one PEM bundle to stdout and exit before any host boots.
+if (args is ["keys", .. var keyArguments])
+    return SigningKeyCommand.Run(keyArguments, Console.Out, Console.Error, TimeProvider.System);
 
 // Build and configure the host.
 var builder = WebApplication.CreateBuilder(args);

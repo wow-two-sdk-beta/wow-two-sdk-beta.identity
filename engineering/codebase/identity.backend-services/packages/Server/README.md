@@ -1,7 +1,34 @@
 # WoW2.Sdk.Beta.Be.Identity.Server
 
-The OIDC provider role the Identity service runs over the Form 1 module: OpenIddict server, keys and JWKS, the client
-registry, the back-channel sender and exchange grants.
+The OpenID Connect provider the Identity service runs over the Form 1 module: OpenIddict 7.7.2 with its EF Core stores
+on the Module's `IdentityDbContext`, the pass-through endpoints on the Module's sign-in session, the client registry
+seeded from configuration, and host-file certificates checked at boot. Products do not reference it; the Identity
+service does. The back-channel sender and exchange grants (I19) come later.
 
-Reserved: the server slices (I17–I19) are not built yet, so this package holds no types. Products do not reference it;
-the Identity service does.
+```csharp
+services.AddUserAccounts(configureDatabase: database => database.SchemaOwner = IdentitySchemaOwnerConstants.Service)
+    .AddArgon2Passwords()
+    .AddSignIn()
+    .AddOrganizations()
+    .AddAccountEndpoints()
+    .AddOidcServer();                                    // Identity:Server binds over any code options
+
+services.AddCookieAuthentication();                      // the sign-in session the authorize endpoint reads
+
+app.UseAuthentication();
+app.MapGroup("/api/account").MapUserAccountEndpoints(); // POST login?useCookies=true starts the session
+app.MapOidcServerEndpoints();                           // /connect/{authorize,token,userinfo,endsession}
+```
+
+| Folder | Holds | Lead doc |
+|---|---|---|
+| `OidcServer/` | `AddOidcServer`, `MapOidcServerEndpoints`, `OidcServerOptions` and `OidcClientOptions`, the claim mapping and the client seeding | [oidc-server.md](OidcServer/oidc-server.md) |
+| `Keys/` | `ISigningKeySource`, `HostFileSigningKeySource`, `SigningKeyValidator`, the per-token key pick, `SigningCertificateGenerator`, the `keys generate` command | [keys.md](Keys/keys.md) |
+
+- Grants: authorization code with PKCE (S256 only) and rotating refresh tokens; no implicit, password or client
+  credentials grant.
+- Tokens: access tokens are unencrypted JWTs a resource server verifies offline against the JWKS; codes and refresh
+  tokens are encrypted. Lifetimes default to code 60 s, access 10 min, ID 5 min, refresh 12 h absolute.
+- Tables: `identity_oidc_applications`, `_authorizations`, `_scopes`, `_tokens`, created by the Module's `002-oidc`
+  migration; this package only reads and writes them through OpenIddict.
+- Boot fails closed on unusable keys, on ephemeral keys outside a local run, and on an invalid client registry.

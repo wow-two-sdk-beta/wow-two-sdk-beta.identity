@@ -7,8 +7,14 @@
   <!--
     Integration tier — the Form 1 module wired as a consumer wires it (AddUserAccounts) over in-memory SQLite, its schema
     built by the module's own migration set (IdentityTestDatabase): every account slice, the account endpoints and the
-    cookie and stamp pipeline. No network, no Docker. Tests moved from the be sdk keep their namespaces.
+    cookie and stamp pipeline, and the Server's client seeding through OpenIddict's stores. No network, no Docker. Tests
+    moved from the be sdk keep their namespaces.
   -->
+  <!-- The shared framework, as the service has it: framework packages OpenIddict asks for (Data Protection) are pruned, not restored. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="WoW2.Sdk.Beta.Be.Testing.Data" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
@@ -22,6 +28,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\packages\Auth\WoW.Two.Sdk.Beta.Be.Identity.Auth.csproj" />
     <ProjectReference Include="..\..\packages\Module\WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
+    <ProjectReference Include="..\..\packages\Server\WoW.Two.Sdk.Beta.Be.Identity.Server.csproj" />
   </ItemGroup>
 
   <ItemGroup>

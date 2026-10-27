@@ -31,6 +31,18 @@ public static partial class SchemaShape
         "identity_roles", "identity_user_claims", "identity_user_logins", "identity_user_roles", "identity_user_tokens", "identity_users",
     ];
 
+    /// <summary>OpenIddict's 4 tables 002-oidc creates.</summary>
+    public static readonly IReadOnlyList<string> OidcTables =
+    [
+        "identity_oidc_applications", "identity_oidc_authorizations", "identity_oidc_scopes", "identity_oidc_tokens",
+    ];
+
+    /// <summary>Every table the set creates, in name order.</summary>
+    public static readonly IReadOnlyList<string> AllTables = [.. AccountTables.Concat(OidcTables).Order(StringComparer.Ordinal)];
+
+    /// <summary>The set's migrations in apply order.</summary>
+    public static readonly IReadOnlyList<string> Migrations = ["001-accounts", "002-oidc"];
+
     /// <summary>The identity set's own history table, which the model does not map.</summary>
     private const string MigrationHistoryTable = $"{IdentityDatabaseOptions.MigrationSetName}_migration_history";
 

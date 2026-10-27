@@ -8,7 +8,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- The core pin; it is also each package's nuspec floor on WoW2.Sdk.Beta.Be and the kernel. -->
-    <BackendSdkVersion>10.0.85-beta</BackendSdkVersion>
+    <BackendSdkVersion>10.0.86-beta</BackendSdkVersion>
   </PropertyGroup>
 
   <!-- be sdk: one family, bumped together. The kernel (Result, AppError, IEvent) is the only package the contract takes. -->
@@ -22,7 +22,9 @@
   <!--
     Third-party floors, one row per package, at the versions the be sdk pinned when Identity left it (10.0.81-beta,
     6f55cfe). Each package layer takes only its own: Auth the JWT set, Module the credential set, Client OpenIdConnect,
-    Providers the OAuth set.
+    Providers the OAuth set, Server OpenIddict. OpenIddict 7.7.2 needs EF Core 10.0.11 or later, which the be sdk pin
+    carries from 10.0.86-beta; the Module takes only OpenIddict's dependency-free entity classes, so its context maps the
+    OIDC tables without the server.
   -->
   <ItemGroup Label="Auth">
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
@@ -33,12 +35,18 @@
   <ItemGroup Label="Module">
     <PackageVersion Include="Fido2.AspNet" Version="3.0.1" />
     <PackageVersion Include="Konscious.Security.Cryptography.Argon2" Version="1.3.1" />
+    <PackageVersion Include="OpenIddict.EntityFrameworkCore.Models" Version="7.7.2" />
     <PackageVersion Include="Otp.NET" Version="1.4.0" />
     <PackageVersion Include="Telegram.Bot" Version="22.10.0.1" />
   </ItemGroup>
 
   <ItemGroup Label="Client">
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup Label="Server">
+    <PackageVersion Include="OpenIddict.AspNetCore" Version="7.7.2" />
+    <PackageVersion Include="OpenIddict.EntityFrameworkCore" Version="7.7.2" />
   </ItemGroup>
 
   <ItemGroup Label="Providers">

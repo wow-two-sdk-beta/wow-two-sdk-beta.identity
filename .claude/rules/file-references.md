@@ -36,14 +36,14 @@
 ### `codebase/identity.backend-services/`
 | Project | What it is |
 |---|---|
-| `packages/Abstractions` | the contract: error catalogue, organization claims (brokers not built) |
+| `packages/Abstractions` | the contract: error catalogue, organization and `amr` claims (brokers not built) |
 | `packages/Auth` | store-less auth: JWT, cookies, API keys, allowlists, current user, guest sessions |
-| `packages/Module` | Form 1: `AddUserAccounts` and its slices, OTP and its channels, account HTTP API |
+| `packages/Module` | Form 1: `AddUserAccounts` and its slices, OTP and its channels, account HTTP API, the schema (OIDC tables included) |
 | `packages/Client` | Forms 2/3: the broker over the service's HTTP API (empty until brokers exist) |
 | `packages/Providers` | upstream sign-in: OAuth providers and claim normalization |
-| `packages/Server` | the OIDC server (reserved) |
+| `packages/Server` | the OIDC server: OpenIddict over the Module, pass-through endpoints, client seeding, host-file keys and `keys generate` |
 | `packages/Testing` | fakes and the conformance suites (empty until brokers exist) |
-| `service/Identity.Api` | the deployable host: the module over its own context, the hosted pages |
+| `service/Identity.Api` | the deployable host: the module and the OIDC server over its own context, the account API, the hosted pages |
 | `tests/Identity.Tests.{Unit,Integration,E2E,Conformance,Migrations}` | the test tiers |
 
 ### `codebase/identity.frontend-services/`

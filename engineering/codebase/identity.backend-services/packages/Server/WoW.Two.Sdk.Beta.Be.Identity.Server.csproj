@@ -1,22 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Extension (layer 4): the OIDC server the Identity service runs — OpenIddict server, keys and JWKS, the client
-    registry, the back-channel sender and exchange grants (slices I17–I19). Empty until those slices are built; it
-    takes OpenIddict (7.7.2, T1) with its first slice.
+    Extension (layer 4): the OIDC server the Identity service runs over the Form 1 module — OpenIddict 7.7.2 (T1) with
+    its EF Core stores on the Module's IdentityDbContext, the pass-through endpoints, the client registry seeded from
+    configuration, and the key source with its boot check and generator (slices I17–I18). The back-channel sender and
+    exchange grants (I19) come later.
   -->
   <PropertyGroup>
     <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
-    <Description>Identity server: the OIDC provider role the Identity service runs over the Form 1 module. Reserved; the server slices are not built yet.</Description>
+    <Description>Identity server: the OpenID Connect provider the Identity service runs over the Form 1 module — code flow with PKCE, rotating refresh tokens, discovery, JWKS, userinfo and end-session on OpenIddict, with host-file certificates.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="WoW2.Sdk.Beta.Be" />
+    <PackageReference Include="OpenIddict.AspNetCore" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Module\WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Identity.Tests.Unit" />
+    <InternalsVisibleTo Include="Identity.Tests.Integration" />
+    <InternalsVisibleTo Include="Identity.Tests.E2E" />
   </ItemGroup>
 
 </Project>

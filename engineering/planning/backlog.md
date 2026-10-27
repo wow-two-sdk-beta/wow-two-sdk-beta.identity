@@ -27,6 +27,8 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | I15 durable OTP store | feature | hashed at rest, shared by instances, limits per phone, IP and client |
 | I16 sessions and sign-in log | feature | a session per device, revoke one or all, every attempt recorded |
 | I18 back-channel logout | feature | member removal signs every app out at once |
+| app access check | feature | refuse sign-in and tokens for an app missing from the member's `app_access` (Q61) |
+| `amr` after a second factor | fix | keep `pwd` beside `otp` and `mfa` once a password sign-in passes TOTP (RFC 8176) |
 | I19 OIDC client | feature | the `Client` package: cookie session, organization claims, logout receiver |
 | I20 Telegram | feature | link on first sign-in; Log in with Telegram with the `phone` scope |
 | test mode | feature | fake channels, code sink, personas, refused in production |

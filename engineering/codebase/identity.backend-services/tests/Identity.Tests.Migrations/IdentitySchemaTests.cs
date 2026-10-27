@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore;
 using WoW.Two.Sdk.Beta.Be.Data.Migrations.Bespoke;
@@ -31,16 +32,16 @@ public abstract class IdentitySchemaTests : IAsyncLifetime
     public abstract Task DisposeAsync();
 
     [Fact]
-    public async Task Apply_ShouldCreateTheAccountTables_AndRecordTheSet()
+    public async Task Apply_ShouldCreateTheAccountAndOidcTables_AndRecordTheSet()
     {
         await using var migrator = CreateMigrator();
 
         var applied = (await migrator.ApplyAllAsync()).ValueOrThrow();
 
-        applied.Should().ContainSingle().Which.Applied.Should().Equal("001-accounts");
-        foreach (var table in SchemaShape.AccountTables)
-            (await migrator.HasTableAsync(Schema, table)).Should().BeTrue($"001-accounts creates {table}");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1);
+        applied.Should().ContainSingle().Which.Applied.Should().Equal(SchemaShape.Migrations);
+        foreach (var table in SchemaShape.AllTables)
+            (await migrator.HasTableAsync(Schema, table)).Should().BeTrue($"the set creates {table}");
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
@@ -51,13 +52,18 @@ public abstract class IdentitySchemaTests : IAsyncLifetime
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
 
+        (await runner.RollbackAsync(targetOrdinal: 1)).ValueOrThrow().Should().Equal("002-oidc");
+        foreach (var table in SchemaShape.OidcTables)
+            (await migrator.HasTableAsync(Schema, table)).Should().BeFalse($"rolling 002-oidc back drops {table}");
+        (await migrator.HasTableAsync(Schema, "identity_users")).Should().BeTrue("001-accounts stays applied");
+
         (await runner.RollbackAsync(targetOrdinal: 0)).ValueOrThrow().Should().Equal("001-accounts");
-        foreach (var table in SchemaShape.AccountTables)
+        foreach (var table in SchemaShape.AllTables)
             (await migrator.HasTableAsync(Schema, table)).Should().BeFalse($"the rollback drops {table}");
         (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Should().BeEmpty();
 
-        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("001-accounts");
-        foreach (var table in SchemaShape.AccountTables)
+        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal(SchemaShape.Migrations);
+        foreach (var table in SchemaShape.AllTables)
             (await migrator.HasTableAsync(Schema, table)).Should().BeTrue($"the second apply recreates {table}");
     }
 
@@ -72,7 +78,7 @@ public abstract class IdentitySchemaTests : IAsyncLifetime
         var model = SchemaShape.FromModel(context);
         var applied = await SchemaShape.FromDatabaseAsync(connection, Provider, Schema);
 
-        model.Select(table => table.Name).Should().Equal(SchemaShape.AccountTables);
+        model.Select(table => table.Name).Should().Equal(SchemaShape.AllTables);
         applied.Should().BeEquivalentTo(model, options => options.WithStrictOrdering());
     }
 
@@ -93,7 +99,7 @@ public abstract class IdentitySchemaTests : IAsyncLifetime
         set.Should().BeEquivalentTo(
             new { Provider, SchemaName = "identity_tenant", SchemaOwner = IdentitySchemaOwnerConstants.Module, TableName = "identity_migration_history" },
             options => options.ExcludingMissingMembers());
-        (await provider.ApplyMigrationSetsAsync("test")).ValueOrThrow().Single().Applied.Should().Equal("001-accounts");
+        (await provider.ApplyMigrationSetsAsync("test")).ValueOrThrow().Single().Applied.Should().Equal(SchemaShape.Migrations);
 
         var user = new IdentityUser { UserName = "alice", Email = "alice@example.test" };
         await using (var scope = provider.CreateAsyncScope())
@@ -104,6 +110,23 @@ public abstract class IdentitySchemaTests : IAsyncLifetime
         found.Should().NotBeNull();
         found!.Id.Should().Be(user.Id);
         found.Id.Version.Should().Be(7);
+
+        // The OIDC tables take OpenIddict's entities through the same context: a client and a token tied to it.
+        var expires = new DateTime(2026, 10, 27, 21, 0, 0, DateTimeKind.Utc);
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            var application = new IdentityOidcApplication { ClientId = "wheelhouse" };
+            context.OidcApplications.Add(application);
+            context.OidcTokens.Add(new IdentityOidcToken { Application = application, Subject = user.Id.ToString(), Type = "refresh_token", ExpirationDate = expires });
+            await context.SaveChangesAsync();
+        }
+
+        await using var last = provider.CreateAsyncScope();
+        var token = await last.ServiceProvider.GetRequiredService<IdentityDbContext>().OidcTokens.Include(t => t.Application).SingleAsync();
+        token.Application!.ClientId.Should().Be("wheelhouse");
+        token.ExpirationDate.Should().Be(expires);
+        token.Id.Version.Should().Be(7);
     }
 
     /// <summary>A harness running the Module's embedded SQL for <see cref="Provider"/> as the <c>identity</c> set, rollback allowed.</summary>

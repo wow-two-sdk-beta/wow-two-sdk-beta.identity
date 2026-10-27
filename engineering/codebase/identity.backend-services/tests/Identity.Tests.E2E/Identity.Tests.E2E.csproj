@@ -9,6 +9,11 @@
     throwaway SQLite file: the HTTP wire, the hosted pages, /health and the descriptor's dev check. No Docker needed.
     The SDK testing package brings xunit and AwesomeAssertions transitively.
   -->
+  <!-- The shared framework, as the service has it: framework packages OpenIddict asks for (Data Protection) are pruned, not restored. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="WoW2.Sdk.Beta.Be.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

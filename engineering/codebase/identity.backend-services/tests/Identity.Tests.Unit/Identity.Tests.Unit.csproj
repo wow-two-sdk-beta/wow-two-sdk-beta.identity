@@ -6,9 +6,16 @@
 
   <!--
     Unit tier — per-package logic with no database, no network and no Docker: Auth (API keys, allowlist, guest, current
-    user, JWT), Module's OTP and error texts, Providers' Google ID-token authenticator. In-memory TestServer pipelines
-    count as unit here. Tests moved from the be sdk keep their namespaces (WoW.Two.Sdk.Beta.Be.Identity.Tests.*).
+    user, JWT), Module's OTP and error texts, Providers' Google ID-token authenticator, Server's keys (source, check,
+    selection, generator, command), claim mapping and client registration. In-memory TestServer pipelines count as unit
+    here; certificates are throwaway, made in memory or in temp files. Tests moved from the be sdk keep their namespaces
+    (WoW.Two.Sdk.Beta.Be.Identity.Tests.*).
   -->
+  <!-- The shared framework, as the service has it: framework packages OpenIddict asks for (Data Protection) are pruned, not restored. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
@@ -23,6 +30,7 @@
     <ProjectReference Include="..\..\packages\Module\WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
     <ProjectReference Include="..\..\packages\Client\WoW.Two.Sdk.Beta.Be.Identity.Client.csproj" />
     <ProjectReference Include="..\..\packages\Providers\WoW.Two.Sdk.Beta.Be.Identity.Providers.csproj" />
+    <ProjectReference Include="..\..\packages\Server\WoW.Two.Sdk.Beta.Be.Identity.Server.csproj" />
   </ItemGroup>
 
   <ItemGroup>

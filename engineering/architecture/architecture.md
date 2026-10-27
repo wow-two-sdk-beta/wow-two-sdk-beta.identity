@@ -44,10 +44,10 @@ flowchart BT
   subgraph ID["this repo · wow-two-sdk-beta.identity"]
     IA["Identity.Abstractions<br/>brokers · models · events · claims · errors"]
     AU["Identity.Auth<br/>cookies · API keys · JWT · guest · current user · session facade"]
-    MO["Identity.Module<br/>store · slices · SQL migrations · OTP · passkeys"]
+    MO["Identity.Module<br/>store · slices · SQL migrations · OIDC tables · OTP · passkeys"]
     CL["Identity.Client<br/>OIDC client · HTTP brokers · receivers"]
     PR["Identity.Providers<br/>17 OAuth providers"]
-    SV["Identity.Server<br/>OpenIddict · keys · JWKS"]
+    SV["Identity.Server<br/>OpenIddict · pass-through endpoints · client registry · keys · JWKS"]
     TE["Identity.Testing"]
     SVC["service · not packed"]
   end
@@ -81,9 +81,10 @@ flowchart BT
 | fe | `@wow-two-beta/fe-identity` | peers `@wow-two-beta/fe` and `vue`; exports `./contracts`, `./kit`, `./admin` |
 
 - core and the kernel never reference an Identity package; another domain references `Identity.Abstractions` only.
-- a Form 3 product pulls none of OpenIddict, Fido2, Otp.NET, Argon2, Telegram.Bot or the OAuth set.
-- today the code tree holds the template's `Abstractions`, `Module`, `Client` and `Testing` with a sample broker;
-  `Auth`, `Providers` and `Server` arrive with the move out of the be sdk.
+- a Form 3 product pulls none of OpenIddict, Fido2, Otp.NET, Argon2, Telegram.Bot or the OAuth set; a Form 1 product
+  pulls only OpenIddict's dependency-free entity classes, for the OIDC tables its schema carries.
+- every package exists: the moved code fills `Auth`, `Module`, `Client` and `Providers`, `Server` carries the OIDC
+  provider, and `Testing` stays empty until the contract has brokers.
 
 ---
 
@@ -91,6 +92,17 @@ flowchart BT
 
 - hosts the Module with the Server and Providers; it adds hosting, the HTTP mirror of the contract, the hosted pages
   and the admin console, and nothing else.
+- the OIDC provider: `AddOidcServer` on the Module's builder turns the instance's store into an OpenID Connect provider
+  (OpenIddict 7.7.2, its EF Core stores on `IdentityDbContext`): code + PKCE S256, rotating refresh tokens with an
+  absolute lifetime, discovery, JWKS, userinfo and end-session; no implicit, password or client-credentials grant.
+- the authorize, token, userinfo and end-session endpoints run in pass-through on the Module: the authorize endpoint
+  reads the account API's cookie session (`/api/account/login?useCookies=true`) and sends a person without one to
+  `Identity:Server:SignInPath`; one claim mapper writes every token's claims ([contract](contract.md) § Token claims).
+- clients come from `Identity:Server:Clients`, seeded idempotently at startup: confidential, first-party, exact URIs,
+  their own audience, hashed secrets.
+- keys: X.509 certificates in host files behind `ISigningKeySource`; a deployed boot refuses missing or unusable
+  certificates and ephemeral keys; the active certificate is picked per token by its dates, so a staged one takes over
+  without a deploy ([keys](../codebase/identity.backend-services/packages/Server/Keys/keys.md)).
 - serves `apps/web` from the same origin: hosted sign-in, account and console pages on `fe-identity`'s exports; the
   console composes the `./admin` screens.
 - two sites per instance: a public one for the protocol, sign-in and account paths, and a private one for the console
@@ -109,7 +121,8 @@ flowchart BT
 - the set ships per dialect (`Migrations/Postgres/`, `Migrations/Sqlite/`) and runs as the be sdk named set `identity`,
   with its own history and lock; the Module's `IdentityDbContext` maps it with every name pinned and never generates it.
 - tables keep the `identity_` prefix inside the `identity` schema (`Identity:Database:Schema`), so SQLite (no schemas)
-  and PostgreSQL share names.
+  and PostgreSQL share names; `001-accounts` creates the 11 account tables, `002-oidc` OpenIddict's four
+  `identity_oidc_*` tables, present in every form and used only by the Server.
 - the set claims its schema with an owner kind: `module` in a Form 1 product, `service` in an instance, which migrates
   through `Identity.Api migrate`.
 - keys are `uuid` made as Guid v7 in code, claim rows a `bigint` identity; products key their own data on `sub`, never
