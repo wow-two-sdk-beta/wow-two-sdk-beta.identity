@@ -1,6 +1,7 @@
 # Publishes the domain's packages from main, with versions derived from tags — CI never commits a version:
 #   job be  the NuGet family WoW2.Sdk.Beta.Be.Identity.*, line 10.y.z-beta, tag be-v{version}, nuget.org
 #   job fe  @wow-two-beta/fe-identity, line 0.0.z, tag fe-v{version}, npm
+#   job unlist  a manual dispatch with `unlist` hides versions on nuget.org instead (engineering/scripts/unlist-packages.sh)
 # Each job runs only when its sources changed since its newest tag. The tag is pushed before the publish, so a failed
 # publish burns its number and never reuses it. No GitHub Release is created for a be-v or fe-v tag: the shared
 # publish workflow reads the newest release as the image's base.
@@ -22,6 +23,11 @@ on:
       - 'engineering/scripts/**'
       - '.github/workflows/publish-packages.yml'
   workflow_dispatch:
+    inputs:
+      unlist:
+        description: 'Unlist instead of publishing: a family version (10.0.3-beta) or space-separated <id>@<version> pairs'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -37,7 +43,7 @@ env:
 
 jobs:
   plan:
-    if: vars.PUBLISH_PACKAGES == 'true' && github.ref == 'refs/heads/main'
+    if: vars.PUBLISH_PACKAGES == 'true' && github.ref == 'refs/heads/main' && !inputs.unlist
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -217,3 +223,32 @@ jobs:
       # Publishes exactly the archive the consumer check installed; the OIDC token also signs provenance.
       - name: Publish to npm
         run: npm publish "$RUNNER_TEMP/fe-identity.tgz" --access public --provenance --registry https://registry.npmjs.org
+
+  # A manual dispatch with `unlist` hides versions instead of publishing: a family version, or <id>@<version> pairs.
+  unlist:
+    if: inputs.unlist && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # mint the OIDC token for NuGet trusted publishing (the policy carries the unlist scope)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: ${{ env.BACKEND }}/global.json
+
+      - name: Authenticate to nuget.org (trusted publishing)
+        id: nuget
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: MaxDev
+
+      - name: Unlist
+        env:
+          NUGET_API_KEY: ${{ steps.nuget.outputs.NUGET_API_KEY }}
+          SELECTION: ${{ inputs.unlist }}
+        # Word splitting is intended: the script validates every token before it touches nuget.org.
+        run: bash engineering/scripts/unlist-packages.sh $SELECTION
