@@ -31,6 +31,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | I20 Telegram | feature | link on first sign-in; Log in with Telegram with the `phone` scope |
 | test mode | feature | fake channels, code sink, personas, refused in production |
 | hosted pages and console | feature | `apps/web` over `fe-identity` (`./kit`, `./admin`) |
+| console layout review | product | with the developer once the console shell runs on Wheelhouse's layout; refine it then |
 | conformance in CI | feature | OpenID Foundation suite against the image in `Testing` mode |
 | broker conformance | feature | the module, the client and the fake pass the same broker cases |
 
