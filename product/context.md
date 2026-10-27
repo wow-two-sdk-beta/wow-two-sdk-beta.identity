@@ -53,7 +53,8 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
 | NuGet trusted-publishing consent for the seven ids | ✅ | 2026-10-27; the family published at `10.0.0-beta` |
 | Wheelhouse registration, secrets and DNS for an instance | ⬜ | by hand; waits on Q4 and Q5 |
 | Migrator follow-ups before the first deploy | ✅ | owner marker, baseline and multi-set harness in be sdk `10.0.82-beta` |
-| P1 slices I14, I15, I18–I20 | ⬜ | [backlog](../engineering/planning/backlog.md) |
+| Shortlist Ocharo's needs, close the gaps, deploy with Ocharo | ⬜ | after the Wheelhouse migrate step; from the [backlog](../engineering/planning/backlog.md) P1 group |
+| Rest of P1, Ocharo fixes, console layout review | ⬜ | after Ocharo's capabilities are verified on its deploy |
 
 ---
 
@@ -95,4 +96,6 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
 - 2026-10-26 — breaking changes are allowed while the products have no users.
 - 2026-10-26 — the management screens ship in `@wow-two-beta/fe-identity`'s `./admin` export; `apps/web` composes
   them into the console, and a central services console or a product's admin page imports the same export.
+- 2026-10-27 — after the spine, Ocharo's slice comes before wow2's hosted pages: shortlist, close the gaps, deploy
+  with Ocharo and verify; the rest of P1 and the console layout review follow.
 - every architecture decision with its source: [decisions](../engineering/architecture/decisions/decisions.md).
