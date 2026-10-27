@@ -1,14 +1,15 @@
 # Identity — Product Context
 
-*Last updated: 2026-10-26*
+*Last updated: 2026-10-27*
 
 > Current state — changes often. Durable definition: [product.md](product.md).
 
 ## Current state
 
 v0.1 is in progress: the repo was created from the domain template on 2026-10-26, and Identity's code, tests and
-research are moving here out of the be sdk; the docs moved in the same pass. Nothing is published yet — no NuGet
-package, no npm package, no Identity image — and the OIDC server is not built. The first consumer is Ocharo (Form 2).
+research moved here out of the be sdk, which dropped them in `10.0.82-beta`. The seven NuGet packages are published
+at `10.0.0-beta` and the image at `v0.1.x` (2026-10-27); the npm package still holds the template's sample and is
+unpublished, and the OIDC server is not built. The first consumer is Ocharo (Form 2).
 
 ### What exists
 
@@ -47,12 +48,12 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
 
 | Task | Status | Notes |
 |---|---|---|
-| Move the code, tests and research out of the be sdk | 🔄 | another lane; `contract.md` and `package-registry.md` follow from the moved code |
-| Move the spec and the analysis batch into the repo | 🔄 | this pass; uncommitted until the sanitization review |
-| First npm publish of `@wow-two-beta/fe-identity` | ⬜ | by hand; then its trusted publisher |
-| NuGet trusted-publishing consent for the seven ids | ⬜ | by hand |
+| Move the code, tests and research out of the be sdk | ✅ | 2026-10-27; `contract.md` and `package-registry.md` follow from the moved code |
+| Move the spec and the analysis batch into the repo | ✅ | 2026-10-26 |
+| First npm publish of `@wow-two-beta/fe-identity` | ⬜ | by hand once real fe content lands; then its trusted publisher; tag `fe-v0.0.1` is burned |
+| NuGet trusted-publishing consent for the seven ids | ✅ | 2026-10-27; the family published at `10.0.0-beta` |
 | Wheelhouse registration, secrets and DNS for an instance | ⬜ | by hand; waits on Q4, Q5 and Q25 |
-| Migrator follow-ups before the first deploy | ⬜ | owner marker naming the instance, baseline, multi-set harness |
+| Migrator follow-ups before the first deploy | ✅ | owner marker, baseline and multi-set harness in be sdk `10.0.82-beta` |
 | P1 slices I14–I20 | ⬜ | [backlog](../engineering/planning/backlog.md) |
 
 ---
