@@ -1,8 +1,8 @@
 # WoW2.Sdk.Beta.Be.Identity.Abstractions
 
 The Identity contract: `IdentityErrorCodeConstants` and their ru/uz texts (`IdentityErrorTextConstants`), the
-organization claim types and readers (`OrganizationClaimTypeConstants`, `OrganizationClaimsPrincipalExtensions`) and the
-`amr` values a sign-in records (`AuthenticationMethodConstants`). It references the kernel `WoW2.Sdk.Beta.Be.Abstractions`
+organization claim types and readers (`OrganizationClaimTypeConstants`, `OrganizationClaimsPrincipalExtensions`), the
+`amr` values a sign-in records (`AuthenticationMethodConstants`) and the session claim `sid` (`SessionClaimTypeConstants`). It references the kernel `WoW2.Sdk.Beta.Be.Abstractions`
 only. A product's Domain and Application projects reference this package; its composition root picks an
 implementation:
 

@@ -1,8 +1,9 @@
 namespace WoW.Two.Sdk.Beta.Be.Identity.Keys;
 
 /// <summary>
-/// Supplies the OIDC server's signing and encryption certificates. The default reads host files
-/// (<see cref="HostFileSigningKeySource"/>); a database-held source can replace it without touching the server wiring.
+/// Supplies the OIDC server's signing and encryption certificates. The default reads the settings, inline PEM bundles or
+/// file paths (<see cref="SettingsSigningKeySource"/>); a database-held source can replace it without touching the server
+/// wiring.
 /// </summary>
 /// <remarks>
 ///   - read once, when the server's options are built at boot; a rotation reaches the server with the next restart

@@ -12,7 +12,7 @@ The HOW of wow-two-sdk-beta.identity: seven NuGet packages, one npm package and 
 | `research/` | [analyses](research/research.md) |
 | `scripts/` | [release helpers](scripts/scripts.md) |
 
-Stack: .NET 10, ASP.NET Core, EF Core as mapper over SQL migrations, PostgreSQL (SQLite for Form 1 and tests),
+Stack: .NET 10, ASP.NET Core, EF Core as mapper over SQL migrations, PostgreSQL only (tests in Testcontainers),
 OpenIddict for the protocol; Vue 3 on the fe sdk for the package and the hosted pages.
 
 Rules: wow-two-ws/conventions/development/repo/structure/domain-structure.md

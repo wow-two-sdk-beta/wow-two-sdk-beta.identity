@@ -42,6 +42,10 @@ public sealed class UserPersonalDataService(
         sections["logins"] = await context.Set<IdentityUserLogin>().AsNoTracking().Where(l => l.UserId == user.Id).Select(l => new { Provider = l.LoginProvider, DisplayName = l.ProviderDisplayName }).ToListAsync(cancellationToken);
         sections["passkeys"] = await context.Set<IdentityPasskey>().AsNoTracking().Where(p => p.UserId == user.Id).Select(p => new { p.Name, p.CreatedAt, p.LastUsedAt }).ToListAsync(cancellationToken);
         sections["sessions"] = await context.Set<IdentityRefreshToken>().AsNoTracking().Where(t => t.UserId == user.Id).Select(t => new { t.CreatedAt, t.ExpiresAt, t.RevokedAt }).ToListAsync(cancellationToken);
+        sections["sign_in_sessions"] = await context.Set<IdentitySession>().AsNoTracking().Where(s => s.UserId == user.Id).OrderBy(s => s.CreatedAt)
+            .Select(s => new { s.CreatedAt, s.LastSeenAt, s.ExpiresAt, s.RevokedAt, s.AuthenticationMethods, s.IpMasked, s.UserAgent }).ToListAsync(cancellationToken);
+        sections["sign_in_log"] = await context.Set<IdentitySignInLogEntry>().AsNoTracking().Where(e => e.UserId == user.Id).OrderBy(e => e.Id)
+            .Select(e => new { e.OccurredAt, e.Method, e.Result, e.Reason, e.ClientId, e.IpMasked, e.UserAgent }).ToListAsync(cancellationToken);
 
         foreach (var exporter in exporters)
         {
@@ -53,8 +57,9 @@ public sealed class UserPersonalDataService(
     }
 
     /// <summary>
-    /// Deletes the account: the product's handlers, then roles, claims, logins, stored tokens, sessions, passkeys,
-    /// organization memberships and the user row. Sessions end with the refresh tokens; issued access tokens live until they expire.
+    /// Deletes the account: the product's handlers, then roles, claims, logins, stored tokens, refresh tokens, sign-in
+    /// sessions, passkeys, organization memberships and the user row. Issued access tokens live until they expire; sign-in
+    /// log rows stay until their retention ends, naming an id that no longer resolves.
     /// </summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -72,6 +77,7 @@ public sealed class UserPersonalDataService(
         await DeleteRowsAsync<IdentityUserLogin>(row => row.UserId == user.Id, cancellationToken);
         await DeleteRowsAsync<IdentityUserToken>(row => row.UserId == user.Id, cancellationToken);
         await DeleteRowsAsync<IdentityRefreshToken>(row => row.UserId == user.Id, cancellationToken);
+        await DeleteRowsAsync<IdentitySession>(row => row.UserId == user.Id, cancellationToken);
         await DeleteRowsAsync<IdentityPasskey>(row => row.UserId == user.Id, cancellationToken);
         await DeleteRowsAsync<IdentityMembership>(row => row.UserId == user.Id, cancellationToken);
         await context.Set<IdentityUser>().Where(row => row.Id == user.Id).ExecuteDeleteAsync(cancellationToken);

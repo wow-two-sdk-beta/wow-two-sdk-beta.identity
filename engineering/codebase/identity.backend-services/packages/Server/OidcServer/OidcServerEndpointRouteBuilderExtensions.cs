@@ -10,6 +10,7 @@ using Microsoft.Extensions.Primitives;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
@@ -22,10 +23,10 @@ public static class OidcServerEndpointRouteBuilderExtensions
 
     /// <summary>
     /// Map the endpoints OpenIddict validates and hands to our logic: <see cref="OidcServerPathConstants.Authorization"/>
-    /// signs in the person of the cookie session (or sends them to <see cref="OidcServerOptions.SignInPath"/>),
-    /// <see cref="OidcServerPathConstants.Token"/> re-checks the person and refreshes their claims,
-    /// <see cref="OidcServerPathConstants.UserInfo"/> answers their current profile and
-    /// <see cref="OidcServerPathConstants.EndSession"/> ends the session and the app's tokens. Discovery and the JWKS
+    /// signs in the person of the cookie session (or sends them to <see cref="OidcServerOptions.SignInPath"/>) and ties
+    /// the grant to that session's <c>sid</c>, <see cref="OidcServerPathConstants.Token"/> re-checks the person and the
+    /// session and refreshes their claims, <see cref="OidcServerPathConstants.UserInfo"/> answers their current profile
+    /// and <see cref="OidcServerPathConstants.EndSession"/> ends the session and the app's tokens. Discovery and the JWKS
     /// are OpenIddict's own. Map them on the root, behind <c>UseAuthentication</c>.
     /// </summary>
     /// <param name="endpoints">The route builder.</param>
@@ -59,14 +60,27 @@ public static class OidcServerEndpointRouteBuilderExtensions
                 : Results.Redirect(await SignInUrlAsync(http, services.GetRequiredService<OidcServerOptions>().SignInPath));
         }
 
-        var client = await OidcClientProfile.FindAsync(services.GetRequiredService<IOpenIddictApplicationManager>(), request.ClientId, cancellationToken)
+        var applications = services.GetRequiredService<IOpenIddictApplicationManager>();
+        var client = await OidcClientProfile.FindAsync(applications, request.ClientId, cancellationToken)
             ?? throw new InvalidOperationException("The validated authorization request names no registered client.");
+        var sessionId = SessionIdOf(session.Principal!, services.GetRequiredService<IdentityCoreOptions>().Claims.SessionIdClaimType);
         var identity = OidcClaimMapper.CreateIdentity(
             client,
             request.GetScopes(),
             session.Principal!.FindAll(AuthenticationMethodConstants.ClaimType).Select(claim => claim.Value),
-            authenticatedAt);
+            authenticatedAt,
+            sessionId);
         var principal = await services.GetRequiredService<OidcClaimMapper>().ApplyAsync(identity, user, client, cancellationToken);
+
+        // The grant hangs off an authorization naming the session, so revoking the session ends its tokens.
+        if (sessionId is { } sid
+            && await applications.FindByClientIdAsync(client.ClientId, cancellationToken) is { } application
+            && await applications.GetIdAsync(application, cancellationToken) is { } applicationId)
+        {
+            await OidcSessionRevocationHandler.AttachAsync(
+                services.GetRequiredService<IOpenIddictAuthorizationManager>(), applicationId, user.Id.ToString("D"), sid, principal, time.GetUtcNow(), cancellationToken);
+        }
+
         return Results.SignIn(principal, authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
@@ -84,6 +98,8 @@ public static class OidcServerEndpointRouteBuilderExtensions
         var client = await OidcClientProfile.FindAsync(services.GetRequiredService<IOpenIddictApplicationManager>(), request.ClientId, cancellationToken);
         if (user is null || client is null)
             return Forbid(Errors.InvalidGrant, "The sign-in behind this grant is no longer valid.");
+        if (!await IsSessionLiveAsync(services, grant.Principal!, user, cancellationToken))
+            return Forbid(Errors.InvalidGrant, "The sign-in session behind this grant has ended.");
 
         var identity = new ClaimsIdentity(grant.Principal!.Claims, grant.Principal.Identity?.AuthenticationType, Claims.Name, Claims.Role);
         var principal = await services.GetRequiredService<OidcClaimMapper>().ApplyAsync(identity, user, client, cancellationToken);
@@ -98,7 +114,7 @@ public static class OidcServerEndpointRouteBuilderExtensions
         var user = token.Principal is { } accessToken ? await FindPersonAsync(services, accessToken, sessionClaims: false, time, cancellationToken) : null;
         var clientId = token.Principal?.GetPresenters().FirstOrDefault() ?? token.Principal?.GetClaim(Claims.ClientId);
         var client = await OidcClientProfile.FindAsync(services.GetRequiredService<IOpenIddictApplicationManager>(), clientId, cancellationToken);
-        if (user is null || client is null)
+        if (user is null || client is null || !await IsSessionLiveAsync(services, token.Principal!, user, cancellationToken))
         {
             return Results.Challenge(
                 Properties(Errors.InvalidToken, "The access token no longer names a person."),
@@ -115,7 +131,18 @@ public static class OidcServerEndpointRouteBuilderExtensions
         var request = RequestOf(http);
         var services = http.RequestServices;
         if (await services.GetRequiredService<IAuthenticationSchemeProvider>().GetSchemeAsync(CookieAuthenticationDefaults.AuthenticationScheme) is not null)
+        {
+            // The cookie's session ends first, and with it every grant issued under it.
+            var cookie = await http.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            var claims = services.GetRequiredService<IdentityCoreOptions>().Claims;
+            if (cookie.Principal is { } signedIn
+                && services.GetService<UserSessionService>() is { } sessions
+                && SessionIdOf(signedIn, claims.SessionIdClaimType) is { } sid
+                && Guid.TryParse(signedIn.FindFirst(claims.UserIdClaimType)?.Value, out var userId))
+                await sessions.RevokeAsync(userId, sid, SessionRevokeReasonConstants.SignOut, cancellationToken);
+
             await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        }
 
         // With an id_token_hint, the app's tokens for that person end too: its refresh tokens stop working at once.
         var hint = await http.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -157,6 +184,23 @@ public static class OidcServerEndpointRouteBuilderExtensions
         var stamp = principal.FindFirst(claims.SecurityStampClaimType)?.Value;
         return stamp is null || string.Equals(stamp, user.SecurityStamp, StringComparison.Ordinal) ? user : null;
     }
+
+    /// <summary>
+    /// Whether the sign-in session a grant or token names is still live; a principal without <c>sid</c> (issued before
+    /// sessions) and a host without the sessions slice pass.
+    /// </summary>
+    private static async Task<bool> IsSessionLiveAsync(IServiceProvider services, ClaimsPrincipal principal, IdentityUser user, CancellationToken cancellationToken)
+    {
+        var presented = principal.GetClaim(SessionClaimTypeConstants.SessionId);
+        if (presented is null || services.GetService<UserSessionService>() is not { } sessions)
+            return true;
+
+        return Guid.TryParse(presented, out var sid) && await sessions.ValidateAsync(sid, user.Id, cancellationToken);
+    }
+
+    /// <summary>The session id a cookie principal carries under <paramref name="claimType"/>, or null.</summary>
+    private static Guid? SessionIdOf(ClaimsPrincipal principal, string claimType)
+        => Guid.TryParse(principal.FindFirst(claimType)?.Value, out var sid) ? sid : null;
 
     /// <summary>The sign-in page's URL, returning to this authorization request without the parameters that asked for a fresh sign-in.</summary>
     private static async Task<string> SignInUrlAsync(HttpContext http, string signInPath)

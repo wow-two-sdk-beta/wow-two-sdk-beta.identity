@@ -1,7 +1,8 @@
 # Identity.Core.SecurityStamps
 
 Revocation through the security stamp: a principal whose stamp claim differs from the stored user's is rejected.
-Password, email and explicit rotations (`UserAccountService.RotateSecurityStampAsync`) end every session.
+Password, email and explicit rotations (`UserAccountService.RotateSecurityStampAsync`) end every session: cookies and
+bearer tokens here, sign-in session rows (`../Sessions/sessions.md`) and the OIDC server's refresh chains.
 
 ## Quick start
 

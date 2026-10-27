@@ -6,8 +6,9 @@
 
   <!--
     E2E tier — boots the real Identity.Api host in-process (WebApplicationFactory via the SDK WebApiTestHost) over a
-    throwaway SQLite file: the HTTP wire, the hosted pages, /health and the descriptor's dev check. No Docker needed.
-    The SDK testing package brings xunit and AwesomeAssertions transitively.
+    throwaway PostgreSQL database on the tier's one Testcontainers instance (PostgresTestServer): the HTTP wire, the OIDC
+    code flow, sessions, the hosted pages, /health and the descriptor's dev check. Needs Docker. The SDK testing package
+    brings xunit, AwesomeAssertions, Npgsql and Testcontainers transitively.
   -->
   <!-- The shared framework, as the service has it: framework packages OpenIddict asks for (Data Protection) are pruned, not restored. -->
   <ItemGroup>

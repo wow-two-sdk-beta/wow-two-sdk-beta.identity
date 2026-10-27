@@ -2,21 +2,19 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore;
-using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore.Sqlite;
 using WoW.Two.Sdk.Beta.Be.Foundation.Naming;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>
-/// The Module's own context over the identity schema: 11 account tables and OpenIddict's four <c>identity_oidc_*</c>
-/// tables, mapped only. The embedded SQL migration set <see cref="IdentityDatabaseOptions.MigrationSetName"/> creates and
-/// evolves them; EF never does.
+/// The Module's own context over the identity schema in PostgreSQL: 11 account tables, OpenIddict's four
+/// <c>identity_oidc_*</c> tables, and the sessions, sign-in log and Data Protection key tables, mapped only. The embedded
+/// SQL migration set <see cref="IdentityDatabaseOptions.MigrationSetName"/> creates and evolves them; EF never does.
 /// </summary>
 /// <remarks>
 ///   - names are pinned here, whatever the host's naming convention: snake_case columns, <c>pk_{table}</c> keys and
-///     <c>ix_{table}_{columns}</c> indexes, matching <c>Migrations/{Postgres,Sqlite}/</c> column for column
-///   - PostgreSQL qualifies every table with <see cref="IdentityDatabaseOptions.Schema"/>; SQLite has no schemas and
-///     stores instants as binary <see cref="long"/> values, so range reads and ordering match PostgreSQL
+///     <c>ix_{table}_{columns}</c> indexes, matching <c>Migrations/Postgres/</c> column for column
+///   - every table is qualified with <see cref="IdentityDatabaseOptions.Schema"/>
 ///   - registered by <c>AddUserAccounts</c>; products never map these tables into their own context
 ///   - the OIDC tables exist in every form (one schema shape everywhere); only the Server package reads or writes them,
 ///     through OpenIddict's EF Core stores over this context
@@ -81,6 +79,15 @@ public sealed class IdentityDbContext : AppDbContextBase
     /// <summary>OpenID Connect tokens (<c>identity_oidc_tokens</c>).</summary>
     public DbSet<IdentityOidcToken> OidcTokens => Set<IdentityOidcToken>();
 
+    /// <summary>Signed-in browsers and devices, one per sign-in (<c>identity_sessions</c>).</summary>
+    public DbSet<IdentitySession> Sessions => Set<IdentitySession>();
+
+    /// <summary>Every sign-in attempt (<c>identity_sign_in_log</c>).</summary>
+    public DbSet<IdentitySignInLogEntry> SignInLog => Set<IdentitySignInLogEntry>();
+
+    /// <summary>The instance's Data Protection key ring (<c>identity_data_protection_keys</c>).</summary>
+    public DbSet<IdentityDataProtectionKey> DataProtectionKeys => Set<IdentityDataProtectionKey>();
+
     /// <inheritdoc />
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -97,17 +104,13 @@ public sealed class IdentityDbContext : AppDbContextBase
         ArgumentNullException.ThrowIfNull(modelBuilder);
         base.OnModelCreating(modelBuilder);
 
-        if (Database.IsNpgsql())
-            modelBuilder.HasDefaultSchema(Schema);
-
+        modelBuilder.HasDefaultSchema(Schema);
         MapAccounts(modelBuilder);
         MapCredentials(modelBuilder);
         MapOrganizations(modelBuilder);
         MapOidc(modelBuilder);
+        MapSpine(modelBuilder);
         PinNames(modelBuilder);
-
-        if (Database.IsSqlite())
-            modelBuilder.ApplyDateTimeOffsetToBinaryConversion();
     }
 
     /// <summary>Maps users, roles and their relation, claim, login and token rows.</summary>
@@ -287,6 +290,44 @@ public sealed class IdentityDbContext : AppDbContextBase
             token.Property(t => t.Status).HasMaxLength(50);
             token.Property(t => t.Subject).HasMaxLength(400);
             token.Property(t => t.Type).HasMaxLength(150);
+        });
+    }
+
+    /// <summary>Maps sessions, the sign-in log and the Data Protection key ring (<c>003-spine</c>).</summary>
+    private static void MapSpine(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<IdentitySession>(session =>
+        {
+            session.ToTable("identity_sessions");
+            session.HasKey(s => s.Id);
+            session.Property(s => s.Id).ValueGeneratedNever();
+            session.HasIndex(s => s.UserId);
+            session.Property(s => s.SecurityStamp).HasMaxLength(64);
+            session.Property(s => s.RevokeReason).HasMaxLength(32);
+            session.Property(s => s.IpMasked).HasMaxLength(64);
+            session.Property(s => s.UserAgent).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<IdentitySignInLogEntry>(entry =>
+        {
+            entry.ToTable("identity_sign_in_log");
+            entry.HasKey(e => e.Id);
+            entry.HasIndex(e => e.OccurredAt);
+            entry.HasIndex(e => e.UserId);
+            entry.Property(e => e.SubjectMasked).HasMaxLength(100);
+            entry.Property(e => e.Method).HasMaxLength(32);
+            entry.Property(e => e.ClientId).HasMaxLength(100);
+            entry.Property(e => e.Result).HasMaxLength(32);
+            entry.Property(e => e.Reason).HasMaxLength(64);
+            entry.Property(e => e.IpMasked).HasMaxLength(64);
+            entry.Property(e => e.UserAgent).HasMaxLength(256);
+            entry.Property(e => e.TraceId).HasMaxLength(32);
+        });
+
+        modelBuilder.Entity<IdentityDataProtectionKey>(key =>
+        {
+            key.ToTable("identity_data_protection_keys");
+            key.HasKey(k => k.Id);
         });
     }
 

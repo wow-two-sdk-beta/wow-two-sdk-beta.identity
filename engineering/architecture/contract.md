@@ -57,7 +57,7 @@
 
 | Claim | ID token | Access token |
 |---|---|---|
-| `sub` (user id) · `amr` · `org_id` · `org_role` · `org_permission` | ✓ | ✓ |
+| `sub` (user id) · `sid` (sign-in session) · `amr` · `org_id` · `org_role` · `org_permission` | ✓ | ✓ |
 | `name` (with `profile`) · `email`, `email_verified` (with `email`) | ✓ | ✓ |
 | `auth_time` | ✓ | — |
 
@@ -65,7 +65,12 @@
   earliest membership. `org_role` is `{org}:{role}`; `org_permission` holds `{org}:{app}:{permission}` values of that
   role, kept to the client's permission namespace.
 - Each client's access tokens carry its own `aud`; people are identified by `iss` + `sub`. Userinfo answers the same
-  profile and organization claims. `sid` arrives with sessions (I16).
+  profile and organization claims, without `amr`, `auth_time` and `sid`.
+- `sid` (`SessionClaimTypeConstants.SessionId`, Abstractions) is the id of the Identity sign-in session the grant came
+  from, a uuid in `D` form, the same in the ID and access token and kept by refreshes. Revoking that session (the
+  person's session list, sign-out, end-session, a stamp rotation) ends the grant: refresh answers `invalid_grant` and
+  userinfo `invalid_token`; access tokens already issued live out their 10 minutes. A relying party keys its own
+  session on `sid` to match a later back-channel logout (`flows/flows.md`).
 
 ## Seams by form, as moved
 
@@ -75,10 +80,10 @@ Namespaces are unchanged from the be sdk. Entities are not generic: one `Identit
 |---|---|---|---|
 | kernel | core | — | `ICurrentUserService` (`Id`, `Kind`), `UserKind` — read by core's Audit, SoftDelete and Idempotency |
 | edge | Auth | `AddCookieAuthentication`, `AddApiKeyAuthentication`, `AddPrincipalAllowlist`, `AddDefaultDenyAuthorization`, `AddGuestSession`, `AddCurrentUser`, `AddJwtBearerAuthentication`, `AddJwtTokenIssuance` | `IApiKeyRepository`, `IGuestSessionService`, `ITokenIssuer`; `CookieCurrentUserService` implements the kernel's `ICurrentUserService` |
-| 1 | Module | `AddUserAccounts(configure, configureDatabase)` → `IdentityBuilder`; `IdentityDbContext`; the `identity` migration set | store ports `IUserRepository`, `IRoleRepository`, `IUserRoleRepository`, `IUserClaimRepository`, `IUserLoginRepository`, `IUserTokenRepository`, `IRefreshTokenRepository`, `IUserPasskeyRepository`, `IOrganizationRepository` (EF defaults ship); hooks `IUserPasswordValidator`, `IAccountDeletionHandler`, `IPersonalDataExporter`, `IPwnedPasswordsClient` |
+| 1 | Module | `AddUserAccounts(configure, configureDatabase)` → `IdentityBuilder`; `IdentityDbContext`; the `identity` migration set | store ports `IUserRepository`, `IRoleRepository`, `IUserRoleRepository`, `IUserClaimRepository`, `IUserLoginRepository`, `IUserTokenRepository`, `IRefreshTokenRepository`, `IUserPasskeyRepository`, `IOrganizationRepository`, `IUserSessionRepository`, `ISignInLogRepository` (EF defaults ship); hooks `IUserPasswordValidator`, `IAccountDeletionHandler`, `IPersonalDataExporter`, `IPwnedPasswordsClient`, `ISessionRevocationHandler` |
 | 1 | Module | OTP: `AddOtpService`, `Add{Email,Sms,Telegram,TelegramGateway,WhatsApp}OtpDelivery`; `AddTotp`; `AddFido2WebAuthn` | `IOtpService`, `IOtpRepository`, `IOtpCodeGenerator`, `IOtpMessageFormatter`, `IOtpDeliveryHandler` (keyed by `OtpChannelNameConstants`), `IOtpDeliveryHandlerFactory`, `ITotpService` |
 | 2/3 | Client | `AddOpenIdConnectAuthentication(OidcOptions)` | none: an OIDC client over cookies; brokers over the management API land here |
-| service | Server | `AddOidcServer(configure)` on the Module's builder; `MapOidcServerEndpoints()`; `Identity:Server` (issuer, sign-in path, lifetimes, keys, clients) | `ISigningKeySource` (host files by default); `SigningCertificateGenerator` and the service's `keys generate` |
+| service | Server | `AddOidcServer(configure)` and `AddDataProtectionRing(configure)` on the Module's builder; `MapOidcServerEndpoints()`; `Identity:Server` (issuer, sign-in path, lifetimes, keys, clients); `Identity:DataProtection` (ring certificates) | `ISigningKeySource` (the settings by default: inline PEM or file paths); `SigningCertificateGenerator` and the service's `keys generate` |
 | providers | Providers | `Add{Provider}Authentication` × 17, `AddGoogleIdTokenAuthenticator`, `AddClaimNormalization` | `IGoogleIdTokenAuthenticator`; the normalized `wt:*` claim set (`NormalizedClaimTypeConstants`) |
 
 ### Form 1 services
@@ -97,6 +102,8 @@ Namespaces are unchanged from the be sdk. Entities are not generic: one `Identit
 | `AddTwoFactor` | `UserTwoFactorService`, `UserTwoFactorMethodService` |
 | `AddPhoneNumbers` | `UserPhoneService` |
 | `AddRefreshTokens` | `RefreshTokenService` |
+| `AddSessions` | `UserSessionService` |
+| `AddSignInLog` | `SignInLogService` |
 | `AddPasskeys` | `UserPasskeyService` |
 | `AddOrganizations` | `OrganizationService` |
 | `AddEmailSignIn` | `UserEmailSignInService` |
@@ -116,12 +123,14 @@ registered.
 | personal data | `GET manage/personal-data` · `POST manage/delete-account` |
 | email sign-in | `POST email-sign-in/send` · `POST email-sign-in` |
 | passkeys | `POST passkeys/login/options` · `POST passkeys/login` · `GET manage/passkeys` · `POST manage/passkeys/options` · `POST manage/passkeys` · `DELETE manage/passkeys/{id}` |
+| sessions | `GET manage/sessions` · `DELETE manage/sessions/{id}` · `DELETE manage/sessions[?keepCurrent=true]` |
 
 - Sign-in answers a bearer session (JWT through `ITokenIssuer`, plus a refresh token when registered) or, with
-  `?useCookies=true`, a cookie; failures are problem details, translated when error translation is on.
-- `service/Identity.Api` hosts `AddUserAccounts` over its own SQLite context with Argon2 passwords, sign-in, lockout,
-  stamps and organizations, and maps the account API at `/api/account` for cookie sessions (the sign-in the OIDC
-  authorize endpoint reads). It registers no `ITokenIssuer`: its tokens come from the OIDC server, so bearer sign-in
+  `?useCookies=true`, a cookie carrying a new session's `sid` when sessions are registered; every sign-in route takes an
+  optional `?clientId=` for the sign-in log; failures are problem details, translated when error translation is on.
+- `service/Identity.Api` hosts `AddUserAccounts` over its own PostgreSQL context with Argon2 passwords, sign-in,
+  lockout, stamps, sessions, the sign-in log and organizations, and maps the account API at `/api/account` for cookie
+  sessions (the sign-in the OIDC authorize endpoint reads). It registers no `ITokenIssuer`: its tokens come from the OIDC server, so bearer sign-in
   and the routes of unregistered slices are not served yet.
 
 ## Forms map

@@ -26,4 +26,5 @@ return new { access = issuer.Issue(signIn.Principal!.Claims), refresh = redeemed
 - Consumption is one conditional update; two concurrent refreshes of one token count as reuse, so clients serialize them.
 - Each rotation starts a new `Lifetime` window; the session slides while it stays in use.
 - `PurgeExpiredAsync` deletes expired rows; call it from a recurring job.
-- SQLite hosts apply `ApplyDateTimeOffsetToBinaryConversion()` so expiry comparisons translate.
+- These are Form 1's bearer refresh tokens; the OIDC server's refresh chains live in `identity_oidc_tokens` and end
+  with their sign-in session (`../Sessions/sessions.md`).

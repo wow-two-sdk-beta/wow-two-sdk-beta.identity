@@ -11,7 +11,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 |---|---|---|
 | Sign-in methods | partial: SDK flows exist, no hosted pages; P1 bot + Telegram planned | [sign-in-methods.md](../../product/features/sign-in-methods.md) |
 | Accounts and members | partial: organizations and memberships exist; invitations planned | [accounts.md](../../product/features/accounts.md) |
-| Sessions and tokens | partial: refresh rotation exists; OIDC server, keys, logout planned | [sessions.md](../../product/features/sessions.md) |
+| Sessions and tokens | partial: OIDC server, keys, sessions, revocation and sign-in log exist; back-channel logout planned | [sessions.md](../../product/features/sessions.md) |
 | Abuse protection | partial: fixed lockout exists; durable codes and limits planned | [abuse-protection.md](../../product/features/abuse-protection.md) |
 | Admin console | planned | [admin-console.md](../../product/features/admin-console.md) |
 | Member self-service | planned | [self-service.md](../../product/features/self-service.md) |
@@ -25,14 +25,13 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 |---|---|---|
 | I14 invitations and admin-created members | feature | invite links with a role and a per-link expiry and use limit (one, a number, none); phone or email pre-registration; accepted on sign-in |
 | I15 durable OTP store | feature | hashed at rest, shared by instances, limits per phone, IP and client |
-| I16 sessions and sign-in log | feature | a session per device, revoke one or all, every attempt recorded |
 | I18 back-channel logout | feature | member removal signs every app out at once |
 | app access check | feature | refuse sign-in and tokens for an app missing from the member's `app_access` (Q61) |
 | `amr` after a second factor | fix | keep `pwd` beside `otp` and `mfa` once a password sign-in passes TOTP (RFC 8176) |
 | I19 OIDC client | feature | the `Client` package: cookie session, organization claims, logout receiver |
 | I20 Telegram | feature | link on first sign-in; Log in with Telegram with the `phone` scope |
 | test mode | feature | fake channels, code sink, personas, refused in production |
-| hosted pages and console | feature | `apps/web` over `fe-identity` (`./kit`, `./admin`) |
+| hosted pages and console | feature | `apps/web` over `fe-identity` (`./kit`, `./admin`); sign-in passes `?clientId=` for the sign-in log |
 | console layout review | product | with the developer once the console shell runs on Wheelhouse's layout; refine it then |
 | conformance in CI | feature | OpenID Foundation suite against the image in `Testing` mode |
 | broker conformance | feature | the module, the client and the fake pass the same broker cases |
@@ -53,3 +52,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | Fido2 upgrade | engineering | Fido2 4.3.1: passkey transports and backup state |
 | instance composition in a package | engineering | one call holding what `service/Identity.Api` wires, so an own host stays thin ([own hosts](../architecture/architecture.md#own-hosts)) |
 | host CLI in a package | engineering | `admin create` and a one-time sign-in beside `keys generate` |
+| require `sid` on cookies | fix | refuse a cookie without `sid` once every sign-in path starts a session |
+| prune ended sessions | engineering | delete revoked and expired `identity_sessions` rows past a window, as the sign-in log does |
+| database ring in the be sdk | engineering | move the certificate-wrapped database ring from Server to core, so every product gets it |
+| sign-in log partitions | engineering | monthly partitions once the volume asks for them |

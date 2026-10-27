@@ -21,6 +21,9 @@ public sealed record IdentityClaimOptions
     /// <summary>Claim carrying the security stamp. Default <c>AspNet.Identity.SecurityStamp</c>, as ASP.NET Identity writes it.</summary>
     public string SecurityStampClaimType { get; set; } = "AspNet.Identity.SecurityStamp";
 
+    /// <summary>Claim carrying the sign-in session's id in a cookie principal. Default <see cref="SessionClaimTypeConstants.SessionId"/> (<c>sid</c>).</summary>
+    public string SessionIdClaimType { get; set; } = SessionClaimTypeConstants.SessionId;
+
     /// <summary>Claim carrying each organization role as <c>{organizationId}:{role}</c>. Default <c>org_role</c>.</summary>
     public string OrganizationRoleClaimType { get; set; } = OrganizationClaimTypeConstants.Role;
 

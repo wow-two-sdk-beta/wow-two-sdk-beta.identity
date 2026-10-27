@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using WoW.Two.Sdk.Beta.Be.Testing;
@@ -6,7 +5,7 @@ using WoW.Two.Sdk.Beta.Be.Testing;
 namespace Identity.Tests.E2E.Oidc;
 
 /// <summary>
-/// The real API over a throwaway SQLite file with one test client registered, an organization role set and the clock
+/// The real API over a throwaway PostgreSQL database with one test client registered, an organization role set and the clock
 /// at the real time, so tokens validate against the JWKS as a relying party would.
 /// </summary>
 public sealed class OidcHost : IAsyncDisposable
@@ -29,16 +28,16 @@ public sealed class OidcHost : IAsyncDisposable
     /// <summary>The test client's permission namespace.</summary>
     public const string PermissionNamespace = "e2e";
 
-    private readonly string _databasePath = Path.Combine(Path.GetTempPath(), $"identity-oidc-{Guid.NewGuid():N}.db");
+    private readonly string _connectionString = Task.Run(PostgresTestServer.CreateDatabaseAsync).GetAwaiter().GetResult();
 
     /// <summary>Create the host, with <paramref name="settings"/> over the defaults (ephemeral keys from <c>appsettings.Development.json</c>).</summary>
-    /// <param name="settings">Extra host settings, such as key files.</param>
+    /// <param name="settings">Extra host settings, such as certificate settings.</param>
     /// <param name="services">Extra service changes.</param>
     public OidcHost(IReadOnlyDictionary<string, string?>? settings = null, Action<IServiceCollection>? services = null)
     {
         var values = new Dictionary<string, string?>
         {
-            ["DatabaseSettings:ConnectionString"] = $"Data Source={_databasePath}",
+            ["DatabaseSettings:ConnectionString"] = _connectionString,
             ["AllowedHosts"] = "localhost",
             ["Logging:LogLevel:Default"] = "Warning",
             ["Identity:Server:Clients:0:ClientId"] = ClientId,
@@ -71,11 +70,7 @@ public sealed class OidcHost : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Host.DisposeAsync();
-
-        // Pooled connections hold the file open, so release them before the files go.
-        SqliteConnection.ClearAllPools();
-        foreach (var path in new[] { _databasePath, _databasePath + "-shm", _databasePath + "-wal" })
-            File.Delete(path);
+        await PostgresTestServer.DropDatabaseAsync(_connectionString);
     }
 }
 

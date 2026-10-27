@@ -100,16 +100,25 @@ flowchart BT
   `Identity:Server:SignInPath`; one claim mapper writes every token's claims ([contract](contract.md) § Token claims).
 - clients come from `Identity:Server:Clients`, seeded idempotently at startup: confidential, first-party, exact URIs,
   their own audience, hashed secrets.
-- keys: X.509 certificates in host files behind `ISigningKeySource`; a deployed boot refuses missing or unusable
-  certificates and ephemeral keys; the active certificate is picked per token by its dates, so a staged one takes over
-  without a deploy ([keys](../codebase/identity.backend-services/packages/Server/Keys/keys.md)).
+- keys: X.509 certificates from the settings behind `ISigningKeySource`, each an inline PEM bundle (a vault secret
+  Wheelhouse's settings render carries) or a file path; a deployed boot refuses missing or unusable certificates and
+  ephemeral keys; the active certificate is picked per token by its dates, so a staged one takes over without a deploy
+  ([keys](../codebase/identity.backend-services/packages/Server/Keys/keys.md)).
+- sessions: each cookie sign-in is a row in `identity_sessions`; its id is the `sid` of the cookie and of every token
+  issued under it, and revoking it ends the cookie, the grant and its refresh chain; a stamp rotation ends them all.
+- sign-in log: every attempt lands in `identity_sign_in_log`, masked, for `Identity:SignInLog:RetentionDays` (180).
+- Data Protection: the ring lives in `identity_data_protection_keys`, shared by every replica and wrapped by a
+  certificate from `Identity:DataProtection:Certificates` (Q26); a deployed boot refuses none
+  ([ring](../codebase/identity.backend-services/packages/Server/DataProtection/data-protection.md)).
 - serves `apps/web` from the same origin: hosted sign-in, account and console pages on `fe-identity`'s exports; the
   console composes the `./admin` screens.
 - two sites per instance: a public one for the protocol, sign-in and account paths, and a private one for the console
   and the admin API; admin routes also check the host.
-- owns one database per instance with the `identity` schema; production migrations run as an explicit deploy step.
-- every instance is built to run as several replicas: durable stores in PostgreSQL, singleton jobs behind advisory
-  locks; it starts as one container.
+- owns one PostgreSQL database per instance with the `identity` schema (`needs: [postgres]`); production migrations
+  run as an explicit deploy step.
+- every instance is built to run as several replicas: durable stores in PostgreSQL, the ring and the sessions
+  included, jobs idempotent or behind advisory locks (the sign-in log cleanup is one idempotent delete); it starts as
+  one container.
 - the OpenID Foundation conformance suite and the broker conformance suite run against the released image.
 
 ---
@@ -141,14 +150,15 @@ later, in a platform repository.
 
 - one linear SQL migration set in the Module creates the whole `identity` schema whatever the configuration; a
   feature that is off neither reads nor writes its tables.
-- the set ships per dialect (`Migrations/Postgres/`, `Migrations/Sqlite/`) and runs as the be sdk named set `identity`,
-  with its own history and lock; the Module's `IdentityDbContext` maps it with every name pinned and never generates it.
-- tables keep the `identity_` prefix inside the `identity` schema (`Identity:Database:Schema`), so SQLite (no schemas)
-  and PostgreSQL share names; `001-accounts` creates the 11 account tables, `002-oidc` OpenIddict's four
-  `identity_oidc_*` tables, present in every form and used only by the Server.
+- PostgreSQL only (decided 2026-10-27, as SQLite is banned for products): the set ships in `Migrations/Postgres/` and
+  runs as the be sdk named set `identity`, with its own history and lock; the Module's `IdentityDbContext` maps it with
+  every name pinned and never generates it.
+- tables keep the `identity_` prefix inside the `identity` schema (`Identity:Database:Schema`); `001-accounts` creates
+  the 11 account tables, `002-oidc` OpenIddict's four `identity_oidc_*` tables (present in every form, used only by the
+  Server), `003-spine` the sessions, the sign-in log and the Data Protection ring.
 - the set claims its schema with an owner kind: `module` in a Form 1 product, `service` in an instance, which migrates
   through `Identity.Api migrate`.
-- keys are `uuid` made as Guid v7 in code, claim rows a `bigint` identity; products key their own data on `sub`, never
-  on a foreign key into Identity.
+- keys are `uuid` made as Guid v7 in code, claim and sign-in log rows a `bigint` identity, ring keys an `integer`
+  one; products key their own data on `sub`, never on a foreign key into Identity.
 - never two instances on one identity schema: a database per instance by default, a schema per instance allowed.
 - evidence and the table inventory: [T10](../research/identity-analysis-2026-10/t10-schema-migrations.md).

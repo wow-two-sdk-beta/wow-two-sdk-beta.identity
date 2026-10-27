@@ -42,22 +42,23 @@ services:
     health: /health
     memory: 256m
     # Typed keys (pipelines v0.10.0): Wheelhouse checks each saved value against its type; a required key joins
-    # settings.required. The target's settings file (/app/appsettings.Target.json) supplies the SQLite path on the
-    # data volume; the name ends in ConnectionString, so Wheelhouse keeps the value in its vault. The OIDC server
-    # pins its issuer and reads one signing and one encryption certificate file at least (a rotation adds :1, :2 …);
-    # a deployed boot refuses ephemeral keys, so the default turns off what appsettings.Development.json turns on for
-    # a local run. Clients (Identity:Server:Clients:N:…) are owner keys, added per environment. The sign-in session's
-    # Data Protection ring persists on the data volume; a deployed boot refuses to start without its directory.
+    # settings.required. The service needs the target's PostgreSQL database: Wheelhouse fills the connection string
+    # from it, and the name ends in ConnectionString, so the value stays in its vault. The OIDC server pins its issuer
+    # and reads one signing and one encryption certificate at least (a rotation adds :1, :2 …); a deployed boot refuses
+    # ephemeral keys, so the default turns off what appsettings.Development.json turns on for a local run. Every
+    # certificate value is the PEM bundle `keys generate` prints, pasted as is: a vault secret the settings render
+    # carries, never a file on a volume. The Data Protection ring lives in the database, wrapped by its own
+    # certificate (`keys generate --role data-protection`); a deployed boot refuses to start without one. Clients
+    # (Identity:Server:Clients:N:…) are owner keys, added per environment.
     settings:
       keys:
         DatabaseSettings:ConnectionString: { required: true }
-        DataProtection:KeyDirectory: { default: /data/data-protection }
         Identity:Server:Issuer: { type: url, required: true }
         Identity:Server:Keys:Ephemeral: { type: boolean, default: false }
-        Identity:Server:Keys:Signing:0: { required: true }
-        Identity:Server:Keys:Encryption:0: { required: true }
-    volumes:
-      data: /data
+        Identity:Server:Keys:Signing:0: { secret: true, required: true }
+        Identity:Server:Keys:Encryption:0: { secret: true, required: true }
+        Identity:DataProtection:Certificates:0: { secret: true, required: true }
+    needs: [postgres]
     # The pages at /, the contract's HTTP mirror under the same host's /api: /api routes ahead of /, never /apiary.
     sites:
       app: { paths: [/, /api] }

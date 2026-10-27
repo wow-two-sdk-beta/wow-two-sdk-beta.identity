@@ -35,7 +35,10 @@ engineering/             ← the HOW
   never create a GitHub Release for a package tag. The image version comes from the version track (`v*`).
 - Core is pinned (`BackendSdkVersion`, the exact `@wow-two-beta/fe`); a needed core change goes to core first, then the
   pin moves here. `core-latest.yml` tests the newest core nightly; a red run is a fix here, not a gate.
-- Schema changes are `packages/Module/Migrations/{Postgres,Sqlite}/NNN-name/{Apply,Rollback}.sql` pairs, one per
-  dialect, matching `IdentityDbContext`; never edit an applied one.
-- The backend build runs the frontend build (`BuildSpa`), so it needs Node and pnpm; only `Identity.Tests.Migrations`
-  needs Docker (PostgreSQL in Testcontainers).
+- PostgreSQL only: schema changes are `packages/Module/Migrations/Postgres/NNN-name/{Apply,Rollback}.sql` pairs
+  matching `IdentityDbContext`; never edit an applied one. SQLite is banned for products and gone from the Module.
+- The backend build runs the frontend build (`BuildSpa`), so it needs Node and pnpm. The database tiers
+  (`Identity.Tests.Integration`, `.E2E`, `.Migrations`) need Docker: each runs one PostgreSQL Testcontainers instance;
+  `Identity.Tests.Unit` needs none.
+- Key material never lands in the repo, a log or a message: tests make throwaway certificates, and key settings are
+  vault secrets (inline PEM bundles from `keys generate`) or file paths.

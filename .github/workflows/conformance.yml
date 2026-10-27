@@ -1,7 +1,7 @@
-# The contract's conformance suite against the released image: pulls the image, starts it on a throwaway SQLite
-# volume, and runs the Client side of Identity.Tests.Conformance against it (CONFORMANCE_BASE_URL). Runs after each
-# image publish on main, nightly and on dispatch. It cannot block a publish; the descriptor's verify dev check is the
-# promotion gate.
+# The contract's conformance suite against the released image: pulls the image, starts it beside a throwaway
+# PostgreSQL container, and runs the Client side of Identity.Tests.Conformance against it (CONFORMANCE_BASE_URL). Runs
+# after each image publish on main, nightly and on dispatch. It cannot block a publish; the descriptor's verify dev
+# check is the promotion gate.
 name: conformance
 
 on:
@@ -47,14 +47,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      # Development mode skips the HTTPS redirect a production host applies behind its ingress.
+      # Development mode skips the HTTPS redirect a production host applies behind its ingress, applies the schema at
+      # boot and takes throwaway keys. The database credentials are throwaway test values on a private network.
       - name: Start the released image
         run: |
           set -euo pipefail
           image="ghcr.io/${GITHUB_REPOSITORY,,}/identity:$TAG"
-          docker run --detach --name identity --publish 127.0.0.1:8080:8080 \
-            --env ASPNETCORE_ENVIRONMENT=Development --env DB_CONNECTION="Data Source=/data/identity.db" \
-            --volume identity-data:/data "$image"
+          docker network create identity
+          docker run --detach --name identity-db --network identity \
+            --env POSTGRES_DB=identity --env POSTGRES_USER=identity --env POSTGRES_PASSWORD=identity postgres:16-alpine
+          for _ in $(seq 1 30); do
+            docker exec identity-db pg_isready -U identity -d identity >/dev/null 2>&1 && break
+            sleep 2
+          done
+          docker run --detach --name identity --network identity --publish 127.0.0.1:8080:8080 \
+            --env ASPNETCORE_ENVIRONMENT=Development \
+            --env DB_CONNECTION="Host=identity-db;Database=identity;Username=identity;Password=identity" "$image"
           for _ in $(seq 1 30); do
             curl --fail --silent http://127.0.0.1:8080/health >/dev/null && exit 0
             sleep 2

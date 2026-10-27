@@ -5,10 +5,11 @@
   </PropertyGroup>
 
   <!--
-    Integration tier — the Form 1 module wired as a consumer wires it (AddUserAccounts) over in-memory SQLite, its schema
-    built by the module's own migration set (IdentityTestDatabase): every account slice, the account endpoints and the
-    cookie and stamp pipeline, and the Server's client seeding through OpenIddict's stores. No network, no Docker. Tests
-    moved from the be sdk keep their namespaces.
+    Integration tier — the Form 1 module wired as a consumer wires it (AddUserAccounts) over PostgreSQL in Testcontainers:
+    one container for the tier (PostgresTestServer), a database per test host, its schema built by the module's own
+    migration set (IdentityTestDatabase). Every account slice, sessions and the sign-in log, the account endpoints and
+    the cookie and stamp pipeline, and the Server's client seeding, session revocation and Data Protection ring. Needs
+    Docker. Tests moved from the be sdk keep their namespaces.
   -->
   <!-- The shared framework, as the service has it: framework packages OpenIddict asks for (Data Protection) are pruned, not restored. -->
   <ItemGroup>

@@ -4,7 +4,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.Accounts;
 
-/// <summary>An identity registration over in-memory SQLite, its schema from the Module's migrations, with a controllable clock.</summary>
+/// <summary>An identity registration over PostgreSQL, its schema from the Module's migrations, with a controllable clock.</summary>
 internal sealed class AccountsHost : IAsyncDisposable
 {
     public const string SigningKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
@@ -34,7 +34,7 @@ internal sealed class AccountsHost : IAsyncDisposable
         collection.AddLogging();
         collection.AddSingleton<TimeProvider>(time);
         database.Register(collection);
-        slices(collection.AddUserAccounts(options, IdentityTestDatabase.UseSqlite));
+        slices(collection.AddUserAccounts(options));
         services?.Invoke(collection);
 
         var provider = collection.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });

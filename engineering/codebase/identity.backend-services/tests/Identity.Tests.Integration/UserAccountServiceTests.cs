@@ -4,7 +4,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests;
 
-/// <summary>Identity core vertical — create → find → delete a user, and case-insensitive duplicate rejection, over in-memory SQLite.</summary>
+/// <summary>Identity core vertical — create → find → delete a user, and case-insensitive duplicate rejection, over PostgreSQL.</summary>
 public sealed class UserAccountServiceTests
 {
     private static async Task<ServiceProvider> BuildProviderAsync(IdentityTestDatabase database)
@@ -12,7 +12,7 @@ public sealed class UserAccountServiceTests
         var services = new ServiceCollection();
         services.AddLogging();
         database.Register(services);
-        services.AddUserAccounts(o => o.User.RequireUniqueEmail = true, IdentityTestDatabase.UseSqlite);
+        services.AddUserAccounts(o => o.User.RequireUniqueEmail = true);
 
         var provider = services.BuildServiceProvider();
         await IdentityTestDatabase.MigrateAsync(provider);

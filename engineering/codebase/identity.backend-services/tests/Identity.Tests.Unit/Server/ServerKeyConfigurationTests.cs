@@ -59,6 +59,21 @@ public sealed class ServerKeyConfigurationTests : IDisposable
     }
 
     [Fact]
+    public void InlineBundles_ShouldBecomeX509Credentials_OnADeployedBoot()
+    {
+        var keys = new ServerKeyOptions
+        {
+            Signing = [KeyFiles.Bundle(SigningKeyRole.Signing, Now.AddDays(-1))],
+            Encryption = [KeyFiles.Bundle(SigningKeyRole.Encryption, Now.AddDays(-1))],
+        };
+
+        var server = Configure(keys, deployEnvironment: "prod", Environments.Production);
+
+        server.SigningCredentials.Should().ContainSingle().Which.Key.Should().BeOfType<X509SecurityKey>();
+        server.EncryptionCredentials.Should().ContainSingle().Which.Key.Should().BeOfType<X509SecurityKey>();
+    }
+
+    [Fact]
     public void Files_ShouldFailClosed_WhenNothingIsValidNow()
     {
         var keys = new ServerKeyOptions
@@ -91,7 +106,7 @@ public sealed class ServerKeyConfigurationTests : IDisposable
             .AddInMemoryCollection(new Dictionary<string, string?> { ["DEPLOY_ENVIRONMENT"] = deployEnvironment })
             .Build());
         services.AddSingleton<TimeProvider>(new FakeTimeProvider(Now));
-        services.AddSingleton<ISigningKeySource, HostFileSigningKeySource>();
+        services.AddSingleton<ISigningKeySource, SettingsSigningKeySource>();
         using var provider = services.BuildServiceProvider();
 
         var server = new OpenIddictServerOptions();

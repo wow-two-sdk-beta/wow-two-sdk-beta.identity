@@ -5,11 +5,10 @@
   </PropertyGroup>
 
   <!--
-    Migrations tier: the module's embedded Migrations/{Postgres,Sqlite}/NNN-name/*.sql as the "identity" set — apply,
+    Migrations tier: the module's embedded Migrations/Postgres/NNN-name/*.sql as the "identity" set — apply,
     idempotency, apply → rollback → apply, the applied schema against the IdentityDbContext model column for column, and
-    the module's own registration into a configured schema — on a throwaway SQLite file and on PostgreSQL in
-    Testcontainers. The only tier that needs Docker. Rides the SDK Testing.Data harness (MigratorHarness,
-    MigratorPostgresFixture).
+    the module's own registration into a configured schema — on PostgreSQL in Testcontainers, one container for the
+    tier. Rides the SDK Testing.Data harness (MigratorHarness, MigratorPostgresFixture).
   -->
   <ItemGroup>
     <PackageReference Include="WoW2.Sdk.Beta.Be.Testing.Data" />

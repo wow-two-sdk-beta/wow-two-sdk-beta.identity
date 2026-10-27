@@ -1,15 +1,33 @@
 # Local verification only. Bring up from engineering/deployment/:
 #
-#   docker compose up -d --build     the service answers on http://127.0.0.1:8389
+#   docker compose up -d --build     the database and the service; the service answers on http://127.0.0.1:8389
 #
-# The SQLite file lives on the named volume, so data survives container replacement. A deployed environment's path
-# comes from its Wheelhouse target settings, never from here. The image boots as Production, which only verifies the
-# identity schema, so identity-migrate applies it first with the image's own migrate command, as a deploy step would.
-# Production also refuses ephemeral OIDC keys, so identity-keys makes throwaway certificates on the volume once with
-# the image's keys command; a deployed target lists the owner's files instead. Remove the volume to make new ones.
+# The database credentials are local-only test values and the database stays on the compose network; a deployed
+# environment's connection string comes from its Wheelhouse target, which fills it from the target's own database. The
+# image boots as Production, which only verifies the identity schema, so identity-migrate applies it first with the
+# image's own migrate command, as a deploy step would. Production also refuses ephemeral OIDC keys and an unwrapped
+# Data Protection ring, so identity-keys makes throwaway certificates once with the image's keys command and the
+# service reads them as file paths; a deployed target pastes the owner's bundles into vault secrets instead. Remove the
+# identity-keys volume to make new ones. Each image runs under an init process, as on a target, so a refused boot exits
+# instead of spinning as PID 1.
 services:
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: identity
+      POSTGRES_USER: identity
+      POSTGRES_PASSWORD: identity
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U identity -d identity"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   identity-keys:
     image: identity:local
+    init: true
     build:
       context: ../codebase
       dockerfile: ../deployment/Dockerfile
@@ -19,19 +37,23 @@ services:
         mkdir -p /data/keys && chmod 700 /data/keys && cd /data/keys
         && { [ -s signing.pem ] || dotnet /app/Identity.Api.dll keys generate --role signing > signing.pem; }
         && { [ -s encryption.pem ] || dotnet /app/Identity.Api.dll keys generate --role encryption > encryption.pem; }
+        && { [ -s data-protection.pem ] || dotnet /app/Identity.Api.dll keys generate --role data-protection > data-protection.pem; }
     volumes:
-      - identity-data:/data
+      - identity-keys:/data
 
   identity-migrate:
     image: identity:local
+    init: true
     command: ["migrate"]
     environment:
-      DB_CONNECTION: "Data Source=/data/identity.db"
-    volumes:
-      - identity-data:/data
+      DB_CONNECTION: "Host=database;Database=identity;Username=identity;Password=identity"
+    depends_on:
+      database:
+        condition: service_healthy
 
   identity:
     image: identity:local
+    init: true
     depends_on:
       identity-keys:
         condition: service_completed_successfully
@@ -41,12 +63,15 @@ services:
     ports:
       - "127.0.0.1:8389:8080"
     environment:
-      DB_CONNECTION: "Data Source=/data/identity.db"
-      DataProtection__KeyDirectory: /data/data-protection
+      DB_CONNECTION: "Host=database;Database=identity;Username=identity;Password=identity"
+      Identity__Server__Issuer: http://127.0.0.1:8389/
       Identity__Server__Keys__Signing__0: /data/keys/signing.pem
       Identity__Server__Keys__Encryption__0: /data/keys/encryption.pem
+      Identity__DataProtection__Certificates__0: /data/keys/data-protection.pem
     volumes:
-      - identity-data:/data
+      - identity-keys:/data
+    mem_limit: 256m
 
 volumes:
-  identity-data:
+  database:
+  identity-keys:

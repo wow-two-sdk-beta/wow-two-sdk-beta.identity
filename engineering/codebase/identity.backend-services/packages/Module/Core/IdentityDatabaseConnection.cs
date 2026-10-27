@@ -1,14 +1,12 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore;
-using WoW.Two.Sdk.Beta.Be.Data.Migrations.Bespoke;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
-/// <summary>The identity database the context and the migration set both reach: the engine and its connection string.</summary>
-/// <param name="Provider">The engine.</param>
+/// <summary>The PostgreSQL database the context and the migration set both reach.</summary>
 /// <param name="ConnectionString">The connection string.</param>
-internal sealed record IdentityDatabaseConnection(DatabaseProvider Provider, string ConnectionString)
+internal sealed record IdentityDatabaseConnection(string ConnectionString)
 {
     /// <summary>The variable that overrides the host's configured connection string, as in the be sdk persistence bundle.</summary>
     private const string ConnectionStringVariable = "DB_CONNECTION";
@@ -23,7 +21,7 @@ internal sealed record IdentityDatabaseConnection(DatabaseProvider Provider, str
     {
         var options = services.GetRequiredService<IdentityDatabaseOptions>();
         var configuration = services.GetService<IConfiguration>();
-        return new IdentityDatabaseConnection(options.Provider, options.ConnectionStringName is { } name
+        return new IdentityDatabaseConnection(options.ConnectionStringName is { } name
             ? NonBlank(configuration?.GetConnectionString(name))
                 ?? throw new InvalidOperationException($"Identity database connection string 'ConnectionStrings:{name}' not found ({IdentityDatabaseOptions.SectionName}:ConnectionStringName).")
             : NonBlank(services.GetService<DatabaseSettings>()?.ConnectionString)

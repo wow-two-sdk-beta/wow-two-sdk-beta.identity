@@ -7,7 +7,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Keys;
 namespace Identity.Tests.E2E.Oidc;
 
 /// <summary>
-/// The two T6 rotation spikes, against the real service on host-file certificates: a staged signing certificate is in
+/// The two T6 rotation spikes, against the real service on certificate files: a staged signing certificate is in
 /// the JWKS before its date, and signs from its date on without a restart. A control run without
 /// <see cref="ActiveKeySelectionHandler"/> shows what OpenIddict alone does: it keeps its boot-time pick until a restart.
 /// </summary>

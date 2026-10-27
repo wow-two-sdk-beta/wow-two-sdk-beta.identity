@@ -6,10 +6,11 @@
 
 ## Current state
 
-v0.1 is in progress: the repo was created from the domain template on 2026-10-26, and Identity's code, tests and
-research moved here out of the be sdk, which dropped them in `10.0.82-beta`. The seven NuGet packages are published
-at `10.0.0-beta` and the image at `v0.1.x` (2026-10-27); the npm package still holds the template's sample and is
-unpublished, and the OIDC server is not built. The first consumer is Ocharo (Form 2).
+v0.3 (shared spine) is in progress. v0.1 moved Identity out of the be sdk (2026-10-26); v0.2 built the schema
+migrations, signing keys and the OIDC server; v0.3's first iteration made it PostgreSQL only, with keys as vault
+secrets, the Data Protection ring in the database, sessions and the sign-in log (2026-10-27). The seven NuGet packages
+publish from tags; the npm package still holds the template's sample and is unpublished. The first consumer is Ocharo
+(Form 2).
 
 ### What exists
 
@@ -31,13 +32,11 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
 
 ### Gaps
 
-- protocol — OIDC server endpoints, discovery, JWKS, asymmetric signing keys and rotation (issuance is HS256 only;
-  validation already accepts RS, PS and ES keys).
+- protocol — back-channel logout (I18) and the OIDC client package (I19).
 - accounts — invitations, admin-managed members, an OAuth callback-to-link route.
 - passwords — expiry, history, forced reset, admin-generated temporary passwords, generator, a real strength meter.
-- sessions — a durable OTP store (memory only today, codes plaintext at rest, 5-second resend), a session list per
-  user and device, revoke one or all.
-- audit — sign-in log, security events (log lines only today), admin action trail.
+- sessions — a durable OTP store (memory only today, codes plaintext at rest, 5-second resend).
+- audit — security events (log lines only today), admin action trail.
 - admin — user admin API, disable, impersonation, the console itself.
 - Telegram — Log in with Telegram (OIDC), link-on-first-sign-in without a password.
 - fe — sign-in, phone + code, Telegram link, passkey, MFA and account screens; `passwordStrength` is empty.
@@ -52,9 +51,9 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
 | Move the spec and the analysis batch into the repo | ✅ | 2026-10-26 |
 | First npm publish of `@wow-two-beta/fe-identity` | ⬜ | by hand once real fe content lands; then its trusted publisher; tag `fe-v0.0.1` is burned |
 | NuGet trusted-publishing consent for the seven ids | ✅ | 2026-10-27; the family published at `10.0.0-beta` |
-| Wheelhouse registration, secrets and DNS for an instance | ⬜ | by hand; waits on Q4, Q5 and Q25 |
+| Wheelhouse registration, secrets and DNS for an instance | ⬜ | by hand; waits on Q4 and Q5 |
 | Migrator follow-ups before the first deploy | ✅ | owner marker, baseline and multi-set harness in be sdk `10.0.82-beta` |
-| P1 slices I14–I20 | ⬜ | [backlog](../engineering/planning/backlog.md) |
+| P1 slices I14, I15, I18–I20 | ⬜ | [backlog](../engineering/planning/backlog.md) |
 
 ---
 

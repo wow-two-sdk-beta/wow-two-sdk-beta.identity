@@ -11,8 +11,8 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 
 /// <summary>
-/// The one place that turns a person into token claims and sends each claim to its tokens: <c>sub</c>, <c>name</c>,
-/// <c>email</c>, <c>email_verified</c>, <c>amr</c>, <c>auth_time</c>, and <c>org_id</c>, <c>org_role</c>,
+/// The one place that turns a person into token claims and sends each claim to its tokens: <c>sub</c>, <c>sid</c>,
+/// <c>name</c>, <c>email</c>, <c>email_verified</c>, <c>amr</c>, <c>auth_time</c>, and <c>org_id</c>, <c>org_role</c>,
 /// <c>org_permission</c> for one active organization.
 /// </summary>
 /// <remarks>
@@ -21,7 +21,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 ///   - <c>org_permission</c> keeps only the client's namespace when it has one
 ///   - <c>amr</c> and <c>org_permission</c> travel as JSON arrays, one value included, as OIDC defines <c>amr</c>
 ///   - the security stamp rides inside codes and refresh tokens only, so the token endpoint refuses a rotated stamp
-///   - <c>sid</c> waits for sessions
+///   - <c>sid</c> names the sign-in session the tokens were issued under; it is set once, at authorization, and a refresh
+///     keeps it
 /// </remarks>
 /// <param name="core">Identity options carrying the stamp claim type.</param>
 /// <param name="organizations">The organizations slice; null emits no organization claims.</param>
@@ -34,18 +35,26 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
         OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Role, OrganizationClaimTypeConstants.Permission,
     ];
 
-    /// <summary>A new identity for a sign-in, carrying the granted scopes, the client's audience and how the person signed in.</summary>
+    /// <summary>A new identity for a sign-in, carrying the granted scopes, the client's audience, the session and how the person signed in.</summary>
     /// <param name="client">The client.</param>
     /// <param name="scopes">The granted scopes.</param>
     /// <param name="methods">The <c>amr</c> values of the session.</param>
     /// <param name="authenticatedAt">When the session signed in; null omits <c>auth_time</c>.</param>
-    public static ClaimsIdentity CreateIdentity(OidcClientProfile client, IEnumerable<string> scopes, IEnumerable<string> methods, DateTimeOffset? authenticatedAt)
+    /// <param name="sessionId">The sign-in session the tokens are issued under; null omits <c>sid</c>.</param>
+    public static ClaimsIdentity CreateIdentity(
+        OidcClientProfile client,
+        IEnumerable<string> scopes,
+        IEnumerable<string> methods,
+        DateTimeOffset? authenticatedAt,
+        Guid? sessionId = null)
     {
         ArgumentNullException.ThrowIfNull(client);
         var identity = new ClaimsIdentity(TokenValidationParameters.DefaultAuthenticationType, Claims.Name, Claims.Role);
         identity.SetScopes(scopes);
         identity.SetAudiences(client.Audience);
         SetArrayClaim(identity, Claims.AuthenticationMethodReference, methods);
+        if (sessionId is { } sid)
+            identity.SetClaim(SessionClaimTypeConstants.SessionId, sid.ToString("D", CultureInfo.InvariantCulture));
         // The typed overloads set the value type a token needs: OpenIddict's string overload takes an issuer, not a type.
         if (authenticatedAt is { } at)
             identity.SetClaim(Claims.AuthenticationTime, at.ToUnixTimeSeconds());
@@ -166,7 +175,7 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
     }
 
     /// <summary>
-    /// Where a claim goes. <c>sub</c>, <c>amr</c> and the organization claims reach both tokens; <c>name</c> follows the
+    /// Where a claim goes. <c>sub</c>, <c>sid</c>, <c>amr</c> and the organization claims reach both tokens; <c>name</c> follows the
     /// <c>profile</c> scope and <c>email</c> with <c>email_verified</c> the <c>email</c> scope; <c>auth_time</c> reaches the
     /// ID token only. Everything else, the security stamp included, stays inside codes and refresh tokens.
     /// </summary>
@@ -177,7 +186,7 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
         string[] both = [Destinations.AccessToken, Destinations.IdentityToken];
         return claim.Type switch
         {
-            Claims.Subject or Claims.AuthenticationMethodReference => both,
+            Claims.Subject or SessionClaimTypeConstants.SessionId or Claims.AuthenticationMethodReference => both,
             OrganizationClaimTypeConstants.Id or OrganizationClaimTypeConstants.Role or OrganizationClaimTypeConstants.Permission => both,
             Claims.Name => claim.Subject?.HasScope(Scopes.Profile) == true ? both : [],
             Claims.Email or Claims.EmailVerified => claim.Subject?.HasScope(Scopes.Email) == true ? both : [],
@@ -188,7 +197,7 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
 
     /// <summary>
     /// The userinfo response for <paramref name="principal"/>: the profile and organization claims the ID token may carry,
-    /// <c>email_verified</c> as a boolean and <c>org_permission</c> always as an array; <c>amr</c> and <c>auth_time</c> stay out.
+    /// <c>email_verified</c> as a boolean and <c>org_permission</c> always as an array; <c>amr</c>, <c>auth_time</c> and <c>sid</c> stay out.
     /// </summary>
     /// <param name="principal">A principal built by <see cref="ApplyAsync"/>.</param>
     public static Dictionary<string, object> ToUserInfo(ClaimsPrincipal principal)
@@ -197,7 +206,7 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
         var identity = principal.Identity as ClaimsIdentity ?? new ClaimsIdentity(principal.Claims);
         var response = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (var type in identity.Claims
-                     .Where(claim => claim.Type is not (Claims.AuthenticationMethodReference or Claims.AuthenticationTime))
+                     .Where(claim => claim.Type is not (Claims.AuthenticationMethodReference or Claims.AuthenticationTime or SessionClaimTypeConstants.SessionId))
                      .Where(claim => GetDestinations(claim).Contains(Destinations.IdentityToken))
                      .Select(claim => claim.Type)
                      .Distinct(StringComparer.Ordinal))

@@ -7,7 +7,6 @@ using AwesomeAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -354,7 +353,7 @@ public sealed partial class AccountEndpointTests
             options.EnableRateLimiting = false;
         });
         database.Register(builder.Services);
-        builder.Services.AddUserAccounts(configureDatabase: IdentityTestDatabase.UseSqlite)
+        builder.Services.AddUserAccounts()
             .AddArgon2Passwords()
             .AddUserTokens(o => o.SigningKey = AccountsHost.SigningKey)
             .AddEmailConfirmation()

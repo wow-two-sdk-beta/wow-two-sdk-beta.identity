@@ -5,9 +5,9 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 
 | File | Role |
 |---|---|
-| `deploy.yml` | descriptor 2: one service, `identity` (`/health`, 256 MB, typed keys: `DatabaseSettings:ConnectionString`, the OIDC issuer and the first signing and encryption key files required, `Ephemeral` defaulting to `false`, the Data Protection ring's directory; a `data` volume); sites `app` (public, primary) and `console` (private), both at `/` and `/api`; `dotnetEnvironment: true` and the `verify` dev check |
+| `deploy.yml` | descriptor 2: one service, `identity` (`/health`, 256 MB, `needs: [postgres]`, typed keys: `DatabaseSettings:ConnectionString` filled from the target's database, the OIDC issuer, the first signing and encryption certificates and the first ring certificate required as vault secrets, `Ephemeral` defaulting to `false`; no volume); sites `app` (public, primary) and `console` (private), both at `/` and `/api`; `dotnetEnvironment: true` and the `verify` dev check |
 | `Dockerfile` | three stages: build the frontend workspace (`fe-identity`, then `apps/web`), publish `service/Identity.Api` with its packages and the pages in `wwwroot`, run on `aspnet` with `curl` |
-| `docker-compose.yml` | local verification: `identity-keys` makes throwaway OIDC certificates with the image's `keys generate` once and `identity-migrate` runs its `migrate` command, then the image serves its SQLite file on a named volume, on `http://127.0.0.1:8389` |
+| `docker-compose.yml` | local verification: a PostgreSQL service, `identity-keys` makes throwaway OIDC and ring certificates with the image's `keys generate` once, `identity-migrate` runs its `migrate` command, then the image serves on `http://127.0.0.1:8389`; every image runs under an init process |
 
 ## Contract with Wheelhouse
 
@@ -16,53 +16,64 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
   setting keys (`settings.keys`) into the bundle; the runner needs Wheelhouse v0.5 or later.
 - Version: `X.Y` from the newest `planning/version-track/v{X.Y}/`; the image tag and `GET /api/system/status` report the
   same `X.Y.Z`, plus the build's commit after a `+`. Package releases (`be-v*`, `fe-v*`) never move it.
-- Settings a target provides in `/app/appsettings.Target.json`: `DatabaseSettings:ConnectionString`
-  (`Data Source=/data/identity.db`); `Deployment:TrustedProxies` or `Deployment:TrustedNetworks` names the ingress; the
-  OIDC server's settings below.
-- Database: SQLite on the `data` volume (`Identity:Database:Provider` is `Sqlite` in `appsettings.json`), one instance
-  per environment. The schema is the Module's `identity` migration set: `dotnet Identity.Api.dll migrate` creates the
-  database, applies the set and claims the schema as `service`, exiting `0` applied or current, `1` refused, `2` a
-  script failed. A deployed boot (`DEPLOY_ENVIRONMENT` set) only verifies the level and refuses to start while the set
-  is behind; a local run applies it at boot. `GET /health` answers 200 only while the database answers.
+- Settings a target provides in `/app/appsettings.Target.json`: `DatabaseSettings:ConnectionString`, which Wheelhouse
+  fills from the target's own PostgreSQL database (`needs: [postgres]`); `Deployment:TrustedProxies` or
+  `Deployment:TrustedNetworks` names the ingress; the OIDC server's and the ring's settings below.
+- Database: PostgreSQL only (SQLite is banned for products), one database per instance and environment; the service
+  keeps nothing on a volume. The schema is the Module's `identity` migration set: `dotnet Identity.Api.dll migrate`
+  creates the database, applies the set and claims the schema as `service`, exiting `0` applied or current, `1`
+  refused, `2` a script failed. A deployed boot (`DEPLOY_ENVIRONMENT` set) only verifies the level and refuses to start
+  while the set is behind; a local run applies it at boot. `GET /health` answers 200 only while the database answers.
+- First deploy after the move from SQLite: the old `data` volume holds nothing the service reads any more (accounts,
+  OIDC clients and the ring start empty in PostgreSQL); remove it once the new database serves.
 - Migrate step: descriptor 2 has no step that runs a command before the new image serves, so `deploy.yml` declares
   none, and the first deployment waits for one; a release that adds a migration needs `migrate` run first.
 - Dev check: after a dev rollout, `verify` curls `$VERIFY_SERVICE_IDENTITY/health` and `/api/system/status` with
   `Host: localhost`; `HostFilteringTests` replays the descriptor's requests.
 - After each main image publish, `conformance.yml` runs the contract suite against the released image.
 
-## OIDC server settings and key files
+## OIDC server, ring and session settings
 
 | Key | Required | Holds |
 |---|---|---|
 | `Identity:Server:Issuer` | yes | the public site's origin, such as `https://<identity-host>/`; tokens carry it as `iss`; a deployed boot refuses to start without it |
-| `Identity:Server:Keys:Signing:N` | `:0` | a signing certificate file inside the container; a rotation adds `:1` |
-| `Identity:Server:Keys:Encryption:N` | `:0` | an encryption certificate file; an old one stays until its refresh tokens expire |
+| `Identity:Server:Keys:Signing:N` | `:0`, secret | a signing certificate's PEM bundle; a rotation adds `:1` |
+| `Identity:Server:Keys:Encryption:N` | `:0`, secret | an encryption certificate's PEM bundle; an old one stays until its refresh tokens expire |
+| `Identity:DataProtection:Certificates:N` | `:0`, secret | the Data Protection ring's certificate bundle; the ring itself lives in the database, wrapped by it |
 | `Identity:Server:Keys:Ephemeral` | — | `false` by the descriptor's default; a deployed boot refuses `true` |
 | `Identity:Server:Clients:N:{ClientId,ClientSecret,RedirectUris:M,PostLogoutRedirectUris:M,Audience,PermissionNamespace}` | per app | one confidential client; the secret ends in `Secret`, so the vault keeps it |
 | `Identity:Server:{SignInPath,AuthorizationCodeLifetime,AccessTokenLifetime,IdentityTokenLifetime,RefreshTokenLifetime}` | — | defaults `/sign-in`, 60 s, 10 min, 5 min, 12 h |
-| `DataProtection:KeyDirectory` | — | the sign-in cookie's key ring, `/data/data-protection` by the descriptor's default; a deployed boot refuses none |
+| `Identity:Sessions:{Lifetime,ActivityInterval}` | — | defaults 12 h absolute (the cookie's), 5 min |
+| `Identity:SignInLog:{RetentionDays,CleanupInterval}` | — | defaults 180 days, 1 h |
 
-- Each key file is one PEM bundle (certificate, then its unencrypted PKCS#8 private key). Until Wheelhouse renders vault
-  files, they sit on the `data` volume under `/data/keys/`: the folder `0700` and each file `0444`, owned by the image's
-  `app` user, outside any repository.
-- A deployed boot (`DEPLOY_ENVIRONMENT` set) refuses to start on a missing or unreadable file, a certificate without its
-  private key, a role with no certificate valid now, or ephemeral keys; the log names each problem. A local run uses
-  the ephemeral keys `appsettings.Development.json` turns on.
+- Each certificate value is one PEM bundle (certificate, then its unencrypted PKCS#8 private key), pasted as is from
+  `keys generate`; `deploy.yml` declares the first of each `secret: true`, so the value lives in Wheelhouse's vault and
+  its settings render carries it into `/app/appsettings.Target.json`. A rotation's `:1` is an owner key, added the same
+  way. A value may also be a file path inside the container; no target needs one.
+- A deployed boot (`DEPLOY_ENVIRONMENT` set) refuses to start on an unreadable value, a certificate without its private
+  key, a role with no certificate valid now, ephemeral keys, or a missing or unfit ring certificate; the log names each
+  setting, never its key material. A local run uses the ephemeral keys `appsettings.Development.json` turns on and may
+  keep the ring unwrapped.
 - The OIDC endpoints (`/connect/*`, `/.well-known/*`) answer HTTPS only: behind the ingress the trusted forwarded
   scheme makes them so, while the plain-HTTP compose check reaches `/health` but gets `ID2083` from them.
 - The owner makes each file with the image itself; nothing generates keys in CI or at runtime:
 
 ```bash
-docker run --rm <image> keys generate --role signing [--days N] [--not-before <yyyy-MM-ddTHH:mm:ssZ>] > signing-<yyyy-MM>.pem
+docker run --rm <image> keys generate --role signing|encryption|data-protection [--days N] [--not-before <yyyy-MM-ddTHH:mm:ssZ>]
 ```
+
+- The bundle goes to standard output and the thumbprint and dates to standard error; paste the bundle into the vault
+  secret and keep no copy.
 
 ## Key rotation
 
-1. Publish: generate the next certificate with `--not-before` 24 h ahead, add its file as the next `Signing:N`, deploy;
-   the JWKS lists both, so relying parties cache it before it signs.
+1. Publish: generate the next certificate with `--not-before` 24 h ahead, add it as the next `Signing:N` secret,
+   deploy; the JWKS lists both, so relying parties cache it before it signs.
 2. Activate: on its `NotBefore` the new certificate signs every new token, without a deploy.
-3. Retire: 24 h after activation, remove the old file and its key, deploy.
+3. Retire: 24 h after activation, remove the old secret, deploy.
 4. Encryption: the same steps, retiring the old certificate only after the refresh lifetime plus a day.
+5. Ring: add the next `data-protection` certificate as `Certificates:1` and deploy; it wraps new ring keys, the old one
+   still unwraps the old keys; remove the old one once the ring has rolled past them (the ring rolls every 90 days).
 
 - Cadence: signing every 90 days (certificates default to 120 days), encryption every 180 (210 days).
 - A leaked key skips the overlap: T6 § 3 *Compromise runbook*

@@ -6,6 +6,6 @@ public sealed record PersonalDataExportModel
     /// <summary>Gets when the export was made.</summary>
     public required DateTimeOffset GeneratedAt { get; init; }
 
-    /// <summary>Gets the sections: <c>account</c>, <c>claims</c>, <c>logins</c>, <c>passkeys</c>, <c>sessions</c>, then the product's.</summary>
+    /// <summary>Gets the sections: <c>account</c>, <c>claims</c>, <c>logins</c>, <c>passkeys</c>, <c>sessions</c> (refresh tokens), <c>sign_in_sessions</c>, <c>sign_in_log</c>, then the product's.</summary>
     public required IReadOnlyDictionary<string, object?> Sections { get; init; }
 }

@@ -7,7 +7,7 @@ our code decides who signs in and what their tokens say. Slices I17–I18.
 ## Quick start
 
 ```csharp
-services.AddUserAccounts().AddSignIn().AddOrganizations().AddAccountEndpoints()
+services.AddUserAccounts().AddSignIn().AddSessions().AddOrganizations().AddAccountEndpoints()
     .AddOidcServer(server => server.SignInPath = "/sign-in");   // the host section Identity:Server applies last
 services.AddCookieAuthentication();
 
@@ -45,10 +45,10 @@ app.MapOidcServerEndpoints();
 | Path | Served by | Does |
 |---|---|---|
 | `/.well-known/openid-configuration` · `/.well-known/jwks` | OpenIddict | discovery (code flow, S256, the claims below) and the signing keys |
-| `/connect/authorize` | pass-through | reads the cookie session; none, `prompt=login` or an exceeded `max_age` redirects to `SignInPath?returnUrl=…` (without `prompt` and `max_age`), `prompt=none` answers `login_required` |
-| `/connect/token` | pass-through | code and refresh grants only; re-checks the person (exists, not locked out, same stamp) and writes fresh claims |
-| `/connect/userinfo` | pass-through | the current profile and organization claims for the access token |
-| `/connect/endsession` | pass-through | ends the cookie session; with `id_token_hint`, revokes the app's authorizations and tokens for that person; returns to the validated `post_logout_redirect_uri` |
+| `/connect/authorize` | pass-through | reads the cookie session; none, `prompt=login` or an exceeded `max_age` redirects to `SignInPath?returnUrl=…` (without `prompt` and `max_age`), `prompt=none` answers `login_required`; ties the grant to the session's `sid` |
+| `/connect/token` | pass-through | code and refresh grants only; re-checks the person (exists, not locked out, same stamp) and the session behind the grant, and writes fresh claims |
+| `/connect/userinfo` | pass-through | the current profile and organization claims for the access token, while its session lives |
+| `/connect/endsession` | pass-through | ends the cookie and its session; with `id_token_hint`, revokes the app's authorizations and tokens for that person; returns to the validated `post_logout_redirect_uri` |
 
 ## Claims
 
@@ -57,6 +57,7 @@ app.MapOidcServerEndpoints();
 | Claim | ID token | Access token | Source |
 |---|---|---|---|
 | `sub` | ✓ | ✓ | the user id |
+| `sid` | ✓ | ✓ | the sign-in session the grant came from (`SessionClaimTypeConstants.SessionId`); set at authorization, kept by refreshes |
 | `name` | with `profile` | with `profile` | the user name |
 | `email`, `email_verified` | with `email` | with `email` | the account |
 | `amr` | ✓ | ✓ | how the session signed in (`pwd`, `hwk`, `otp`, `mfa`; `AuthenticationMethodConstants`), an array |
@@ -68,7 +69,22 @@ app.MapOidcServerEndpoints();
 - Active organization: the one the grant already carries while the person still belongs to it, else the earliest
   membership (ties by organization id); a person without memberships gets no organization claims.
 - The security stamp rides inside codes and refresh tokens only; a rotated stamp makes the next refresh fail
-  `invalid_grant`. `sid` arrives with sessions (I16).
+  `invalid_grant`.
+- Userinfo answers neither `amr`, `auth_time` nor `sid`.
+
+## Sessions
+
+With the sessions slice (`AddSessions`, `../../Module/Core/Sessions/sessions.md`), every grant hangs off the sign-in
+session that made it:
+
+- the authorize endpoint creates an ad-hoc authorization whose `sid` property names the cookie's session, and the
+  code, refresh and access tokens are issued under it; both tokens carry `sid`
+- the token endpoint refuses a grant whose session ended (`invalid_grant`), userinfo a token whose session ended
+  (`invalid_token`)
+- revoking a session (the person's session list, the account API's logout, end-session, or a stamp rotation when next
+  seen) runs `OidcSessionRevocationHandler`: it revokes that session's authorizations and every token under them, so
+  its refresh chains end at once
+- a grant without `sid` (issued before sessions, or by a host without the slice) passes the session check
 
 ## Clients
 

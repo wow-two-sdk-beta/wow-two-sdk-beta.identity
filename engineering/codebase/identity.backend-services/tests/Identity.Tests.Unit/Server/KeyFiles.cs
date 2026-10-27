@@ -18,6 +18,13 @@ internal sealed class KeyFiles : IDisposable
         return WriteText(name, SigningCertificateGenerator.ExportPem(certificate));
     }
 
+    /// <summary>A throwaway bundle of <paramref name="role"/> as an inline setting carries it: the PEM text itself.</summary>
+    public static string Bundle(SigningKeyRole role, DateTimeOffset notBefore, int days = 30)
+    {
+        using var certificate = SigningCertificateGenerator.Create(role, notBefore, TimeSpan.FromDays(days));
+        return SigningCertificateGenerator.ExportPem(certificate);
+    }
+
     /// <summary>Writes <paramref name="content"/> as a file; returns its path.</summary>
     public string WriteText(string name, string content)
     {

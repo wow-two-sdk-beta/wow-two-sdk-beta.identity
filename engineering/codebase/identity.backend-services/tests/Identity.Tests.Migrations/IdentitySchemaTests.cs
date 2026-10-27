@@ -10,29 +10,25 @@ using WoW.Two.Sdk.Beta.Be.Testing.Data.Migrations;
 namespace Identity.Tests.Migrations;
 
 /// <summary>
-/// The Module's embedded <c>identity</c> migration set against a real engine: apply → rollback → apply, the applied
-/// schema against the <see cref="IdentityDbContext"/> model column for column, and the Module's own registration into a
-/// configured schema. Each dialect runs every fact through its subclass.
+/// The Module's embedded <c>identity</c> migration set on PostgreSQL in Testcontainers: apply → rollback → apply, the
+/// applied schema against the <see cref="IdentityDbContext"/> model column for column, and the Module's own registration
+/// into a configured schema. One container serves the tier; every user schema is dropped before each test.
 /// </summary>
-public abstract class IdentitySchemaTests : IAsyncLifetime
+/// <param name="fixture">The shared container.</param>
+[Collection(PostgresMigratorCollection.Name)]
+public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyncLifetime
 {
     /// <summary>The default identity schema.</summary>
-    protected const string Schema = "identity";
-
-    /// <summary>The engine under test.</summary>
-    protected abstract DatabaseProvider Provider { get; }
-
-    /// <summary>A fresh, empty database for this test.</summary>
-    protected abstract string ConnectionString { get; }
+    private const string Schema = "identity";
 
     /// <inheritdoc />
-    public abstract Task InitializeAsync();
+    public async Task InitializeAsync() => await fixture.ResetAsync();
 
     /// <inheritdoc />
-    public abstract Task DisposeAsync();
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
-    public async Task Apply_ShouldCreateTheAccountAndOidcTables_AndRecordTheSet()
+    public async Task Apply_ShouldCreateEveryTable_AndRecordTheSet()
     {
         await using var migrator = CreateMigrator();
 
@@ -41,7 +37,7 @@ public abstract class IdentitySchemaTests : IAsyncLifetime
         applied.Should().ContainSingle().Which.Applied.Should().Equal(SchemaShape.Migrations);
         foreach (var table in SchemaShape.AllTables)
             (await migrator.HasTableAsync(Schema, table)).Should().BeTrue($"the set creates {table}");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2);
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
@@ -51,6 +47,11 @@ public abstract class IdentitySchemaTests : IAsyncLifetime
         await using var migrator = CreateMigrator();
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
+
+        (await runner.RollbackAsync(targetOrdinal: 2)).ValueOrThrow().Should().Equal("003-spine");
+        foreach (var table in SchemaShape.SpineTables)
+            (await migrator.HasTableAsync(Schema, table)).Should().BeFalse($"rolling 003-spine back drops {table}");
+        (await migrator.HasTableAsync(Schema, "identity_oidc_tokens")).Should().BeTrue("002-oidc stays applied");
 
         (await runner.RollbackAsync(targetOrdinal: 1)).ValueOrThrow().Should().Equal("002-oidc");
         foreach (var table in SchemaShape.OidcTables)
@@ -72,11 +73,11 @@ public abstract class IdentitySchemaTests : IAsyncLifetime
     {
         await using var migrator = CreateMigrator();
         (await migrator.ApplyAllAsync()).ValueOrThrow();
-        await using var context = SchemaShape.CreateContext(Provider, ConnectionString, Schema);
+        await using var context = SchemaShape.CreateContext(fixture.ConnectionString, Schema);
         await using var connection = await migrator.OpenConnectionAsync();
 
         var model = SchemaShape.FromModel(context);
-        var applied = await SchemaShape.FromDatabaseAsync(connection, Provider, Schema);
+        var applied = await SchemaShape.FromDatabaseAsync(connection, Schema);
 
         model.Select(table => table.Name).Should().Equal(SchemaShape.AllTables);
         applied.Should().BeEquivalentTo(model, options => options.WithStrictOrdering());
@@ -87,17 +88,13 @@ public abstract class IdentitySchemaTests : IAsyncLifetime
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddDatabaseSettings(ConnectionString);
-        services.AddUserAccounts(configureDatabase: database =>
-        {
-            database.Provider = Provider;
-            database.Schema = "identity_tenant";
-        });
+        services.AddDatabaseSettings(fixture.ConnectionString);
+        services.AddUserAccounts(configureDatabase: database => database.Schema = "identity_tenant");
         await using var provider = services.BuildServiceProvider();
 
         var set = provider.GetRequiredService<IMigrationSetRegistry>().GetOptions(IdentityDatabaseOptions.MigrationSetName);
         set.Should().BeEquivalentTo(
-            new { Provider, SchemaName = "identity_tenant", SchemaOwner = IdentitySchemaOwnerConstants.Module, TableName = "identity_migration_history" },
+            new { Provider = DatabaseProvider.Postgres, SchemaName = "identity_tenant", SchemaOwner = IdentitySchemaOwnerConstants.Module, TableName = "identity_migration_history" },
             options => options.ExcludingMissingMembers());
         (await provider.ApplyMigrationSetsAsync("test")).ValueOrThrow().Single().Applied.Should().Equal(SchemaShape.Migrations);
 
@@ -129,19 +126,62 @@ public abstract class IdentitySchemaTests : IAsyncLifetime
         token.Id.Version.Should().Be(7);
     }
 
-    /// <summary>A harness running the Module's embedded SQL for <see cref="Provider"/> as the <c>identity</c> set, rollback allowed.</summary>
-    private MigratorHarness CreateMigrator() => Provider == DatabaseProvider.Sqlite
-        ? MigratorHarness.CreateSqlite(ConnectionString, AddIdentitySet)
-        : MigratorHarness.CreatePostgres(ConnectionString, AddIdentitySet);
+    [Fact]
+    public async Task SpineTables_ShouldRoundTripTheirRows()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDatabaseSettings(fixture.ConnectionString);
+        services.AddUserAccounts();
+        await using var provider = services.BuildServiceProvider();
+        (await provider.ApplyMigrationSetsAsync("test")).ValueOrThrow();
 
-    private void AddIdentitySet(MigratorSetsBuilder sets) => sets.Add(
+        var at = new DateTimeOffset(2026, 10, 27, 9, 0, 0, TimeSpan.Zero);
+        var session = new IdentitySession
+        {
+            Id = Guid.CreateVersion7(at),
+            UserId = Guid.CreateVersion7(at),
+            AuthenticationMethods = ["pwd", "mfa"],
+            SecurityStamp = "stamp",
+            CreatedAt = at,
+            LastSeenAt = at,
+            ExpiresAt = at.AddHours(12),
+        };
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            context.Sessions.Add(session);
+            context.SignInLog.AddRange(
+                new IdentitySignInLogEntry { OccurredAt = at, Method = "password", Result = "failed", Reason = "unknown_account" },
+                new IdentitySignInLogEntry { OccurredAt = at, UserId = session.UserId, Method = "password", Result = "succeeded", SessionId = session.Id });
+            context.DataProtectionKeys.Add(new IdentityDataProtectionKey { FriendlyName = "key-1", Xml = "<key />" });
+            await context.SaveChangesAsync();
+        }
+
+        await using var read = provider.CreateAsyncScope();
+        var stored = read.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        (await stored.Sessions.SingleAsync()).Should().BeEquivalentTo(session);
+        (await stored.SignInLog.OrderBy(e => e.Id).Select(e => e.Id).ToListAsync()).Should().Equal(1, 2);
+        (await stored.SignInLog.SingleAsync(e => e.SessionId == session.Id)).UserId.Should().Be(session.UserId);
+        (await stored.DataProtectionKeys.SingleAsync()).Should().BeEquivalentTo(new { Id = 1, FriendlyName = "key-1", Xml = "<key />" });
+    }
+
+    /// <summary>A harness running the Module's embedded SQL as the <c>identity</c> set, rollback allowed.</summary>
+    private MigratorHarness CreateMigrator() => MigratorHarness.CreatePostgres(fixture.ConnectionString, sets => sets.Add(
         IdentityDatabaseOptions.MigrationSetName,
-        _ => new EmbeddedResourceMigrationBroker(
-            typeof(IdentityDbContext).Assembly, IdentityDatabaseServiceCollectionExtensions.MigrationResourcePrefix(Provider)),
+        _ => new EmbeddedResourceMigrationBroker(typeof(IdentityDbContext).Assembly, IdentityDatabaseServiceCollectionExtensions.MigrationResourcePrefix),
         options =>
         {
             options.SchemaName = Schema;
             options.SchemaOwner = IdentitySchemaOwnerConstants.Module;
             options.AllowRollback = true;
-        });
+        }));
+}
+
+/// <summary>Shares one PostgreSQL container across the migration tests.</summary>
+[CollectionDefinition(Name)]
+public sealed class PostgresMigratorCollection : ICollectionFixture<MigratorPostgresFixture>
+{
+    /// <summary>The collection name.</summary>
+    public const string Name = "identity-postgres-migrator";
 }

@@ -1,15 +1,13 @@
 using System.Data.Common;
-using System.Text.RegularExpressions;
 using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
-using WoW.Two.Sdk.Beta.Be.Data.Migrations.Bespoke;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 namespace Identity.Tests.Migrations;
 
-/// <summary>One table as a dialect stores it: its columns, primary key and indexes, in name order.</summary>
+/// <summary>One table as PostgreSQL stores it: its columns, primary key and indexes, in name order.</summary>
 public sealed record TableShape(string Name, IReadOnlyList<ColumnShape> Columns, KeyShape PrimaryKey, IReadOnlyList<IndexShape> Indexes);
 
 /// <summary>One column: its store type (lower case), nullability and whether the database generates it.</summary>
@@ -22,7 +20,7 @@ public sealed record KeyShape(string Name, string Columns);
 public sealed record IndexShape(string Name, string Columns, bool Unique);
 
 /// <summary>Reads the identity tables' shape from the EF model and from an applied database, so a test compares them.</summary>
-public static partial class SchemaShape
+public static class SchemaShape
 {
     /// <summary>The 11 tables 001-accounts creates.</summary>
     public static readonly IReadOnlyList<string> AccountTables =
@@ -37,25 +35,26 @@ public static partial class SchemaShape
         "identity_oidc_applications", "identity_oidc_authorizations", "identity_oidc_scopes", "identity_oidc_tokens",
     ];
 
+    /// <summary>The 3 tables 003-spine creates: sessions, the sign-in log and the Data Protection ring.</summary>
+    public static readonly IReadOnlyList<string> SpineTables =
+    [
+        "identity_data_protection_keys", "identity_sessions", "identity_sign_in_log",
+    ];
+
     /// <summary>Every table the set creates, in name order.</summary>
-    public static readonly IReadOnlyList<string> AllTables = [.. AccountTables.Concat(OidcTables).Order(StringComparer.Ordinal)];
+    public static readonly IReadOnlyList<string> AllTables = [.. AccountTables.Concat(OidcTables).Concat(SpineTables).Order(StringComparer.Ordinal)];
 
     /// <summary>The set's migrations in apply order.</summary>
-    public static readonly IReadOnlyList<string> Migrations = ["001-accounts", "002-oidc"];
+    public static readonly IReadOnlyList<string> Migrations = ["001-accounts", "002-oidc", "003-spine"];
 
     /// <summary>The identity set's own history table, which the model does not map.</summary>
     private const string MigrationHistoryTable = $"{IdentityDatabaseOptions.MigrationSetName}_migration_history";
 
-    /// <summary>Builds an <see cref="IdentityDbContext"/> for <paramref name="provider"/> over <paramref name="connectionString"/>.</summary>
-    public static IdentityDbContext CreateContext(DatabaseProvider provider, string connectionString, string schema)
+    /// <summary>Builds an <see cref="IdentityDbContext"/> over <paramref name="connectionString"/>, mapping <paramref name="schema"/>.</summary>
+    public static IdentityDbContext CreateContext(string connectionString, string schema)
     {
-        var builder = new DbContextOptionsBuilder<IdentityDbContext>();
-        if (provider == DatabaseProvider.Sqlite)
-            builder.UseSqlite(connectionString);
-        else
-            builder.UseNpgsql(connectionString);
-
-        return new IdentityDbContext(builder.Options, new IdentityDatabaseOptions { Provider = provider, Schema = schema });
+        var builder = new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(connectionString);
+        return new IdentityDbContext(builder.Options, new IdentityDatabaseOptions { Schema = schema });
     }
 
     /// <summary>The tables the context's model maps, as its provider would create them.</summary>
@@ -83,10 +82,7 @@ public static partial class SchemaShape
     }
 
     /// <summary>The identity tables an applied database holds, read from its catalog; the migrator's own tables are left out.</summary>
-    public static Task<IReadOnlyList<TableShape>> FromDatabaseAsync(DbConnection connection, DatabaseProvider provider, string schema)
-        => provider == DatabaseProvider.Sqlite ? FromSqliteAsync(connection) : FromPostgresAsync(connection, schema);
-
-    private static async Task<IReadOnlyList<TableShape>> FromPostgresAsync(DbConnection connection, string schema)
+    public static async Task<IReadOnlyList<TableShape>> FromDatabaseAsync(DbConnection connection, string schema)
     {
         var columns = await connection.QueryAsync<(string Table, string Column, string Type, bool Nullable, bool Generated)>(
             """
@@ -132,38 +128,6 @@ public static partial class SchemaShape
             indexes.Select(i => (i.Table, new IndexShape(i.Name, i.Columns, i.Unique))));
     }
 
-    private static async Task<IReadOnlyList<TableShape>> FromSqliteAsync(DbConnection connection)
-    {
-        var tables = (await connection.QueryAsync<(string Name, string Sql)>(
-            "select name, sql from sqlite_master where type = 'table' and name not like 'sqlite_%'")).ToList();
-
-        var columns = new List<(string, ColumnShape)>();
-        var keys = new Dictionary<string, KeyShape>(StringComparer.Ordinal);
-        var indexes = new List<(string, IndexShape)>();
-        foreach (var (table, sql) in tables)
-        {
-            var info = (await connection.QueryAsync<(string Name, string Type, long NotNull, long Pk)>(
-                "select name, type, \"notnull\", pk from pragma_table_info(@table)", new { table })).ToList();
-            var autoincrement = sql.Contains("AUTOINCREMENT", StringComparison.OrdinalIgnoreCase);
-            columns.AddRange(info.Select(column => (table, new ColumnShape(
-                column.Name, column.Type.ToLowerInvariant(), column.NotNull == 0, autoincrement && column.Pk == 1))));
-
-            // SQLite keeps a constraint name only in the table's SQL.
-            var keyName = PrimaryKeyName().Match(sql) is { Success: true } match ? match.Groups[1].Value : "(unnamed)";
-            keys[table] = new KeyShape(keyName, string.Join(',', info.Where(c => c.Pk > 0).OrderBy(c => c.Pk).Select(c => c.Name)));
-
-            foreach (var (name, unique) in await connection.QueryAsync<(string Name, long Unique)>(
-                         "select name, \"unique\" from pragma_index_list(@table) where origin = 'c'", new { table }))
-            {
-                var indexColumns = await connection.QueryAsync<string>(
-                    "select name from pragma_index_info(@name) order by seqno", new { name });
-                indexes.Add((table, new IndexShape(name, string.Join(',', indexColumns), unique == 1)));
-            }
-        }
-
-        return Assemble(columns, keys, indexes);
-    }
-
     private static List<TableShape> Assemble(
         IEnumerable<(string Table, ColumnShape Column)> columns,
         IReadOnlyDictionary<string, KeyShape> keys,
@@ -181,7 +145,4 @@ public static partial class SchemaShape
             .OrderBy(table => table.Name, StringComparer.Ordinal)
             .ToList();
     }
-
-    [GeneratedRegex(@"CONSTRAINT\s+""?(\w+)""?\s+PRIMARY\s+KEY", RegexOptions.IgnoreCase)]
-    private static partial Regex PrimaryKeyName();
 }

@@ -3,12 +3,13 @@
   <!--
     Extension (layer 4): the OIDC server the Identity service runs over the Form 1 module — OpenIddict 7.7.2 (T1) with
     its EF Core stores on the Module's IdentityDbContext, the pass-through endpoints, the client registry seeded from
-    configuration, and the key source with its boot check and generator (slices I17–I18). The back-channel sender and
-    exchange grants (I19) come later.
+    configuration, the key source with its boot check and generator (slices I17–I18), grants tied to sign-in sessions
+    (I16), and the Data Protection ring in the identity database, certificate-wrapped (Q26). The back-channel sender
+    and exchange grants (I19) come later.
   -->
   <PropertyGroup>
     <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
-    <Description>Identity server: the OpenID Connect provider the Identity service runs over the Form 1 module — code flow with PKCE, rotating refresh tokens, discovery, JWKS, userinfo and end-session on OpenIddict, with host-file certificates.</Description>
+    <Description>Identity server: the OpenID Connect provider the Identity service runs over the Form 1 module — code flow with PKCE, rotating refresh tokens, discovery, JWKS, userinfo and end-session on OpenIddict, certificates from settings, grants tied to sign-in sessions, and a certificate-wrapped Data Protection ring in the identity database.</Description>
   </PropertyGroup>
 
   <ItemGroup>

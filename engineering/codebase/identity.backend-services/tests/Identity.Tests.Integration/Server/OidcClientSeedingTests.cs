@@ -21,7 +21,7 @@ public sealed class OidcClientSeedingTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         _database.Register(services);
-        services.AddUserAccounts(configureDatabase: IdentityTestDatabase.UseSqlite)
+        services.AddUserAccounts()
             .AddOidcServer(options =>
             {
                 // No host environment here reads as a deployed boot, which needs a pinned issuer.

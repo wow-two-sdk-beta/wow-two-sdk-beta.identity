@@ -25,7 +25,7 @@ app.MapGroup("/account").MapUserAccountEndpoints();
 |---|---|
 | `POST register` | creates the account; sends the confirmation email when configured |
 | `POST login[?useCookies=true]` | bearer `{ accessToken, expiresIn, refreshToken }` or a cookie; `twoFactorCode` / `recoveryCode` / `twoFactorMethod` in the body |
-| `POST refresh` · `POST logout` | rotate the refresh token · revoke it and clear the cookie |
+| `POST refresh` · `POST logout` | rotate the refresh token · revoke it, end the cookie's session and clear the cookie |
 | `GET confirm-email?userId&token` | confirms the email |
 | `POST resend-confirmation-email` · `POST forgot-password` | always `204`, so they reveal no accounts |
 | `POST reset-password` | sets a new password with the emailed token |
@@ -37,9 +37,13 @@ app.MapGroup("/account").MapUserAccountEndpoints();
 | `GET manage/personal-data` · `POST manage/delete-account` | export and erasure; mapped only with `.AddPersonalData()` |
 | `POST passkeys/login/options` · `POST passkeys/login[?useCookies=true]` | usernameless passkey sign-in; mapped only with `.AddPasskeys()` |
 | `GET manage/passkeys` · `POST manage/passkeys/options` · `POST manage/passkeys` · `DELETE manage/passkeys/{id}` | list, start, finish and remove registrations |
+| `GET manage/sessions` · `DELETE manage/sessions/{id}` · `DELETE manage/sessions[?keepCurrent=true]` | list, revoke one, revoke all sign-in sessions; mapped only with `.AddSessions()` (`../Sessions/sessions.md`) |
 
 - Success bodies use the `ApiResponse<T>` envelope (`{ data }`); failures are problem details with identity codes,
   translated when error translation is enabled.
+- With `.AddSessions()`, a cookie sign-in starts a session: the cookie carries its `sid` and expires with it.
+- Every sign-in route takes an optional `?clientId=` (the OIDC client the hosted pages serve), which the sign-in log
+  records with each attempt (`.AddSignInLog()`, `../SignInLog/sign-in-log.md`).
 - Lockout answers `429`, an unconfirmed account `403`, wrong credentials and a missing second factor `401`.
 - Refresh renews without a second factor but re-checks lockout and confirmation; a refused renewal revokes the token.
 - Without an `IEmailBroker` or a link template, emails are skipped and `confirmationSent` is false.

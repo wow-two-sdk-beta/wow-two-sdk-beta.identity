@@ -37,6 +37,12 @@
 | 2026-10-27 | PostgreSQL only: the Module's SQLite dialect retires, as SQLite is banned for products (replaces Q58) | developer |
 | 2026-10-27 | the default image (`service/Identity.Api`) is the general instance any owner pulls and configures; an owner who needs more composes the packages in a host of its own | developer |
 | 2026-10-27 | wow2's own instance gets its own host image on the published packages, in a platform repository, later; the default image keeps serving Ocharo meanwhile | developer |
+| 2026-10-27 | key and ring certificates are vault secrets as inline PEM (a file path still works); no key file sits on a volume | Q25, Q26 |
+| 2026-10-27 | the Data Protection ring lives in `identity_data_protection_keys`, each key wrapped by the active ring certificate; a deployed boot refuses none | Q26 |
+| 2026-10-27 | `sid` rides in the ID and access tokens, not userinfo; each grant hangs off an authorization naming the session | spine build |
+| 2026-10-27 | a cookie without `sid` passes the session check while other sign-in paths start none; the stamp check still covers it | spine build |
+| 2026-10-27 | the sign-in log keeps no `country` or `organization_id` yet; a second factor logs as `2fa:{method}` | spine build |
+| 2026-10-27 | SQLite data is not carried to PostgreSQL; an instance that ran on SQLite starts empty | spine build |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

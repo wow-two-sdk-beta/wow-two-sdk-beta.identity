@@ -28,9 +28,9 @@ internal sealed partial class ServerKeyConfiguration(IServiceProvider services) 
         if (keys.Ephemeral)
         {
             if (!IsLocalRun())
-                throw new InvalidOperationException("Identity:Server:Keys:Ephemeral is allowed only on a local run (Development without DEPLOY_ENVIRONMENT); a deployed boot reads certificate files.");
+                throw new InvalidOperationException("Identity:Server:Keys:Ephemeral is allowed only on a local run (Development without DEPLOY_ENVIRONMENT); a deployed boot reads its certificates from Identity:Server:Keys:Signing and :Encryption.");
             if (keys.Signing.Count > 0 || keys.Encryption.Count > 0)
-                throw new InvalidOperationException("Identity:Server:Keys sets Ephemeral beside certificate files; choose one.");
+                throw new InvalidOperationException("Identity:Server:Keys sets Ephemeral beside listed certificates; choose one.");
 
             options.SigningCredentials.Add(new SigningCredentials(CreateEphemeralKey(), SecurityAlgorithms.RsaSha256));
             options.EncryptionCredentials.Add(new EncryptingCredentials(CreateEphemeralKey(), SecurityAlgorithms.RsaOAEP, SecurityAlgorithms.Aes256CbcHmacSha512));

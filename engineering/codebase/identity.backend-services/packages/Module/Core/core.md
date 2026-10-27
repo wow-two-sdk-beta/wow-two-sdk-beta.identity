@@ -25,8 +25,7 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 ```jsonc
 "Identity": {
   "Database": {
-    "Provider": "Postgres",              // or Sqlite; default Postgres
-    "Schema": "identity",                // PostgreSQL schema, one per instance; SQLite ignores it
+    "Schema": "identity",                // PostgreSQL schema, one per instance
     "ConnectionStringName": null         // a ConnectionStrings name; null uses the host's database
   }
 }
@@ -34,6 +33,8 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 
 ## Schema
 
+- PostgreSQL only: the SQLite dialect retired on 2026-10-27, as products may not run SQLite
+  (`wow-two-ws/conventions/development/backend/dotnet/core/mla/domains/persistence/database/database.md`).
 - `IdentityDbContext` maps 11 account tables: `identity_users`, `identity_roles`, `identity_user_roles`,
   `identity_user_claims`, `identity_role_claims`, `identity_user_logins`, `identity_user_tokens`,
   `identity_refresh_tokens`, `identity_passkeys`, `identity_organizations`, `identity_memberships`. Products never map
@@ -45,20 +46,25 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
   `OpenIddict.EntityFrameworkCore.Models` with uuid v7 ids made in code; `subject` holds the user id as text. Every
   form carries the tables, so the schema has one shape; only the Server package (the Identity service) reads or writes
   them, through OpenIddict's EF Core stores.
-- The SQL owns the schema: `../Migrations/{Postgres,Sqlite}/NNN-name/{Apply,Rollback}.sql`, embedded and run as the
-  be sdk migration set `identity` (history `identity_migration_history`, its own advisory lock). EF only maps.
+- `003-spine` adds `identity_sessions` (one row per signed-in browser or device, its id the `sid`; `Sessions/`),
+  `identity_sign_in_log` (every attempt, deleted after the retention; `SignInLog/`) and
+  `identity_data_protection_keys` (the instance's Data Protection ring, read and written only by the Server package's
+  `AddDataProtectionRing`).
+- The SQL owns the schema: `../Migrations/Postgres/NNN-name/{Apply,Rollback}.sql`, embedded and run as the be sdk
+  migration set `identity` (history `identity_migration_history`, its own advisory lock). EF only maps.
 - Names are pinned in the model, whatever the host's naming convention: snake_case columns, `pk_{table}`,
-  `ix_{table}_{columns}`. PostgreSQL scripts qualify every table with `{{schema}}`; SQLite has no schemas.
+  `ix_{table}_{columns}`. Scripts qualify every table with `{{schema}}`.
 - The set claims its schema with an owner kind: `module` (`IdentitySchemaOwnerConstants.Module`, the default) for a
   Form 1 product, `service` for the Identity service (`AddUserAccounts(configureDatabase: o => o.SchemaOwner = …)`). A
   schema one kind claimed refuses the other's migrations.
 - Connection: `Identity:Database:ConnectionStringName`, else the host's `DatabaseSettings`, else `DB_CONNECTION`, else
   `DatabaseSettings:ConnectionString`. PostgreSQL gets one pool keyed `identity`, shared by the context and the set.
-- Ids: users, roles, passkeys, refresh tokens and organizations take `Guid.CreateVersion7` from the registered
-  `TimeProvider` at creation; claim rows take a `bigint` identity. No `TUser` / `TKey` generics: extend through side
+- Ids: users, roles, passkeys, refresh tokens, organizations and sessions take `Guid.CreateVersion7` from the
+  registered `TimeProvider` at creation; claim and sign-in log rows take a `bigint` identity, ring keys an `integer` one. No `TUser` / `TKey` generics: extend through side
   tables keyed by the user id (`sub`) and claims contributors, never by added columns.
-- A schema change is a new `NNN-name` pair per dialect plus the model change; `Identity.Tests.Migrations` fails when the
-  applied schema and the model disagree, per dialect. Never edit an applied pair.
+- A schema change is a new `NNN-name` pair plus the model change; `Identity.Tests.Migrations` fails when the applied
+  schema and the model disagree. Never edit an applied pair (`001` and `002` still say SQLite shares their names; they
+  stay as applied).
 
 ## Slices
 
@@ -76,6 +82,8 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 | `AddTwoFactor()` | `UserTwoFactorService` | `TwoFactor/` |
 | `AddPhoneNumbers()` | `UserPhoneService` | `Phones/` |
 | `AddRefreshTokens()` | `RefreshTokenService` | `RefreshTokens/` |
+| `AddSessions(o => …)` | `UserSessionService` (one session per cookie sign-in, `sid`, list and revoke) + cookie hook | `Sessions/` |
+| `AddSignInLog(o => …)` | `SignInLogService` (every attempt, masked) + the retention cleanup job | `SignInLog/` |
 | `AddPasskeys(o => …)` | `UserPasskeyService`, `SignInService.PasskeySignInAsync` | `Passkeys/` |
 | `AddOrganizations(o => …)` | `OrganizationService` (organizations, memberships, role and permission claims) | `Organizations/` |
 | `AddEmailSignIn(o => …)` | `UserEmailSignInService` (single-use link or code over OTP) | `EmailSignIn/` |
@@ -84,15 +92,16 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 | `AddSignIn()` | `SignInService` | `SignIn/` |
 
 Table-backed slices (`AddRoles`, `AddUserClaims`, `AddExternalLogins`, `AddTwoFactor`, `AddRefreshTokens`, `AddPasskeys`,
-`AddOrganizations`) register their repositories over `IdentityDbContext` with `TryAdd`, so a repository the host
-registered first wins.
+`AddOrganizations`, `AddSessions`, `AddSignInLog`) register their repositories over `IdentityDbContext` with `TryAdd`, so
+a repository the host registered first wins.
 
 ## Notes
 
 - Uniqueness is enforced **both** in the facade (`DuplicateUserName`/`DuplicateEmail`) and by the DB unique index.
 - A capability that isn't registered is **absent** — resolving its service fails at resolution, rather than
   silently no-op'ing. Optional collaborators (lockout inside sign-in, tokens inside passwords) switch steps on or off.
-- Credential changes (password, email, role or claim removal, 2FA changes, unlinking) rotate the security stamp.
+- Credential changes (password, email, role or claim removal, 2FA changes, unlinking) rotate the security stamp, which
+  ends every session of the person.
 - Deleting a user removes its role, claim, login and token rows in the same save; the schema has no foreign keys.
 - `IdentityDbContext` registers through the SDK context path, so the host's EF interceptors (audit stamps for
   `CreatedAt` / `UpdatedAt`) attach to it as to the host's own context.

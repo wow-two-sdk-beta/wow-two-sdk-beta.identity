@@ -6,8 +6,8 @@
 #   docker build --build-arg APP_VERSION=0.1.99 --build-arg VCS_REF=$(git rev-parse HEAD) \
 #     -f engineering/deployment/Dockerfile -t identity:local engineering/codebase
 #
-# The image holds no environment: the SQLite path (a file on the /data volume) arrives at run time, through the
-# environment's settings file (/app/appsettings.Target.json) or the DB_CONNECTION variable.
+# The image holds no environment: the PostgreSQL connection string and the key bundles arrive at run time, through the
+# environment's settings file (/app/appsettings.Target.json) or variables such as DB_CONNECTION.
 
 # ---- Stage 1: build the frontend workspace (the fe-identity package first, then apps/web) ----
 FROM node:24.11.0-alpine AS spa
@@ -46,7 +46,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 WORKDIR /app
 COPY --from=build /app ./
 
-# The SQLite file lives on a volume so data survives container replacement; the volume inherits this ownership.
+# A writable folder for a local check's throwaway key files (docker-compose.yml); a deployed target mounts nothing.
 RUN mkdir -p /data && chown app:app /data
 
 ENV ASPNETCORE_HTTP_PORTS=8080

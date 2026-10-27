@@ -3,10 +3,11 @@
   <!--
     Form 1 (layer 3): Identity in the consumer's process, over the consumer's database — AddUserAccounts and its slices
     (passwords, tokens, email, lockout, roles, claims, logins, two-factor, phones, refresh tokens, passkeys,
-    organizations, email sign-in, personal data, the account endpoints), OTP and its five channels, TOTP, WebAuthn and
-    Argon2. The Module owns its schema: IdentityDbContext maps it, OpenIddict's four OIDC tables included (their entity
-    classes come from OpenIddict.EntityFrameworkCore.Models, which has no dependencies), and embedded
-    Migrations/{Postgres,Sqlite}/NNN-name/{Apply,Rollback}.sql create it as the be sdk migration set "identity".
+    organizations, sessions, the sign-in log, email sign-in, personal data, the account endpoints), OTP and its five
+    channels, TOTP, WebAuthn and Argon2. The Module owns its PostgreSQL schema: IdentityDbContext maps it, OpenIddict's
+    four OIDC tables and the Data Protection key table included (OpenIddict's entity classes come from
+    OpenIddict.EntityFrameworkCore.Models, which has no dependencies), and embedded
+    Migrations/Postgres/NNN-name/{Apply,Rollback}.sql create it as the be sdk migration set "identity".
   -->
   <PropertyGroup>
     <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
@@ -27,7 +28,7 @@
     <ProjectReference Include="..\Auth\WoW.Two.Sdk.Beta.Be.Identity.Auth.csproj" />
   </ItemGroup>
 
-  <!-- SQL migrations ship embedded (logical name "Migrations/{Postgres,Sqlite}/NNN-name/Apply.sql"); the set reads its engine's folder. -->
+  <!-- SQL migrations ship embedded (logical name "Migrations/Postgres/NNN-name/Apply.sql"); PostgreSQL is the only engine. -->
   <ItemGroup>
     <EmbeddedResource Include="Migrations\**\*.sql">
       <LogicalName>Migrations/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>

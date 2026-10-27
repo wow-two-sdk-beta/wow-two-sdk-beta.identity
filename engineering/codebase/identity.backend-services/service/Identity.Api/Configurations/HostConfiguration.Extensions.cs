@@ -7,10 +7,12 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SecurityStamps;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.SignInLog;
+using WoW.Two.Sdk.Beta.Be.Identity.DataProtection;
 using WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 using WoW.Two.Sdk.Beta.Be.Observability.HealthChecks;
-using WoW.Two.Sdk.Beta.Be.Web.DataProtection;
 using WoW.Two.Sdk.Beta.Be.Web.Json;
 
 namespace Identity.Api.Configurations;
@@ -21,13 +23,15 @@ public static partial class HostConfiguration
     internal const string AccountPath = "/api/account";
 
     /// <summary>
-    /// Hosts the Form 1 module over the service's own database, claiming the identity schema as the service: user
-    /// accounts on the module's context with password sign-in, lockout, stamps and organizations, its migration set,
-    /// audit stamps and the store's readiness check; and the OIDC server over the same store.
+    /// Hosts the Form 1 module over the service's own PostgreSQL database, claiming the identity schema as the service:
+    /// user accounts on the module's context with password sign-in, lockout, stamps, organizations, sessions and the
+    /// sign-in log, its migration set, audit stamps and the store's readiness check; the OIDC server over the same
+    /// store; and the Data Protection ring in that database.
     /// </summary>
     /// <remarks>
-    ///   - the engine comes from <c>Identity:Database:Provider</c>; the connection is the host's database
-    ///   - the server's clients, lifetimes and key files come from <c>Identity:Server</c>; a deployed boot refuses ephemeral keys
+    ///   - the connection is the host's database (<c>DatabaseSettings:ConnectionString</c> or <c>DB_CONNECTION</c>)
+    ///   - the server's clients, lifetimes and keys come from <c>Identity:Server</c>; a deployed boot refuses ephemeral keys
+    ///   - the ring's wrapping certificates come from <c>Identity:DataProtection</c>; a deployed boot refuses none
     /// </remarks>
     private static WebApplicationBuilder AddIdentityModule(this WebApplicationBuilder builder)
     {
@@ -37,25 +41,22 @@ public static partial class HostConfiguration
             .AddSignIn()
             .AddLockout()
             .AddSecurityStampValidation()
+            .AddSessions()
+            .AddSignInLog()
             .AddOrganizations()
             .AddAccountEndpoints()
-            .AddOidcServer();
+            .AddOidcServer()
+            .AddDataProtectionRing();
         builder.Services.AddHealthChecks().AddDatabaseReadinessCheck<IdentityDbContext>();
         return builder;
     }
 
     /// <summary>
-    /// The sign-in session the authorization endpoint reads: the account API's cookie (12 h absolute, raw 401 for API
-    /// callers), sealed by a Data Protection ring that a deployed boot keeps under <c>DataProtection:KeyDirectory</c>.
+    /// The sign-in session the authorization endpoint reads: the account API's cookie (12 h absolute, as the session
+    /// row, raw 401 for API callers), sealed by the database ring <c>AddDataProtectionRing</c> registers.
     /// </summary>
     private static WebApplicationBuilder AddSignInSession(this WebApplicationBuilder builder)
     {
-        var configuration = builder.Configuration;
-        builder.Services.AddPersistentDataProtection(options =>
-        {
-            options.ApplicationName = "identity";
-            options.KeyDirectory = configuration["DataProtection:KeyDirectory"];
-        });
         builder.Services.AddCookieAuthentication(options =>
         {
             options.CookieName = "__Host-identity";

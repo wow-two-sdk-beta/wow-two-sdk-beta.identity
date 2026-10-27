@@ -20,6 +20,10 @@ public sealed record SignInResult
     /// <summary>The method the second factor asks for first — <c>authenticator</c> or a delivered method such as <c>sms</c>; set for <see cref="SignInStatus.RequiresTwoFactor"/>.</summary>
     public string? TwoFactorMethod { get; init; }
 
+    /// <summary>The sign-in log row this attempt wrote; null without the sign-in log slice, or when the write failed.</summary>
+    /// <remarks>A cookie sign-in passes it to <c>UserSessionService.StartAsync</c>, so the row names the session it started.</remarks>
+    public long? SignInLogEntryId { get; init; }
+
     /// <summary>Whether the user is signed in.</summary>
     public bool Succeeded => Status == SignInStatus.Succeeded;
 }

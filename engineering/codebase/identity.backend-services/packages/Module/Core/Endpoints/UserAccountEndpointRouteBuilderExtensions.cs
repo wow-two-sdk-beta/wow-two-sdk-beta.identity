@@ -13,7 +13,9 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.Passkeys;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.RefreshTokens;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.SignInLog;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.TwoFactor;
 using WoW.Two.Sdk.Beta.Be.Identity.Jwt.Issuance;
 using WoW.Two.Sdk.Beta.Be.Web.Contracts;
@@ -32,11 +34,13 @@ public static class UserAccountEndpointRouteBuilderExtensions
     /// two-factor slice registered, <c>manage/2fa</c> (status, authenticator, enable, disable, recovery-codes, preferred,
     /// methods/{method}/send, methods/{method}/enable, plus <c>login/two-factor</c>); with email sign-in registered,
     /// <c>email-sign-in/send</c> and <c>email-sign-in</c>; with personal data registered, <c>manage/personal-data</c> and
-    /// <c>manage/delete-account</c>; and, with the passkey slice registered, <c>passkeys/login/options</c>,
-    /// <c>passkeys/login</c> and <c>manage/passkeys</c> (list, options, register, remove) under
-    /// <paramref name="endpoints"/> — mount it on a group such as <c>app.MapGroup("/account")</c>. Sign-in returns a bearer
-    /// session (JWT via <see cref="ITokenIssuer"/>, plus a refresh token when registered) or, with <c>?useCookies=true</c>,
-    /// a cookie. Failures surface as problem details, translated when error translation is enabled.
+    /// <c>manage/delete-account</c>; with the passkey slice registered, <c>passkeys/login/options</c>,
+    /// <c>passkeys/login</c> and <c>manage/passkeys</c> (list, options, register, remove); and, with the sessions slice
+    /// registered, <c>manage/sessions</c> (list, revoke one, revoke all) under <paramref name="endpoints"/> — mount it on a
+    /// group such as <c>app.MapGroup("/account")</c>. Sign-in returns a bearer session (JWT via <see cref="ITokenIssuer"/>,
+    /// plus a refresh token when registered) or, with <c>?useCookies=true</c>, a cookie that carries a new session's
+    /// <c>sid</c> when sessions are registered. Each sign-in route takes an optional <c>?clientId=</c> the sign-in log
+    /// records. Failures surface as problem details, translated when error translation is enabled.
     /// </summary>
     /// <param name="endpoints">The route builder or group.</param>
     public static IEndpointRouteBuilder MapUserAccountEndpoints(this IEndpointRouteBuilder endpoints)
@@ -88,6 +92,13 @@ public static class UserAccountEndpointRouteBuilderExtensions
             endpoints.MapDelete("/manage/passkeys/{id:guid}", RemovePasskeyAsync).RequireAuthorization();
         }
 
+        if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserSessionService)) == true)
+        {
+            endpoints.MapGet("/manage/sessions", ListSessionsAsync).RequireAuthorization();
+            endpoints.MapDelete("/manage/sessions/{id:guid}", RevokeSessionAsync).RequireAuthorization();
+            endpoints.MapDelete("/manage/sessions", RevokeAllSessionsAsync).RequireAuthorization();
+        }
+
         return endpoints;
     }
 
@@ -103,9 +114,10 @@ public static class UserAccountEndpointRouteBuilderExtensions
         return Results.Ok(ApiResponse<RegisteredAccountDto>.Ok(new RegisteredAccountDto { UserId = IdOf(user), ConfirmationSent = sent }));
     }
 
-    private static async Task<IResult> SignInAsync(SignInApiRequest request, bool? useCookies, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> SignInAsync(SignInApiRequest request, bool? useCookies, string? clientId, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
+        NameClient(services, clientId);
         var signIn = services.GetRequiredService<SignInService>();
         var result = await signIn.PasswordSignInAsync(request.Login, request.Password, cancellationToken);
         if (result is { Status: SignInStatus.RequiresTwoFactor, TwoFactorTicket: { } ticket } && TryParseKey(result.UserId, out var userId))
@@ -125,9 +137,10 @@ public static class UserAccountEndpointRouteBuilderExtensions
     private static IResult PasskeySignInOptions(HttpContext http)
         => Results.Ok(ApiResponse<PasskeyCeremonyDto>.Ok(CeremonyOf(http.RequestServices.GetRequiredService<UserPasskeyService>().BeginSignIn())));
 
-    private static async Task<IResult> PasskeySignInAsync(PasskeySignInApiRequest request, bool? useCookies, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> PasskeySignInAsync(PasskeySignInApiRequest request, bool? useCookies, string? clientId, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
+        NameClient(services, clientId);
         var result = await services.GetRequiredService<SignInService>().PasskeySignInAsync(request.State, request.Credential.GetRawText(), cancellationToken);
         if (result.Status == SignInStatus.Failed)
             throw Unauthorized(IdentityErrorCodeConstants.InvalidPasskey, "The passkey could not be verified; try again.").ToException();
@@ -153,18 +166,24 @@ public static class UserAccountEndpointRouteBuilderExtensions
         return Results.NoContent();
     }
 
-    private static async Task<IResult> EmailSignInAsync(EmailSignInApiRequest request, bool? useCookies, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> EmailSignInAsync(EmailSignInApiRequest request, bool? useCookies, string? clientId, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
+        NameClient(services, clientId);
         var emailSignIn = services.GetRequiredService<UserEmailSignInService>();
-        var user = !string.IsNullOrWhiteSpace(request.Token)
-            ? await emailSignIn.VerifyLinkTokenAsync(request.Email, request.Token, cancellationToken)
+        var byLink = !string.IsNullOrWhiteSpace(request.Token);
+        var logMethod = byLink ? SignInMethodConstants.EmailLink : SignInMethodConstants.EmailCode;
+        var user = byLink
+            ? await emailSignIn.VerifyLinkTokenAsync(request.Email, request.Token!, cancellationToken)
             : await emailSignIn.VerifyCodeAsync(request.Email, request.Code ?? string.Empty, cancellationToken);
         if (user is null)
+        {
+            await RecordRefusalAsync(services, logMethod, request.Email, SignInReasonConstants.InvalidLinkOrCode, cancellationToken);
             throw Unauthorized(IdentityErrorCodeConstants.InvalidEmailSignIn, "The link or code is invalid or has expired.").ToException();
+        }
 
         var signIn = services.GetRequiredService<SignInService>();
-        var result = await signIn.SignInAsync(user, [AuthenticationMethodConstants.OneTimePassword], cancellationToken);
+        var result = await signIn.SignInAsync(user, [AuthenticationMethodConstants.OneTimePassword], logMethod, cancellationToken);
         if (result is { Status: SignInStatus.RequiresTwoFactor, TwoFactorTicket: { } ticket } && TryParseKey(result.UserId, out var userId))
         {
             var method = result.TwoFactorMethod ?? TwoFactorMethodNameConstants.Authenticator;
@@ -174,14 +193,18 @@ public static class UserAccountEndpointRouteBuilderExtensions
         return await SessionAsync(result, useCookies, http, cancellationToken);
     }
 
-    private static async Task<IResult> TwoFactorLoginAsync(TwoFactorLoginApiRequest request, bool? useCookies, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> TwoFactorLoginAsync(TwoFactorLoginApiRequest request, bool? useCookies, string? clientId, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
+        NameClient(services, clientId);
+        var method = request.TwoFactorMethod ?? TwoFactorMethodNameConstants.Authenticator;
         if (!TryParseKey(request.UserId, out var userId))
+        {
+            await RecordRefusalAsync(services, SignInMethodConstants.SecondFactor(method), null, SignInReasonConstants.InvalidTicket, cancellationToken);
             throw Unauthorized(IdentityErrorCodeConstants.SignInFailed, "The sign-in has expired; start again.").ToException();
+        }
 
         var signIn = services.GetRequiredService<SignInService>();
-        var method = request.TwoFactorMethod ?? TwoFactorMethodNameConstants.Authenticator;
         SignInResult result;
         if (!string.IsNullOrWhiteSpace(request.TwoFactorCode))
             result = await signIn.TwoFactorSignInAsync(userId, request.Ticket, method, request.TwoFactorCode, cancellationToken);
@@ -193,19 +216,34 @@ public static class UserAccountEndpointRouteBuilderExtensions
         return await SessionAsync(result, useCookies, http, cancellationToken);
     }
 
-    /// <summary>The session of a successful sign-in: a cookie with <c>useCookies</c>, else a bearer token pair.</summary>
+    /// <summary>
+    /// The session of a successful sign-in: a cookie with <c>useCookies</c>, carrying a new session's <c>sid</c> and
+    /// expiring with it when sessions are registered; else a bearer token pair.
+    /// </summary>
     private static async Task<IResult> SessionAsync(SignInResult result, bool? useCookies, HttpContext http, CancellationToken cancellationToken)
     {
         if (!result.Succeeded)
             throw FailureOf(result.Status).ToException();
 
+        var services = http.RequestServices;
         if (useCookies == true)
         {
-            await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, result.Principal!);
+            var principal = result.Principal!;
+            var properties = new AuthenticationProperties();
+            if (services.GetService<UserSessionService>() is { } sessions
+                && principal.Identity is ClaimsIdentity identity
+                && await FindAsync(services, result.UserId, cancellationToken) is { } signedIn)
+            {
+                var methods = principal.FindAll(AuthenticationMethodConstants.ClaimType).Select(claim => claim.Value);
+                var session = await sessions.StartAsync(signedIn, methods, result.SignInLogEntryId, cancellationToken);
+                identity.AddClaim(new Claim(services.GetRequiredService<IdentityCoreOptions>().Claims.SessionIdClaimType, session.Id.ToString()));
+                properties.ExpiresUtc = session.ExpiresAt;
+            }
+
+            await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, properties);
             return Results.NoContent();
         }
 
-        var services = http.RequestServices;
         var user = await FindAsync(services, result.UserId, cancellationToken);
         return Results.Ok(ApiResponse<AccessTokenDto>.Ok(await IssueAsync(services, result.Principal!, user, null, cancellationToken)));
     }
@@ -229,10 +267,14 @@ public static class UserAccountEndpointRouteBuilderExtensions
         return Results.Ok(ApiResponse<AccessTokenDto>.Ok(await IssueAsync(services, renewed.Principal!, redeemed.User, redeemed.Token!.Token, cancellationToken)));
     }
 
-    private static async Task<IResult> SignOutAsync(SignOutApiRequest? request, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> SignOutAsync(SignOutApiRequest? request, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(request?.RefreshToken) && http.RequestServices.GetService<RefreshTokenService>() is { } refresh)
             await refresh.RevokeAsync(request.RefreshToken, cancellationToken);
+
+        // The cookie's session ends with it, and with it every OIDC token issued under it.
+        if (http.RequestServices.GetService<UserSessionService>() is { } sessions && SessionOf(http.RequestServices, principal) is var (userId, sessionId))
+            await sessions.RevokeAsync(userId, sessionId, SessionRevokeReasonConstants.SignOut, cancellationToken);
 
         if (await http.RequestServices.GetRequiredService<IAuthenticationSchemeProvider>().GetSchemeAsync(CookieAuthenticationDefaults.AuthenticationScheme) is not null)
             await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
@@ -419,6 +461,74 @@ public static class UserAccountEndpointRouteBuilderExtensions
         var claimType = services.GetRequiredService<IdentityCoreOptions>().Claims.UserIdClaimType;
         return await FindAsync(services, principal.FindFirst(claimType)?.Value, cancellationToken)
             ?? throw AppErrorFactory.Unauthorized("The account no longer exists.").ToException();
+    }
+
+    private static async Task<IResult> ListSessionsAsync(ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
+    {
+        var services = http.RequestServices;
+        var user = await CurrentUserAsync(principal, http, cancellationToken);
+        var current = SessionOf(services, principal)?.SessionId;
+        var listed = await services.GetRequiredService<UserSessionService>().ListAsync(user, cancellationToken);
+        return Results.Ok(ApiResponse<IReadOnlyList<SessionDto>>.Ok([.. listed.Select(session => new SessionDto
+        {
+            Id = session.Id,
+            CreatedAt = session.CreatedAt,
+            LastSeenAt = session.LastSeenAt,
+            ExpiresAt = session.ExpiresAt,
+            AuthenticationMethods = session.AuthenticationMethods,
+            IpMasked = session.IpMasked,
+            UserAgent = session.UserAgent,
+            Current = session.Id == current,
+        })]));
+    }
+
+    private static async Task<IResult> RevokeSessionAsync(Guid id, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
+    {
+        var services = http.RequestServices;
+        var user = await CurrentUserAsync(principal, http, cancellationToken);
+        if (!await services.GetRequiredService<UserSessionService>().RevokeAsync(user.Id, id, cancellationToken: cancellationToken))
+            throw AppErrorFactory.NotFound("The account has no such live session.").ToException();
+
+        if (SessionOf(services, principal)?.SessionId == id)
+            await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> RevokeAllSessionsAsync(bool? keepCurrent, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
+    {
+        var services = http.RequestServices;
+        var user = await CurrentUserAsync(principal, http, cancellationToken);
+        var current = SessionOf(services, principal)?.SessionId;
+        await services.GetRequiredService<UserSessionService>().RevokeAllAsync(user, keepCurrent == true ? current : null, cancellationToken);
+        if (current is not null && keepCurrent != true)
+            await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+        return Results.NoContent();
+    }
+
+    /// <summary>The person and session a cookie principal names; null for a principal without <c>sid</c>, such as a bearer token.</summary>
+    private static (Guid UserId, Guid SessionId)? SessionOf(IServiceProvider services, ClaimsPrincipal principal)
+    {
+        var claims = services.GetRequiredService<IdentityCoreOptions>().Claims;
+        return TryParseKey(principal.FindFirst(claims.UserIdClaimType)?.Value, out var userId)
+            && TryParseKey(principal.FindFirst(claims.SessionIdClaimType)?.Value, out var sessionId)
+                ? (userId, sessionId)
+                : null;
+    }
+
+    /// <summary>Names the OIDC client this request's sign-in serves, for the sign-in log.</summary>
+    private static void NameClient(IServiceProvider services, string? clientId)
+    {
+        if (!string.IsNullOrWhiteSpace(clientId) && services.GetService<SignInLogService>() is { } log)
+            log.ClientId = clientId;
+    }
+
+    /// <summary>Records an attempt refused before <see cref="SignInService"/> judged it, such as a spent email link.</summary>
+    private static async Task RecordRefusalAsync(IServiceProvider services, string method, string? subject, string reason, CancellationToken cancellationToken)
+    {
+        if (services.GetService<SignInLogService>() is { } log)
+            await log.RecordAsync(new SignInAttempt { Method = method, Result = SignInResultConstants.Failed, Reason = reason, Subject = subject }, cancellationToken);
     }
 
     private static async Task<IResult> ListPasskeysAsync(ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)

@@ -5,6 +5,7 @@ using OpenIddict.Server;
 using WoW.Two.Sdk.Beta.Be.Foundation.Options;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Keys;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -16,7 +17,7 @@ public static class OidcServerIdentityBuilderExtensions
     /// <summary>
     /// Register the OpenID Connect server over the Module's store: OpenIddict's server with its EF Core stores on
     /// <see cref="IdentityDbContext"/>, the authorization code flow with PKCE (S256 only) and rotating refresh tokens,
-    /// discovery, JWKS, userinfo and end-session; keys from <see cref="ISigningKeySource"/> (host files by default),
+    /// discovery, JWKS, userinfo and end-session; keys from <see cref="ISigningKeySource"/> (the settings by default),
     /// checked at boot; and the clients of <see cref="OidcServerOptions.Clients"/>, seeded at startup. Map the
     /// pass-through endpoints with <c>MapOidcServerEndpoints</c> behind <c>UseAuthentication</c>.
     /// </summary>
@@ -25,6 +26,8 @@ public static class OidcServerIdentityBuilderExtensions
     ///     verify offline against the JWKS, while codes and refresh tokens stay encrypted
     ///   - the authorization endpoint reads the cookie sign-in session (<c>MapUserAccountEndpoints</c> with
     ///     <c>useCookies</c>) and sends a person without one to <see cref="OidcServerOptions.SignInPath"/>
+    ///   - with the sessions slice, every grant hangs off the sign-in session's <c>sid</c>: the tokens carry it, the token
+    ///     and userinfo endpoints refuse an ended session, and revoking the session revokes its grants and tokens
     ///   - a boot fails closed on unusable keys, and on ephemeral keys outside a local run
     /// </remarks>
     /// <param name="builder">The identity builder from <c>AddUserAccounts</c>.</param>
@@ -37,9 +40,10 @@ public static class OidcServerIdentityBuilderExtensions
         services.AddModuleOptions(OidcServerOptions.SectionName, configure);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<OidcServerOptions>, OidcServerOptionsValidator>());
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton<ISigningKeySource, HostFileSigningKeySource>();
+        services.TryAddSingleton<ISigningKeySource, SettingsSigningKeySource>();
         services.TryAddScoped<OidcClaimMapper>();
         services.TryAddScoped<OidcClientSeeder>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ISessionRevocationHandler, OidcSessionRevocationHandler>());
         services.AddHostedService<OidcClientSeedingService>();
 
         services.AddOpenIddict()
@@ -63,7 +67,7 @@ public static class OidcServerIdentityBuilderExtensions
 
                 server.RegisterScopes(Scopes.OpenId, Scopes.Profile, Scopes.Email, Scopes.OfflineAccess);
                 server.RegisterClaims(
-                    Claims.Subject, Claims.Name, Claims.Email, Claims.EmailVerified, Claims.AuthenticationMethodReference,
+                    Claims.Subject, SessionClaimTypeConstants.SessionId, Claims.Name, Claims.Email, Claims.EmailVerified, Claims.AuthenticationMethodReference,
                     Claims.AuthenticationTime, OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Role,
                     OrganizationClaimTypeConstants.Permission);
 

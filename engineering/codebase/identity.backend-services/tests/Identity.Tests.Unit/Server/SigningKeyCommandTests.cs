@@ -37,6 +37,19 @@ public sealed class SigningKeyCommandTests
         certificate.Extensions.OfType<X509KeyUsageExtension>().Single().KeyUsages.Should().Be(X509KeyUsageFlags.KeyEncipherment);
     }
 
+    [Fact]
+    public void Generate_ShouldMakeADataProtectionRingCertificate()
+    {
+        var (exit, output, error) = Run("generate", "--role", "data-protection");
+
+        exit.Should().Be(0);
+        using var certificate = X509Certificate2.CreateFromPem(output, output);
+        certificate.Subject.Should().Be("CN=Identity data protection");
+        new DateTimeOffset(certificate.NotAfter).Should().Be(Now + SigningCertificateGenerator.DefaultDataProtectionLifetime);
+        certificate.Extensions.OfType<X509KeyUsageExtension>().Single().KeyUsages.Should().Be(X509KeyUsageFlags.KeyEncipherment);
+        error.Should().Contain("Generated a Data Protection ring certificate");
+    }
+
     [Theory]
     [InlineData]
     [InlineData("generate")]

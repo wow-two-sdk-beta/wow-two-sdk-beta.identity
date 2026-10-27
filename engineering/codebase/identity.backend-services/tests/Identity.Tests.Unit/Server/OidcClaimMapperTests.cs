@@ -105,6 +105,21 @@ public sealed class OidcClaimMapperTests
         Destinations(bare, OrganizationClaimTypeConstants.Permission).Should().BeEquivalentTo(Both);
         Destinations(bare, Claims.AuthenticationTime).Should().Equal(OpenIddictConstants.Destinations.IdentityToken);
         Destinations(bare, StampType).Should().BeEmpty();
+        Destinations(bare, SessionClaimTypeConstants.SessionId).Should().BeEquivalentTo(Both);
+    }
+
+    [Fact]
+    public void Session_ShouldTravelAsSid_InBothTokens_ButStayOutOfUserInfo()
+    {
+        var session = Guid.Parse("01900000-0000-7000-8000-0000000000aa");
+        var identity = OidcClaimMapper.CreateIdentity(Client, [Scopes.OpenId], [AuthenticationMethodConstants.Password], authenticatedAt: null, session);
+        identity.SetClaim(Claims.Subject, "person");
+
+        identity.GetClaim(SessionClaimTypeConstants.SessionId).Should().Be(session.ToString("D"));
+        OidcClaimMapper.GetDestinations(identity.FindFirst(SessionClaimTypeConstants.SessionId)!).Should().BeEquivalentTo(Both);
+        OidcClaimMapper.ToUserInfo(new ClaimsPrincipal(identity)).Keys.Should().Equal(Claims.Subject);
+        OidcClaimMapper.CreateIdentity(Client, [Scopes.OpenId], [], authenticatedAt: null).HasClaim(c => c.Type == SessionClaimTypeConstants.SessionId)
+            .Should().BeFalse("a grant without a session carries no sid");
     }
 
     [Fact]

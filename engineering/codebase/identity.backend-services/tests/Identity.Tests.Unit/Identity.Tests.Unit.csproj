@@ -6,8 +6,9 @@
 
   <!--
     Unit tier — per-package logic with no database, no network and no Docker: Auth (API keys, allowlist, guest, current
-    user, JWT), Module's OTP and error texts, Providers' Google ID-token authenticator, Server's keys (source, check,
-    selection, generator, command), claim mapping and client registration. In-memory TestServer pipelines count as unit
+    user, JWT), Module's OTP, error texts and personal-data masks, Providers' Google ID-token authenticator, Server's
+    keys (settings source with inline PEM bundles, check, selection, generator, command), the Data Protection ring's
+    wrapping and boot check, claim mapping and client registration. In-memory TestServer pipelines count as unit
     here; certificates are throwaway, made in memory or in temp files. Tests moved from the be sdk keep their namespaces
     (WoW.Two.Sdk.Beta.Be.Identity.Tests.*).
   -->

@@ -34,3 +34,6 @@ await signIn.TwoFactorSignInAsync(userId, ticket, code);          // or Recovery
   `otp` and `mfa` after a second factor; a renewal records none. The OIDC server copies them into tokens.
 - `PasskeySignInAsync(state, assertionJson)` verifies a passkey, then applies lockout and preconditions; no second factor.
 - Preconditions: `IdentityCoreOptions.SignIn` (`RequireConfirmedEmail`, `RequireConfirmedPhoneNumber`, `AllowEmailLogin`).
+- With `.AddSignInLog()`, every attempt it judges leaves a sign-in log row (`../SignInLog/sign-in-log.md`) and the result
+  carries its id (`SignInLogEntryId`); `SignInAsync(user, methods, logMethod)` names the step the row records.
+- A cookie sign-in through the account API starts a session (`../Sessions/sessions.md`); the principal then carries `sid`.

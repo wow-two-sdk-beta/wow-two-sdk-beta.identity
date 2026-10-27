@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WoW.Two.Sdk.Beta.Be.Identity.Cookies;
@@ -134,7 +133,7 @@ public sealed class LockoutAndStampTests
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         database.Register(builder.Services);
-        builder.Services.AddUserAccounts(configureDatabase: IdentityTestDatabase.UseSqlite)
+        builder.Services.AddUserAccounts()
             .AddSecurityStampValidation(o => o.ValidationInterval = TimeSpan.Zero);
         authentication(builder.Services);
         builder.Services.AddAuthorization();
