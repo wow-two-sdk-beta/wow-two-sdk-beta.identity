@@ -2,7 +2,7 @@
 # Prints the next release version of one package line, from the repository's tags (and npm for fe). CI never commits a
 # version: publish-packages.yml passes this one to the pack step, then pushes the tag before it publishes.
 #
-#   next-version.sh be   10.y.z-beta, one past the newest be-v10.* tag; z rolls to 0 and y += 1 past 99; first 10.0.0-beta
+#   next-version.sh be   10.y.z-beta, one past the newest be-v10.* tag, z without a ceiling; first 10.0.0-beta
 #   next-version.sh fe   0.0.z, one past the highest of the newest fe-v* tag and every version npm holds; first 0.0.1
 #
 # Env:
@@ -24,9 +24,7 @@ case "$line" in
       exit 0
     fi
     IFS=. read -r x y z <<< "${latest%-beta}"
-    z=$((10#$z + 1))
-    if [ "$z" -ge 100 ]; then z=0; y=$((10#$y + 1)); fi
-    echo "$x.$y.$z-beta"
+    echo "$x.$y.$((10#$z + 1))-beta"
     ;;
   fe)
     if [ -n "${NPM_VERSIONS+set}" ]; then

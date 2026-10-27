@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests next-version.sh in throwaway repositories: first versions, increments, the z rollover, foreign tags ignored,
+# Tests next-version.sh in throwaway repositories: first versions, increments, no z ceiling, foreign tags ignored,
 # and the fe line taking the higher of its tags and the registry.
 set -euo pipefail
 
@@ -27,7 +27,8 @@ expect() { # expect <description> <expected> <line> [tags...]; NPM_VERSIONS pass
 expect "be first release" 10.0.0-beta be
 expect "be increments z" 10.0.4-beta be be-v10.0.3-beta
 expect "be picks the numerically newest" 10.0.11-beta be be-v10.0.2-beta be-v10.0.10-beta be-v10.0.9-beta
-expect "be rolls z into y" 10.3.0-beta be be-v10.2.99-beta
+expect "be keeps z past 99" 10.2.100-beta be be-v10.2.99-beta
+expect "be picks the newest past 99" 10.0.101-beta be be-v10.0.99-beta be-v10.0.100-beta
 expect "be ignores image and fe tags" 10.0.1-beta be be-v10.0.0-beta v0.9.7 fe-v0.0.40
 NPM_VERSIONS="" expect "fe first release" 0.0.1 fe
 NPM_VERSIONS="" expect "fe increments its tag" 0.0.8 fe fe-v0.0.7 be-v10.0.30-beta v0.0.99
