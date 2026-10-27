@@ -26,13 +26,13 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | I14 invitations and admin-created members | feature | invite links with a role and a per-link expiry and use limit (one, a number, none); phone or email pre-registration; accepted on sign-in |
 | I15 durable OTP store | feature | hashed at rest, shared by instances, limits per phone, IP and client |
 | I16 sessions and sign-in log | feature | a session per device, revoke one or all, every attempt recorded |
-| I17 signing keys and JWKS | feature | key-source seam, startup validation, rotation with overlap |
-| I18 OIDC server | feature | authorize, token, end-session, discovery, back-channel logout, client registry |
+| I18 back-channel logout | feature | member removal signs every app out at once |
 | I19 OIDC client | feature | the `Client` package: cookie session, organization claims, logout receiver |
 | I20 Telegram | feature | link on first sign-in; Log in with Telegram with the `phone` scope |
 | test mode | feature | fake channels, code sink, personas, refused in production |
 | hosted pages and console | feature | `apps/web` over `fe-identity` (`./kit`, `./admin`) |
 | conformance in CI | feature | OpenID Foundation suite against the image in `Testing` mode |
+| broker conformance | feature | the module, the client and the fake pass the same broker cases |
 
 ## P2 — the whole vector
 
@@ -47,6 +47,4 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 
 | Item | Type | Notes |
 |---|---|---|
-| migrator follow-ups | chore | owner marker names the instance, baseline, multi-set test harness |
-| claim vocabulary | chore | converge on `sub`, `sid`, `org_id` before the Client ships |
-| dependency bumps | chore | OpenIddict 7.7.2 with EF Core ≥ 10.0.11; Fido2 4.3.1 |
+| Fido2 upgrade | engineering | Fido2 4.3.1: passkey transports and backup state |
