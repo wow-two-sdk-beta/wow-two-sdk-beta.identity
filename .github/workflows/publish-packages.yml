@@ -64,9 +64,13 @@ jobs:
           be=$(changed 'be-v*' "$BACKEND/packages" "$BACKEND"/Directory.*.props "$BACKEND/global.json")
           fe=$(changed 'fe-v*' "$FRONTEND/packages")
           # npm creates a package only by hand: its first version has no trusted publisher to accept this workflow.
-          if [ "$fe" = true ] && npm view "$FE_PACKAGE" version 2>&1 | grep -q E404; then
-            echo "::notice::$FE_PACKAGE has no npm version yet; publish 0.0.1 by hand and add the trusted publisher."
-            fe=false
+          # The answer is read before grep: under pipefail, `npm view | grep` takes npm's failing exit and never skips.
+          if [ "$fe" = true ]; then
+            answer=$(npm view "$FE_PACKAGE" version 2>&1 || true)
+            if grep -q E404 <<< "$answer"; then
+              echo "::notice::$FE_PACKAGE has no npm version yet; publish 0.0.1 by hand and add the trusted publisher."
+              fe=false
+            fi
           fi
           echo "be=$be" >> "$GITHUB_OUTPUT"
           echo "fe=$fe" >> "$GITHUB_OUTPUT"
