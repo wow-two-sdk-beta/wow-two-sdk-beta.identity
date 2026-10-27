@@ -1,6 +1,6 @@
 # decisions/
 
-*Last updated: 2026-10-26*
+*Last updated: 2026-10-27*
 
 > Identity's confirmed architecture decisions, newest last; a decision that needs its own record becomes
 > `NNNN-{slug}.md` beside this doc. Decisions spanning capabilities: `wow-two-ws/docs/platform-decisions.md`.
@@ -32,9 +32,11 @@
 | 2026-10-26 | Ocharo gets its own database with a one-time copy of Desk's converted accounts | Q55 |
 | 2026-10-26 | several phones per person in one table, one primary | Q56 |
 | 2026-10-26 | production migrations run as an explicit `migrate` deploy step; apply-on-boot in development only | Q57 |
-| 2026-10-26 | SQLite stays a supported Form 1 dialect; pilots copy to PostgreSQL at launch | Q58 |
 | 2026-10-26 | breaking changes are allowed in the SDKs and products while the products have no users | developer |
 | 2026-10-26 | management screens ship in `@wow-two-beta/fe-identity`'s `./admin` export; `apps/web` composes them into the console, and a central services console or a product's admin page imports the same export | developer |
+| 2026-10-27 | PostgreSQL only: the Module's SQLite dialect retires, as SQLite is banned for products (replaces Q58) | developer |
+| 2026-10-27 | the default image (`service/Identity.Api`) is the general instance any owner pulls and configures; an owner who needs more composes the packages in a host of its own | developer |
+| 2026-10-27 | wow2's own instance gets its own host image on the published packages, in a platform repository, later; the default image keeps serving Ocharo meanwhile | developer |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

@@ -114,6 +114,29 @@ flowchart BT
 
 ---
 
+## Own hosts
+
+An owner runs Identity one of two ways (decided 2026-10-27): it pulls the default image and configures it, or it
+composes the packages in a host of its own. Ocharo runs the default image; wow2's own instance gets its own host image
+later, in a platform repository.
+
+| Path | For | Takes | Builds |
+|---|---|---|---|
+| default image | an owner whose needs fit configuration | the `identity` image and its settings | nothing |
+| own host | an owner needing code the default lacks | the NuGet family and `@wow-two-beta/fe-identity` | a thin host: the registration, its pages, its extras |
+
+- fits today: every capability is a package (Module, Server, Providers, Auth), feature switches are configuration in
+  every form (Q51), and `keys generate` already lives in the Server package.
+- before an own host stays thin:
+  1. the instance composition in `service/Identity.Api/Configurations/` (sign-in cookie, Data Protection ring, account
+     API, server endpoints, readiness) becomes one package-level call;
+  2. the `migrate` command's exit codes move to the be sdk helper the Wheelhouse migrate-step spec names;
+  3. `apps/web` stays a thin composition of `fe-identity`'s `./kit` and `./admin`, so an own host builds its pages
+     from the same exports;
+  4. the host CLI (`admin create`, a one-time sign-in) joins `keys generate` in a package, not the service.
+
+---
+
 ## Schema
 
 - one linear SQL migration set in the Module creates the whole `identity` schema whatever the configuration; a
