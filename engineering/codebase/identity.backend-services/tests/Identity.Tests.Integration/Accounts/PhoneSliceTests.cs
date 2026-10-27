@@ -17,8 +17,8 @@ public sealed class PhoneSliceTests
         await using var host = AccountsHost.Create(identity => identity.AddPhoneNumbers().AddSignIn());
         var user = await host.CreateUserAsync("vera");
         await using var scope = host.Scope();
-        var phones = scope.ServiceProvider.GetRequiredService<UserPhoneService<IdentityUser, Guid>>();
-        var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>().FindByIdAsync(user.Id))!;
+        var phones = scope.ServiceProvider.GetRequiredService<UserPhoneService>();
+        var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id))!;
 
         (await phones.SetPhoneNumberAsync(tracked, Phone)).Succeeded.Should().BeTrue();
         (await phones.CreateSignInCodeAsync(Phone)).Should().BeNull();
@@ -33,7 +33,7 @@ public sealed class PhoneSliceTests
         signInCode!.Code.Should().NotBeNullOrEmpty();
         var signedIn = await phones.VerifySignInCodeAsync(Phone, signInCode.Code!);
         signedIn!.Id.Should().Be(user.Id);
-        (await scope.ServiceProvider.GetRequiredService<SignInService<IdentityUser, Guid>>().SignInAsync(signedIn)).Status
+        (await scope.ServiceProvider.GetRequiredService<SignInService>().SignInAsync(signedIn)).Status
             .Should().Be(SignInStatus.Succeeded);
 
         (await phones.CreateSignInCodeAsync("+10000000000")).Should().BeNull();

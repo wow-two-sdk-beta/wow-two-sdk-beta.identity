@@ -9,37 +9,33 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.RefreshTokens;
 /// replacement in the same family; presenting a consumed token again revokes the family. Tokens are stored by SHA-256
 /// digest and die with a security-stamp rotation. Clients must serialize refreshes, or a race counts as reuse.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="tokens">The refresh-token repository.</param>
 /// <param name="accounts">The core account service.</param>
 /// <param name="options">The token lifetime.</param>
 /// <param name="timeProvider">The clock issuance and expiry use.</param>
 /// <param name="logger">Receives the reuse event.</param>
-public sealed class RefreshTokenService<TUser, TKey>(
-    IRefreshTokenRepository<TKey> tokens,
-    UserAccountService<TUser, TKey> accounts,
+public sealed class RefreshTokenService(
+    IRefreshTokenRepository tokens,
+    UserAccountService accounts,
     RefreshTokenOptions options,
     TimeProvider timeProvider,
-    ILogger<RefreshTokenService<TUser, TKey>> logger)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+    ILogger<RefreshTokenService> logger)
 {
     private const int SecretLength = 32;
 
     /// <summary>Issue a token starting a new family, typically at sign-in.</summary>
     /// <param name="user">The signed-in user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<RefreshTokenModel> IssueAsync(TUser user, CancellationToken cancellationToken = default)
+    public Task<RefreshTokenModel> IssueAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
-        return IssueInFamilyAsync(user, Guid.CreateVersion7(), cancellationToken);
+        return IssueInFamilyAsync(user, Guid.CreateVersion7(timeProvider.GetUtcNow()), cancellationToken);
     }
 
     /// <summary>Redeem a token: on success it is spent and the result carries its replacement.</summary>
     /// <param name="token">The token the client presented.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<RefreshTokenResult<TUser>> RedeemAsync(string token, CancellationToken cancellationToken = default)
+    public async Task<RefreshTokenResult> RedeemAsync(string token, CancellationToken cancellationToken = default)
     {
         var row = await FindVerifiedAsync(token, cancellationToken);
         if (row is null || row.RevokedAt is not null)
@@ -61,7 +57,7 @@ public sealed class RefreshTokenService<TUser, TKey>(
         if (!await tokens.TryConsumeAsync(row.Id, now, cancellationToken))
             return await RevokeAsReusedAsync(row, now, cancellationToken);
 
-        return new RefreshTokenResult<TUser>
+        return new RefreshTokenResult
         {
             Status = RefreshTokenStatus.Succeeded,
             User = user,
@@ -81,7 +77,7 @@ public sealed class RefreshTokenService<TUser, TKey>(
     /// <summary>Revoke every refresh token of <paramref name="user"/>, on every device.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task RevokeAllAsync(TUser user, CancellationToken cancellationToken = default)
+    public Task RevokeAllAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         return tokens.RevokeUserAsync(user.Id, timeProvider.GetUtcNow(), cancellationToken);
@@ -92,11 +88,11 @@ public sealed class RefreshTokenService<TUser, TKey>(
     public Task<int> PurgeExpiredAsync(CancellationToken cancellationToken = default)
         => tokens.DeleteExpiredAsync(timeProvider.GetUtcNow(), cancellationToken);
 
-    private async Task<RefreshTokenModel> IssueInFamilyAsync(TUser user, Guid familyId, CancellationToken cancellationToken)
+    private async Task<RefreshTokenModel> IssueInFamilyAsync(IdentityUser user, Guid familyId, CancellationToken cancellationToken)
     {
         var secret = RandomNumberGenerator.GetBytes(SecretLength);
         var now = timeProvider.GetUtcNow();
-        var row = new IdentityRefreshToken<TKey>
+        var row = new IdentityRefreshToken
         {
             Id = Guid.CreateVersion7(now),
             UserId = user.Id,
@@ -110,7 +106,7 @@ public sealed class RefreshTokenService<TUser, TKey>(
         return new RefreshTokenModel { Token = $"{row.Id:N}.{Base64Url.EncodeToString(secret)}", ExpiresAt = row.ExpiresAt };
     }
 
-    private async Task<IdentityRefreshToken<TKey>?> FindVerifiedAsync(string? token, CancellationToken cancellationToken)
+    private async Task<IdentityRefreshToken?> FindVerifiedAsync(string? token, CancellationToken cancellationToken)
     {
         var separator = token?.IndexOf('.', StringComparison.Ordinal) ?? -1;
         if (separator != 32 || !Guid.TryParseExact(token.AsSpan(0, separator), "N", out var id))
@@ -127,7 +123,7 @@ public sealed class RefreshTokenService<TUser, TKey>(
             : null;
     }
 
-    private async Task<RefreshTokenResult<TUser>> RevokeAsReusedAsync(IdentityRefreshToken<TKey> row, DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task<RefreshTokenResult> RevokeAsReusedAsync(IdentityRefreshToken row, DateTimeOffset now, CancellationToken cancellationToken)
     {
         await tokens.RevokeFamilyAsync(row.FamilyId, now, cancellationToken);
         logger.RefreshTokenReused(row.FamilyId);
@@ -146,5 +142,5 @@ public sealed class RefreshTokenService<TUser, TKey>(
         }
     }
 
-    private static RefreshTokenResult<TUser> Outcome(RefreshTokenStatus status) => new() { Status = status };
+    private static RefreshTokenResult Outcome(RefreshTokenStatus status) => new() { Status = status };
 }

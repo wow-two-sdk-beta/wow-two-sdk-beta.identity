@@ -16,21 +16,17 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Passkeys;
 /// a use is recorded only when the passkey's last use predates the ceremony, which also defeats replays from
 /// authenticators that keep no signature counter.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="users">The core user store.</param>
 /// <param name="passkeys">The passkey store.</param>
 /// <param name="protection">Seals ceremony state.</param>
 /// <param name="options">The relying party and ceremony settings; <c>Identity:Passkeys</c> reloads live.</param>
 /// <param name="time">The clock registrations and uses are stamped with.</param>
-public sealed class UserPasskeyService<TUser, TKey>(
-    IUserRepository<TUser, TKey> users,
-    IUserPasskeyRepository<TKey> passkeys,
+public sealed class UserPasskeyService(
+    IUserRepository users,
+    IUserPasskeyRepository passkeys,
     IDataProtectionProvider protection,
     IOptionsMonitor<PasskeyOptions> options,
     TimeProvider time)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
 {
     private const string Registration = "register";
     private const string SignIn = "sign-in";
@@ -39,7 +35,7 @@ public sealed class UserPasskeyService<TUser, TKey>(
     /// <summary>Starts registering a passkey for <paramref name="user"/>; the user's existing passkeys are excluded.</summary>
     /// <param name="user">The signed-in user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<PasskeyCeremonyModel> BeginRegistrationAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<PasskeyCeremonyModel> BeginRegistrationAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         var existing = await passkeys.ListAsync(user.Id, cancellationToken);
@@ -60,7 +56,7 @@ public sealed class UserPasskeyService<TUser, TKey>(
     /// <param name="credentialJson">The <c>PublicKeyCredential</c> JSON from <c>navigator.credentials.create</c>.</param>
     /// <param name="name">A label for the passkey, such as the device; null names it "Passkey".</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> CompleteRegistrationAsync(TUser user, string state, string credentialJson, string? name = null, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> CompleteRegistrationAsync(IdentityUser user, string state, string credentialJson, string? name = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         if (Open(state, Registration) is not { } ceremony || ceremony.Subject != IdOf(user) || Parse<AuthenticatorAttestationRawResponse>(credentialJson) is not { } response)
@@ -75,10 +71,11 @@ public sealed class UserPasskeyService<TUser, TKey>(
                 null,
                 cancellationToken);
             var credential = made.Result ?? throw new Fido2VerificationException(made.ErrorMessage ?? "The attestation did not verify.");
+            var now = time.GetUtcNow();
             await passkeys.AddAsync(
-                new IdentityPasskey<TKey>
+                new IdentityPasskey
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.CreateVersion7(now),
                     UserId = user.Id,
                     CredentialId = credential.CredentialId,
                     PublicKey = credential.PublicKey,
@@ -86,7 +83,7 @@ public sealed class UserPasskeyService<TUser, TKey>(
                     SignCount = credential.Counter,
                     AaGuid = credential.Aaguid,
                     Name = string.IsNullOrWhiteSpace(name) ? "Passkey" : name.Trim()[..Math.Min(name.Trim().Length, 100)],
-                    CreatedAt = time.GetUtcNow(),
+                    CreatedAt = now,
                 },
                 cancellationToken);
             return IdentityResult.Success;
@@ -112,7 +109,7 @@ public sealed class UserPasskeyService<TUser, TKey>(
     /// <param name="state">The state from <see cref="BeginSignIn"/>.</param>
     /// <param name="credentialJson">The <c>PublicKeyCredential</c> JSON from <c>navigator.credentials.get</c>.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<TUser?> VerifySignInAsync(string state, string credentialJson, CancellationToken cancellationToken = default)
+    public async Task<IdentityUser?> VerifySignInAsync(string state, string credentialJson, CancellationToken cancellationToken = default)
     {
         if (Open(state, SignIn) is not { } ceremony
             || Parse<AuthenticatorAssertionRawResponse>(credentialJson) is not { } response
@@ -143,7 +140,7 @@ public sealed class UserPasskeyService<TUser, TKey>(
     /// <summary>The user's passkeys, without key material.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IReadOnlyList<PasskeyModel>> ListAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<PasskeyModel>> ListAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         return [.. (await passkeys.ListAsync(user.Id, cancellationToken)).Select(passkey => new PasskeyModel
@@ -159,7 +156,7 @@ public sealed class UserPasskeyService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="id">The passkey.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<bool> RemoveAsync(TUser user, Guid id, CancellationToken cancellationToken = default)
+    public Task<bool> RemoveAsync(IdentityUser user, Guid id, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         return passkeys.RemoveAsync(user.Id, id, cancellationToken);
@@ -237,7 +234,7 @@ public sealed class UserPasskeyService<TUser, TKey>(
 
     private static IdentityResult Invalid(string description) => IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidPasskey, description);
 
-    private static byte[] UserHandle(TUser user) => SHA256.HashData(Encoding.UTF8.GetBytes("wow2-passkey:" + IdOf(user)));
+    private static byte[] UserHandle(IdentityUser user) => SHA256.HashData(Encoding.UTF8.GetBytes("wow2-passkey:" + IdOf(user)));
 
-    private static string IdOf(TUser user) => Convert.ToString(user.Id, CultureInfo.InvariantCulture) ?? string.Empty;
+    private static string IdOf(IdentityUser user) => user.Id.ToString();
 }

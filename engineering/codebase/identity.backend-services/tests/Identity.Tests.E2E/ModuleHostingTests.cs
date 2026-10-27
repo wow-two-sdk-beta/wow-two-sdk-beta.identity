@@ -14,14 +14,14 @@ public sealed class ModuleHostingTests(IdentityApiFixture fixture)
         var userName = $"e2e-{Guid.NewGuid():N}";
         await using (var scope = fixture.Host.Services.CreateAsyncScope())
         {
-            var created = await scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>()
+            var created = await scope.ServiceProvider.GetRequiredService<UserAccountService>()
                 .CreateAsync(new IdentityUser { UserName = userName, Email = $"{userName}@example.test" });
 
             created.Succeeded.Should().BeTrue();
         }
 
         await using var next = fixture.Host.Services.CreateAsyncScope();
-        var found = await next.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>().FindByNameAsync(userName);
+        var found = await next.ServiceProvider.GetRequiredService<UserAccountService>().FindByNameAsync(userName);
 
         found.Should().NotBeNull();
         found!.Email.Should().Be($"{userName}@example.test");

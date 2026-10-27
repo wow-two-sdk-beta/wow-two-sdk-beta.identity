@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security.Claims;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
@@ -11,19 +10,15 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 /// role names, role claims, user claims and organization claims when those slices are registered. Claim types follow
 /// <see cref="IdentityCoreOptions.Claims"/>, so a cookie and a JWT built from it read back the same way.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="options">Identity options carrying the claim types.</param>
 /// <param name="roles">The user-role repository; null without the roles slice.</param>
 /// <param name="userClaims">The user-claim repository; null without the user-claims slice.</param>
 /// <param name="organizations">The organization service; null without the organizations slice.</param>
-public sealed class UserClaimsPrincipalFactory<TUser, TKey>(
+public sealed class UserClaimsPrincipalFactory(
     IdentityCoreOptions options,
-    IUserRoleRepository<TKey>? roles = null,
-    IUserClaimRepository<TKey>? userClaims = null,
-    OrganizationService<TUser, TKey>? organizations = null)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+    IUserRoleRepository? roles = null,
+    IUserClaimRepository? userClaims = null,
+    OrganizationService? organizations = null)
 {
     /// <summary>The authentication type given to identities unless the caller names one.</summary>
     public const string DefaultAuthenticationType = "Identity.Application";
@@ -32,14 +27,14 @@ public sealed class UserClaimsPrincipalFactory<TUser, TKey>(
     /// <param name="user">The signed-in user.</param>
     /// <param name="authenticationType">The identity's authentication type; must be non-empty for the identity to count as authenticated.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<ClaimsPrincipal> CreateAsync(TUser user, string authenticationType = DefaultAuthenticationType, CancellationToken cancellationToken = default)
+    public async Task<ClaimsPrincipal> CreateAsync(IdentityUser user, string authenticationType = DefaultAuthenticationType, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(authenticationType);
 
         var types = options.Claims;
         var identity = new ClaimsIdentity(authenticationType, types.UserNameClaimType, types.RoleClaimType);
-        identity.AddClaim(new Claim(types.UserIdClaimType, Convert.ToString(user.Id, CultureInfo.InvariantCulture) ?? string.Empty));
+        identity.AddClaim(new Claim(types.UserIdClaimType, user.Id.ToString()));
         if (!string.IsNullOrEmpty(user.UserName))
             identity.AddClaim(new Claim(types.UserNameClaimType, user.UserName));
         if (!string.IsNullOrEmpty(user.Email))

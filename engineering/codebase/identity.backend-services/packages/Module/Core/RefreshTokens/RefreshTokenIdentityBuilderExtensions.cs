@@ -7,25 +7,20 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.RefreshTokens;
 /// <summary>Opts rotating refresh tokens into an identity registration.</summary>
 public static class RefreshTokenIdentityBuilderExtensions
 {
-    /// <summary>Register <see cref="RefreshTokenService{TUser,TKey}"/> and, after <c>AddEntityFrameworkStores</c>, its EF repository.</summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
+    /// <summary>Register <see cref="RefreshTokenService"/> and its repository over <see cref="IdentityDbContext"/>.</summary>
     /// <param name="builder">The identity builder.</param>
     /// <param name="configure">Optional lifetime.</param>
-    public static IdentityBuilder<TUser, TKey> AddRefreshTokens<TUser, TKey>(this IdentityBuilder<TUser, TKey> builder, Action<RefreshTokenOptions>? configure = null)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
+    public static IdentityBuilder AddRefreshTokens(this IdentityBuilder builder, Action<RefreshTokenOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddValidatedOptions(
             configure,
             options => options.Validate(o => o.Lifetime > TimeSpan.Zero, "RefreshTokenOptions.Lifetime must be positive."));
-        if (builder.ContextFactory is { } context)
-            builder.Services.TryAddScoped<IRefreshTokenRepository<TKey>>(serviceProvider => new EfRefreshTokenRepository<TKey>(context(serviceProvider)));
+        builder.Services.TryAddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
 
         builder.Services.TryAddSingleton(TimeProvider.System);
-        builder.Services.TryAddScoped<RefreshTokenService<TUser, TKey>>();
+        builder.Services.TryAddScoped<RefreshTokenService>();
         return builder;
     }
 }

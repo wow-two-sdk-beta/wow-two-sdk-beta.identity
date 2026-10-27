@@ -27,7 +27,7 @@ public sealed class PasswordSliceTests
                 options.Password.RequiredUniqueChars = 4;
             });
         await using var scope = host.Scope();
-        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService<IdentityUser, Guid>>();
+        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
 
         var result = await passwords.ValidateAsync(new IdentityUser { UserName = "aaaa" }, "aaaa");
 
@@ -45,8 +45,8 @@ public sealed class PasswordSliceTests
     {
         await using var host = AccountsHost.Create(identity => identity.AddArgon2Passwords());
         await using var scope = host.Scope();
-        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService<IdentityUser, Guid>>();
-        var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>();
+        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
+        var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService>();
 
         var result = await passwords.CreateWithPasswordAsync(new IdentityUser { UserName = "carol", Email = "carol@example.test" }, "short");
 
@@ -59,7 +59,7 @@ public sealed class PasswordSliceTests
     {
         await using var host = AccountsHost.Create(identity => identity.AddArgon2Passwords());
         await using var scope = host.Scope();
-        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService<IdentityUser, Guid>>();
+        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
         var user = new IdentityUser { UserName = "dave", Email = "dave@example.test" };
         (await passwords.CreateWithPasswordAsync(user, "correct horse battery")).Succeeded.Should().BeTrue();
         var stamp = user.SecurityStamp;
@@ -83,7 +83,7 @@ public sealed class PasswordSliceTests
         var user = await host.CreateUserAsync("erin");
         await using (var scope = host.Scope())
         {
-            var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>();
+            var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService>();
             var tracked = await accounts.FindByIdAsync(user.Id);
             tracked!.PasswordHash = LegacyHash("legacy passphrase");
             await accounts.UpdateAsync(tracked);
@@ -91,7 +91,7 @@ public sealed class PasswordSliceTests
 
         await using (var scope = host.Scope())
         {
-            var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService<IdentityUser, Guid>>();
+            var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
             var stored = await host.ReloadAsync(user.Id);
             (await passwords.CheckPasswordAsync(stored, "legacy passphrase")).Should().BeTrue();
         }
@@ -106,7 +106,7 @@ public sealed class PasswordSliceTests
             .AddArgon2Passwords()
             .AddUserTokens(o => o.SigningKey = AccountsHost.SigningKey));
         await using var scope = host.Scope();
-        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService<IdentityUser, Guid>>();
+        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
         var user = new IdentityUser { UserName = "frank", Email = "frank@example.test" };
         (await passwords.CreateWithPasswordAsync(user, "original long phrase")).Succeeded.Should().BeTrue();
 
@@ -125,7 +125,7 @@ public sealed class PasswordSliceTests
     {
         await using var host = AccountsHost.Create(identity => identity.AddArgon2Passwords());
         await using var scope = host.Scope();
-        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService<IdentityUser, Guid>>();
+        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
 
         var act = () => passwords.IssuePasswordResetToken(new IdentityUser { UserName = "gina" });
 
@@ -142,7 +142,7 @@ public sealed class PasswordSliceTests
                 .AddHttpClient<IPwnedPasswordsClient, PwnedPasswordsClient>()
                 .ConfigurePrimaryHttpMessageHandler(() => handler));
         await using var scope = host.Scope();
-        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService<IdentityUser, Guid>>();
+        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
         var user = new IdentityUser { UserName = "hank" };
 
         (await passwords.ValidateAsync(user, "password1")).Errors

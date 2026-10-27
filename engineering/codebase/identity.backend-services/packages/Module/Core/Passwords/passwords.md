@@ -6,8 +6,7 @@ Every stored password rotates the security stamp, ending older sessions and purp
 ## Quick start
 
 ```csharp
-services.AddUserAccounts<AppUser>(o => o.Password.MinLength = 12)
-        .AddEntityFrameworkStores<AppDbContext>()
+services.AddUserAccounts(o => o.Password.MinLength = 12)
         .AddArgon2Passwords()               // rules + Argon2id (a hasher registered earlier wins)
         .AddBreachedPasswordCheck()         // optional: Pwned Passwords k-anonymity range query
         .AddUserTokens(o => o.SigningKey = cfg["Identity:TokenKey"]);   // enables reset
@@ -21,7 +20,7 @@ await passwords.ResetPasswordAsync(user, token, newPassword);
 ## Notes
 
 - Rules follow NIST SP 800-63B: `MinLength` 8, `MaxLength` 128, composition rules off, account identifiers rejected.
-- Validators run in registration order and report every failure; add one by registering `IUserPasswordValidator<TUser>`.
+- Validators run in registration order and report every failure; add one by registering `IUserPasswordValidator`.
 - The breach check sends only five SHA-1 hex characters, asks for padded responses and fails open by default
   (`FailOpen = false` rejects the password when the corpus is unreachable).
 - `CheckPasswordAsync` counts no failures; lockout belongs to the sign-in slice.

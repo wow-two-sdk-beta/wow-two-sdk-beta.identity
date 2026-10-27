@@ -19,7 +19,7 @@ public sealed class IdentityErrorTextTests
     [Fact]
     public void IdentityFailures_TranslateThroughTheModuleTextsWithTheirValues()
     {
-        using var provider = Build(Enabled("en", "ru"), register: services => services.AddUserAccounts<IdentityUser>());
+        using var provider = Build(Enabled("en", "ru"), register: services => services.AddUserAccounts());
         var result = IdentityResult.Failed(
             new IdentityError { Code = IdentityErrorCodeConstants.PasswordTooShort, Description = "Passwords must be at least 12 characters.", Params = new Dictionary<string, object> { ["MinLength"] = 12 } },
             new IdentityError { Code = IdentityErrorCodeConstants.DuplicateEmail, Description = "Email 'a@b.uz' is already taken.", Params = new Dictionary<string, object> { ["Email"] = "a@b.uz" } });

@@ -35,9 +35,10 @@ jobs:
     uses: wow-two-platform/wow-two-platform.pipelines/.github/workflows/delivery.yml@v0.10.0
     with:
       commit: ${{ inputs.commit }}
-      # Backend: every tier (unit, integration, E2E, conformance in process, migrations) over SQLite, no Docker; the
-      # build also builds the frontend workspace into wwwroot, which the E2E tier reads. Release scripts: the tag
-      # version logic in throwaway repositories, and shellcheck.
+      # Backend: every tier (unit, integration, E2E, conformance in process) over SQLite; migrations on SQLite and on
+      # PostgreSQL in Testcontainers, through the runner's Docker. The build also builds the frontend workspace into
+      # wwwroot, which the E2E tier reads. Release scripts: the tag version logic in throwaway repositories, and
+      # shellcheck.
       backends: |
         [{"name": "Backend", "dotnet": "engineering/codebase/identity.backend-services/global.json",
           "node": "engineering/codebase/identity.frontend-services/.nvmrc",

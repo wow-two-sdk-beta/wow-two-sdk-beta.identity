@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Architecture
 
-*Last updated: 2026-10-26*
+*Last updated: 2026-10-27*
 
 > One broker contract, seven packages, one service that hosts the Form 1 module. Contract as built:
 > [contract.md](contract.md); packages and consumers: [package-registry.md](package-registry.md); evidence:
@@ -106,7 +106,13 @@ flowchart BT
 
 - one linear SQL migration set in the Module creates the whole `identity` schema whatever the configuration; a
   feature that is off neither reads nor writes its tables.
-- tables keep the `identity_` prefix inside the `identity` schema, so SQLite (no schemas) and PostgreSQL share names.
-- keys are `uuid` made as Guid v7 in code; products key their own data on `sub`, never on a foreign key into Identity.
+- the set ships per dialect (`Migrations/Postgres/`, `Migrations/Sqlite/`) and runs as the be sdk named set `identity`,
+  with its own history and lock; the Module's `IdentityDbContext` maps it with every name pinned and never generates it.
+- tables keep the `identity_` prefix inside the `identity` schema (`Identity:Database:Schema`), so SQLite (no schemas)
+  and PostgreSQL share names.
+- the set claims its schema with an owner kind: `module` in a Form 1 product, `service` in an instance, which migrates
+  through `Identity.Api migrate`.
+- keys are `uuid` made as Guid v7 in code, claim rows a `bigint` identity; products key their own data on `sub`, never
+  on a foreign key into Identity.
 - never two instances on one identity schema: a database per instance by default, a schema per instance allowed.
 - evidence and the table inventory: [T10](../research/identity-analysis-2026-10/t10-schema-migrations.md).

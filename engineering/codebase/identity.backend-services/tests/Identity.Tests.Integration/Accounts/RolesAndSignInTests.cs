@@ -25,7 +25,7 @@ public sealed class RolesAndSignInTests
             .AddArgon2Passwords()
             .AddUserTokens(o => o.SigningKey = AccountsHost.SigningKey)
             .AddLockout()
-            .AddRoles<IdentityRole>()
+            .AddRoles()
             .AddUserClaims()
             .AddExternalLogins()
             .AddTwoFactor(o => o.Issuer = "Tests")
@@ -38,9 +38,9 @@ public sealed class RolesAndSignInTests
         await using var host = CreateHost();
         var user = await host.CreateUserAsync("nora");
         await using var scope = host.Scope();
-        var roles = scope.ServiceProvider.GetRequiredService<RoleService<IdentityRole, Guid>>();
-        var memberships = scope.ServiceProvider.GetRequiredService<UserRoleService<IdentityUser, IdentityRole, Guid>>();
-        var claims = scope.ServiceProvider.GetRequiredService<UserClaimService<IdentityUser, Guid>>();
+        var roles = scope.ServiceProvider.GetRequiredService<RoleService>();
+        var memberships = scope.ServiceProvider.GetRequiredService<UserRoleService>();
+        var claims = scope.ServiceProvider.GetRequiredService<UserClaimService>();
 
         var admin = new IdentityRole { Name = "Admin" };
         (await roles.CreateAsync(admin)).Succeeded.Should().BeTrue();
@@ -51,7 +51,7 @@ public sealed class RolesAndSignInTests
         (await memberships.AddToRoleAsync(user, "Missing")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.RoleNotFound);
         await claims.AddClaimsAsync(user, [new Claim("tier", "gold")]);
 
-        var principal = await scope.ServiceProvider.GetRequiredService<UserClaimsPrincipalFactory<IdentityUser, Guid>>().CreateAsync(user);
+        var principal = await scope.ServiceProvider.GetRequiredService<UserClaimsPrincipalFactory>().CreateAsync(user);
 
         principal.Identity!.IsAuthenticated.Should().BeTrue();
         principal.Identity.Name.Should().Be("nora");
@@ -69,10 +69,10 @@ public sealed class RolesAndSignInTests
         await using var host = CreateHost();
         var user = await host.CreateUserAsync("owen");
         await using var scope = host.Scope();
-        var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>().FindByIdAsync(user.Id))!;
-        await scope.ServiceProvider.GetRequiredService<RoleService<IdentityRole, Guid>>().CreateAsync(new IdentityRole { Name = "Editor" });
-        var memberships = scope.ServiceProvider.GetRequiredService<UserRoleService<IdentityUser, IdentityRole, Guid>>();
-        var claims = scope.ServiceProvider.GetRequiredService<UserClaimService<IdentityUser, Guid>>();
+        var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id))!;
+        await scope.ServiceProvider.GetRequiredService<RoleService>().CreateAsync(new IdentityRole { Name = "Editor" });
+        var memberships = scope.ServiceProvider.GetRequiredService<UserRoleService>();
+        var claims = scope.ServiceProvider.GetRequiredService<UserClaimService>();
         await memberships.AddToRoleAsync(tracked, "Editor");
         await claims.AddClaimsAsync(tracked, [new Claim("beta", "yes")]);
 
@@ -92,8 +92,8 @@ public sealed class RolesAndSignInTests
     {
         await using var host = CreateHost(o => o.Lockout.MaxFailedAttempts = 2);
         await using var scope = host.Scope();
-        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService<IdentityUser, Guid>>();
-        var signIn = scope.ServiceProvider.GetRequiredService<SignInService<IdentityUser, Guid>>();
+        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
+        var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
         (await passwords.CreateWithPasswordAsync(new IdentityUser { UserName = "pete", Email = "pete@example.test" }, Password)).Succeeded.Should().BeTrue();
 
         var byName = await signIn.PasswordSignInAsync("PETE", Password);
@@ -115,11 +115,11 @@ public sealed class RolesAndSignInTests
     {
         await using var host = CreateHost(o => o.SignIn.RequireConfirmedEmail = true);
         await using var scope = host.Scope();
-        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService<IdentityUser, Guid>>();
+        var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
         var user = new IdentityUser { UserName = "quinn", Email = "quinn@example.test" };
         await passwords.CreateWithPasswordAsync(user, Password);
 
-        var result = await scope.ServiceProvider.GetRequiredService<SignInService<IdentityUser, Guid>>().PasswordSignInAsync("quinn", Password);
+        var result = await scope.ServiceProvider.GetRequiredService<SignInService>().PasswordSignInAsync("quinn", Password);
 
         result.Status.Should().Be(SignInStatus.NotAllowed);
         result.Principal.Should().BeNull();
@@ -131,9 +131,9 @@ public sealed class RolesAndSignInTests
         await using var host = CreateHost();
         await using var scope = host.Scope();
         var services = scope.ServiceProvider;
-        var passwords = services.GetRequiredService<UserPasswordService<IdentityUser, Guid>>();
-        var twoFactor = services.GetRequiredService<UserTwoFactorService<IdentityUser, Guid>>();
-        var signIn = services.GetRequiredService<SignInService<IdentityUser, Guid>>();
+        var passwords = services.GetRequiredService<UserPasswordService>();
+        var twoFactor = services.GetRequiredService<UserTwoFactorService>();
+        var signIn = services.GetRequiredService<SignInService>();
         var totp = services.GetRequiredService<ITotpService>();
         var user = new IdentityUser { UserName = "rita", Email = "rita@example.test" };
         await passwords.CreateWithPasswordAsync(user, Password);
@@ -170,8 +170,8 @@ public sealed class RolesAndSignInTests
         var user = await host.CreateUserAsync("sam");
         var other = await host.CreateUserAsync("tess");
         await using var scope = host.Scope();
-        var logins = scope.ServiceProvider.GetRequiredService<UserLoginService<IdentityUser, Guid>>();
-        var signIn = scope.ServiceProvider.GetRequiredService<SignInService<IdentityUser, Guid>>();
+        var logins = scope.ServiceProvider.GetRequiredService<UserLoginService>();
+        var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
 
         (await logins.AddLoginAsync(user, "Google", "google-sub-1", "Google")).Succeeded.Should().BeTrue();
         (await logins.AddLoginAsync(other, "Google", "google-sub-1")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.LoginAlreadyAssociated);
@@ -191,20 +191,20 @@ public sealed class RolesAndSignInTests
         var user = await host.CreateUserAsync("uma");
         await using var scope = host.Scope();
         var services = scope.ServiceProvider;
-        var accounts = services.GetRequiredService<UserAccountService<IdentityUser, Guid>>();
-        await services.GetRequiredService<RoleService<IdentityRole, Guid>>().CreateAsync(new IdentityRole { Name = "Viewer" });
+        var accounts = services.GetRequiredService<UserAccountService>();
+        await services.GetRequiredService<RoleService>().CreateAsync(new IdentityRole { Name = "Viewer" });
         var tracked = (await accounts.FindByIdAsync(user.Id))!;
-        await services.GetRequiredService<UserRoleService<IdentityUser, IdentityRole, Guid>>().AddToRoleAsync(tracked, "Viewer");
-        await services.GetRequiredService<UserClaimService<IdentityUser, Guid>>().AddClaimsAsync(tracked, [new Claim("a", "b")]);
-        await services.GetRequiredService<UserLoginService<IdentityUser, Guid>>().AddLoginAsync(tracked, "GitHub", "gh-1");
-        await services.GetRequiredService<UserTwoFactorService<IdentityUser, Guid>>().ResetAuthenticatorKeyAsync(tracked);
+        await services.GetRequiredService<UserRoleService>().AddToRoleAsync(tracked, "Viewer");
+        await services.GetRequiredService<UserClaimService>().AddClaimsAsync(tracked, [new Claim("a", "b")]);
+        await services.GetRequiredService<UserLoginService>().AddLoginAsync(tracked, "GitHub", "gh-1");
+        await services.GetRequiredService<UserTwoFactorService>().ResetAuthenticatorKeyAsync(tracked);
 
         (await accounts.DeleteAsync(tracked)).Succeeded.Should().BeTrue();
 
-        var context = services.GetRequiredService<AccountsDbContext>();
-        context.Set<IdentityUserRole<Guid>>().Should().BeEmpty();
-        context.Set<IdentityUserClaim<Guid>>().Should().BeEmpty();
-        context.Set<IdentityUserLogin<Guid>>().Should().BeEmpty();
-        context.Set<IdentityUserToken<Guid>>().Should().BeEmpty();
+        var context = services.GetRequiredService<IdentityDbContext>();
+        context.Set<IdentityUserRole>().Should().BeEmpty();
+        context.Set<IdentityUserClaim>().Should().BeEmpty();
+        context.Set<IdentityUserLogin>().Should().BeEmpty();
+        context.Set<IdentityUserToken>().Should().BeEmpty();
     }
 }

@@ -6,9 +6,9 @@ hold for a user, and delete the account for good. Products plug in their own sec
 ## Quick start
 
 ```csharp
-identity.AddEntityFrameworkStores<AppDbContext>().AddRoles<AppRole>().AddPersonalData();
-builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IPersonalDataExporter<AppUser>, OrdersExporter>());
-builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IAccountDeletionHandler<AppUser>, OrdersEraser>());
+identity.AddRoles().AddPersonalData();
+builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IPersonalDataExporter, OrdersExporter>());
+builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IAccountDeletionHandler, OrdersEraser>());
 ```
 
 | Route | Does |

@@ -1,8 +1,5 @@
 using AwesomeAssertions;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests;
@@ -10,41 +7,29 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Tests;
 /// <summary>Identity core vertical — create → find → delete a user, and case-insensitive duplicate rejection, over in-memory SQLite.</summary>
 public sealed class UserAccountServiceTests
 {
-    private sealed class TestIdentityDbContext(DbContextOptions options) : AppDbContextBase(options)
-    {
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            base.OnModelCreating(modelBuilder);
-            modelBuilder.ApplyIdentitySchema<IdentityUser, IdentityRole, Guid>();
-        }
-    }
-
-    private static ServiceProvider BuildProvider(SqliteConnection connection)
+    private static async Task<ServiceProvider> BuildProviderAsync(IdentityTestDatabase database)
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddDbContext<TestIdentityDbContext>(o => o.UseSqlite(connection));
-        services.AddUserAccounts<IdentityUser>(o => o.User.RequireUniqueEmail = true)
-            .AddEntityFrameworkStores<TestIdentityDbContext>();
+        database.Register(services);
+        services.AddUserAccounts(o => o.User.RequireUniqueEmail = true, IdentityTestDatabase.UseSqlite);
 
         var provider = services.BuildServiceProvider();
-        using var scope = provider.CreateScope();
-        scope.ServiceProvider.GetRequiredService<TestIdentityDbContext>().Database.EnsureCreated();
+        await IdentityTestDatabase.MigrateAsync(provider);
         return provider;
     }
 
     [Fact]
     public async Task Creates_finds_and_deletes_a_user()
     {
-        using var connection = new SqliteConnection("DataSource=:memory:");
-        connection.Open();
-        await using var provider = BuildProvider(connection);
+        await using var database = new IdentityTestDatabase();
+        await using var provider = await BuildProviderAsync(database);
         using var scope = provider.CreateScope();
-        var service = scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>();
+        var service = scope.ServiceProvider.GetRequiredService<UserAccountService>();
 
         var user = new IdentityUser { UserName = "alice", Email = "alice@example.test" };
         (await service.CreateAsync(user)).Succeeded.Should().BeTrue();
-        user.Id.Should().NotBe(Guid.Empty);            // store-generated
+        user.Id.Version.Should().Be(7);                // a uuid v7, assigned at creation
         user.NormalizedUserName.Should().Be("ALICE");
         user.SecurityStamp.Should().NotBeNullOrEmpty();
 
@@ -59,11 +44,10 @@ public sealed class UserAccountServiceTests
     [Fact]
     public async Task Rejects_duplicate_user_name_case_insensitively()
     {
-        using var connection = new SqliteConnection("DataSource=:memory:");
-        connection.Open();
-        await using var provider = BuildProvider(connection);
+        await using var database = new IdentityTestDatabase();
+        await using var provider = await BuildProviderAsync(database);
         using var scope = provider.CreateScope();
-        var service = scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>();
+        var service = scope.ServiceProvider.GetRequiredService<UserAccountService>();
 
         (await service.CreateAsync(new IdentityUser { UserName = "bob", Email = "bob@x.test" })).Succeeded.Should().BeTrue();
         var duplicate = await service.CreateAsync(new IdentityUser { UserName = "BOB", Email = "bob2@x.test" });
@@ -75,12 +59,11 @@ public sealed class UserAccountServiceTests
     [Fact]
     public async Task Repository_rejects_a_replacement_while_the_original_user_is_tracked()
     {
-        using var connection = new SqliteConnection("DataSource=:memory:");
-        connection.Open();
-        await using var provider = BuildProvider(connection);
+        await using var database = new IdentityTestDatabase();
+        await using var provider = await BuildProviderAsync(database);
         using var scope = provider.CreateScope();
-        var service = scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>();
-        var repository = scope.ServiceProvider.GetRequiredService<IUserRepository<IdentityUser, Guid>>();
+        var service = scope.ServiceProvider.GetRequiredService<UserAccountService>();
+        var repository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
         var original = new IdentityUser { UserName = "tracked", Email = "tracked@example.test" };
         (await service.CreateAsync(original)).Succeeded.Should().BeTrue();
         var replacement = new IdentityUser

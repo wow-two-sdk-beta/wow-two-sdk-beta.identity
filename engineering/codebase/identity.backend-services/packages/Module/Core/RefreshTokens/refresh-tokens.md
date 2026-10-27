@@ -6,7 +6,7 @@ replacement; presenting a spent token again revokes its whole family.
 ## Quick start
 
 ```csharp
-identity.AddEntityFrameworkStores<AppDbContext>().AddRefreshTokens(o => o.Lifetime = TimeSpan.FromDays(30)).AddSignIn();
+identity.AddRefreshTokens(o => o.Lifetime = TimeSpan.FromDays(30)).AddSignIn();
 
 // sign-in: access token + refresh token
 var refresh = await refreshTokens.IssueAsync(user);

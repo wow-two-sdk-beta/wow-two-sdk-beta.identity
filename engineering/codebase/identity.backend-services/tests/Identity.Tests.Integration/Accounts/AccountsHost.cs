@@ -1,23 +1,19 @@
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
-using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore;
-using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore.Sqlite;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.Accounts;
 
-/// <summary>An identity registration over in-memory SQLite with a controllable clock.</summary>
+/// <summary>An identity registration over in-memory SQLite, its schema from the Module's migrations, with a controllable clock.</summary>
 internal sealed class AccountsHost : IAsyncDisposable
 {
     public const string SigningKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
-    private readonly SqliteConnection _connection;
+    private readonly IdentityTestDatabase _database;
 
-    private AccountsHost(SqliteConnection connection, ServiceProvider provider, FakeTimeProvider time)
+    private AccountsHost(IdentityTestDatabase database, ServiceProvider provider, FakeTimeProvider time)
     {
-        _connection = connection;
+        _database = database;
         Provider = provider;
         Time = time;
     }
@@ -27,26 +23,24 @@ internal sealed class AccountsHost : IAsyncDisposable
     public FakeTimeProvider Time { get; }
 
     public static AccountsHost Create(
-        Action<IdentityBuilder<IdentityUser, Guid>> slices,
+        Action<IdentityBuilder> slices,
         Action<IdentityCoreOptions>? options = null,
         Action<IServiceCollection>? services = null)
     {
-        var connection = new SqliteConnection("DataSource=:memory:");
-        connection.Open();
+        var database = new IdentityTestDatabase();
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 9, 28, 9, 0, 0, TimeSpan.Zero));
 
         var collection = new ServiceCollection();
         collection.AddLogging();
         collection.AddSingleton<TimeProvider>(time);
-        collection.AddDbContext<AccountsDbContext>(o => o.UseSqlite(connection));
-        slices(collection.AddUserAccounts<IdentityUser>(options).AddEntityFrameworkStores<AccountsDbContext>());
+        database.Register(collection);
+        slices(collection.AddUserAccounts(options, IdentityTestDatabase.UseSqlite));
         services?.Invoke(collection);
 
         var provider = collection.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
-        using (var scope = provider.CreateScope())
-            scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.EnsureCreated();
+        Task.Run(() => IdentityTestDatabase.MigrateAsync(provider)).GetAwaiter().GetResult();
 
-        return new AccountsHost(connection, provider, time);
+        return new AccountsHost(database, provider, time);
     }
 
     public AsyncServiceScope Scope() => Provider.CreateAsyncScope();
@@ -54,7 +48,7 @@ internal sealed class AccountsHost : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Provider.DisposeAsync();
-        await _connection.DisposeAsync();
+        await _database.DisposeAsync();
     }
 
     /// <summary>Creates and persists a user through the core service.</summary>
@@ -62,7 +56,7 @@ internal sealed class AccountsHost : IAsyncDisposable
     {
         await using var scope = Scope();
         var user = new IdentityUser { UserName = userName, Email = email ?? $"{userName}@example.test" };
-        var result = await scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>().CreateAsync(user);
+        var result = await scope.ServiceProvider.GetRequiredService<UserAccountService>().CreateAsync(user);
         if (!result.Succeeded)
             throw new InvalidOperationException(result.Errors[0].Description);
 
@@ -73,18 +67,7 @@ internal sealed class AccountsHost : IAsyncDisposable
     public async Task<IdentityUser> ReloadAsync(Guid id)
     {
         await using var scope = Scope();
-        return await scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>().FindByIdAsync(id)
+        return await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(id)
             ?? throw new InvalidOperationException($"User {id} is missing.");
-    }
-}
-
-/// <summary>Hosts the identity schema for the account-slice tests.</summary>
-internal sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> options) : AppDbContextBase(options)
-{
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-        modelBuilder.ApplyIdentitySchema<IdentityUser, IdentityRole, Guid>();
-        modelBuilder.ApplyDateTimeOffsetToBinaryConversion();
     }
 }

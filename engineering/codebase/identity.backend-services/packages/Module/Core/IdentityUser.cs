@@ -3,16 +3,15 @@ using WoW.Two.Sdk.Beta.Be.Data.Abstractions;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>
-/// A user account with ASP.NET-Identity-shaped columns, persisted through the Data layer (audit stamps auto-applied).
-/// Derive an app-specific <c>AppUser : IdentityUser</c> to add columns. Optional slices (password, email, lockout, …)
-/// read/write the matching properties; core owns identity + lookup keys only.
+/// A user account with ASP.NET-Identity-shaped columns in <c>identity_users</c>, persisted through the Data layer (audit
+/// stamps auto-applied). Products keep their own per-person data in side tables keyed by <see cref="Id"/>, never in
+/// added columns. Optional slices (password, email, lockout, …) read/write the matching properties; core owns identity +
+/// lookup keys only.
 /// </summary>
-/// <typeparam name="TKey">Primary-key type (default <see cref="Guid"/>).</typeparam>
-public class IdentityUser<TKey> : IKeyedEntity<TKey>, IAuditable
-    where TKey : notnull, IEquatable<TKey>
+public sealed class IdentityUser : IKeyedEntity<Guid>, IAuditable
 {
-    /// <summary>Primary key. Store-generated for <see cref="Guid"/> keys.</summary>
-    public TKey Id { get; set; } = default!;
+    /// <summary>Primary key and the person's <c>sub</c>: a uuid v7 the account service assigns from <see cref="TimeProvider"/> at creation.</summary>
+    public Guid Id { get; set; }
 
     /// <summary>Login name.</summary>
     public string? UserName { get; set; }
@@ -62,6 +61,3 @@ public class IdentityUser<TKey> : IKeyedEntity<TKey>, IAuditable
     /// <summary>When the row was last modified (UTC) — stamped by the audit interceptor.</summary>
     public DateTimeOffset UpdatedAt { get; set; }
 }
-
-/// <summary>A user account keyed by <see cref="Guid"/> — the default shape.</summary>
-public class IdentityUser : IdentityUser<Guid>;

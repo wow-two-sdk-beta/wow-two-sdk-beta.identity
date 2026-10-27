@@ -5,16 +5,12 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Emails;
 /// <summary>Opts the email slice into an identity registration.</summary>
 public static class EmailIdentityBuilderExtensions
 {
-    /// <summary>Register <see cref="UserEmailService{TUser,TKey}"/>; needs <c>.AddUserTokens(...)</c> for its tokens.</summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
+    /// <summary>Register <see cref="UserEmailService"/>; needs <c>.AddUserTokens(...)</c> for its tokens.</summary>
     /// <param name="builder">The identity builder.</param>
-    public static IdentityBuilder<TUser, TKey> AddEmailConfirmation<TUser, TKey>(this IdentityBuilder<TUser, TKey> builder)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
+    public static IdentityBuilder AddEmailConfirmation(this IdentityBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        builder.Services.TryAddScoped<UserEmailService<TUser, TKey>>();
+        builder.Services.TryAddScoped<UserEmailService>();
         return builder;
     }
 }

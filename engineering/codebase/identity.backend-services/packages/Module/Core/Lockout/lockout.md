@@ -5,8 +5,7 @@ Lockout slice: count failed attempts on the user row and lock for a window once 
 ## Quick start
 
 ```csharp
-services.AddUserAccounts<AppUser>(o => { o.Lockout.MaxFailedAttempts = 5; o.Lockout.DefaultLockout = TimeSpan.FromMinutes(15); })
-        .AddEntityFrameworkStores<AppDbContext>()
+services.AddUserAccounts(o => { o.Lockout.MaxFailedAttempts = 5; o.Lockout.DefaultLockout = TimeSpan.FromMinutes(15); })
         .AddLockout();
 
 if (lockout.IsLockedOut(user)) return Locked();

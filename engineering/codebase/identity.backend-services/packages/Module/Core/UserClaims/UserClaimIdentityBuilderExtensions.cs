@@ -6,21 +6,16 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.UserClaims;
 public static class UserClaimIdentityBuilderExtensions
 {
     /// <summary>
-    /// Register <see cref="UserClaimService{TUser,TKey}"/> and, after <c>AddEntityFrameworkStores</c>, its EF repository.
+    /// Register <see cref="UserClaimService"/> and its repository over <see cref="IdentityDbContext"/>.
     /// Principals then carry the user's claims.
     /// </summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
     /// <param name="builder">The identity builder.</param>
-    public static IdentityBuilder<TUser, TKey> AddUserClaims<TUser, TKey>(this IdentityBuilder<TUser, TKey> builder)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
+    public static IdentityBuilder AddUserClaims(this IdentityBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        if (builder.ContextFactory is { } context)
-            builder.Services.TryAddScoped<IUserClaimRepository<TKey>>(serviceProvider => new EfUserClaimRepository<TKey>(context(serviceProvider)));
+        builder.Services.TryAddScoped<IUserClaimRepository, EfUserClaimRepository>();
 
-        builder.Services.TryAddScoped<UserClaimService<TUser, TKey>>();
+        builder.Services.TryAddScoped<UserClaimService>();
         return builder;
     }
 }

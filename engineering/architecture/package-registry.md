@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Package registry
 
-*Last updated: 2026-10-26*
+*Last updated: 2026-10-27*
 
 > Every package this repo publishes, one version line per registry. Layer rules:
 > wow-two-ws/conventions/development/repo/structure/domain-structure.md § Layers; the cut and its reasons:
@@ -15,7 +15,7 @@ folder under a package is a namespace below `WoW.Two.Sdk.Beta.Be.Identity`, kept
 |---|---|---|---|---|---|
 | `WoW2.Sdk.Beta.Be.Identity.Abstractions` | contract | `Core/`: `IdentityErrorCodeConstants` (43 codes), `IdentityErrorTextConstants` (their ru/uz texts); `Core/Organizations/`: `OrganizationClaimTypeConstants`, `OrganizationClaimsPrincipalExtensions` | the kernel `WoW2.Sdk.Beta.Be.Abstractions` only; no framework reference | none | all |
 | `WoW2.Sdk.Beta.Be.Identity.Auth` | edge | `Cookies/`, `ApiKeys/`, `Authorization/` (allowlist, default deny), `Guest/`, `CurrentUser/` (`CookieCurrentUserService`), `Jwt/` (bearer validation, HMAC `ITokenIssuer`) | Abstractions, core | `Microsoft.AspNetCore.Authentication.JwtBearer`, `Microsoft.IdentityModel.JsonWebTokens`, `.Tokens` | all |
-| `WoW2.Sdk.Beta.Be.Identity.Module` | forms | `Core/` (`AddUserAccounts`, entities, `ApplyIdentitySchema`, EF stores, 17 slices, account endpoints), `Otp/` (service + 5 channels), `Mfa/` (TOTP, WebAuthn), `PasswordHashing/` (Argon2) | Auth, core | `Fido2.AspNet`, `Otp.NET`, `Konscious.Security.Cryptography.Argon2`, `Telegram.Bot` | 1 |
+| `WoW2.Sdk.Beta.Be.Identity.Module` | forms | `Core/` (`AddUserAccounts`, entities, `IdentityDbContext`, EF stores, 17 slices, account endpoints), `Migrations/` (the `identity` set per dialect), `Otp/` (service + 5 channels), `Mfa/` (TOTP, WebAuthn), `PasswordHashing/` (Argon2) | Auth, core | `Fido2.AspNet`, `Otp.NET`, `Konscious.Security.Cryptography.Argon2`, `Telegram.Bot` | 1 |
 | `WoW2.Sdk.Beta.Be.Identity.Client` | forms | `Oidc/` (`AddOpenIdConnectAuthentication`, Authorization Code + PKCE) | Auth, core | `Microsoft.AspNetCore.Authentication.OpenIdConnect` | 2, 3 |
 | `WoW2.Sdk.Beta.Be.Identity.Providers` | extension | `OAuth/` (17 provider wrappers, Google ID-token authenticator), `Claims/` (claim normalizer, `NormalizedClaimTypeConstants`) | core | 14 `AspNet.Security.OAuth.*`, `Microsoft.AspNetCore.Authentication.{Facebook,Google,MicrosoftAccount}`, `Google.Apis.Auth` | 1, M0 |
 | `WoW2.Sdk.Beta.Be.Identity.Server` | extension | nothing yet: the OIDC server slices (I17–I19) land here | Module, core | none yet; OpenIddict 7.7.2 with its first slice | service only |

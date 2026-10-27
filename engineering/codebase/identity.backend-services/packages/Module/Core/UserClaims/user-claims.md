@@ -5,7 +5,7 @@ Per-user claims (`UserClaimService`), carried by principals the factory builds o
 ## Quick start
 
 ```csharp
-identity.AddEntityFrameworkStores<AppDbContext>().AddUserClaims();
+identity.AddUserClaims();
 
 await userClaims.AddClaimsAsync(user, [new Claim("tier", "gold")]);
 await userClaims.ReplaceClaimAsync(user, new Claim("tier", "gold"), new Claim("tier", "platinum"));   // rotates the stamp

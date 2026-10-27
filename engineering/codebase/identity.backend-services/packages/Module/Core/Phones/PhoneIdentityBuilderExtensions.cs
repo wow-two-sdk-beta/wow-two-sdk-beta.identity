@@ -6,17 +6,13 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
 /// <summary>Opts the phone slice into an identity registration.</summary>
 public static class PhoneIdentityBuilderExtensions
 {
-    /// <summary>Register <see cref="UserPhoneService{TUser,TKey}"/> over <see cref="IOtpService"/>, registering the OTP service when absent.</summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
+    /// <summary>Register <see cref="UserPhoneService"/> over <see cref="IOtpService"/>, registering the OTP service when absent.</summary>
     /// <param name="builder">The identity builder.</param>
-    public static IdentityBuilder<TUser, TKey> AddPhoneNumbers<TUser, TKey>(this IdentityBuilder<TUser, TKey> builder)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
+    public static IdentityBuilder AddPhoneNumbers(this IdentityBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.Services.AddOtpService();
-        builder.Services.TryAddScoped<UserPhoneService<TUser, TKey>>();
+        builder.Services.TryAddScoped<UserPhoneService>();
         return builder;
     }
 }

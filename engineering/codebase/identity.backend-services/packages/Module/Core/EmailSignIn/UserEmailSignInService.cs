@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 
@@ -9,19 +8,15 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.EmailSignIn;
 /// lived) or a short numeric code. Unknown addresses get nothing and learn nothing; a used token or code is spent.
 /// Complete the sign-in with <c>SignInService.SignInAsync</c>, which applies lockout, preconditions and two-factor.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="accounts">Finds users by normalized email.</param>
 /// <param name="users">Saves an address confirmed by use.</param>
 /// <param name="otp">Creates and spends the tokens and codes.</param>
 /// <param name="options">Lifetimes and confirmation; <c>Identity:EmailSignIn</c> reloads live.</param>
-public sealed class UserEmailSignInService<TUser, TKey>(
-    UserAccountService<TUser, TKey> accounts,
-    IUserRepository<TUser, TKey> users,
+public sealed class UserEmailSignInService(
+    UserAccountService accounts,
+    IUserRepository users,
     IOtpService otp,
     IOptionsMonitor<EmailSignInOptions> options)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
 {
     /// <summary>The OTP scope of sign-in links.</summary>
     public const string LinkScope = "identity.email-sign-in-link";
@@ -35,13 +30,13 @@ public sealed class UserEmailSignInService<TUser, TKey>(
     /// </summary>
     /// <param name="email">The address.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<(TUser User, OtpCreationResult Token)?> CreateLinkTokenAsync(string email, CancellationToken cancellationToken = default)
+    public Task<(IdentityUser User, OtpCreationResult Token)?> CreateLinkTokenAsync(string email, CancellationToken cancellationToken = default)
         => CreateAsync(email, LinkScope, new OtpCodeSpec { Kind = OtpCodeKind.Alphanumeric, Length = 12, Lifetime = options.CurrentValue.LinkLifetime }, cancellationToken);
 
     /// <summary>Creates a numeric code for the account holding <paramref name="email"/>; null as for links.</summary>
     /// <param name="email">The address.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<(TUser User, OtpCreationResult Code)?> CreateCodeAsync(string email, CancellationToken cancellationToken = default)
+    public Task<(IdentityUser User, OtpCreationResult Code)?> CreateCodeAsync(string email, CancellationToken cancellationToken = default)
     {
         var current = options.CurrentValue;
         return CreateAsync(email, CodeScope, new OtpCodeSpec { Kind = OtpCodeKind.Numeric, Length = current.CodeLength, Lifetime = current.CodeLifetime }, cancellationToken);
@@ -51,17 +46,17 @@ public sealed class UserEmailSignInService<TUser, TKey>(
     /// <param name="email">The address the link was sent to.</param>
     /// <param name="token">The token from the link.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<TUser?> VerifyLinkTokenAsync(string email, string token, CancellationToken cancellationToken = default)
+    public Task<IdentityUser?> VerifyLinkTokenAsync(string email, string token, CancellationToken cancellationToken = default)
         => VerifyAsync(email, token, LinkScope, cancellationToken);
 
     /// <summary>The user a code belongs to, spending it; null when it is wrong, spent or expired.</summary>
     /// <param name="email">The address the code was sent to.</param>
     /// <param name="code">The code.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<TUser?> VerifyCodeAsync(string email, string code, CancellationToken cancellationToken = default)
+    public Task<IdentityUser?> VerifyCodeAsync(string email, string code, CancellationToken cancellationToken = default)
         => VerifyAsync(email, code, CodeScope, cancellationToken);
 
-    private async Task<(TUser, OtpCreationResult)?> CreateAsync(string email, string scope, OtpCodeSpec spec, CancellationToken cancellationToken)
+    private async Task<(IdentityUser, OtpCreationResult)?> CreateAsync(string email, string scope, OtpCodeSpec spec, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
         if (await accounts.FindByEmailAsync(email.Trim(), cancellationToken) is not { } user)
@@ -71,7 +66,7 @@ public sealed class UserEmailSignInService<TUser, TKey>(
         return created.Success ? (user, created) : null;
     }
 
-    private async Task<TUser?> VerifyAsync(string email, string secret, string scope, CancellationToken cancellationToken)
+    private async Task<IdentityUser?> VerifyAsync(string email, string secret, string scope, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(secret)
             || await accounts.FindByEmailAsync(email.Trim(), cancellationToken) is not { } user
@@ -89,5 +84,5 @@ public sealed class UserEmailSignInService<TUser, TKey>(
         return user;
     }
 
-    private static string Subject(TUser user) => "user:" + Convert.ToString(user.Id, CultureInfo.InvariantCulture);
+    private static string Subject(IdentityUser user) => "user:" + user.Id.ToString();
 }

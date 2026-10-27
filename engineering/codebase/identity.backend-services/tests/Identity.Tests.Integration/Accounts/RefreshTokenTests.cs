@@ -16,7 +16,7 @@ public sealed class RefreshTokenTests
         await using var host = CreateHost();
         var user = await host.CreateUserAsync("walt");
         await using var scope = host.Scope();
-        var refresh = scope.ServiceProvider.GetRequiredService<RefreshTokenService<IdentityUser, Guid>>();
+        var refresh = scope.ServiceProvider.GetRequiredService<RefreshTokenService>();
 
         var first = await refresh.IssueAsync(user);
         first.ExpiresAt.Should().Be(host.Time.GetUtcNow().AddDays(7));
@@ -36,8 +36,8 @@ public sealed class RefreshTokenTests
         await using var host = CreateHost();
         var user = await host.CreateUserAsync("xena");
         await using var scope = host.Scope();
-        var refresh = scope.ServiceProvider.GetRequiredService<RefreshTokenService<IdentityUser, Guid>>();
-        var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>();
+        var refresh = scope.ServiceProvider.GetRequiredService<RefreshTokenService>();
+        var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService>();
 
         var token = (await refresh.IssueAsync(user)).Token;
         (await refresh.RedeemAsync(token[..^3] + "AAA")).Status.Should().Be(RefreshTokenStatus.Invalid);
@@ -58,7 +58,7 @@ public sealed class RefreshTokenTests
         await using var host = CreateHost();
         var user = await host.CreateUserAsync("yuri");
         await using var scope = host.Scope();
-        var refresh = scope.ServiceProvider.GetRequiredService<RefreshTokenService<IdentityUser, Guid>>();
+        var refresh = scope.ServiceProvider.GetRequiredService<RefreshTokenService>();
 
         var phone = (await refresh.IssueAsync(user)).Token;
         var laptop = (await refresh.IssueAsync(user)).Token;

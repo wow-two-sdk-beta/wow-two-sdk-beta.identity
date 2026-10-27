@@ -4,8 +4,8 @@
     Form 1 (layer 3): Identity in the consumer's process, over the consumer's database — AddUserAccounts and its slices
     (passwords, tokens, email, lockout, roles, claims, logins, two-factor, phones, refresh tokens, passkeys,
     organizations, email sign-in, personal data, the account endpoints), OTP and its five channels, TOTP, WebAuthn and
-    Argon2. The schema is EF-owned today (ApplyIdentitySchema); SQL migrations ship as embedded
-    Migrations/NNN-name/{Apply,Rollback}.sql once T10 moves schema authority to SQL.
+    Argon2. The Module owns its schema: IdentityDbContext maps it, and embedded Migrations/{Postgres,Sqlite}/NNN-name/
+    {Apply,Rollback}.sql create it as the be sdk migration set "identity".
   -->
   <PropertyGroup>
     <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
@@ -25,7 +25,7 @@
     <ProjectReference Include="..\Auth\WoW.Two.Sdk.Beta.Be.Identity.Auth.csproj" />
   </ItemGroup>
 
-  <!-- SQL migrations ship embedded (logical name "Migrations/NNN-name/Apply.sql"), resolved by the SDK migrator. -->
+  <!-- SQL migrations ship embedded (logical name "Migrations/{Postgres,Sqlite}/NNN-name/Apply.sql"); the set reads its engine's folder. -->
   <ItemGroup>
     <EmbeddedResource Include="Migrations\**\*.sql">
       <LogicalName>Migrations/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
@@ -35,6 +35,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Identity.Tests.Unit" />
     <InternalsVisibleTo Include="Identity.Tests.Integration" />
+    <InternalsVisibleTo Include="Identity.Tests.Migrations" />
   </ItemGroup>
 
 </Project>

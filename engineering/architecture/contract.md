@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Contract
 
-*Last updated: 2026-10-26*
+*Last updated: 2026-10-27*
 
 > One broker per capability, the same in every form. Rules: wow-two-ws/conventions/development/capability-forms.md
 > § Contract. Target shape: [integration modes](../research/identity-analysis-2026-10/t4-integration-modes.md) (T4)
@@ -42,14 +42,13 @@
 
 ## Seams by form, as moved
 
-Namespaces are unchanged from the be sdk. Generic parameters: `TUser : IdentityUser<TKey>`, `TKey` is `Guid` through
-`AddUserAccounts<TUser>`.
+Namespaces are unchanged from the be sdk. Entities are not generic: one `IdentityUser`, one `IdentityRole`, uuid v7 keys.
 
 | Form | Package | Entry | Public seams a host binds or calls |
 |---|---|---|---|
 | kernel | core | — | `ICurrentUserService` (`Id`, `Kind`), `UserKind` — read by core's Audit, SoftDelete and Idempotency |
 | edge | Auth | `AddCookieAuthentication`, `AddApiKeyAuthentication`, `AddPrincipalAllowlist`, `AddDefaultDenyAuthorization`, `AddGuestSession`, `AddCurrentUser`, `AddJwtBearerAuthentication`, `AddJwtTokenIssuance` | `IApiKeyRepository`, `IGuestSessionService`, `ITokenIssuer`; `CookieCurrentUserService` implements the kernel's `ICurrentUserService` |
-| 1 | Module | `AddUserAccounts<TUser>()` → `IdentityBuilder<TUser, TKey>`; `AddEntityFrameworkStores<TContext>()`; `ApplyIdentitySchema<TUser, TRole, TKey>()` | store ports `IUserRepository`, `IRoleRepository`, `IUserRoleRepository`, `IUserClaimRepository`, `IUserLoginRepository`, `IUserTokenRepository`, `IRefreshTokenRepository`, `IUserPasskeyRepository`, `IOrganizationRepository` (EF defaults ship); hooks `IUserPasswordValidator`, `IAccountDeletionHandler`, `IPersonalDataExporter`, `IPwnedPasswordsClient` |
+| 1 | Module | `AddUserAccounts(configure, configureDatabase)` → `IdentityBuilder`; `IdentityDbContext`; the `identity` migration set | store ports `IUserRepository`, `IRoleRepository`, `IUserRoleRepository`, `IUserClaimRepository`, `IUserLoginRepository`, `IUserTokenRepository`, `IRefreshTokenRepository`, `IUserPasskeyRepository`, `IOrganizationRepository` (EF defaults ship); hooks `IUserPasswordValidator`, `IAccountDeletionHandler`, `IPersonalDataExporter`, `IPwnedPasswordsClient` |
 | 1 | Module | OTP: `AddOtpService`, `Add{Email,Sms,Telegram,TelegramGateway,WhatsApp}OtpDelivery`; `AddTotp`; `AddFido2WebAuthn` | `IOtpService`, `IOtpRepository`, `IOtpCodeGenerator`, `IOtpMessageFormatter`, `IOtpDeliveryHandler` (keyed by `OtpChannelNameConstants`), `IOtpDeliveryHandlerFactory`, `ITotpService` |
 | 2/3 | Client | `AddOpenIdConnectAuthentication(OidcOptions)` | none: an OIDC client over cookies; brokers over the management API land here |
 | providers | Providers | `Add{Provider}Authentication` × 17, `AddGoogleIdTokenAuthenticator`, `AddClaimNormalization` | `IGoogleIdTokenAuthenticator`; the normalized `wt:*` claim set (`NormalizedClaimTypeConstants`) |
@@ -64,7 +63,7 @@ Namespaces are unchanged from the be sdk. Generic parameters: `TUser : IdentityU
 | `AddEmailConfirmation` | `UserEmailService` |
 | `AddLockout` | `UserLockoutService` |
 | `AddSecurityStampValidation` | `SecurityStampValidator` |
-| `AddRoles<TRole>` | `RoleService`, `UserRoleService` |
+| `AddRoles` | `RoleService`, `UserRoleService` |
 | `AddUserClaims` | `UserClaimService` |
 | `AddExternalLogins` | `UserLoginService` |
 | `AddTwoFactor` | `UserTwoFactorService`, `UserTwoFactorMethodService` |
@@ -75,7 +74,7 @@ Namespaces are unchanged from the be sdk. Generic parameters: `TUser : IdentityU
 | `AddEmailSignIn` | `UserEmailSignInService` |
 | `AddPersonalData` | `UserPersonalDataService` |
 | `AddSignIn` | `SignInService` |
-| `AddAccountEndpoints` + `MapUserAccountEndpoints<TUser>()` | the account HTTP API below |
+| `AddAccountEndpoints` + `MapUserAccountEndpoints()` | the account HTTP API below |
 
 ### Account HTTP API (Module)
 

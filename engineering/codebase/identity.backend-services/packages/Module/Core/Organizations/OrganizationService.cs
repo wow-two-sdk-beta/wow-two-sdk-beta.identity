@@ -11,19 +11,15 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 /// rotates the member's security stamp, so principals carrying the old role end; a new membership appears from the
 /// next sign-in.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="organizations">The organization store.</param>
 /// <param name="accounts">The core account service, for stamp rotation.</param>
 /// <param name="options">The roles and their permissions; <c>Identity:Organizations</c> reloads live.</param>
 /// <param name="time">The clock creations and memberships are stamped with.</param>
-public sealed partial class OrganizationService<TUser, TKey>(
-    IOrganizationRepository<TKey> organizations,
-    UserAccountService<TUser, TKey> accounts,
+public sealed partial class OrganizationService(
+    IOrganizationRepository organizations,
+    UserAccountService accounts,
     IOptionsMonitor<OrganizationOptions> options,
     TimeProvider time)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
 {
     private const int NameMaxLength = 120;
     private const int SlugMaxLength = 64;
@@ -32,7 +28,7 @@ public sealed partial class OrganizationService<TUser, TKey>(
     /// <param name="organization">The organization; an empty id is assigned.</param>
     /// <param name="owner">The creator.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> CreateAsync(IdentityOrganization organization, TUser owner, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> CreateAsync(IdentityOrganization organization, IdentityUser owner, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(organization);
         ArgumentNullException.ThrowIfNull(owner);
@@ -49,7 +45,7 @@ public sealed partial class OrganizationService<TUser, TKey>(
         organization.Name = organization.Name.Trim();
         organization.Slug = NormalizeSlug(organization.Slug);
         organization.CreatedAt = now;
-        var membership = new IdentityMembership<TKey> { OrganizationId = organization.Id, UserId = owner.Id, Role = options.CurrentValue.OwnerRole, CreatedAt = now };
+        var membership = new IdentityMembership { OrganizationId = organization.Id, UserId = owner.Id, Role = options.CurrentValue.OwnerRole, CreatedAt = now };
         await organizations.CreateAsync(organization, membership, cancellationToken);
         return IdentityResult.Success;
     }
@@ -123,7 +119,7 @@ public sealed partial class OrganizationService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="role">A configured role name (case-insensitive).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> AddMemberAsync(IdentityOrganization organization, TUser user, string role, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> AddMemberAsync(IdentityOrganization organization, IdentityUser user, string role, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(organization);
         ArgumentNullException.ThrowIfNull(user);
@@ -132,7 +128,7 @@ public sealed partial class OrganizationService<TUser, TKey>(
         if (await organizations.FindMembershipAsync(organization.Id, user.Id, cancellationToken) is not null)
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.UserAlreadyMember, $"The user is already a member of '{organization.Name}'.", IdentityUserExtensions.Param("OrganizationName", organization.Name));
 
-        await organizations.AddMembershipAsync(new IdentityMembership<TKey> { OrganizationId = organization.Id, UserId = user.Id, Role = resolved, CreatedAt = time.GetUtcNow() }, cancellationToken);
+        await organizations.AddMembershipAsync(new IdentityMembership { OrganizationId = organization.Id, UserId = user.Id, Role = resolved, CreatedAt = time.GetUtcNow() }, cancellationToken);
         return IdentityResult.Success;
     }
 
@@ -141,7 +137,7 @@ public sealed partial class OrganizationService<TUser, TKey>(
     /// <param name="user">The member.</param>
     /// <param name="role">A configured role name (case-insensitive).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> ChangeRoleAsync(IdentityOrganization organization, TUser user, string role, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> ChangeRoleAsync(IdentityOrganization organization, IdentityUser user, string role, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(organization);
         ArgumentNullException.ThrowIfNull(user);
@@ -162,7 +158,7 @@ public sealed partial class OrganizationService<TUser, TKey>(
     /// <param name="organization">The organization.</param>
     /// <param name="user">The member.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> RemoveMemberAsync(IdentityOrganization organization, TUser user, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> RemoveMemberAsync(IdentityOrganization organization, IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(organization);
         ArgumentNullException.ThrowIfNull(user);
@@ -179,7 +175,7 @@ public sealed partial class OrganizationService<TUser, TKey>(
     /// <param name="organization">The organization.</param>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<string?> GetRoleAsync(IdentityOrganization organization, TUser user, CancellationToken cancellationToken = default)
+    public async Task<string?> GetRoleAsync(IdentityOrganization organization, IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(organization);
         ArgumentNullException.ThrowIfNull(user);
@@ -189,7 +185,7 @@ public sealed partial class OrganizationService<TUser, TKey>(
     /// <summary>The organization's memberships, earliest first.</summary>
     /// <param name="organization">The organization.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<IReadOnlyList<IdentityMembership<TKey>>> ListMembersAsync(IdentityOrganization organization, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<IdentityMembership>> ListMembersAsync(IdentityOrganization organization, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(organization);
         return organizations.ListMembersAsync(organization.Id, cancellationToken);
@@ -198,7 +194,7 @@ public sealed partial class OrganizationService<TUser, TKey>(
     /// <summary>The user's memberships with each organization's name and handle, earliest first.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<IReadOnlyList<OrganizationMembershipModel>> ListForUserAsync(TUser user, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<OrganizationMembershipModel>> ListForUserAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         return organizations.ListForUserAsync(user.Id, cancellationToken);
@@ -216,7 +212,7 @@ public sealed partial class OrganizationService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="claimTypes">The claim types to write.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IReadOnlyList<Claim>> GetClaimsAsync(TUser user, IdentityClaimOptions claimTypes, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Claim>> GetClaimsAsync(IdentityUser user, IdentityClaimOptions claimTypes, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentNullException.ThrowIfNull(claimTypes);

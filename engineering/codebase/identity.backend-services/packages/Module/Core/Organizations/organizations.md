@@ -11,7 +11,7 @@ identity.AddOrganizations(o =>
     o.Roles["editor"] = ["can-edit"];                     // the owner role ("owner") always exists
     o.Roles["viewer"] = [];
     o.Roles["owner"] = ["can-edit", "can-approve"];       // optional: permissions for the owner too
-});                                                        // after AddEntityFrameworkStores
+});
 
 var ocharo = new IdentityOrganization { Name = "Ocharo", Slug = "ocharo" };
 await organizations.CreateAsync(ocharo, founder);          // the creator becomes owner

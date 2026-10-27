@@ -10,34 +10,26 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 public static class PasswordIdentityBuilderExtensions
 {
     /// <summary>
-    /// Register <see cref="UserPasswordService{TUser,TKey}"/> with the <see cref="PasswordOptions"/> rules and an Argon2id
+    /// Register <see cref="UserPasswordService"/> with the <see cref="PasswordOptions"/> rules and an Argon2id
     /// hasher. A hasher the host registered earlier wins.
     /// </summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
     /// <param name="builder">The identity builder.</param>
-    public static IdentityBuilder<TUser, TKey> AddArgon2Passwords<TUser, TKey>(this IdentityBuilder<TUser, TKey> builder)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
+    public static IdentityBuilder AddArgon2Passwords(this IdentityBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.Services.TryAddSingleton<IPasswordHasher<TUser>, Argon2PasswordHasher<TUser>>();
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserPasswordValidator<TUser>, PasswordRulesValidator<TUser, TKey>>());
-        builder.Services.TryAddScoped<UserPasswordService<TUser, TKey>>();
+        builder.Services.TryAddSingleton<IPasswordHasher<IdentityUser>, Argon2PasswordHasher<IdentityUser>>();
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserPasswordValidator, PasswordRulesValidator>());
+        builder.Services.TryAddScoped<UserPasswordService>();
         return builder;
     }
 
     /// <summary>Reject passwords found in the Pwned Passwords corpus, queried by k-anonymity range.</summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
     /// <param name="builder">The identity builder.</param>
     /// <param name="configure">Optional endpoint, threshold, timeout and fail-open settings.</param>
-    public static IdentityBuilder<TUser, TKey> AddBreachedPasswordCheck<TUser, TKey>(
-        this IdentityBuilder<TUser, TKey> builder,
+    public static IdentityBuilder AddBreachedPasswordCheck(
+        this IdentityBuilder builder,
         Action<BreachedPasswordOptions>? configure = null)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
     {
         ArgumentNullException.ThrowIfNull(builder);
 
@@ -54,7 +46,7 @@ public static class PasswordIdentityBuilderExtensions
             http.Timeout = options.Timeout;
             http.DefaultRequestHeaders.UserAgent.ParseAdd("WoW2.Sdk.Beta.Be");
         });
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserPasswordValidator<TUser>, BreachedPasswordValidator<TUser>>());
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserPasswordValidator, BreachedPasswordValidator>());
         return builder;
     }
 }

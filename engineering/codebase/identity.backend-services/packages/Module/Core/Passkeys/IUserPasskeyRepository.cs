@@ -1,24 +1,22 @@
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Passkeys;
 
 /// <summary>Defines the seam reaching stored passkeys.</summary>
-/// <typeparam name="TKey">User key type.</typeparam>
-public interface IUserPasskeyRepository<TKey>
-    where TKey : notnull, IEquatable<TKey>
+public interface IUserPasskeyRepository
 {
     /// <summary>Stores a new passkey.</summary>
     /// <param name="passkey">The passkey.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task AddAsync(IdentityPasskey<TKey> passkey, CancellationToken cancellationToken = default);
+    Task AddAsync(IdentityPasskey passkey, CancellationToken cancellationToken = default);
 
     /// <summary>The passkey with <paramref name="credentialId"/>, or null.</summary>
     /// <param name="credentialId">The credential id.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task<IdentityPasskey<TKey>?> FindAsync(byte[] credentialId, CancellationToken cancellationToken = default);
+    Task<IdentityPasskey?> FindAsync(byte[] credentialId, CancellationToken cancellationToken = default);
 
     /// <summary>The user's passkeys, oldest first.</summary>
     /// <param name="userId">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task<IReadOnlyList<IdentityPasskey<TKey>>> ListAsync(TKey userId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<IdentityPasskey>> ListAsync(Guid userId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Records a sign-in — the new counter, and <paramref name="usedAt"/> as the last use — only while the last use is
@@ -36,5 +34,5 @@ public interface IUserPasskeyRepository<TKey>
     /// <param name="userId">The user.</param>
     /// <param name="id">The passkey.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task<bool> RemoveAsync(TKey userId, Guid id, CancellationToken cancellationToken = default);
+    Task<bool> RemoveAsync(Guid userId, Guid id, CancellationToken cancellationToken = default);
 }

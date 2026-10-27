@@ -3,13 +3,25 @@
 #   docker compose up -d --build     the service answers on http://127.0.0.1:8389
 #
 # The SQLite file lives on the named volume, so data survives container replacement. A deployed environment's path
-# comes from its Wheelhouse target settings, never from here.
+# comes from its Wheelhouse target settings, never from here. The image boots as Production, which only verifies the
+# identity schema, so identity-migrate applies it first with the image's own migrate command, as a deploy step would.
 services:
-  identity:
+  identity-migrate:
     image: identity:local
     build:
       context: ../codebase
       dockerfile: ../deployment/Dockerfile
+    command: ["migrate"]
+    environment:
+      DB_CONNECTION: "Data Source=/data/identity.db"
+    volumes:
+      - identity-data:/data
+
+  identity:
+    image: identity:local
+    depends_on:
+      identity-migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     ports:
       - "127.0.0.1:8389:8080"

@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.Extensions.Logging;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
@@ -8,23 +7,19 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
 /// <see cref="LockoutOptions.MaxFailedAttempts"/> is reached, and lock or unlock explicitly. A user with lockout
 /// disabled is never counted or locked.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="repository">The core user store.</param>
 /// <param name="options">Identity options carrying the lockout rules.</param>
 /// <param name="timeProvider">The clock lockout windows are measured against.</param>
 /// <param name="logger">Receives the lockout event.</param>
-public sealed class UserLockoutService<TUser, TKey>(
-    IUserRepository<TUser, TKey> repository,
+public sealed class UserLockoutService(
+    IUserRepository repository,
     IdentityCoreOptions options,
     TimeProvider timeProvider,
-    ILogger<UserLockoutService<TUser, TKey>> logger)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+    ILogger<UserLockoutService> logger)
 {
     /// <summary>Whether <paramref name="user"/> is inside an active lockout window.</summary>
     /// <param name="user">The user.</param>
-    public bool IsLockedOut(TUser user)
+    public bool IsLockedOut(IdentityUser user)
     {
         ArgumentNullException.ThrowIfNull(user);
         return user.IsLockedOutAt(timeProvider.GetUtcNow());
@@ -34,7 +29,7 @@ public sealed class UserLockoutService<TUser, TKey>(
     /// <param name="user">The user who failed to authenticate.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Whether this attempt locked the account.</returns>
-    public async Task<bool> RecordFailedAttemptAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<bool> RecordFailedAttemptAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         if (!user.LockoutEnabled)
@@ -46,7 +41,7 @@ public sealed class UserLockoutService<TUser, TKey>(
         {
             user.LockoutEnd = timeProvider.GetUtcNow() + options.Lockout.DefaultLockout;
             user.AccessFailedCount = 0;
-            logger.UserLockedOut(Convert.ToString(user.Id, CultureInfo.InvariantCulture) ?? string.Empty, user.LockoutEnd.Value);
+            logger.UserLockedOut(user.Id.ToString(), user.LockoutEnd.Value);
         }
 
         await repository.UpdateAsync(user, cancellationToken);
@@ -56,7 +51,7 @@ public sealed class UserLockoutService<TUser, TKey>(
     /// <summary>Clear the failed-attempt count after a successful authentication.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task ResetFailedAttemptsAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task ResetFailedAttemptsAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         if (user.AccessFailedCount == 0)
@@ -71,7 +66,7 @@ public sealed class UserLockoutService<TUser, TKey>(
     /// <param name="end">The instant the lockout ends; null or past unlocks.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <remarks>Rotate the security stamp as well to end the account's current sessions.</remarks>
-    public async Task<IdentityResult> LockUntilAsync(TUser user, DateTimeOffset? end, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> LockUntilAsync(IdentityUser user, DateTimeOffset? end, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         if (!user.LockoutEnabled)
@@ -89,7 +84,7 @@ public sealed class UserLockoutService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="enabled">Whether lockout applies.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task SetLockoutEnabledAsync(TUser user, bool enabled, CancellationToken cancellationToken = default)
+    public async Task SetLockoutEnabledAsync(IdentityUser user, bool enabled, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         user.LockoutEnabled = enabled;

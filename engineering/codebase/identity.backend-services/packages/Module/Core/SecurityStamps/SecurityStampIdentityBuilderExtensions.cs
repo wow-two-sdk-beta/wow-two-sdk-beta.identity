@@ -14,15 +14,11 @@ public static class SecurityStampIdentityBuilderExtensions
     /// Reject cookie and JWT bearer principals whose security stamp no longer matches the stored user's. Hooks every
     /// cookie scheme's <c>OnValidatePrincipal</c> and every bearer scheme's <c>OnTokenValidated</c>.
     /// </summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
     /// <param name="builder">The identity builder.</param>
     /// <param name="configure">Optional interval and missing-stamp behavior.</param>
-    public static IdentityBuilder<TUser, TKey> AddSecurityStampValidation<TUser, TKey>(
-        this IdentityBuilder<TUser, TKey> builder,
+    public static IdentityBuilder AddSecurityStampValidation(
+        this IdentityBuilder builder,
         Action<SecurityStampValidationOptions>? configure = null)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
     {
         ArgumentNullException.ThrowIfNull(builder);
 
@@ -31,7 +27,7 @@ public static class SecurityStampIdentityBuilderExtensions
             configure,
             options => options.Validate(o => o.ValidationInterval >= TimeSpan.Zero, "SecurityStampValidationOptions.ValidationInterval must not be negative."));
         services.AddMemoryCache();
-        services.TryAddScoped<SecurityStampValidator<TUser, TKey>>();
+        services.TryAddScoped<SecurityStampValidator>();
 
         services.PostConfigureAll<CookieAuthenticationOptions>(cookie =>
         {
@@ -42,7 +38,7 @@ public static class SecurityStampIdentityBuilderExtensions
                 if (context.Principal is null)
                     return;
 
-                var validator = context.HttpContext.RequestServices.GetRequiredService<SecurityStampValidator<TUser, TKey>>();
+                var validator = context.HttpContext.RequestServices.GetRequiredService<SecurityStampValidator>();
                 if (!await validator.ValidateAsync(context.Principal, context.HttpContext.RequestAborted))
                 {
                     context.RejectPrincipal();
@@ -61,7 +57,7 @@ public static class SecurityStampIdentityBuilderExtensions
                 if (context.Principal is null || context.Result is { Failure: not null })
                     return;
 
-                var validator = context.HttpContext.RequestServices.GetRequiredService<SecurityStampValidator<TUser, TKey>>();
+                var validator = context.HttpContext.RequestServices.GetRequiredService<SecurityStampValidator>();
                 if (!await validator.ValidateAsync(context.Principal, context.HttpContext.RequestAborted))
                     context.Fail("The security stamp is no longer valid.");
             };

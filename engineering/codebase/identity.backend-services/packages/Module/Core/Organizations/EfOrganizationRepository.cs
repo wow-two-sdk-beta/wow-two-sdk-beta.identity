@@ -2,18 +2,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 
-/// <summary>Accesses organizations and memberships through the context hosting the identity schema.</summary>
-/// <typeparam name="TKey">User key type.</typeparam>
-/// <param name="context">The context hosting the identity schema.</param>
-public sealed class EfOrganizationRepository<TKey>(DbContext context) : IOrganizationRepository<TKey>
-    where TKey : notnull, IEquatable<TKey>
+/// <summary>Accesses organizations and memberships through <see cref="IdentityDbContext"/>.</summary>
+/// <param name="context">The identity context.</param>
+public sealed class EfOrganizationRepository(IdentityDbContext context) : IOrganizationRepository
 {
     private DbSet<IdentityOrganization> Organizations => context.Set<IdentityOrganization>();
 
-    private DbSet<IdentityMembership<TKey>> Memberships => context.Set<IdentityMembership<TKey>>();
+    private DbSet<IdentityMembership> Memberships => context.Set<IdentityMembership>();
 
     /// <inheritdoc />
-    public async Task CreateAsync(IdentityOrganization organization, IdentityMembership<TKey> owner, CancellationToken cancellationToken = default)
+    public async Task CreateAsync(IdentityOrganization organization, IdentityMembership owner, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(organization);
         ArgumentNullException.ThrowIfNull(owner);
@@ -52,7 +50,7 @@ public sealed class EfOrganizationRepository<TKey>(DbContext context) : IOrganiz
         => Organizations.FirstOrDefaultAsync(o => o.Slug == slug, cancellationToken);
 
     /// <inheritdoc />
-    public async Task AddMembershipAsync(IdentityMembership<TKey> membership, CancellationToken cancellationToken = default)
+    public async Task AddMembershipAsync(IdentityMembership membership, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(membership);
         Memberships.Add(membership);
@@ -60,27 +58,27 @@ public sealed class EfOrganizationRepository<TKey>(DbContext context) : IOrganiz
     }
 
     /// <inheritdoc />
-    public Task<IdentityMembership<TKey>?> FindMembershipAsync(Guid organizationId, TKey userId, CancellationToken cancellationToken = default)
-        => Memberships.AsNoTracking().FirstOrDefaultAsync(m => m.OrganizationId == organizationId && m.UserId.Equals(userId), cancellationToken);
+    public Task<IdentityMembership?> FindMembershipAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken = default)
+        => Memberships.AsNoTracking().FirstOrDefaultAsync(m => m.OrganizationId == organizationId && m.UserId == userId, cancellationToken);
 
     /// <inheritdoc />
-    public async Task<bool> ChangeRoleAsync(Guid organizationId, TKey userId, string role, CancellationToken cancellationToken = default)
-        => await Memberships.Where(m => m.OrganizationId == organizationId && m.UserId.Equals(userId))
+    public async Task<bool> ChangeRoleAsync(Guid organizationId, Guid userId, string role, CancellationToken cancellationToken = default)
+        => await Memberships.Where(m => m.OrganizationId == organizationId && m.UserId == userId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(m => m.Role, role), cancellationToken) == 1;
 
     /// <inheritdoc />
-    public async Task<bool> RemoveMembershipAsync(Guid organizationId, TKey userId, CancellationToken cancellationToken = default)
-        => await Memberships.Where(m => m.OrganizationId == organizationId && m.UserId.Equals(userId)).ExecuteDeleteAsync(cancellationToken) == 1;
+    public async Task<bool> RemoveMembershipAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken = default)
+        => await Memberships.Where(m => m.OrganizationId == organizationId && m.UserId == userId).ExecuteDeleteAsync(cancellationToken) == 1;
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<IdentityMembership<TKey>>> ListMembersAsync(Guid organizationId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<IdentityMembership>> ListMembersAsync(Guid organizationId, CancellationToken cancellationToken = default)
         => await Memberships.AsNoTracking().Where(m => m.OrganizationId == organizationId).OrderBy(m => m.CreatedAt).ToListAsync(cancellationToken);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<OrganizationMembershipModel>> ListForUserAsync(TKey userId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<OrganizationMembershipModel>> ListForUserAsync(Guid userId, CancellationToken cancellationToken = default)
         => await (from membership in Memberships.AsNoTracking()
                   join organization in Organizations.AsNoTracking() on membership.OrganizationId equals organization.Id
-                  where membership.UserId.Equals(userId)
+                  where membership.UserId == userId
                   orderby membership.CreatedAt
                   select new OrganizationMembershipModel
                   {

@@ -19,7 +19,7 @@ public sealed class EmailSliceTests
         await using var host = CreateHost();
         var alice = await host.CreateUserAsync("alice");
         var bob = await host.CreateUserAsync("bob");
-        var issuer = host.Provider.GetRequiredService<UserTokenIssuer<IdentityUser, Guid>>();
+        var issuer = host.Provider.GetRequiredService<UserTokenIssuer>();
 
         var token = issuer.Issue(alice, "Invite");
 
@@ -38,7 +38,7 @@ public sealed class EmailSliceTests
     {
         await using var host = CreateHost();
         var user = await host.CreateUserAsync("carl");
-        var issuer = host.Provider.GetRequiredService<UserTokenIssuer<IdentityUser, Guid>>();
+        var issuer = host.Provider.GetRequiredService<UserTokenIssuer>();
         var token = issuer.Issue(user, "Custom");
 
         host.Time.Advance(TimeSpan.FromDays(1) - TimeSpan.FromSeconds(1));
@@ -53,8 +53,8 @@ public sealed class EmailSliceTests
         await using var host = CreateHost();
         var user = await host.CreateUserAsync("dina");
         await using var scope = host.Scope();
-        var emails = scope.ServiceProvider.GetRequiredService<UserEmailService<IdentityUser, Guid>>();
-        var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>().FindByIdAsync(user.Id))!;
+        var emails = scope.ServiceProvider.GetRequiredService<UserEmailService>();
+        var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id))!;
         var token = emails.IssueConfirmationToken(tracked);
 
         (await emails.SetEmailAsync(tracked, "dina.new@example.test")).Succeeded.Should().BeTrue();
@@ -71,8 +71,8 @@ public sealed class EmailSliceTests
         var user = await host.CreateUserAsync("ella");
         await host.CreateUserAsync("fred", "fred@example.test");
         await using var scope = host.Scope();
-        var emails = scope.ServiceProvider.GetRequiredService<UserEmailService<IdentityUser, Guid>>();
-        var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>().FindByIdAsync(user.Id))!;
+        var emails = scope.ServiceProvider.GetRequiredService<UserEmailService>();
+        var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id))!;
         var stamp = tracked.SecurityStamp;
 
         var taken = emails.IssueChangeEmailToken(tracked, "FRED@example.test");

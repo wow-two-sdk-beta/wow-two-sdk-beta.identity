@@ -12,11 +12,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 /// expiry plus an HMAC-SHA256 over purpose, user id, security stamp and expiry, so rotating the stamp voids every token
 /// issued before it. Nothing is stored.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
-public sealed class UserTokenIssuer<TUser, TKey>
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+public sealed class UserTokenIssuer
 {
     private const byte FormatVersion = 1;
     private const int MacLength = 32;
@@ -41,7 +37,7 @@ public sealed class UserTokenIssuer<TUser, TKey>
     /// <summary>Issue a token binding <paramref name="purpose"/> to <paramref name="user"/> and the current security stamp.</summary>
     /// <param name="user">The user the token acts for.</param>
     /// <param name="purpose">The operation the token authorizes.</param>
-    public string Issue(TUser user, string purpose)
+    public string Issue(IdentityUser user, string purpose)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
@@ -58,7 +54,7 @@ public sealed class UserTokenIssuer<TUser, TKey>
     /// <param name="user">The user the token claims to act for.</param>
     /// <param name="purpose">The operation being authorized.</param>
     /// <param name="token">The token the user presented.</param>
-    public bool Verify(TUser user, string purpose, string? token)
+    public bool Verify(IdentityUser user, string purpose, string? token)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
@@ -95,13 +91,13 @@ public sealed class UserTokenIssuer<TUser, TKey>
         return _options.Lifetimes.TryGetValue(bare, out var lifetime) ? lifetime : _options.DefaultLifetime;
     }
 
-    private void ComputeMac(TUser user, string purpose, long expires, Span<byte> destination)
+    private void ComputeMac(IdentityUser user, string purpose, long expires, Span<byte> destination)
     {
         var material = string.Join(
             '\n',
             "wow2.identity.token.v1",
             purpose,
-            Convert.ToString(user.Id, CultureInfo.InvariantCulture),
+            user.Id.ToString(),
             user.SecurityStamp ?? string.Empty,
             expires.ToString(CultureInfo.InvariantCulture));
         HMACSHA256.HashData(_key, Encoding.UTF8.GetBytes(material), destination);

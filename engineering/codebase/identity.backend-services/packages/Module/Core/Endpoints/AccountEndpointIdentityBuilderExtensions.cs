@@ -9,15 +9,11 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 public static class AccountEndpointIdentityBuilderExtensions
 {
     /// <summary>
-    /// Register <see cref="UserAccountMailService{TUser,TKey}"/> with <see cref="UserAccountEmailSettings"/> bound live from
+    /// Register <see cref="UserAccountMailService"/> with <see cref="UserAccountEmailSettings"/> bound live from
     /// the container's <c>UserAccounts:Emails</c> section; map the API with <c>MapUserAccountEndpoints</c>.
     /// </summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
     /// <param name="builder">The identity builder.</param>
-    public static IdentityBuilder<TUser, TKey> AddAccountEndpoints<TUser, TKey>(this IdentityBuilder<TUser, TKey> builder)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
+    public static IdentityBuilder AddAccountEndpoints(this IdentityBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         var services = builder.Services;
@@ -32,7 +28,7 @@ public static class AccountEndpointIdentityBuilderExtensions
                         ?? new ConfigurationBuilder().Build()));
         }
 
-        services.TryAddScoped<UserAccountMailService<TUser, TKey>>();
+        services.TryAddScoped<UserAccountMailService>();
         return builder;
     }
 }

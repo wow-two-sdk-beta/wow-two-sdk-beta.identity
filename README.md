@@ -145,7 +145,7 @@ Embed the sign-in components on your own pages, or forward the flow to the insta
 cd engineering/codebase/identity.backend-services && dotnet run --project service/Identity.Api --launch-profile https
 cd engineering/codebase/identity.frontend-services && pnpm install --frozen-lockfile && pnpm dev
 
-# Backend tests: unit, integration, E2E, conformance and migrations (SQLite, no Docker; the build needs Node and pnpm)
+# Backend tests: unit, integration, E2E, conformance and migrations (only migrations needs Docker; the build needs Node and pnpm)
 cd engineering/codebase/identity.backend-services && dotnet test Identity.BackendServices.slnx
 
 # Frontend: lint, tests, build, packed-consumer check

@@ -18,8 +18,8 @@ public sealed class OrganizationTests
         })
         .AddPersonalData());
 
-    private static OrganizationService<IdentityUser, Guid> Organizations(AsyncServiceScope scope)
-        => scope.ServiceProvider.GetRequiredService<OrganizationService<IdentityUser, Guid>>();
+    private static OrganizationService Organizations(AsyncServiceScope scope)
+        => scope.ServiceProvider.GetRequiredService<OrganizationService>();
 
     [Fact]
     public async Task Create_ShouldMakeTheCreatorOwnerAndKeepHandlesUnique()
@@ -125,7 +125,7 @@ public sealed class OrganizationTests
         await organizations.CreateAsync(atelier, member);
         await organizations.AddMemberAsync(ocharo, member, "editor");
 
-        var factory = scope.ServiceProvider.GetRequiredService<UserClaimsPrincipalFactory<IdentityUser, Guid>>();
+        var factory = scope.ServiceProvider.GetRequiredService<UserClaimsPrincipalFactory>();
         var principal = await factory.CreateAsync(await host.ReloadAsync(member.Id));
 
         principal.GetOrganizationRole(ocharo.Id).Should().Be("editor");
@@ -167,7 +167,7 @@ public sealed class OrganizationTests
         var ocharo = new IdentityOrganization { Name = "Ocharo", Slug = "ocharo" };
         await organizations.CreateAsync(ocharo, founder);
         await organizations.AddMemberAsync(ocharo, member, "editor");
-        var personalData = scope.ServiceProvider.GetRequiredService<UserPersonalDataService<IdentityUser, Guid>>();
+        var personalData = scope.ServiceProvider.GetRequiredService<UserPersonalDataService>();
 
         var export = await personalData.ExportAsync(await host.ReloadAsync(member.Id));
         export.Sections.Should().ContainKey("organizations");

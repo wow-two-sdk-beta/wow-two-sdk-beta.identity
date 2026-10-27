@@ -6,15 +6,13 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 /// One issued refresh token, stored by digest. Tokens rotate within a family: redeeming one consumes it and issues the
 /// next; presenting a consumed token again revokes the whole family. Consumed by the refresh-token slice.
 /// </summary>
-/// <typeparam name="TKey">User key type.</typeparam>
-public class IdentityRefreshToken<TKey> : IKeyedEntity<Guid>
-    where TKey : notnull, IEquatable<TKey>
+public sealed class IdentityRefreshToken : IKeyedEntity<Guid>
 {
     /// <summary>Primary key; the public half of the token.</summary>
     public Guid Id { get; set; }
 
     /// <summary>The owning user.</summary>
-    public TKey UserId { get; set; } = default!;
+    public Guid UserId { get; set; }
 
     /// <summary>The rotation chain this token belongs to.</summary>
     public Guid FamilyId { get; set; }

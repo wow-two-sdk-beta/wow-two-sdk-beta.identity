@@ -35,5 +35,7 @@ engineering/             ← the HOW
   never create a GitHub Release for a package tag. The image version comes from the version track (`v*`).
 - Core is pinned (`BackendSdkVersion`, the exact `@wow-two-beta/fe`); a needed core change goes to core first, then the
   pin moves here. `core-latest.yml` tests the newest core nightly; a red run is a fix here, not a gate.
-- Schema changes are `packages/Module/Migrations/NNN-name/{Apply,Rollback}.sql` pairs; never edit an applied one.
-- The backend build runs the frontend build (`BuildSpa`), so it needs Node and pnpm; no test tier needs Docker.
+- Schema changes are `packages/Module/Migrations/{Postgres,Sqlite}/NNN-name/{Apply,Rollback}.sql` pairs, one per
+  dialect, matching `IdentityDbContext`; never edit an applied one.
+- The backend build runs the frontend build (`BuildSpa`), so it needs Node and pnpm; only `Identity.Tests.Migrations`
+  needs Docker (PostgreSQL in Testcontainers).

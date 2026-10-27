@@ -7,26 +7,16 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 public static class PersonalDataIdentityBuilderExtensions
 {
     /// <summary>
-    /// Registers <see cref="UserPersonalDataService{TUser,TKey}"/>; call after <c>AddEntityFrameworkStores</c>. Products add
-    /// <see cref="IPersonalDataExporter{TUser}"/> sections and <see cref="IAccountDeletionHandler{TUser}"/> steps with
+    /// Registers <see cref="UserPersonalDataService"/> over <see cref="IdentityDbContext"/>. Products add
+    /// <see cref="IPersonalDataExporter"/> sections and <see cref="IAccountDeletionHandler"/> steps with
     /// <c>TryAddEnumerable</c>. The account API then maps <c>manage/personal-data</c> and <c>manage/delete-account</c>.
     /// </summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
     /// <param name="builder">The identity builder.</param>
-    /// <exception cref="InvalidOperationException">The EF stores are not registered yet.</exception>
-    public static IdentityBuilder<TUser, TKey> AddPersonalData<TUser, TKey>(this IdentityBuilder<TUser, TKey> builder)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
+    public static IdentityBuilder AddPersonalData(this IdentityBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var context = builder.ContextFactory ?? throw new InvalidOperationException("Call AddEntityFrameworkStores before AddPersonalData.");
         builder.Services.TryAddSingleton(TimeProvider.System);
-        builder.Services.TryAddScoped(serviceProvider => new UserPersonalDataService<TUser, TKey>(
-            context(serviceProvider),
-            serviceProvider.GetServices<IPersonalDataExporter<TUser>>(),
-            serviceProvider.GetServices<IAccountDeletionHandler<TUser>>(),
-            serviceProvider.GetRequiredService<TimeProvider>()));
+        builder.Services.TryAddScoped<UserPersonalDataService>();
         return builder;
     }
 }

@@ -2,16 +2,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.RefreshTokens;
 
-/// <summary>Accesses refresh tokens through the context hosting the identity schema; consumption is one conditional update.</summary>
-/// <typeparam name="TKey">User key type.</typeparam>
-/// <param name="context">The context hosting the identity schema.</param>
-public sealed class EfRefreshTokenRepository<TKey>(DbContext context) : IRefreshTokenRepository<TKey>
-    where TKey : notnull, IEquatable<TKey>
+/// <summary>Accesses refresh tokens through <see cref="IdentityDbContext"/>; consumption is one conditional update.</summary>
+/// <param name="context">The identity context.</param>
+public sealed class EfRefreshTokenRepository(IdentityDbContext context) : IRefreshTokenRepository
 {
-    private DbSet<IdentityRefreshToken<TKey>> Tokens => context.Set<IdentityRefreshToken<TKey>>();
+    private DbSet<IdentityRefreshToken> Tokens => context.Set<IdentityRefreshToken>();
 
     /// <inheritdoc />
-    public async Task AddAsync(IdentityRefreshToken<TKey> token, CancellationToken cancellationToken = default)
+    public async Task AddAsync(IdentityRefreshToken token, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(token);
         Tokens.Add(token);
@@ -19,7 +17,7 @@ public sealed class EfRefreshTokenRepository<TKey>(DbContext context) : IRefresh
     }
 
     /// <inheritdoc />
-    public Task<IdentityRefreshToken<TKey>?> FindAsync(Guid id, CancellationToken cancellationToken = default)
+    public Task<IdentityRefreshToken?> FindAsync(Guid id, CancellationToken cancellationToken = default)
         => Tokens.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
 
     /// <inheritdoc />
@@ -35,9 +33,9 @@ public sealed class EfRefreshTokenRepository<TKey>(DbContext context) : IRefresh
             .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.RevokedAt, at), cancellationToken);
 
     /// <inheritdoc />
-    public Task RevokeUserAsync(TKey userId, DateTimeOffset at, CancellationToken cancellationToken = default)
+    public Task RevokeUserAsync(Guid userId, DateTimeOffset at, CancellationToken cancellationToken = default)
         => Tokens
-            .Where(t => t.UserId.Equals(userId) && t.RevokedAt == null)
+            .Where(t => t.UserId == userId && t.RevokedAt == null)
             .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.RevokedAt, at), cancellationToken);
 
     /// <inheritdoc />

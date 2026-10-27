@@ -1,15 +1,11 @@
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 
 /// <summary>Validates a candidate password against the configured <see cref="PasswordOptions"/>.</summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="options">Identity options carrying the password rules.</param>
-public sealed class PasswordRulesValidator<TUser, TKey>(IdentityCoreOptions options) : IUserPasswordValidator<TUser>
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+public sealed class PasswordRulesValidator(IdentityCoreOptions options) : IUserPasswordValidator
 {
     /// <inheritdoc />
-    public Task<IReadOnlyList<IdentityError>> ValidateAsync(TUser user, string password, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<IdentityError>> ValidateAsync(IdentityUser user, string password, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentNullException.ThrowIfNull(password);

@@ -5,14 +5,13 @@ The account HTTP API over the identity slices — the SDK's `MapIdentityApi`, bu
 ## Quick start
 
 ```csharp
-services.AddUserAccounts<AppUser>()
-        .AddEntityFrameworkStores<AppDbContext>()
+services.AddUserAccounts()
         .AddArgon2Passwords().AddUserTokens(o => o.SigningKey = key).AddEmailConfirmation()
         .AddLockout().AddRefreshTokens().AddSignIn()
         .AddAccountEndpoints();                              // email links + texts from configuration
 services.AddJwtTokenIssuance(…).AddJwtBearerAuthentication(…);
 
-app.MapGroup("/account").MapUserAccountEndpoints<AppUser>();
+app.MapGroup("/account").MapUserAccountEndpoints();
 ```
 
 ```jsonc

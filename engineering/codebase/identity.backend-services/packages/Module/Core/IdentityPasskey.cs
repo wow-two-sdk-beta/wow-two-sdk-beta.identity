@@ -6,15 +6,13 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 /// One WebAuthn credential (passkey) a user registered: its id, public key and signature counter. Consumed by the
 /// passkey slice; the private key never leaves the user's authenticator.
 /// </summary>
-/// <typeparam name="TKey">User key type.</typeparam>
-public class IdentityPasskey<TKey> : IKeyedEntity<Guid>
-    where TKey : notnull, IEquatable<TKey>
+public sealed class IdentityPasskey : IKeyedEntity<Guid>
 {
     /// <summary>Primary key.</summary>
     public Guid Id { get; set; }
 
     /// <summary>The owning user.</summary>
-    public TKey UserId { get; set; } = default!;
+    public Guid UserId { get; set; }
 
     /// <summary>The credential id the authenticator reports; unique.</summary>
     public byte[] CredentialId { get; set; } = [];

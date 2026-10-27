@@ -10,19 +10,15 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.TwoFactor;
 public static class TwoFactorIdentityBuilderExtensions
 {
     /// <summary>
-    /// Register <see cref="UserTwoFactorService{TUser,TKey}"/> (authenticator + recovery codes) and
-    /// <see cref="UserTwoFactorMethodService{TUser,TKey}"/> (delivered codes) with the TOTP and OTP services and, after
-    /// <c>AddEntityFrameworkStores</c>, the stored-token repository. Two-factor sign-in also needs <c>.AddUserTokens(...)</c>;
+    /// Register <see cref="UserTwoFactorService"/> (authenticator + recovery codes) and
+    /// <see cref="UserTwoFactorMethodService"/> (delivered codes) with the TOTP and OTP services and
+    /// the stored-token repository over <see cref="IdentityDbContext"/>. Two-factor sign-in also needs <c>.AddUserTokens(...)</c>;
     /// each delivered method needs its channel registered (<c>AddSmsOtpDelivery</c>, <c>AddWhatsAppOtpDelivery</c>, …).
     /// Options come from <paramref name="configure"/>, then the host section <c>Identity:TwoFactor</c>.
     /// </summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
     /// <param name="builder">The identity builder.</param>
     /// <param name="configure">Authenticator label, recovery-code count and delivered-code methods.</param>
-    public static IdentityBuilder<TUser, TKey> AddTwoFactor<TUser, TKey>(this IdentityBuilder<TUser, TKey> builder, Action<TwoFactorOptions>? configure = null)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
+    public static IdentityBuilder AddTwoFactor(this IdentityBuilder builder, Action<TwoFactorOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
@@ -38,17 +34,14 @@ public static class TwoFactorIdentityBuilderExtensions
         builder.Services.AddTotp();
         builder.Services.AddOtpService();
         builder.AddStoredUserTokens();
-        builder.Services.TryAddScoped<UserTwoFactorService<TUser, TKey>>();
-        builder.Services.TryAddScoped<UserTwoFactorMethodService<TUser, TKey>>();
+        builder.Services.TryAddScoped<UserTwoFactorService>();
+        builder.Services.TryAddScoped<UserTwoFactorMethodService>();
         return builder;
     }
 
-    /// <summary>Register the EF stored-token repository once the context is known.</summary>
-    internal static void AddStoredUserTokens<TUser, TKey>(this IdentityBuilder<TUser, TKey> builder)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
+    /// <summary>Register the stored-token repository over <see cref="IdentityDbContext"/>.</summary>
+    internal static void AddStoredUserTokens(this IdentityBuilder builder)
     {
-        if (builder.ContextFactory is { } context)
-            builder.Services.TryAddScoped<IUserTokenRepository<TKey>>(serviceProvider => new EfUserTokenRepository<TKey>(context(serviceProvider)));
+        builder.Services.TryAddScoped<IUserTokenRepository, EfUserTokenRepository>();
     }
 }

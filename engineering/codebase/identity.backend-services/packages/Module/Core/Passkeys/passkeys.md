@@ -8,7 +8,7 @@ Passkeys as an identity slice: WebAuthn credentials stored in `identity_passkeys
 ```csharp
 identity.AddLockout()
         .AddPasskeys(o => { o.ServerDomain = "acme.com"; o.ServerName = "Acme"; o.Origins.Add("https://acme.com"); })
-        .AddSignIn();                                     // after AddEntityFrameworkStores
+        .AddSignIn();
 
 // register (signed in)
 var ceremony = await passkeys.BeginRegistrationAsync(user);            // OptionsJson → navigator.credentials.create

@@ -6,7 +6,7 @@ The OAuth handshake stays with `Identity/OAuth/*`; this slice only persists the 
 ## Quick start
 
 ```csharp
-identity.AddEntityFrameworkStores<AppDbContext>().AddExternalLogins().AddSignIn();
+identity.AddExternalLogins().AddSignIn();
 
 var user = await logins.FindByLoginAsync("Google", subject)
     ?? await CreateAndLinkAsync(subject);                          // host decides sign-up policy

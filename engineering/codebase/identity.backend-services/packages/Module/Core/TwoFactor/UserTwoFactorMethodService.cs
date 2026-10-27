@@ -12,8 +12,6 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.TwoFactor;
 /// method's code through its channel and broker, verifies it, enables two-factor with it and keeps the preferred method.
 /// Methods come from <see cref="TwoFactorOptions.Methods"/>; codes live in <see cref="IOtpService"/>, one scope per method.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="repository">The core user store.</param>
 /// <param name="tokens">The stored-token repository, holding the preferred method.</param>
 /// <param name="authenticator">The authenticator and recovery-code slice.</param>
@@ -23,18 +21,16 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.TwoFactor;
 /// <param name="options">The methods; <c>Identity:TwoFactor</c> reloads live.</param>
 /// <param name="otpOptions">The default code lifetime.</param>
 /// <param name="logins">The external-login slice, for methods addressed to a login; null when absent.</param>
-public sealed class UserTwoFactorMethodService<TUser, TKey>(
-    IUserRepository<TUser, TKey> repository,
-    IUserTokenRepository<TKey> tokens,
-    UserTwoFactorService<TUser, TKey> authenticator,
+public sealed class UserTwoFactorMethodService(
+    IUserRepository repository,
+    IUserTokenRepository tokens,
+    UserTwoFactorService authenticator,
     IOtpService otp,
     IOtpDeliveryHandlerFactory handlers,
     IOtpMessageFormatter formatter,
     IOptionsMonitor<TwoFactorOptions> options,
     OtpOptions otpOptions,
-    IUserLoginRepository<TKey>? logins = null)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+    IUserLoginRepository? logins = null)
 {
     /// <summary>The purpose delivered codes are worded for, as <see cref="IOtpMessageFormatter"/> templates key it.</summary>
     public const string MessagePurpose = "two-factor";
@@ -42,7 +38,7 @@ public sealed class UserTwoFactorMethodService<TUser, TKey>(
     /// <summary>The methods <paramref name="user"/> can use now: the authenticator once set up, then each configured method with a registered channel and a confirmed address.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IReadOnlyList<string>> GetAvailableMethodsAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<string>> GetAvailableMethodsAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
 
@@ -62,10 +58,10 @@ public sealed class UserTwoFactorMethodService<TUser, TKey>(
     /// <summary>The method a sign-in asks for first: the stored choice while it stays available, else the first available; null when none is.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<string?> GetPreferredMethodAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<string?> GetPreferredMethodAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         var available = await GetAvailableMethodsAsync(user, cancellationToken);
-        var stored = await tokens.GetAsync(user.Id, UserTwoFactorService<TUser, TKey>.TokenProvider, UserTwoFactorService<TUser, TKey>.PreferredMethodName, cancellationToken);
+        var stored = await tokens.GetAsync(user.Id, UserTwoFactorService.TokenProvider, UserTwoFactorService.PreferredMethodName, cancellationToken);
         return available.FirstOrDefault(method => string.Equals(method, stored, StringComparison.OrdinalIgnoreCase))
             ?? (available.Count > 0 ? available[0] : null);
     }
@@ -74,7 +70,7 @@ public sealed class UserTwoFactorMethodService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="method">An available method name.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> SetPreferredMethodAsync(TUser user, string method, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> SetPreferredMethodAsync(IdentityUser user, string method, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
 
@@ -83,7 +79,7 @@ public sealed class UserTwoFactorMethodService<TUser, TKey>(
         if (match is null)
             return Unavailable(method);
 
-        await tokens.SetAsync(user.Id, UserTwoFactorService<TUser, TKey>.TokenProvider, UserTwoFactorService<TUser, TKey>.PreferredMethodName, match, cancellationToken);
+        await tokens.SetAsync(user.Id, UserTwoFactorService.TokenProvider, UserTwoFactorService.PreferredMethodName, match, cancellationToken);
         return IdentityResult.Success;
     }
 
@@ -92,7 +88,7 @@ public sealed class UserTwoFactorMethodService<TUser, TKey>(
     /// <param name="method">A configured method name.</param>
     /// <param name="culture">The recipient's culture for the wording; null takes the current UI culture.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<TwoFactorCodeResult> SendCodeAsync(TUser user, string method, CultureInfo? culture = null, CancellationToken cancellationToken = default)
+    public async Task<TwoFactorCodeResult> SendCodeAsync(IdentityUser user, string method, CultureInfo? culture = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
@@ -136,7 +132,7 @@ public sealed class UserTwoFactorMethodService<TUser, TKey>(
     /// <param name="method">The method name, or <see cref="TwoFactorMethodNameConstants.Authenticator"/>.</param>
     /// <param name="code">The code the user entered.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<bool> VerifyCodeAsync(TUser user, string method, string code, CancellationToken cancellationToken = default)
+    public async Task<bool> VerifyCodeAsync(IdentityUser user, string method, string code, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
@@ -157,7 +153,7 @@ public sealed class UserTwoFactorMethodService<TUser, TKey>(
     /// <param name="method">An available method name.</param>
     /// <param name="code">The code the method delivered.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> EnableAsync(TUser user, string method, string code, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> EnableAsync(IdentityUser user, string method, string code, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
@@ -179,7 +175,7 @@ public sealed class UserTwoFactorMethodService<TUser, TKey>(
         return await SetPreferredMethodAsync(user, method, cancellationToken);
     }
 
-    private async Task<string?> AddressOfAsync(TUser user, TwoFactorMethodOptions method, CancellationToken cancellationToken)
+    private async Task<string?> AddressOfAsync(IdentityUser user, TwoFactorMethodOptions method, CancellationToken cancellationToken)
     {
         switch (method.AddressKind)
         {
@@ -201,7 +197,7 @@ public sealed class UserTwoFactorMethodService<TUser, TKey>(
             $"The two-factor method '{method}' is not available for this account.",
             new Dictionary<string, object>(StringComparer.Ordinal) { ["Method"] = method });
 
-    private static string SubjectOf(TUser user) => Convert.ToString(user.Id, CultureInfo.InvariantCulture) ?? string.Empty;
+    private static string SubjectOf(IdentityUser user) => user.Id.ToString();
 
     private static string ScopeOf(string method) => "identity.two-factor." + method.ToLowerInvariant();
 }

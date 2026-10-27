@@ -7,7 +7,7 @@ ASP.NET Identity's provider name, so migrated authenticator keys keep working.
 ## Authenticator
 
 ```csharp
-identity.AddEntityFrameworkStores<AppDbContext>().AddTwoFactor(o => o.Issuer = "Acme");
+identity.AddTwoFactor(o => o.Issuer = "Acme");
 
 var key = await twoFactor.ResetAuthenticatorKeyAsync(user);        // show key / QR of GetAuthenticatorUriAsync
 await twoFactor.EnableAsync(user, codeFromApp);                     // proves the app holds the key

@@ -7,21 +7,17 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Emails;
 /// Provides the email slice: confirmation of the current address and a token-verified move to a new one. Confirmation
 /// tokens are scoped to the address they were issued for; change tokens to the new address.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="repository">The core user store.</param>
 /// <param name="accounts">The core account service, for the uniqueness rule.</param>
 /// <param name="tokens">The purpose-token issuer.</param>
-public sealed class UserEmailService<TUser, TKey>(
-    IUserRepository<TUser, TKey> repository,
-    UserAccountService<TUser, TKey> accounts,
-    UserTokenIssuer<TUser, TKey> tokens)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+public sealed class UserEmailService(
+    IUserRepository repository,
+    UserAccountService accounts,
+    UserTokenIssuer tokens)
 {
     /// <summary>Issue a token confirming the user's current email address.</summary>
     /// <param name="user">The user.</param>
-    public string IssueConfirmationToken(TUser user)
+    public string IssueConfirmationToken(IdentityUser user)
     {
         ArgumentNullException.ThrowIfNull(user);
         return tokens.Issue(user, Scope(UserTokenPurposeConstants.EmailConfirmation, user.NormalizedEmail));
@@ -31,7 +27,7 @@ public sealed class UserEmailService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="token">The confirmation token.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> ConfirmEmailAsync(TUser user, string token, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> ConfirmEmailAsync(IdentityUser user, string token, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         if (!tokens.Verify(user, Scope(UserTokenPurposeConstants.EmailConfirmation, user.NormalizedEmail), token))
@@ -45,7 +41,7 @@ public sealed class UserEmailService<TUser, TKey>(
     /// <summary>Issue a token authorizing the move to <paramref name="newEmail"/>; send it to that address.</summary>
     /// <param name="user">The user.</param>
     /// <param name="newEmail">The requested address.</param>
-    public string IssueChangeEmailToken(TUser user, string newEmail)
+    public string IssueChangeEmailToken(IdentityUser user, string newEmail)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(newEmail);
@@ -57,7 +53,7 @@ public sealed class UserEmailService<TUser, TKey>(
     /// <param name="newEmail">The requested address the token was issued for.</param>
     /// <param name="token">The change token.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> ChangeEmailAsync(TUser user, string newEmail, string token, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> ChangeEmailAsync(IdentityUser user, string newEmail, string token, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(newEmail);
@@ -80,7 +76,7 @@ public sealed class UserEmailService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="email">The new address, or null to clear it.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> SetEmailAsync(TUser user, string? email, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> SetEmailAsync(IdentityUser user, string? email, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
 

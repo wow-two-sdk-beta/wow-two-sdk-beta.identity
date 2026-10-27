@@ -8,7 +8,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- The core pin; it is also each package's nuspec floor on WoW2.Sdk.Beta.Be and the kernel. -->
-    <BackendSdkVersion>10.0.82-beta</BackendSdkVersion>
+    <BackendSdkVersion>10.0.85-beta</BackendSdkVersion>
   </PropertyGroup>
 
   <!-- be sdk: one family, bumped together. The kernel (Result, AppError, IEvent) is the only package the contract takes. -->

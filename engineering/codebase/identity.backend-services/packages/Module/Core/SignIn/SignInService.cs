@@ -13,25 +13,21 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
 /// principal the host issues as a cookie or a JWT; the session shape stays the host's choice. Lockout and two-factor
 /// steps apply when their slices are registered; a user with two-factor enabled always needs the second factor.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
-public sealed class SignInService<TUser, TKey>
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+public sealed class SignInService
 {
     private static readonly SignInResult FailedResult = new() { Status = SignInStatus.Failed };
     private static readonly SignInResult LockedOutResult = new() { Status = SignInStatus.LockedOut };
 
-    private readonly UserAccountService<TUser, TKey> _accounts;
-    private readonly UserClaimsPrincipalFactory<TUser, TKey> _principals;
+    private readonly UserAccountService _accounts;
+    private readonly UserClaimsPrincipalFactory _principals;
     private readonly SignInOptions _options;
-    private readonly UserPasswordService<TUser, TKey>? _passwords;
-    private readonly IPasswordHasher<TUser>? _hasher;
-    private readonly UserLockoutService<TUser, TKey>? _lockout;
-    private readonly UserTokenIssuer<TUser, TKey>? _tokens;
-    private readonly UserTwoFactorService<TUser, TKey>? _twoFactor;
-    private readonly UserTwoFactorMethodService<TUser, TKey>? _twoFactorMethods;
-    private readonly UserPasskeyService<TUser, TKey>? _passkeys;
+    private readonly UserPasswordService? _passwords;
+    private readonly IPasswordHasher<IdentityUser>? _hasher;
+    private readonly UserLockoutService? _lockout;
+    private readonly UserTokenIssuer? _tokens;
+    private readonly UserTwoFactorService? _twoFactor;
+    private readonly UserTwoFactorMethodService? _twoFactorMethods;
+    private readonly UserPasskeyService? _passkeys;
     private static string? s_decoyHash;
 
     /// <summary>Create the service over the registered slices.</summary>
@@ -46,16 +42,16 @@ public sealed class SignInService<TUser, TKey>
     /// <param name="twoFactorMethods">The delivered-code methods of the two-factor slice; null leaves only the authenticator.</param>
     /// <param name="passkeys">The passkey slice; null disables passkey sign-in.</param>
     public SignInService(
-        UserAccountService<TUser, TKey> accounts,
-        UserClaimsPrincipalFactory<TUser, TKey> principals,
+        UserAccountService accounts,
+        UserClaimsPrincipalFactory principals,
         IdentityCoreOptions options,
-        UserPasswordService<TUser, TKey>? passwords = null,
-        IPasswordHasher<TUser>? hasher = null,
-        UserLockoutService<TUser, TKey>? lockout = null,
-        UserTokenIssuer<TUser, TKey>? tokens = null,
-        UserTwoFactorService<TUser, TKey>? twoFactor = null,
-        UserTwoFactorMethodService<TUser, TKey>? twoFactorMethods = null,
-        UserPasskeyService<TUser, TKey>? passkeys = null)
+        UserPasswordService? passwords = null,
+        IPasswordHasher<IdentityUser>? hasher = null,
+        UserLockoutService? lockout = null,
+        UserTokenIssuer? tokens = null,
+        UserTwoFactorService? twoFactor = null,
+        UserTwoFactorMethodService? twoFactorMethods = null,
+        UserPasskeyService? passkeys = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         _accounts = accounts;
@@ -96,7 +92,7 @@ public sealed class SignInService<TUser, TKey>
     /// <param name="password">The password.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="NotSupportedException">The password slice is not registered.</exception>
-    public async Task<SignInResult> PasswordSignInAsync(TUser user, string password, CancellationToken cancellationToken = default)
+    public async Task<SignInResult> PasswordSignInAsync(IdentityUser user, string password, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         var passwords = _passwords ?? throw new NotSupportedException("Password sign-in needs the password slice; call .AddArgon2Passwords().");
@@ -117,7 +113,7 @@ public sealed class SignInService<TUser, TKey>
     /// <summary>Sign in a user already authenticated elsewhere (external login, passwordless code); lockout and preconditions still apply.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<SignInResult> SignInAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<SignInResult> SignInAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         return _lockout?.IsLockedOut(user) == true
@@ -153,7 +149,7 @@ public sealed class SignInService<TUser, TKey>
     /// </summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<SignInResult> RenewAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<SignInResult> RenewAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         if (_lockout?.IsLockedOut(user) == true)
@@ -176,7 +172,7 @@ public sealed class SignInService<TUser, TKey>
     /// <param name="code">The authenticator code.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="NotSupportedException">The two-factor slice or purpose tokens are not registered.</exception>
-    public Task<SignInResult> TwoFactorSignInAsync(TKey userId, string ticket, string code, CancellationToken cancellationToken = default)
+    public Task<SignInResult> TwoFactorSignInAsync(Guid userId, string ticket, string code, CancellationToken cancellationToken = default)
         => SecondFactorSignInAsync(userId, ticket, (factor, user) => factor.VerifyAuthenticatorCodeAsync(user, code, cancellationToken), cancellationToken);
 
     /// <summary>Complete a sign-in with a code for <paramref name="method"/> — the authenticator or a delivered method — after a <see cref="SignInStatus.RequiresTwoFactor"/> result.</summary>
@@ -186,7 +182,7 @@ public sealed class SignInService<TUser, TKey>
     /// <param name="code">The code.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="NotSupportedException">The two-factor slice or purpose tokens are not registered.</exception>
-    public Task<SignInResult> TwoFactorSignInAsync(TKey userId, string ticket, string method, string code, CancellationToken cancellationToken = default)
+    public Task<SignInResult> TwoFactorSignInAsync(Guid userId, string ticket, string method, string code, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
         return _twoFactorMethods is null || string.Equals(method, TwoFactorMethodNameConstants.Authenticator, StringComparison.OrdinalIgnoreCase)
@@ -204,7 +200,7 @@ public sealed class SignInService<TUser, TKey>
     /// <param name="culture">The recipient's culture for the wording; null takes the current UI culture.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="NotSupportedException">The two-factor slice or purpose tokens are not registered.</exception>
-    public async Task<TwoFactorCodeResult> SendTwoFactorCodeAsync(TKey userId, string ticket, string? method = null, CultureInfo? culture = null, CancellationToken cancellationToken = default)
+    public async Task<TwoFactorCodeResult> SendTwoFactorCodeAsync(Guid userId, string ticket, string? method = null, CultureInfo? culture = null, CancellationToken cancellationToken = default)
     {
         var methods = _twoFactorMethods ?? throw new NotSupportedException("Delivered two-factor codes need the two-factor slice; call .AddTwoFactor().");
         var tokens = _tokens ?? throw new NotSupportedException("Two-factor sign-in needs purpose tokens; call .AddUserTokens(...).");
@@ -225,7 +221,7 @@ public sealed class SignInService<TUser, TKey>
     /// <param name="recoveryCode">One unused recovery code.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="NotSupportedException">The two-factor slice or purpose tokens are not registered.</exception>
-    public Task<SignInResult> RecoveryCodeSignInAsync(TKey userId, string ticket, string recoveryCode, CancellationToken cancellationToken = default)
+    public Task<SignInResult> RecoveryCodeSignInAsync(Guid userId, string ticket, string recoveryCode, CancellationToken cancellationToken = default)
         => SecondFactorSignInAsync(
             userId,
             ticket,
@@ -233,9 +229,9 @@ public sealed class SignInService<TUser, TKey>
             cancellationToken);
 
     private async Task<SignInResult> SecondFactorSignInAsync(
-        TKey userId,
+        Guid userId,
         string ticket,
-        Func<UserTwoFactorService<TUser, TKey>, TUser, Task<bool>> verify,
+        Func<UserTwoFactorService, IdentityUser, Task<bool>> verify,
         CancellationToken cancellationToken)
     {
         var twoFactor = _twoFactor ?? throw new NotSupportedException("Two-factor sign-in needs the two-factor slice; call .AddTwoFactor().");
@@ -257,7 +253,7 @@ public sealed class SignInService<TUser, TKey>
         return await SucceedAsync(user, cancellationToken);
     }
 
-    private async Task<SignInResult> CompleteFirstFactorAsync(TUser user, CancellationToken cancellationToken)
+    private async Task<SignInResult> CompleteFirstFactorAsync(IdentityUser user, CancellationToken cancellationToken)
     {
         if ((_options.RequireConfirmedEmail && !user.EmailConfirmed)
             || (_options.RequireConfirmedPhoneNumber && !user.PhoneNumberConfirmed))
@@ -279,7 +275,7 @@ public sealed class SignInService<TUser, TKey>
         return await SucceedAsync(user, cancellationToken);
     }
 
-    private async Task<SignInResult> SucceedAsync(TUser user, CancellationToken cancellationToken)
+    private async Task<SignInResult> SucceedAsync(IdentityUser user, CancellationToken cancellationToken)
     {
         if (_lockout is not null)
             await _lockout.ResetFailedAttemptsAsync(user, cancellationToken);
@@ -295,12 +291,13 @@ public sealed class SignInService<TUser, TKey>
     /// <summary>Spends one hash verification on an unknown login so its timing matches a known one.</summary>
     private void SpendDecoyVerification(string password)
     {
-        if (_hasher is null || Activator.CreateInstance(typeof(TUser), nonPublic: true) is not TUser decoy)
+        if (_hasher is null)
             return;
 
+        var decoy = new IdentityUser();
         s_decoyHash ??= _hasher.HashPassword(decoy, Guid.NewGuid().ToString("N"));
         _hasher.VerifyHashedPassword(decoy, s_decoyHash, password);
     }
 
-    private static string IdOf(TUser user) => Convert.ToString(user.Id, CultureInfo.InvariantCulture) ?? string.Empty;
+    private static string IdOf(IdentityUser user) => user.Id.ToString();
 }

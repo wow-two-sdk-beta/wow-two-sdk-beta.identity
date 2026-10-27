@@ -1,16 +1,15 @@
 using WoW.Two.Sdk.Beta.Be.Data.Abstractions;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
+
 /// <summary>A claim held by a user.</summary>
-/// <typeparam name="TKey">Role key type.</typeparam>
-public class IdentityUserClaim<TKey> : IKeyedEntity<int>
-    where TKey : notnull, IEquatable<TKey>
+public sealed class IdentityUserClaim : IKeyedEntity<long>
 {
-    /// <summary>Surrogate primary key (store-generated).</summary>
-    public int Id { get; set; }
+    /// <summary>Surrogate primary key: a store-generated <c>bigint</c> identity, in insertion order.</summary>
+    public long Id { get; set; }
 
     /// <summary>The owning user.</summary>
-    public TKey UserId { get; set; } = default!;
+    public Guid UserId { get; set; }
 
     /// <summary>Claim type (URI or short name).</summary>
     public string? ClaimType { get; set; }

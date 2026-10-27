@@ -31,8 +31,8 @@ public sealed class LockoutAndStampTests
         await using var host = AccountsHost.Create(identity => identity.AddLockout(), o => o.Lockout.MaxFailedAttempts = 3);
         var user = await host.CreateUserAsync("ivan");
         await using var scope = host.Scope();
-        var lockout = scope.ServiceProvider.GetRequiredService<UserLockoutService<IdentityUser, Guid>>();
-        var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>().FindByIdAsync(user.Id))!;
+        var lockout = scope.ServiceProvider.GetRequiredService<UserLockoutService>();
+        var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id))!;
 
         (await lockout.RecordFailedAttemptAsync(tracked)).Should().BeFalse();
         (await lockout.RecordFailedAttemptAsync(tracked)).Should().BeFalse();
@@ -57,7 +57,7 @@ public sealed class LockoutAndStampTests
         });
         var user = await host.CreateUserAsync("jane");
         await using var scope = host.Scope();
-        var lockout = scope.ServiceProvider.GetRequiredService<UserLockoutService<IdentityUser, Guid>>();
+        var lockout = scope.ServiceProvider.GetRequiredService<UserLockoutService>();
 
         (await lockout.RecordFailedAttemptAsync(user)).Should().BeFalse();
         lockout.IsLockedOut(user).Should().BeFalse();
@@ -71,7 +71,7 @@ public sealed class LockoutAndStampTests
         await using var host = AccountsHost.Create(identity => identity.AddSecurityStampValidation(o => o.ValidationInterval = TimeSpan.Zero));
         var user = await host.CreateUserAsync("kate");
         await using var scope = host.Scope();
-        var validator = scope.ServiceProvider.GetRequiredService<SecurityStampValidator<IdentityUser, Guid>>();
+        var validator = scope.ServiceProvider.GetRequiredService<SecurityStampValidator>();
         var principal = PrincipalOf(user);
 
         (await validator.ValidateAsync(principal)).Should().BeTrue();
@@ -79,8 +79,8 @@ public sealed class LockoutAndStampTests
         (await validator.ValidateAsync(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "not-a-guid"), new Claim("AspNet.Identity.SecurityStamp", "x")], "Cookies"))))
             .Should().BeFalse();
 
-        await scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>()
-            .RotateSecurityStampAsync((await scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>().FindByIdAsync(user.Id))!);
+        await scope.ServiceProvider.GetRequiredService<UserAccountService>()
+            .RotateSecurityStampAsync((await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id))!);
         (await validator.ValidateAsync(principal)).Should().BeFalse();
     }
 
@@ -88,7 +88,7 @@ public sealed class LockoutAndStampTests
     public async Task CookiePrincipal_ShouldBeSignedOut_WhenTheStampRotates()
     {
         await using var app = await StartAsync(services => services.AddCookieAuthentication(o => o.Mode = AuthChallengeMode.Api), web =>
-            web.MapPost("/login/{id:guid}", async (Guid id, HttpContext http, UserAccountService<IdentityUser, Guid> accounts) =>
+            web.MapPost("/login/{id:guid}", async (Guid id, HttpContext http, UserAccountService accounts) =>
             {
                 var user = await accounts.FindByIdAsync(id);
                 await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PrincipalOf(user!));
@@ -130,13 +130,11 @@ public sealed class LockoutAndStampTests
 
     private static async Task<PipelineApp> StartAsync(Action<IServiceCollection> authentication, Action<WebApplication>? endpoints = null)
     {
-        var connection = new SqliteConnection("DataSource=:memory:");
-        connection.Open();
+        var database = new IdentityTestDatabase();
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
-        builder.Services.AddDbContext<AccountsDbContext>(o => o.UseSqlite(connection));
-        builder.Services.AddUserAccounts<IdentityUser>()
-            .AddEntityFrameworkStores<AccountsDbContext>()
+        database.Register(builder.Services);
+        builder.Services.AddUserAccounts(configureDatabase: IdentityTestDatabase.UseSqlite)
             .AddSecurityStampValidation(o => o.ValidationInterval = TimeSpan.Zero);
         authentication(builder.Services);
         builder.Services.AddAuthorization();
@@ -146,15 +144,13 @@ public sealed class LockoutAndStampTests
         web.UseAuthorization();
         web.MapGet("/me", () => Results.Ok()).RequireAuthorization();
         endpoints?.Invoke(web);
+        await IdentityTestDatabase.MigrateAsync(web.Services);
         await web.StartAsync();
 
-        using (var scope = web.Services.CreateScope())
-            scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.EnsureCreated();
-
-        return new PipelineApp(web, connection);
+        return new PipelineApp(web, database);
     }
 
-    private sealed class PipelineApp(WebApplication web, SqliteConnection connection) : IAsyncDisposable
+    private sealed class PipelineApp(WebApplication web, IdentityTestDatabase database) : IAsyncDisposable
     {
         public TestServer Server => web.GetTestServer();
 
@@ -162,21 +158,21 @@ public sealed class LockoutAndStampTests
         {
             await using var scope = web.Services.CreateAsyncScope();
             var user = new IdentityUser { UserName = userName, Email = $"{userName}@example.test" };
-            await scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>().CreateAsync(user);
+            await scope.ServiceProvider.GetRequiredService<UserAccountService>().CreateAsync(user);
             return user;
         }
 
         public async Task RotateAsync(Guid id)
         {
             await using var scope = web.Services.CreateAsyncScope();
-            var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService<IdentityUser, Guid>>();
+            var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService>();
             await accounts.RotateSecurityStampAsync((await accounts.FindByIdAsync(id))!);
         }
 
         public async ValueTask DisposeAsync()
         {
             await web.DisposeAsync();
-            await connection.DisposeAsync();
+            await database.DisposeAsync();
         }
     }
 }

@@ -1,6 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using WoW.Two.Sdk.Beta.Be.Foundation.Naming;
 using WoW.Two.Sdk.Beta.Be.Foundation.Options;
 using WoW.Two.Sdk.Beta.Be.Web.ErrorTranslation;
 
@@ -9,22 +8,24 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 /// <summary>DI entry point for identity core — the mandatory slice every app starts from.</summary>
 public static class IdentityCoreServiceCollectionExtensions
 {
-    /// <summary>Register identity core for a <see cref="Guid"/>-keyed user: normalizer, options, and the <see cref="UserAccountService{TUser,TKey}"/> facade. Chain <c>.AddEntityFrameworkStores&lt;TContext&gt;()</c> and further slices.</summary>
-    /// <typeparam name="TUser">The user entity (derives <see cref="IdentityUser"/>).</typeparam>
+    /// <summary>
+    /// Register identity core: options, the <see cref="UserAccountService"/> facade, the principal factory, the ru and uz
+    /// texts of <see cref="IdentityErrorCodeConstants"/> for error translation, and the Module's own database —
+    /// <see cref="IdentityDbContext"/> with its user store, and the embedded SQL as the be sdk migration set
+    /// <see cref="IdentityDatabaseOptions.MigrationSetName"/>. Chain further slices on the returned builder.
+    /// </summary>
+    /// <remarks>
+    ///   - the database comes from <paramref name="configureDatabase"/>, then the host section <c>Identity:Database</c>
+    ///   - the host applies the set with the be sdk's boot or deploy helpers (<c>MigrateBespokeOnStartupAsync</c>,
+    ///     <c>MigrateBespokeForDeployAsync</c>) beside its own sets
+    /// </remarks>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Optional identity options.</param>
-    public static IdentityBuilder<TUser, Guid> AddUserAccounts<TUser>(this IServiceCollection services, Action<IdentityCoreOptions>? configure = null)
-        where TUser : IdentityUser<Guid>
-        => services.AddUserAccounts<TUser, Guid>(configure);
-
-    /// <summary>Register identity core for a <typeparamref name="TKey"/>-keyed user, with the ru and uz texts of <see cref="IdentityErrorCodeConstants"/> for error translation.</summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configure">Optional identity options.</param>
-    public static IdentityBuilder<TUser, TKey> AddUserAccounts<TUser, TKey>(this IServiceCollection services, Action<IdentityCoreOptions>? configure = null)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
+    /// <param name="configureDatabase">Optional database options: engine, schema, connection and the schema owner kind.</param>
+    public static IdentityBuilder AddUserAccounts(
+        this IServiceCollection services,
+        Action<IdentityCoreOptions>? configure = null,
+        Action<IdentityDatabaseOptions>? configureDatabase = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -41,13 +42,14 @@ public static class IdentityCoreServiceCollectionExtensions
                 .Validate(options => options.Lockout.MaxFailedAttempts > 0, "IdentityCoreOptions.Lockout.MaxFailedAttempts must be positive.")
                 .Validate(options => options.Lockout.DefaultLockout > TimeSpan.Zero, "IdentityCoreOptions.Lockout.DefaultLockout must be positive."));
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddScoped<UserAccountService<TUser, TKey>>();
-        services.TryAddScoped<UserClaimsPrincipalFactory<TUser, TKey>>();
+        services.TryAddScoped<UserAccountService>();
+        services.TryAddScoped<UserClaimsPrincipalFactory>();
+        services.AddIdentityDatabase(configureDatabase);
 
         // The texts left core with Identity; the contract carries them and the module contributes them, once per culture.
         foreach (var (culture, messages) in IdentityErrorTextConstants.Messages)
             services.AddErrorTexts(culture, messages);
 
-        return new IdentityBuilder<TUser, TKey>(services);
+        return new IdentityBuilder(services);
     }
 }

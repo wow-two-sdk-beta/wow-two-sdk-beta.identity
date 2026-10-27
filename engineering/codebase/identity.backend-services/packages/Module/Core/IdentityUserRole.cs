@@ -3,13 +3,11 @@ using WoW.Two.Sdk.Beta.Be.Data.Abstractions;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>Join row assigning a role to a user (composite key user + role). Consumed by the roles slice.</summary>
-/// <typeparam name="TKey">User/role key type.</typeparam>
-public class IdentityUserRole<TKey> : ICompositeKeyEntity
-    where TKey : notnull, IEquatable<TKey>
+public sealed class IdentityUserRole : ICompositeKeyEntity
 {
     /// <summary>The user.</summary>
-    public TKey UserId { get; set; } = default!;
+    public Guid UserId { get; set; }
 
     /// <summary>The role.</summary>
-    public TKey RoleId { get; set; } = default!;
+    public Guid RoleId { get; set; }
 }

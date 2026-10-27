@@ -280,9 +280,9 @@ public sealed partial class AccountEndpointTests
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var services = scope.ServiceProvider;
-            await services.GetRequiredService<RoleService<IdentityRole, Guid>>().CreateAsync(new IdentityRole { Name = "beta" });
-            var kim = await services.GetRequiredService<UserAccountService<IdentityUser, Guid>>().FindByEmailAsync("kim@example.test");
-            await services.GetRequiredService<UserRoleService<IdentityUser, IdentityRole, Guid>>().AddToRoleAsync(kim!, "beta");
+            await services.GetRequiredService<RoleService>().CreateAsync(new IdentityRole { Name = "beta" });
+            var kim = await services.GetRequiredService<UserAccountService>().FindByEmailAsync("kim@example.test");
+            await services.GetRequiredService<UserRoleService>().AddToRoleAsync(kim!, "beta");
         }
 
         var access = (await Data(await client.PostAsJsonAsync("/account/login", new { login = "kim@example.test", password = Password }))).GetProperty("accessToken").GetString();
@@ -307,9 +307,9 @@ public sealed partial class AccountEndpointTests
         (await client.PostAsJsonAsync("/account/login", new { login = "kim@example.test", password = Password })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         await using (var scope = app.Services.CreateAsyncScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-            (await db.Set<IdentityRefreshToken<Guid>>().CountAsync()).Should().Be(0);
-            (await db.Set<IdentityUserRole<Guid>>().CountAsync()).Should().Be(0);
+            var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            (await db.Set<IdentityRefreshToken>().CountAsync()).Should().Be(0);
+            (await db.Set<IdentityUserRole>().CountAsync()).Should().Be(0);
             (await db.Set<IdentityUser>().CountAsync()).Should().Be(0);
         }
     }
@@ -334,8 +334,7 @@ public sealed partial class AccountEndpointTests
 
     private static async Task<AccountApp> StartAsync(Dictionary<string, string?>? configuration = null)
     {
-        var connection = new SqliteConnection("DataSource=:memory:");
-        connection.Open();
+        var database = new IdentityTestDatabase();
         var mail = new CapturingEmailBroker();
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
@@ -354,9 +353,8 @@ public sealed partial class AccountEndpointTests
             options.ExposeOpenApi = false;
             options.EnableRateLimiting = false;
         });
-        builder.Services.AddDbContext<AccountsDbContext>(o => o.UseSqlite(connection));
-        builder.Services.AddUserAccounts<IdentityUser>()
-            .AddEntityFrameworkStores<AccountsDbContext>()
+        database.Register(builder.Services);
+        builder.Services.AddUserAccounts(configureDatabase: IdentityTestDatabase.UseSqlite)
             .AddArgon2Passwords()
             .AddUserTokens(o => o.SigningKey = AccountsHost.SigningKey)
             .AddEmailConfirmation()
@@ -364,7 +362,7 @@ public sealed partial class AccountEndpointTests
             .AddRefreshTokens()
             .AddTwoFactor(o => o.Issuer = "Tests")
             .AddEmailSignIn()
-            .AddRoles<IdentityRole>()
+            .AddRoles()
             .AddPersonalData()
             .AddPasskeys(o =>
             {
@@ -379,8 +377,8 @@ public sealed partial class AccountEndpointTests
         builder.Services.AddSingleton<IEmailBroker>(mail);
         builder.Services.AddEmailOtpDelivery();
         builder.Services.AddSingleton<DeletionLog>();
-        builder.Services.AddScoped<IPersonalDataExporter<IdentityUser>, NotesExporter>();
-        builder.Services.AddScoped<IAccountDeletionHandler<IdentityUser>, NotesDeletionHandler>();
+        builder.Services.AddScoped<IPersonalDataExporter, NotesExporter>();
+        builder.Services.AddScoped<IAccountDeletionHandler, NotesDeletionHandler>();
 
         var web = builder.Build();
         web.UseApiDefaults(pipeline =>
@@ -388,15 +386,14 @@ public sealed partial class AccountEndpointTests
             pipeline.UseAuthentication();
             pipeline.UseAuthorization();
         });
-        web.MapGroup("/account").MapUserAccountEndpoints<IdentityUser>();
+        web.MapGroup("/account").MapUserAccountEndpoints();
+        await IdentityTestDatabase.MigrateAsync(web.Services);
         await web.StartAsync();
-        using (var scope = web.Services.CreateScope())
-            scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.EnsureCreated();
 
-        return new AccountApp(web, connection, mail);
+        return new AccountApp(web, database, mail);
     }
 
-    private sealed class AccountApp(WebApplication web, SqliteConnection connection, CapturingEmailBroker mail) : IAsyncDisposable
+    private sealed class AccountApp(WebApplication web, IdentityTestDatabase database, CapturingEmailBroker mail) : IAsyncDisposable
     {
         public TestServer Server => web.GetTestServer();
 
@@ -407,7 +404,7 @@ public sealed partial class AccountEndpointTests
         public async ValueTask DisposeAsync()
         {
             await web.DisposeAsync();
-            await connection.DisposeAsync();
+            await database.DisposeAsync();
         }
     }
 
@@ -416,7 +413,7 @@ public sealed partial class AccountEndpointTests
         public List<string> Deleted { get; } = [];
     }
 
-    private sealed class NotesExporter : IPersonalDataExporter<IdentityUser>
+    private sealed class NotesExporter : IPersonalDataExporter
     {
         public string Section => "notes";
 
@@ -424,7 +421,7 @@ public sealed partial class AccountEndpointTests
             => Task.FromResult<object?>($"notes of {user.Email}");
     }
 
-    private sealed class NotesDeletionHandler(DeletionLog log) : IAccountDeletionHandler<IdentityUser>
+    private sealed class NotesDeletionHandler(DeletionLog log) : IAccountDeletionHandler
     {
         public Task HandleAsync(IdentityUser user, CancellationToken cancellationToken = default)
         {

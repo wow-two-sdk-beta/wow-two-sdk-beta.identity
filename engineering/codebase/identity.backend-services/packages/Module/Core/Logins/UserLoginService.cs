@@ -4,13 +4,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Logins;
 /// Provides external logins: link a provider account (Google, Microsoft, Telegram, …) to a user, find the user behind
 /// one, and unlink it. Unlinking rotates the security stamp. The OAuth handshake itself stays with the OAuth packages.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="logins">The login repository.</param>
 /// <param name="accounts">The core account service.</param>
-public sealed class UserLoginService<TUser, TKey>(IUserLoginRepository<TKey> logins, UserAccountService<TUser, TKey> accounts)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+public sealed class UserLoginService(IUserLoginRepository logins, UserAccountService accounts)
 {
     /// <summary>Link a provider account to <paramref name="user"/>; fails when it already belongs to any account.</summary>
     /// <param name="user">The user.</param>
@@ -18,7 +14,7 @@ public sealed class UserLoginService<TUser, TKey>(IUserLoginRepository<TKey> log
     /// <param name="providerKey">The user's stable key at the provider (its subject).</param>
     /// <param name="displayName">Optional provider label for account settings.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> AddLoginAsync(TUser user, string loginProvider, string providerKey, string? displayName = null, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> AddLoginAsync(IdentityUser user, string loginProvider, string providerKey, string? displayName = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(loginProvider);
@@ -28,7 +24,7 @@ public sealed class UserLoginService<TUser, TKey>(IUserLoginRepository<TKey> log
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.LoginAlreadyAssociated, $"This {loginProvider} account is already linked.", IdentityUserExtensions.Param("LoginProvider", loginProvider));
 
         await logins.AddAsync(
-            new IdentityUserLogin<TKey> { UserId = user.Id, LoginProvider = loginProvider, ProviderKey = providerKey, ProviderDisplayName = displayName },
+            new IdentityUserLogin { UserId = user.Id, LoginProvider = loginProvider, ProviderKey = providerKey, ProviderDisplayName = displayName },
             cancellationToken);
         return IdentityResult.Success;
     }
@@ -38,7 +34,7 @@ public sealed class UserLoginService<TUser, TKey>(IUserLoginRepository<TKey> log
     /// <param name="loginProvider">The provider.</param>
     /// <param name="providerKey">The user's key at the provider.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> RemoveLoginAsync(TUser user, string loginProvider, string providerKey, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> RemoveLoginAsync(IdentityUser user, string loginProvider, string providerKey, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         return await logins.RemoveAsync(user.Id, loginProvider, providerKey, cancellationToken)
@@ -50,7 +46,7 @@ public sealed class UserLoginService<TUser, TKey>(IUserLoginRepository<TKey> log
     /// <param name="loginProvider">The provider.</param>
     /// <param name="providerKey">The user's key at the provider.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<TUser?> FindByLoginAsync(string loginProvider, string providerKey, CancellationToken cancellationToken = default)
+    public async Task<IdentityUser?> FindByLoginAsync(string loginProvider, string providerKey, CancellationToken cancellationToken = default)
         => await logins.FindAsync(loginProvider, providerKey, cancellationToken) is { } login
             ? await accounts.FindByIdAsync(login.UserId, cancellationToken)
             : null;
@@ -58,7 +54,7 @@ public sealed class UserLoginService<TUser, TKey>(IUserLoginRepository<TKey> log
     /// <summary>The user's linked provider accounts.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<IReadOnlyList<IdentityUserLogin<TKey>>> GetLoginsAsync(TUser user, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<IdentityUserLogin>> GetLoginsAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         return logins.GetAsync(user.Id, cancellationToken);

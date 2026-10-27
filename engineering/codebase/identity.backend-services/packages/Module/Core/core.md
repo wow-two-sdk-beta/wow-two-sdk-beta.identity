@@ -1,8 +1,8 @@
 # Identity.Core
 
 Our **own** identity system (not a wrapper over `Microsoft.AspNetCore.Identity`), exposed as orthogonal lego slices —
-compose only what an app needs. Core is the mandatory slice: the user entity + user store + normalizer + the
-`UserAccountService` facade. Entities carry ASP.NET-Identity-shaped columns and persist through the Data layer.
+compose only what an app needs. Core is the mandatory slice: the user entity, the Module's own database, the
+normalizer and the `UserAccountService` facade. Entities carry ASP.NET-Identity-shaped columns, keyed by uuid v7.
 
 > Build order: `engineering/research/identity/identity-architecture.md` §9; slice track: `identity-slices.md`.
 > Every slice below is opt-in through the builder `AddUserAccounts` returns.
@@ -10,37 +10,59 @@ compose only what an app needs. Core is the mandatory slice: the user entity + u
 ## Quick start
 
 ```csharp
-// 1. host the identity schema on your DbContext
-public sealed class AppDbContext(DbContextOptions options) : AppDbContextBase(options)
-{
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-        modelBuilder.ApplyIdentitySchema<IdentityUser, IdentityRole, Guid>();   // 11 tables + normalized-name unique indexes
-    }
-}
+// 1. register core: the facade, IdentityDbContext and the `identity` migration set
+services.AddUserAccounts(o => o.User.RequireUniqueEmail = true);
 
-// 2. register core + the EF store
-services.AddUserAccounts<IdentityUser>(o => o.User.RequireUniqueEmail = true)
-        .AddEntityFrameworkStores<AppDbContext>();
+// 2. apply the schema beside the host's own sets: at a local boot, or in the deploy's migrate step
+await app.Services.MigrateBespokeOnStartupAsync(app.Lifetime.ApplicationStopping);
 
 // 3. use the facade
-var service = sp.GetRequiredService<UserAccountService<IdentityUser, Guid>>();
-var result  = await service.CreateAsync(new IdentityUser { UserName = "alice", Email = "alice@x.io" });
+var service = sp.GetRequiredService<UserAccountService>();
+var result  = await service.CreateAsync(new IdentityUser { UserName = "alice", Email = "alice@x.io" });   // id: uuid v7
 var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via the normalizer
 ```
+
+```jsonc
+"Identity": {
+  "Database": {
+    "Provider": "Postgres",              // or Sqlite; default Postgres
+    "Schema": "identity",                // PostgreSQL schema, one per instance; SQLite ignores it
+    "ConnectionStringName": null         // a ConnectionStrings name; null uses the host's database
+  }
+}
+```
+
+## Schema
+
+- `IdentityDbContext` maps 11 tables: `identity_users`, `identity_roles`, `identity_user_roles`, `identity_user_claims`,
+  `identity_role_claims`, `identity_user_logins`, `identity_user_tokens`, `identity_refresh_tokens`, `identity_passkeys`,
+  `identity_organizations`, `identity_memberships`. Products never map them into their own context.
+- The SQL owns the schema: `../Migrations/{Postgres,Sqlite}/NNN-name/{Apply,Rollback}.sql`, embedded and run as the
+  be sdk migration set `identity` (history `identity_migration_history`, its own advisory lock). EF only maps.
+- Names are pinned in the model, whatever the host's naming convention: snake_case columns, `pk_{table}`,
+  `ix_{table}_{columns}`. PostgreSQL scripts qualify every table with `{{schema}}`; SQLite has no schemas.
+- The set claims its schema with an owner kind: `module` (`IdentitySchemaOwnerConstants.Module`, the default) for a
+  Form 1 product, `service` for the Identity service (`AddUserAccounts(configureDatabase: o => o.SchemaOwner = …)`). A
+  schema one kind claimed refuses the other's migrations.
+- Connection: `Identity:Database:ConnectionStringName`, else the host's `DatabaseSettings`, else `DB_CONNECTION`, else
+  `DatabaseSettings:ConnectionString`. PostgreSQL gets one pool keyed `identity`, shared by the context and the set.
+- Ids: users, roles, passkeys, refresh tokens and organizations take `Guid.CreateVersion7` from the registered
+  `TimeProvider` at creation; claim rows take a `bigint` identity. No `TUser` / `TKey` generics: extend through side
+  tables keyed by the user id (`sub`) and claims contributors, never by added columns.
+- A schema change is a new `NNN-name` pair per dialect plus the model change; `Identity.Tests.Migrations` fails when the
+  applied schema and the model disagree, per dialect. Never edit an applied pair.
 
 ## Slices
 
 | Builder call | Service | Folder |
 |---|---|---|
-| `AddEntityFrameworkStores<TContext>()` | `UserAccountService`, `UserClaimsPrincipalFactory` | `./` |
+| `AddUserAccounts()` | `UserAccountService`, `UserClaimsPrincipalFactory`, `IdentityDbContext` | `./` |
 | `AddArgon2Passwords()` · `AddBreachedPasswordCheck()` | `UserPasswordService` | `Passwords/` |
 | `AddUserTokens(o => o.SigningKey = …)` | `UserTokenIssuer` | `Tokens/` |
 | `AddEmailConfirmation()` | `UserEmailService` | `Emails/` |
 | `AddLockout()` | `UserLockoutService` | `Lockout/` |
 | `AddSecurityStampValidation()` | `SecurityStampValidator` + cookie/JWT hooks | `SecurityStamps/` |
-| `AddRoles<TRole>()` | `RoleService`, `UserRoleService` | `Roles/` |
+| `AddRoles()` | `RoleService`, `UserRoleService` | `Roles/` |
 | `AddUserClaims()` | `UserClaimService` | `UserClaims/` |
 | `AddExternalLogins()` | `UserLoginService` | `Logins/` |
 | `AddTwoFactor()` | `UserTwoFactorService` | `TwoFactor/` |
@@ -50,28 +72,31 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 | `AddOrganizations(o => …)` | `OrganizationService` (organizations, memberships, role and permission claims) | `Organizations/` |
 | `AddEmailSignIn(o => …)` | `UserEmailSignInService` (single-use link or code over OTP) | `EmailSignIn/` |
 | `AddPersonalData()` | `UserPersonalDataService` (export sections, account erasure hooks) | `PersonalData/` |
-| `AddAccountEndpoints()` + `MapUserAccountEndpoints<TUser>()` | account HTTP API | `Endpoints/` |
+| `AddAccountEndpoints()` + `MapUserAccountEndpoints()` | account HTTP API | `Endpoints/` |
 | `AddSignIn()` | `SignInService` | `SignIn/` |
 
-Table-backed slices (`AddRoles`, `AddUserClaims`, `AddExternalLogins`, `AddTwoFactor`, `AddRefreshTokens`, `AddPasskeys`, `AddOrganizations`) register their EF repositories
-only when called after `AddEntityFrameworkStores`; otherwise the host registers its own repositories.
+Table-backed slices (`AddRoles`, `AddUserClaims`, `AddExternalLogins`, `AddTwoFactor`, `AddRefreshTokens`, `AddPasskeys`,
+`AddOrganizations`) register their repositories over `IdentityDbContext` with `TryAdd`, so a repository the host
+registered first wins.
 
 ## Notes
 
-- **Schema owned by EF fluent config** (`ApplyIdentitySchema`), not the bespoke SQL migrator — the identity schema is a
-  library schema consumers migrate via EF. Casing comes from `UseSnakeCaseNamingConvention()`.
 - Uniqueness is enforced **both** in the facade (`DuplicateUserName`/`DuplicateEmail`) and by the DB unique index.
 - A capability that isn't registered is **absent** — resolving its service fails at resolution, rather than
   silently no-op'ing. Optional collaborators (lockout inside sign-in, tokens inside passwords) switch steps on or off.
 - Credential changes (password, email, role or claim removal, 2FA changes, unlinking) rotate the security stamp.
 - Deleting a user removes its role, claim, login and token rows in the same save; the schema has no foreign keys.
+- `IdentityDbContext` registers through the SDK context path, so the host's EF interceptors (audit stamps for
+  `CreatedAt` / `UpdatedAt`) attach to it as to the host's own context.
 - `IdentityResult.ToValidationError()` turns failures into field errors (code + values) that error translation matches.
 - Entry point is **`AddUserAccounts`** (not `AddIdentityCore` as the deep-dive drafted) — ASP.NET's own
-  `AddIdentityCore<TUser>` extension is always in scope via the shared framework and would collide.
+  `AddIdentityCore<TUser>` extension is always in scope via the shared framework and would collide. `IdentityUser`,
+  `IdentityRole`, `IdentityBuilder`, `IdentityResult` and `IdentityError` share names with `Microsoft.AspNetCore.Identity`
+  types; a file importing both namespaces qualifies them.
 - User updates preserve the loaded tracked instance. A detached replacement with the same key is rejected while
   the original is tracked; a detached full-state update remains supported in a fresh context.
 
 ## See also
 
 - Architecture + build order: [`engineering/research/identity/identity-architecture.md`](../../../../../research/identity/identity-architecture.md)
-- Data layer this persists through: `../../Data/` (`AppDbContextBase`, `AddEntityFrameworkCore`, audit interceptor).
+- Data layer this persists through: the be sdk `Data/` (`AppDbContextBase`, `AddEntityFrameworkCore`, audit interceptor) and its migrator (`Data/Migrations/Bespoke/bespoke.md` § Migration sets).

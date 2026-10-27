@@ -3,18 +3,16 @@ using Microsoft.Extensions.Logging;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 
 /// <summary>Validates that a candidate password is absent from the known breach corpus.</summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
 /// <param name="client">The range API client.</param>
 /// <param name="options">Threshold and failure behavior.</param>
 /// <param name="logger">Receives the unreachable-corpus warning.</param>
-public sealed class BreachedPasswordValidator<TUser>(
+public sealed class BreachedPasswordValidator(
     IPwnedPasswordsClient client,
     BreachedPasswordOptions options,
-    ILogger<BreachedPasswordValidator<TUser>> logger) : IUserPasswordValidator<TUser>
-    where TUser : class
+    ILogger<BreachedPasswordValidator> logger) : IUserPasswordValidator
 {
     /// <inheritdoc />
-    public async Task<IReadOnlyList<IdentityError>> ValidateAsync(TUser user, string password, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<IdentityError>> ValidateAsync(IdentityUser user, string password, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(password);
 

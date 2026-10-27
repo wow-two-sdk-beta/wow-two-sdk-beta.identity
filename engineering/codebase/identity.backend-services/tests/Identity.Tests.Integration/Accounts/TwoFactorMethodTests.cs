@@ -24,8 +24,8 @@ public sealed class TwoFactorMethodTests
         await using var host = CreateHost(channels);
         await using var scope = host.Scope();
         var services = scope.ServiceProvider;
-        var methods = services.GetRequiredService<UserTwoFactorMethodService<IdentityUser, Guid>>();
-        var signIn = services.GetRequiredService<SignInService<IdentityUser, Guid>>();
+        var methods = services.GetRequiredService<UserTwoFactorMethodService>();
+        var signIn = services.GetRequiredService<SignInService>();
         var user = await CreateUserAsync(services, "sami", phoneConfirmed: true);
 
         (await methods.GetAvailableMethodsAsync(user)).Should().Equal("sms");
@@ -65,7 +65,7 @@ public sealed class TwoFactorMethodTests
         await using var host = CreateHost(channels);
         await using var scope = host.Scope();
         var services = scope.ServiceProvider;
-        var methods = services.GetRequiredService<UserTwoFactorMethodService<IdentityUser, Guid>>();
+        var methods = services.GetRequiredService<UserTwoFactorMethodService>();
         var user = await CreateUserAsync(services, "emil", phoneConfirmed: true, emailConfirmed: true);
 
         (await methods.GetAvailableMethodsAsync(user)).Should().BeEquivalentTo("sms", "email");
@@ -85,7 +85,7 @@ public sealed class TwoFactorMethodTests
         (await methods.SetPreferredMethodAsync(user, "sms")).Succeeded.Should().BeTrue();
         (await methods.GetPreferredMethodAsync(user)).Should().Be("sms");
 
-        await services.GetRequiredService<UserTwoFactorService<IdentityUser, Guid>>().DisableAsync(user);
+        await services.GetRequiredService<UserTwoFactorService>().DisableAsync(user);
         user.TwoFactorEnabled.Should().BeFalse();
         (await methods.GetPreferredMethodAsync(user)).Should().Be("sms", "the stored choice is gone, so the first available method leads");
     }
@@ -99,7 +99,7 @@ public sealed class TwoFactorMethodTests
             .AddTwoFactor(o => o.Methods["whatsapp"] = new TwoFactorMethodOptions { Channel = OtpChannelNameConstants.WhatsApp })
             .AddSignIn());
         await using var scope = host.Scope();
-        var methods = scope.ServiceProvider.GetRequiredService<UserTwoFactorMethodService<IdentityUser, Guid>>();
+        var methods = scope.ServiceProvider.GetRequiredService<UserTwoFactorMethodService>();
         var user = await CreateUserAsync(scope.ServiceProvider, "wale", phoneConfirmed: true);
 
         (await methods.GetAvailableMethodsAsync(user)).Should().BeEmpty();
@@ -133,7 +133,7 @@ public sealed class TwoFactorMethodTests
     private static async Task<IdentityUser> CreateUserAsync(IServiceProvider services, string name, bool phoneConfirmed = false, bool emailConfirmed = false)
     {
         var user = new IdentityUser { UserName = name, Email = $"{name}@example.test", PhoneNumber = Phone, PhoneNumberConfirmed = phoneConfirmed, EmailConfirmed = emailConfirmed };
-        (await services.GetRequiredService<UserPasswordService<IdentityUser, Guid>>().CreateWithPasswordAsync(user, Password)).Succeeded.Should().BeTrue();
+        (await services.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(user, Password)).Succeeded.Should().BeTrue();
         return user;
     }
 

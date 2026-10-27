@@ -6,7 +6,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 /// An organization people belong to through memberships — a brand, a team or a customer account. Consumed by the
 /// organizations slice; one person holds at most one membership in it.
 /// </summary>
-public class IdentityOrganization : IKeyedEntity<Guid>
+public sealed class IdentityOrganization : IKeyedEntity<Guid>
 {
     /// <summary>Primary key.</summary>
     public Guid Id { get; set; }

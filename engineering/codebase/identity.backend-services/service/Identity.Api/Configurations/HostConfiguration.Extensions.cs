@@ -1,6 +1,5 @@
-using Identity.Api.Accounts;
-using Microsoft.EntityFrameworkCore;
-using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore.Sqlite;
+using WoW.Two.Sdk.Beta.Be.Data;
+using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore.Audit;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Observability.HealthChecks;
 using WoW.Two.Sdk.Beta.Be.Web.Json;
@@ -9,15 +8,16 @@ namespace Identity.Api.Configurations;
 
 public static partial class HostConfiguration
 {
-    /// <summary>Hosts the Form 1 module over the service's SQLite store: user accounts on the EF store, and the store's readiness check.</summary>
+    /// <summary>
+    /// Hosts the Form 1 module over the service's own database, claiming the identity schema as the service: user
+    /// accounts on the module's context, its migration set, audit stamps and the store's readiness check.
+    /// </summary>
+    /// <remarks>The engine comes from <c>Identity:Database:Provider</c>; the connection is the host's database.</remarks>
     private static WebApplicationBuilder AddIdentityModule(this WebApplicationBuilder builder)
     {
-        // Resolved lazily, so a test host's configuration overrides still reach the connection string.
-        builder.Services.AddDbContext<IdentityAccountsDbContext>((provider, options) =>
-            options.UseSqliteConventional(ResolveConnectionString(provider.GetRequiredService<IConfiguration>())));
-        builder.Services.AddUserAccounts<IdentityUser>()
-            .AddEntityFrameworkStores<IdentityAccountsDbContext>();
-        builder.Services.AddHealthChecks().AddDatabaseReadinessCheck<IdentityAccountsDbContext>();
+        builder.Services.AddEfCoreAuditInterceptor();
+        builder.Services.AddUserAccounts(configureDatabase: database => database.SchemaOwner = IdentitySchemaOwnerConstants.Service);
+        builder.Services.AddHealthChecks().AddDatabaseReadinessCheck<IdentityDbContext>();
         return builder;
     }
 
@@ -28,25 +28,8 @@ public static partial class HostConfiguration
         return builder;
     }
 
-    /// <summary>Creates the database and the identity schema when they are missing.</summary>
-    /// <remarks>The schema is EF-owned (<c>ApplyIdentitySchema</c>) until the module ships SQL migrations (T10); then the
-    /// service applies those on boot instead.</remarks>
-    private static async Task EnsureIdentitySchemaAsync(this WebApplication app)
-    {
-        await using var scope = app.Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<IdentityAccountsDbContext>().Database
-            .EnsureCreatedAsync(app.Lifetime.ApplicationStopping);
-    }
-
-    /// <summary>Resolves the connection string: the <c>DB_CONNECTION</c> alias wins over <c>DatabaseSettings:ConnectionString</c>.</summary>
-    private static string ResolveConnectionString(IConfiguration configuration)
-    {
-        var connectionString = configuration["DB_CONNECTION"];
-        if (string.IsNullOrWhiteSpace(connectionString))
-            connectionString = configuration["DatabaseSettings:ConnectionString"];
-
-        return string.IsNullOrWhiteSpace(connectionString)
-            ? throw new InvalidOperationException("Database connection string not found. Set DB_CONNECTION or DatabaseSettings:ConnectionString.")
-            : connectionString;
-    }
+    /// <summary>Applies the identity schema on a local run, or verifies its level read-only on a deployed boot.</summary>
+    /// <remarks>A deployed boot fails while the schema is behind: the deploy's <c>migrate</c> step applies it first.</remarks>
+    private static async Task MigrateIdentitySchemaAsync(this WebApplication app)
+        => await app.Services.MigrateBespokeOnStartupAsync(app.Lifetime.ApplicationStopping);
 }

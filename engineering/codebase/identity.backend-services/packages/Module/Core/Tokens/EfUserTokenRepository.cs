@@ -2,24 +2,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 
-/// <summary>Accesses stored user tokens through the context hosting the identity schema.</summary>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
-/// <param name="context">The context hosting the identity schema.</param>
-public sealed class EfUserTokenRepository<TKey>(DbContext context) : IUserTokenRepository<TKey>
-    where TKey : notnull, IEquatable<TKey>
+/// <summary>Accesses stored user tokens through <see cref="IdentityDbContext"/>.</summary>
+/// <param name="context">The identity context.</param>
+public sealed class EfUserTokenRepository(IdentityDbContext context) : IUserTokenRepository
 {
-    private DbSet<IdentityUserToken<TKey>> Tokens => context.Set<IdentityUserToken<TKey>>();
+    private DbSet<IdentityUserToken> Tokens => context.Set<IdentityUserToken>();
 
     /// <inheritdoc />
-    public async Task<string?> GetAsync(TKey userId, string loginProvider, string name, CancellationToken cancellationToken = default)
+    public async Task<string?> GetAsync(Guid userId, string loginProvider, string name, CancellationToken cancellationToken = default)
         => (await FindAsync(userId, loginProvider, name, cancellationToken))?.Value;
 
     /// <inheritdoc />
-    public async Task SetAsync(TKey userId, string loginProvider, string name, string value, CancellationToken cancellationToken = default)
+    public async Task SetAsync(Guid userId, string loginProvider, string name, string value, CancellationToken cancellationToken = default)
     {
         var token = await FindAsync(userId, loginProvider, name, cancellationToken);
         if (token is null)
-            Tokens.Add(new IdentityUserToken<TKey> { UserId = userId, LoginProvider = loginProvider, Name = name, Value = value });
+            Tokens.Add(new IdentityUserToken { UserId = userId, LoginProvider = loginProvider, Name = name, Value = value });
         else
             token.Value = value;
 
@@ -27,7 +25,7 @@ public sealed class EfUserTokenRepository<TKey>(DbContext context) : IUserTokenR
     }
 
     /// <inheritdoc />
-    public async Task RemoveAsync(TKey userId, string loginProvider, string name, CancellationToken cancellationToken = default)
+    public async Task RemoveAsync(Guid userId, string loginProvider, string name, CancellationToken cancellationToken = default)
     {
         if (await FindAsync(userId, loginProvider, name, cancellationToken) is not { } token)
             return;
@@ -36,6 +34,6 @@ public sealed class EfUserTokenRepository<TKey>(DbContext context) : IUserTokenR
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<IdentityUserToken<TKey>?> FindAsync(TKey userId, string loginProvider, string name, CancellationToken cancellationToken)
+    private async Task<IdentityUserToken?> FindAsync(Guid userId, string loginProvider, string name, CancellationToken cancellationToken)
         => await Tokens.FindAsync([userId, loginProvider, name], cancellationToken);
 }

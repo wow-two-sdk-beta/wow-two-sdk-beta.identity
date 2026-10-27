@@ -11,19 +11,15 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.TwoFactor;
 /// single-use recovery codes stored as SHA-256 digests. Key and codes live in the stored-token table under the
 /// ASP.NET Identity provider name, so migrated keys keep working.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="repository">The core user store.</param>
 /// <param name="tokens">The stored-token repository.</param>
 /// <param name="totp">Computes and verifies authenticator codes.</param>
 /// <param name="options">Authenticator label and recovery-code count.</param>
-public sealed class UserTwoFactorService<TUser, TKey>(
-    IUserRepository<TUser, TKey> repository,
-    IUserTokenRepository<TKey> tokens,
+public sealed class UserTwoFactorService(
+    IUserRepository repository,
+    IUserTokenRepository tokens,
     ITotpService totp,
     TwoFactorOptions options)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
 {
     /// <summary>The provider name ASP.NET Identity stores its own tokens under.</summary>
     public const string TokenProvider = "[AspNetUserStore]";
@@ -38,7 +34,7 @@ public sealed class UserTwoFactorService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The base32 key to show or encode as a QR code.</returns>
-    public async Task<string> ResetAuthenticatorKeyAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<string> ResetAuthenticatorKeyAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         var key = totp.ToBase32(totp.GenerateSecret());
@@ -51,7 +47,7 @@ public sealed class UserTwoFactorService<TUser, TKey>(
     /// <summary>The stored base32 authenticator key, or null before the first reset.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<string?> GetAuthenticatorKeyAsync(TUser user, CancellationToken cancellationToken = default)
+    public Task<string?> GetAuthenticatorKeyAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         return tokens.GetAsync(user.Id, TokenProvider, AuthenticatorKeyName, cancellationToken);
@@ -60,7 +56,7 @@ public sealed class UserTwoFactorService<TUser, TKey>(
     /// <summary>The <c>otpauth://</c> URI for the stored key, or null before the first reset.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<Uri?> GetAuthenticatorUriAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<Uri?> GetAuthenticatorUriAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         var key = await GetAuthenticatorKeyAsync(user, cancellationToken);
         return key is null
@@ -72,7 +68,7 @@ public sealed class UserTwoFactorService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="code">The code from the authenticator app.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<bool> VerifyAuthenticatorCodeAsync(TUser user, string code, CancellationToken cancellationToken = default)
+    public async Task<bool> VerifyAuthenticatorCodeAsync(IdentityUser user, string code, CancellationToken cancellationToken = default)
     {
         var key = await GetAuthenticatorKeyAsync(user, cancellationToken);
         return key is not null && !string.IsNullOrWhiteSpace(code) && totp.VerifyCode(Base32Encoding.ToBytes(key), code.Replace(" ", string.Empty, StringComparison.Ordinal));
@@ -82,7 +78,7 @@ public sealed class UserTwoFactorService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="code">A current authenticator code.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> EnableAsync(TUser user, string code, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> EnableAsync(IdentityUser user, string code, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         if (await GetAuthenticatorKeyAsync(user, cancellationToken) is null)
@@ -99,7 +95,7 @@ public sealed class UserTwoFactorService<TUser, TKey>(
     /// <summary>Disable two-factor and forget the key, the recovery codes and the preferred method; rotates the stamp.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> DisableAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> DisableAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         await tokens.RemoveAsync(user.Id, TokenProvider, AuthenticatorKeyName, cancellationToken);
@@ -114,7 +110,7 @@ public sealed class UserTwoFactorService<TUser, TKey>(
     /// <summary>Replace the recovery codes; the plain codes are returned once and only their digests are stored.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IReadOnlyList<string>> GenerateRecoveryCodesAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<string>> GenerateRecoveryCodesAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         var codes = Enumerable.Range(0, options.RecoveryCodeCount).Select(_ => NewRecoveryCode()).ToList();
@@ -126,7 +122,7 @@ public sealed class UserTwoFactorService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="code">The code, with or without its dash, in any case.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> RedeemRecoveryCodeAsync(TUser user, string code, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> RedeemRecoveryCodeAsync(IdentityUser user, string code, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         var digests = await ReadDigestsAsync(user, cancellationToken);
@@ -141,13 +137,13 @@ public sealed class UserTwoFactorService<TUser, TKey>(
     /// <summary>How many recovery codes remain unused.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<int> CountRecoveryCodesAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<int> CountRecoveryCodesAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         return (await ReadDigestsAsync(user, cancellationToken)).Count;
     }
 
-    private async Task<List<string>> ReadDigestsAsync(TUser user, CancellationToken cancellationToken)
+    private async Task<List<string>> ReadDigestsAsync(IdentityUser user, CancellationToken cancellationToken)
     {
         var stored = await tokens.GetAsync(user.Id, TokenProvider, RecoveryCodesName, cancellationToken);
         return string.IsNullOrEmpty(stored) ? [] : [.. stored.Split(';', StringSplitOptions.RemoveEmptyEntries)];

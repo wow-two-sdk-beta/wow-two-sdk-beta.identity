@@ -1,4 +1,3 @@
-using System.Globalization;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
@@ -7,13 +6,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
 /// Provides the phone slice over the shipped <see cref="IOtpService"/>: set a number, confirm it with a one-time code
 /// and sign in by code. The service creates codes; the host forwards them to its delivery handler (SMS, Telegram, …).
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="repository">The core user store.</param>
 /// <param name="otp">Creates and verifies one-time codes.</param>
-public sealed class UserPhoneService<TUser, TKey>(IUserRepository<TUser, TKey> repository, IOtpService otp)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+public sealed class UserPhoneService(IUserRepository repository, IOtpService otp)
 {
     /// <summary>The OTP scope of confirmation codes.</summary>
     public const string ConfirmationScope = "identity.phone-confirmation";
@@ -25,7 +20,7 @@ public sealed class UserPhoneService<TUser, TKey>(IUserRepository<TUser, TKey> r
     /// <param name="user">The user.</param>
     /// <param name="phoneNumber">The number in E.164, or null to clear it.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> SetPhoneNumberAsync(TUser user, string? phoneNumber, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> SetPhoneNumberAsync(IdentityUser user, string? phoneNumber, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         user.PhoneNumber = string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber.Trim();
@@ -39,14 +34,14 @@ public sealed class UserPhoneService<TUser, TKey>(IUserRepository<TUser, TKey> r
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="InvalidOperationException">The user has no phone number.</exception>
-    public Task<OtpCreationResult> CreateConfirmationCodeAsync(TUser user, CancellationToken cancellationToken = default)
+    public Task<OtpCreationResult> CreateConfirmationCodeAsync(IdentityUser user, CancellationToken cancellationToken = default)
         => otp.CreateAsync(ConfirmationSubject(user), ConfirmationScope, cancellationToken);
 
     /// <summary>Mark the number confirmed when <paramref name="code"/> verifies for the user's current number.</summary>
     /// <param name="user">The user.</param>
     /// <param name="code">The code the user received.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> ConfirmPhoneNumberAsync(TUser user, string code, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> ConfirmPhoneNumberAsync(IdentityUser user, string code, CancellationToken cancellationToken = default)
     {
         var verification = await otp.VerifyAsync(ConfirmationSubject(user), code, ConfirmationScope, cancellationToken);
         if (!verification.Success)
@@ -75,7 +70,7 @@ public sealed class UserPhoneService<TUser, TKey>(IUserRepository<TUser, TKey> r
     /// <param name="phoneNumber">The number in E.164.</param>
     /// <param name="code">The code the user received.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<TUser?> VerifySignInCodeAsync(string phoneNumber, string code, CancellationToken cancellationToken = default)
+    public async Task<IdentityUser?> VerifySignInCodeAsync(string phoneNumber, string code, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(phoneNumber);
         var verification = await otp.VerifyAsync(phoneNumber.Trim(), code, SignInScope, cancellationToken);
@@ -84,12 +79,12 @@ public sealed class UserPhoneService<TUser, TKey>(IUserRepository<TUser, TKey> r
             : null;
     }
 
-    private static string ConfirmationSubject(TUser user)
+    private static string ConfirmationSubject(IdentityUser user)
     {
         ArgumentNullException.ThrowIfNull(user);
         if (string.IsNullOrEmpty(user.PhoneNumber))
             throw new InvalidOperationException("The user has no phone number to confirm.");
 
-        return string.Concat(Convert.ToString(user.Id, CultureInfo.InvariantCulture), ":", user.PhoneNumber);
+        return string.Concat(user.Id.ToString(), ":", user.PhoneNumber);
     }
 }

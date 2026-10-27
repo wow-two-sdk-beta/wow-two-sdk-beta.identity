@@ -1,10 +1,9 @@
 using WoW.Two.Sdk.Beta.Be.Data.Abstractions;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
+
 /// <summary>An external login (Google/Microsoft/Telegram/…) linked to a user (composite key provider + provider-key).</summary>
-/// <typeparam name="TKey">User key type.</typeparam>
-public class IdentityUserLogin<TKey> : ICompositeKeyEntity
-    where TKey : notnull, IEquatable<TKey>
+public sealed class IdentityUserLogin : ICompositeKeyEntity
 {
     /// <summary>External provider name (e.g. <c>Google</c>).</summary>
     public string LoginProvider { get; set; } = string.Empty;
@@ -16,5 +15,5 @@ public class IdentityUserLogin<TKey> : ICompositeKeyEntity
     public string? ProviderDisplayName { get; set; }
 
     /// <summary>The local user this login maps to.</summary>
-    public TKey UserId { get; set; } = default!;
+    public Guid UserId { get; set; }
 }

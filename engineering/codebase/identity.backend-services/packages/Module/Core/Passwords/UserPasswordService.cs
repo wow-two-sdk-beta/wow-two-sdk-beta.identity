@@ -7,25 +7,21 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 /// Provides the password slice: validate, set, change, remove and check a user's password, plus token-based reset when
 /// purpose tokens are registered. Every stored password rotates the security stamp, so older sessions and tokens end.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="repository">The core user store.</param>
 /// <param name="accounts">The core account service, for creation with a password.</param>
 /// <param name="hasher">The password hasher; Argon2id unless the host registered another.</param>
 /// <param name="validators">The registered password checks, run in registration order.</param>
 /// <param name="tokens">The purpose-token issuer; null until <c>.AddUserTokens()</c> registers one.</param>
-public sealed class UserPasswordService<TUser, TKey>(
-    IUserRepository<TUser, TKey> repository,
-    UserAccountService<TUser, TKey> accounts,
-    IPasswordHasher<TUser> hasher,
-    IEnumerable<IUserPasswordValidator<TUser>> validators,
-    UserTokenIssuer<TUser, TKey>? tokens = null)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+public sealed class UserPasswordService(
+    IUserRepository repository,
+    UserAccountService accounts,
+    IPasswordHasher<IdentityUser> hasher,
+    IEnumerable<IUserPasswordValidator> validators,
+    UserTokenIssuer? tokens = null)
 {
     /// <summary>Whether <paramref name="user"/> has a password.</summary>
     /// <param name="user">The user to inspect.</param>
-    public bool HasPassword(TUser user)
+    public bool HasPassword(IdentityUser user)
     {
         ArgumentNullException.ThrowIfNull(user);
         return !string.IsNullOrEmpty(user.PasswordHash);
@@ -35,7 +31,7 @@ public sealed class UserPasswordService<TUser, TKey>(
     /// <param name="user">The account the password is for.</param>
     /// <param name="password">The candidate password.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> ValidateAsync(TUser user, string password, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> ValidateAsync(IdentityUser user, string password, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentNullException.ThrowIfNull(password);
@@ -51,7 +47,7 @@ public sealed class UserPasswordService<TUser, TKey>(
     /// <param name="user">The new user.</param>
     /// <param name="password">The initial password.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> CreateWithPasswordAsync(TUser user, string password, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> CreateWithPasswordAsync(IdentityUser user, string password, CancellationToken cancellationToken = default)
     {
         var validation = await ValidateAsync(user, password, cancellationToken);
         if (!validation.Succeeded)
@@ -65,7 +61,7 @@ public sealed class UserPasswordService<TUser, TKey>(
     /// <param name="user">The user.</param>
     /// <param name="password">The new password.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<IdentityResult> AddPasswordAsync(TUser user, string password, CancellationToken cancellationToken = default)
+    public Task<IdentityResult> AddPasswordAsync(IdentityUser user, string password, CancellationToken cancellationToken = default)
         => HasPassword(user)
             ? Task.FromResult(IdentityUserExtensions.Failure(IdentityErrorCodeConstants.UserAlreadyHasPassword, "The account already has a password."))
             : StoreAsync(user, password, cancellationToken);
@@ -75,7 +71,7 @@ public sealed class UserPasswordService<TUser, TKey>(
     /// <param name="currentPassword">The password the caller claims is current.</param>
     /// <param name="newPassword">The replacement password.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<IdentityResult> ChangePasswordAsync(TUser user, string currentPassword, string newPassword, CancellationToken cancellationToken = default)
+    public Task<IdentityResult> ChangePasswordAsync(IdentityUser user, string currentPassword, string newPassword, CancellationToken cancellationToken = default)
         => Verify(user, currentPassword) == PasswordVerificationResult.Failed
             ? Task.FromResult(IdentityUserExtensions.Failure(IdentityErrorCodeConstants.PasswordMismatch, "The current password is incorrect."))
             : StoreAsync(user, newPassword, cancellationToken);
@@ -83,7 +79,7 @@ public sealed class UserPasswordService<TUser, TKey>(
     /// <summary>Remove the password, leaving only the account's other sign-in methods.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> RemovePasswordAsync(TUser user, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> RemovePasswordAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         user.PasswordHash = null;
@@ -97,7 +93,7 @@ public sealed class UserPasswordService<TUser, TKey>(
     /// <param name="password">The password to check.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <remarks>Counts no failures and ignores lockout; the sign-in slice owns both.</remarks>
-    public async Task<bool> CheckPasswordAsync(TUser user, string password, CancellationToken cancellationToken = default)
+    public async Task<bool> CheckPasswordAsync(IdentityUser user, string password, CancellationToken cancellationToken = default)
     {
         var result = Verify(user, password);
         if (result == PasswordVerificationResult.SuccessRehashNeeded)
@@ -112,7 +108,7 @@ public sealed class UserPasswordService<TUser, TKey>(
     /// <summary>Issue a password-reset token; the next stored password voids it.</summary>
     /// <param name="user">The user resetting the password.</param>
     /// <exception cref="NotSupportedException">Purpose tokens are not registered.</exception>
-    public string IssuePasswordResetToken(TUser user)
+    public string IssuePasswordResetToken(IdentityUser user)
         => RequireTokens().Issue(user, UserTokenPurposeConstants.PasswordReset);
 
     /// <summary>Replace the password when <paramref name="token"/> is a live reset token for <paramref name="user"/>.</summary>
@@ -121,12 +117,12 @@ public sealed class UserPasswordService<TUser, TKey>(
     /// <param name="newPassword">The replacement password.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="NotSupportedException">Purpose tokens are not registered.</exception>
-    public Task<IdentityResult> ResetPasswordAsync(TUser user, string token, string newPassword, CancellationToken cancellationToken = default)
+    public Task<IdentityResult> ResetPasswordAsync(IdentityUser user, string token, string newPassword, CancellationToken cancellationToken = default)
         => RequireTokens().Verify(user, UserTokenPurposeConstants.PasswordReset, token)
             ? StoreAsync(user, newPassword, cancellationToken)
             : Task.FromResult(IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidToken, "The reset link is invalid or has expired."));
 
-    private PasswordVerificationResult Verify(TUser user, string password)
+    private PasswordVerificationResult Verify(IdentityUser user, string password)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentNullException.ThrowIfNull(password);
@@ -136,7 +132,7 @@ public sealed class UserPasswordService<TUser, TKey>(
             : hasher.VerifyHashedPassword(user, user.PasswordHash, password);
     }
 
-    private async Task<IdentityResult> StoreAsync(TUser user, string password, CancellationToken cancellationToken)
+    private async Task<IdentityResult> StoreAsync(IdentityUser user, string password, CancellationToken cancellationToken)
     {
         var validation = await ValidateAsync(user, password, cancellationToken);
         if (!validation.Succeeded)
@@ -148,6 +144,6 @@ public sealed class UserPasswordService<TUser, TKey>(
         return IdentityResult.Success;
     }
 
-    private UserTokenIssuer<TUser, TKey> RequireTokens()
+    private UserTokenIssuer RequireTokens()
         => tokens ?? throw new NotSupportedException("Password reset needs purpose tokens; call .AddUserTokens(...) on the identity builder.");
 }

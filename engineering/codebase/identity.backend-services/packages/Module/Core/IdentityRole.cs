@@ -2,13 +2,11 @@ using WoW.Two.Sdk.Beta.Be.Data.Abstractions;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
-/// <summary>A role, with ASP.NET-Identity-shaped columns. Consumed by the roles slice; the core schema maps it so later slices need no migration.</summary>
-/// <typeparam name="TKey">Primary-key type (default <see cref="Guid"/>).</typeparam>
-public class IdentityRole<TKey> : IKeyedEntity<TKey>, IAuditable
-    where TKey : notnull, IEquatable<TKey>
+/// <summary>A role, with ASP.NET-Identity-shaped columns. Consumed by the roles slice; the identity schema always holds its table, so turning the slice on needs no migration.</summary>
+public sealed class IdentityRole : IKeyedEntity<Guid>, IAuditable
 {
-    /// <summary>Primary key. Store-generated for <see cref="Guid"/> keys.</summary>
-    public TKey Id { get; set; } = default!;
+    /// <summary>Primary key: a uuid v7 the role service assigns from <see cref="TimeProvider"/> at creation.</summary>
+    public Guid Id { get; set; }
 
     /// <summary>Role name.</summary>
     public string? Name { get; set; }
@@ -25,6 +23,3 @@ public class IdentityRole<TKey> : IKeyedEntity<TKey>, IAuditable
     /// <summary>When the row was last modified (UTC) — stamped by the audit interceptor.</summary>
     public DateTimeOffset UpdatedAt { get; set; }
 }
-
-/// <summary>A role keyed by <see cref="Guid"/> — the default shape.</summary>
-public class IdentityRole : IdentityRole<Guid>;

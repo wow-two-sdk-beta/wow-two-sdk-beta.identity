@@ -3,50 +3,46 @@ using Microsoft.EntityFrameworkCore;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 
-/// <summary>Accesses role memberships through the context hosting the identity schema.</summary>
-/// <typeparam name="TRole">The role entity joined for names and claims.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
-/// <param name="context">The context hosting the identity schema.</param>
-public sealed class EfUserRoleRepository<TRole, TKey>(DbContext context) : IUserRoleRepository<TKey>
-    where TRole : IdentityRole<TKey>
-    where TKey : notnull, IEquatable<TKey>
+/// <summary>Accesses role memberships through <see cref="IdentityDbContext"/>.</summary>
+/// <param name="context">The identity context.</param>
+public sealed class EfUserRoleRepository(IdentityDbContext context) : IUserRoleRepository
 {
-    private DbSet<IdentityUserRole<TKey>> Memberships => context.Set<IdentityUserRole<TKey>>();
+    private DbSet<IdentityUserRole> Memberships => context.Set<IdentityUserRole>();
 
     /// <inheritdoc />
-    public async Task AddAsync(TKey userId, TKey roleId, CancellationToken cancellationToken = default)
+    public async Task AddAsync(Guid userId, Guid roleId, CancellationToken cancellationToken = default)
     {
-        Memberships.Add(new IdentityUserRole<TKey> { UserId = userId, RoleId = roleId });
+        Memberships.Add(new IdentityUserRole { UserId = userId, RoleId = roleId });
         await context.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task RemoveAsync(TKey userId, TKey roleId, CancellationToken cancellationToken = default)
+    public async Task RemoveAsync(Guid userId, Guid roleId, CancellationToken cancellationToken = default)
     {
-        context.RemoveRange(await Memberships.Where(m => m.UserId.Equals(userId) && m.RoleId.Equals(roleId)).ToListAsync(cancellationToken));
+        context.RemoveRange(await Memberships.Where(m => m.UserId == userId && m.RoleId == roleId).ToListAsync(cancellationToken));
         await context.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<bool> ContainsAsync(TKey userId, TKey roleId, CancellationToken cancellationToken = default)
-        => Memberships.AnyAsync(m => m.UserId.Equals(userId) && m.RoleId.Equals(roleId), cancellationToken);
+    public Task<bool> ContainsAsync(Guid userId, Guid roleId, CancellationToken cancellationToken = default)
+        => Memberships.AnyAsync(m => m.UserId == userId && m.RoleId == roleId, cancellationToken);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<string>> GetRoleNamesAsync(TKey userId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<string>> GetRoleNamesAsync(Guid userId, CancellationToken cancellationToken = default)
         => await (from membership in Memberships
-                  join role in context.Set<TRole>() on membership.RoleId equals role.Id
-                  where membership.UserId.Equals(userId) && role.Name != null
+                  join role in context.Set<IdentityRole>() on membership.RoleId equals role.Id
+                  where membership.UserId == userId && role.Name != null
                   orderby role.Name
                   select role.Name!).ToListAsync(cancellationToken);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<Claim>> GetRoleClaimsAsync(TKey userId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Claim>> GetRoleClaimsAsync(Guid userId, CancellationToken cancellationToken = default)
         => await (from membership in Memberships
-                  join claim in context.Set<IdentityRoleClaim<TKey>>() on membership.RoleId equals claim.RoleId
-                  where membership.UserId.Equals(userId) && claim.ClaimType != null
+                  join claim in context.Set<IdentityRoleClaim>() on membership.RoleId equals claim.RoleId
+                  where membership.UserId == userId && claim.ClaimType != null
                   select new Claim(claim.ClaimType!, claim.ClaimValue ?? string.Empty)).ToListAsync(cancellationToken);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<TKey>> GetUserIdsAsync(TKey roleId, CancellationToken cancellationToken = default)
-        => await Memberships.Where(m => m.RoleId.Equals(roleId)).Select(m => m.UserId).ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<Guid>> GetUserIdsAsync(Guid roleId, CancellationToken cancellationToken = default)
+        => await Memberships.Where(m => m.RoleId == roleId).Select(m => m.UserId).ToListAsync(cancellationToken);
 }

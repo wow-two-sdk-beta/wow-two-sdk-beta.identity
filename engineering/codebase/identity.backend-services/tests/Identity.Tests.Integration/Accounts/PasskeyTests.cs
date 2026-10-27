@@ -21,7 +21,7 @@ public sealed class PasskeyTests
 
         await using (var scope = host.Scope())
         {
-            var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService<IdentityUser, Guid>>();
+            var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
             var ceremony = await passkeys.BeginRegistrationAsync(user);
             (await passkeys.CompleteRegistrationAsync(user, ceremony.State, authenticator.Create(ceremony.OptionsJson), "  Pia's laptop  ")).Succeeded.Should().BeTrue();
 
@@ -37,8 +37,8 @@ public sealed class PasskeyTests
         host.Time.Advance(TimeSpan.FromMinutes(1));
         await using (var scope = host.Scope())
         {
-            var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService<IdentityUser, Guid>>();
-            var signIn = scope.ServiceProvider.GetRequiredService<SignInService<IdentityUser, Guid>>();
+            var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
+            var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
             var ceremony = passkeys.BeginSignIn();
             ceremony.OptionsJson.Should().NotContain("allowCredentials\":[{", "a usernameless request names no credentials");
 
@@ -59,8 +59,8 @@ public sealed class PasskeyTests
         await RegisterAsync(host, user, synced);
 
         await using var scope = host.Scope();
-        var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService<IdentityUser, Guid>>();
-        var signIn = scope.ServiceProvider.GetRequiredService<SignInService<IdentityUser, Guid>>();
+        var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
+        var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
 
         var stale = passkeys.BeginSignIn();
         host.Time.Advance(TimeSpan.FromSeconds(5));
@@ -86,8 +86,8 @@ public sealed class PasskeyTests
         using var authenticator = new SoftwareAuthenticator();
 
         await using var scope = host.Scope();
-        var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService<IdentityUser, Guid>>();
-        var signIn = scope.ServiceProvider.GetRequiredService<SignInService<IdentityUser, Guid>>();
+        var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
+        var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
 
         var ceremony = await passkeys.BeginRegistrationAsync(owner);
         var credential = authenticator.Create(ceremony.OptionsJson);
@@ -117,8 +117,8 @@ public sealed class PasskeyTests
         await RegisterAsync(host, user, authenticator);
 
         await using var scope = host.Scope();
-        var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService<IdentityUser, Guid>>();
-        var signIn = scope.ServiceProvider.GetRequiredService<SignInService<IdentityUser, Guid>>();
+        var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
+        var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
 
         var ceremony = passkeys.BeginSignIn();
         forger.Create((await passkeys.BeginRegistrationAsync(user)).OptionsJson);
@@ -146,11 +146,11 @@ public sealed class PasskeyTests
 
         await using var scope = host.Scope();
         var services = scope.ServiceProvider;
-        var passkeys = services.GetRequiredService<UserPasskeyService<IdentityUser, Guid>>();
-        var signIn = services.GetRequiredService<SignInService<IdentityUser, Guid>>();
-        var current = await services.GetRequiredService<UserAccountService<IdentityUser, Guid>>().FindByIdAsync(user.Id);
+        var passkeys = services.GetRequiredService<UserPasskeyService>();
+        var signIn = services.GetRequiredService<SignInService>();
+        var current = await services.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id);
 
-        (await services.GetRequiredService<UserLockoutService<IdentityUser, Guid>>().LockUntilAsync(current!, host.Time.GetUtcNow().AddHours(1))).Succeeded.Should().BeTrue();
+        (await services.GetRequiredService<UserLockoutService>().LockUntilAsync(current!, host.Time.GetUtcNow().AddHours(1))).Succeeded.Should().BeTrue();
         var ceremony = passkeys.BeginSignIn();
         (await signIn.PasskeySignInAsync(ceremony.State, authenticator.Get(ceremony.OptionsJson))).Status.Should().Be(SignInStatus.LockedOut);
 
@@ -165,7 +165,7 @@ public sealed class PasskeyTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddUserAccounts<IdentityUser>().AddPasskeys();
+        services.AddUserAccounts().AddPasskeys();
         using var provider = services.BuildServiceProvider();
 
         var failure = FluentActions.Invoking(() => provider.GetRequiredService<PasskeyOptions>()).Should().Throw<OptionsValidationException>().Which;
@@ -187,7 +187,7 @@ public sealed class PasskeyTests
     private static async Task RegisterAsync(AccountsHost host, IdentityUser user, SoftwareAuthenticator authenticator)
     {
         await using var scope = host.Scope();
-        var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService<IdentityUser, Guid>>();
+        var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
         var ceremony = await passkeys.BeginRegistrationAsync(user);
         (await passkeys.CompleteRegistrationAsync(user, ceremony.State, authenticator.Create(ceremony.OptionsJson))).Succeeded.Should().BeTrue();
         host.Time.Advance(TimeSpan.FromSeconds(1));

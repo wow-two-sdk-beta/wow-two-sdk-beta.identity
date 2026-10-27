@@ -7,14 +7,10 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 /// <summary>Opts stateless purpose tokens into an identity registration.</summary>
 public static class TokenIdentityBuilderExtensions
 {
-    /// <summary>Register <see cref="UserTokenIssuer{TUser,TKey}"/>; password reset and the email slice issue through it.</summary>
-    /// <typeparam name="TUser">The user entity.</typeparam>
-    /// <typeparam name="TKey">The primary-key type.</typeparam>
+    /// <summary>Register <see cref="UserTokenIssuer"/>; password reset and the email slice issue through it.</summary>
     /// <param name="builder">The identity builder.</param>
     /// <param name="configure">Sets the signing key and optional lifetimes.</param>
-    public static IdentityBuilder<TUser, TKey> AddUserTokens<TUser, TKey>(this IdentityBuilder<TUser, TKey> builder, Action<UserTokenOptions> configure)
-        where TUser : IdentityUser<TKey>
-        where TKey : notnull, IEquatable<TKey>
+    public static IdentityBuilder AddUserTokens(this IdentityBuilder builder, Action<UserTokenOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
@@ -26,7 +22,7 @@ public static class TokenIdentityBuilderExtensions
                 .Validate(o => o.DefaultLifetime > TimeSpan.Zero, "UserTokenOptions.DefaultLifetime must be positive.")
                 .Validate(o => o.Lifetimes.Values.All(lifetime => lifetime > TimeSpan.Zero), "UserTokenOptions.Lifetimes must be positive."));
         builder.Services.TryAddSingleton(TimeProvider.System);
-        builder.Services.TryAddSingleton<UserTokenIssuer<TUser, TKey>>();
+        builder.Services.TryAddSingleton<UserTokenIssuer>();
         return builder;
     }
 

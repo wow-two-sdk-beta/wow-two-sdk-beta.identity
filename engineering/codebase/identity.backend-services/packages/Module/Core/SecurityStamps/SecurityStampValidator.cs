@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -11,24 +10,18 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SecurityStamps;
 /// Validates that a principal's security stamp still equals the stored user's, so rotating the stamp revokes cookies and
 /// bearer tokens. The stored stamp is cached per host for <see cref="SecurityStampValidationOptions.ValidationInterval"/>.
 /// </summary>
-/// <typeparam name="TUser">The user entity.</typeparam>
-/// <typeparam name="TKey">The primary-key type.</typeparam>
 /// <param name="repository">The core user store.</param>
 /// <param name="identity">Identity options carrying the claim types.</param>
 /// <param name="options">Interval and missing-stamp behavior.</param>
 /// <param name="cache">Holds recently read stamps.</param>
 /// <param name="logger">Receives the rejection event.</param>
-public sealed class SecurityStampValidator<TUser, TKey>(
-    IUserRepository<TUser, TKey> repository,
+public sealed class SecurityStampValidator(
+    IUserRepository repository,
     IdentityCoreOptions identity,
     SecurityStampValidationOptions options,
     IMemoryCache cache,
-    ILogger<SecurityStampValidator<TUser, TKey>> logger)
-    where TUser : IdentityUser<TKey>
-    where TKey : notnull, IEquatable<TKey>
+    ILogger<SecurityStampValidator> logger)
 {
-    private static readonly TypeConverter KeyConverter = TypeDescriptor.GetConverter(typeof(TKey));
-
     /// <summary>Whether <paramref name="principal"/> may stay signed in. A principal without a user id is not ours and passes.</summary>
     /// <param name="principal">The authenticated principal.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -55,11 +48,11 @@ public sealed class SecurityStampValidator<TUser, TKey>(
 
     private async Task<string?> ReadStampAsync(string userId, CancellationToken cancellationToken)
     {
-        var cacheKey = $"identity:security-stamp:{typeof(TUser).FullName}:{userId}";
+        var cacheKey = $"identity:security-stamp:{userId}";
         if (options.ValidationInterval > TimeSpan.Zero && cache.TryGetValue(cacheKey, out string? cached))
             return cached;
 
-        var stamp = TryParseKey(userId, out var key)
+        var stamp = Guid.TryParse(userId, out var key)
             ? (await repository.FindByIdAsync(key, cancellationToken))?.SecurityStamp
             : null;
 
@@ -67,19 +60,5 @@ public sealed class SecurityStampValidator<TUser, TKey>(
             cache.Set(cacheKey, stamp, options.ValidationInterval);
 
         return stamp;
-    }
-
-    private static bool TryParseKey(string value, out TKey key)
-    {
-        try
-        {
-            key = (TKey)KeyConverter.ConvertFromInvariantString(value)!;
-            return key is not null;
-        }
-        catch (Exception exception) when (exception is FormatException or NotSupportedException or ArgumentException)
-        {
-            key = default!;
-            return false;
-        }
     }
 }
