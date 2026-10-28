@@ -12,15 +12,15 @@ using WoW.Two.Sdk.Beta.Be.Testing.Data.Migrations.Lint;
 namespace Identity.Tests.Migrations;
 
 /// <summary>
-/// The rules the <c>identity</c> set ships under: the be sdk lint over the set as the Module registers it, the tables it
-/// publishes to products, and what <c>004-user-soft-delete</c> lets the database hold.
+/// The rules the <c>identity</c> set ships under: the be sdk lint over the set as the Module registers it, idempotent
+/// scripts, the tables it publishes to products, and what <c>004-user-soft-delete</c> lets the database hold.
 /// </summary>
 /// <param name="fixture">The shared container.</param>
 [Collection(PostgresMigratorCollection.Name)]
 public sealed class IdentityMigrationRulesTests(MigratorPostgresFixture fixture) : IAsyncLifetime
 {
-    /// <summary>The last ordinal applied before the lint: <c>001</c>–<c>003</c> stay as they were applied.</summary>
-    private const int LintCutoff = 3;
+    /// <summary>The last ordinal applied before the lint and the idempotency proof: <c>001</c>–<c>003</c> stay as they were applied.</summary>
+    private const int AppliedCutoff = 3;
 
     /// <inheritdoc />
     public async Task InitializeAsync() => await fixture.ResetAsync();
@@ -34,8 +34,8 @@ public sealed class IdentityMigrationRulesTests(MigratorPostgresFixture fixture)
         await using var provider = CreateModuleProvider();
 
         var findings = await MigrationLint.CheckAsync(provider, lint => lint
-            .ExpandOnlyAfter(IdentityDatabaseOptions.MigrationSetName, LintCutoff)
-            .LintAfter(IdentityDatabaseOptions.MigrationSetName, LintCutoff));
+            .ExpandOnlyAfter(IdentityDatabaseOptions.MigrationSetName, AppliedCutoff)
+            .LintAfter(IdentityDatabaseOptions.MigrationSetName, AppliedCutoff));
 
         findings.Should().BeEmpty();
     }
@@ -45,9 +45,17 @@ public sealed class IdentityMigrationRulesTests(MigratorPostgresFixture fixture)
     {
         await using var provider = CreateModuleProvider();
 
-        var findings = await MigrationLint.CheckAsync(provider, lint => lint.ExpandOnlyAfter(IdentityDatabaseOptions.MigrationSetName, LintCutoff));
+        var findings = await MigrationLint.CheckAsync(provider, lint => lint.ExpandOnlyAfter(IdentityDatabaseOptions.MigrationSetName, AppliedCutoff));
 
         findings.Should().BeEmpty("001–003 only index the tables they create, and 004 builds its indexes concurrently");
+    }
+
+    [Fact]
+    public async Task Scripts_ShouldBeIdempotent_AboveTheAppliedFiles()
+    {
+        await using var migrator = IdentitySchemaTests.CreateMigrator(fixture);
+
+        await migrator.AssertIdempotentAsync(IdentityDatabaseOptions.MigrationSetName, after: AppliedCutoff);
     }
 
     [Fact]
@@ -105,7 +113,7 @@ public sealed class IdentityMigrationRulesTests(MigratorPostgresFixture fixture)
             await InsertUserAsync(connection, live, "BOB", deletedAt: null);
         }
 
-        (await migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName).RollbackAsync(targetOrdinal: LintCutoff)).ValueOrThrow()
+        (await migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName).RollbackAsync(targetOrdinal: AppliedCutoff)).ValueOrThrow()
             .Should().Equal("004-user-soft-delete");
 
         await using var after = await migrator.OpenConnectionAsync();

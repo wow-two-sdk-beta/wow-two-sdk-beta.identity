@@ -50,7 +50,6 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 
 | Item | Type | Notes |
 |---|---|---|
-| idempotency proof in the Migrations tier | engineering | waits on a be sdk cutoff for `MigrationIdempotencyProof`; the applied `001-accounts` fails Apply → Apply |
 | `migrate:` in `deploy.yml` | engineering | `{ service: identity, command: [dotnet, Identity.Api.dll, migrate], timeout: 10m }` once the pipelines generator ships the list |
 | settings-free `migrate sets` | engineering | the image answers `migrate sets --json` with no network and no settings file, for the pipelines check |
 | migrate connection key | engineering | settings gain `Migrations:ConnectionString` (the runtime role in v1) with the `migrate:` item |
