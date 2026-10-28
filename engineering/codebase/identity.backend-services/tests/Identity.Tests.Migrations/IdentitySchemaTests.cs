@@ -38,7 +38,8 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         applied.Should().ContainSingle().Which.Applied.Should().Equal(SchemaShape.Migrations);
         foreach (var table in SchemaShape.AllTables)
             (await migrator.HasTableAsync(Schema, table)).Should().BeTrue($"the set creates {table}");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4);
+        (await HasColumnAsync(migrator, "identity_users", "deleted_at")).Should().BeTrue("001-accounts creates the soft-delete column");
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
@@ -48,10 +49,6 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         await using var migrator = CreateMigrator(fixture);
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
-
-        (await runner.RollbackAsync(targetOrdinal: 3)).ValueOrThrow().Should().Equal("004-user-soft-delete");
-        (await HasColumnAsync(migrator, "identity_users", "deleted_at")).Should().BeFalse("rolling 004 back drops deleted_at");
-        (await migrator.HasTableAsync(Schema, "identity_sessions")).Should().BeTrue("003-spine stays applied");
 
         (await runner.RollbackAsync(targetOrdinal: 2)).ValueOrThrow().Should().Equal("003-spine");
         foreach (var table in SchemaShape.SpineTables)
@@ -152,6 +149,7 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
             LastSeenAt = at,
             ExpiresAt = at.AddHours(12),
         };
+        var ringKey = new IdentityDataProtectionKey { FriendlyName = "key-1", Xml = "<key />" };
         await using (var scope = provider.CreateAsyncScope())
         {
             var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -159,7 +157,7 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
             context.SignInLog.AddRange(
                 new IdentitySignInLogEntry { OccurredAt = at, Method = "password", Result = "failed", Reason = "unknown_account" },
                 new IdentitySignInLogEntry { OccurredAt = at, UserId = session.UserId, Method = "password", Result = "succeeded", SessionId = session.Id });
-            context.DataProtectionKeys.Add(new IdentityDataProtectionKey { FriendlyName = "key-1", Xml = "<key />" });
+            context.DataProtectionKeys.Add(ringKey);
             await context.SaveChangesAsync();
         }
 
@@ -168,7 +166,7 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         (await stored.Sessions.SingleAsync()).Should().BeEquivalentTo(session);
         (await stored.SignInLog.OrderBy(e => e.Id).Select(e => e.Id).ToListAsync()).Should().Equal(1, 2);
         (await stored.SignInLog.SingleAsync(e => e.SessionId == session.Id)).UserId.Should().Be(session.UserId);
-        (await stored.DataProtectionKeys.SingleAsync()).Should().BeEquivalentTo(new { Id = 1, FriendlyName = "key-1", Xml = "<key />" });
+        (await stored.DataProtectionKeys.SingleAsync()).Should().BeEquivalentTo(new { ringKey.Id, FriendlyName = "key-1", Xml = "<key />" });
     }
 
     /// <summary>Returns whether <paramref name="table"/> in the identity schema has <paramref name="column"/>.</summary>

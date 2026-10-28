@@ -37,8 +37,9 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
   (`wow-two-ws/conventions/development/backend/dotnet/core/mla/domains/persistence/database/database.md`).
 - `IdentityDbContext` maps 11 account tables: `identity_users`, `identity_roles`, `identity_user_roles`,
   `identity_user_claims`, `identity_role_claims`, `identity_user_logins`, `identity_user_tokens`,
-  `identity_refresh_tokens`, `identity_passkeys`, `identity_organizations`, `identity_memberships`. Products never map
-  them into their own context.
+  `identity_refresh_tokens`, `identity_passkeys`, `identity_organizations`, `identity_memberships`, all created by
+  `001-accounts`. `identity_users` is soft-deleted (`deleted_at`); its user-name (unique) and email indexes cover live
+  rows, `WHERE deleted_at IS NULL`. Products never map them into their own context.
 - It also maps OpenIddict's four OIDC tables, created by `002-oidc`: `identity_oidc_applications` (clients, hashed
   secrets, URIs, permissions), `identity_oidc_authorizations` (a subject's grant to a client), `identity_oidc_scopes`
   (custom scopes, empty today) and `identity_oidc_tokens` (codes, refresh and other tokens with their status). The
@@ -50,8 +51,6 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
   `identity_sign_in_log` (every attempt, deleted after the retention; `SignInLog/`) and
   `identity_data_protection_keys` (the instance's Data Protection ring, read and written only by the Server package's
   `AddDataProtectionRing`).
-- `004-user-soft-delete` adds `identity_users.deleted_at` and scopes the user-name (unique) and email indexes to live
-  rows, `WHERE deleted_at IS NULL`.
 - The SQL owns the schema: `../Migrations/Postgres/NNN-name/{Apply,Rollback}.sql`, embedded and run as the be sdk
   migration set `identity` (history `identity_migration_history`, its own advisory lock). EF only maps.
 - Names are pinned in the model, whatever the host's naming convention: snake_case columns, `pk_{table}`,
@@ -62,11 +61,10 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 - Connection: `Identity:Database:ConnectionStringName`, else the host's `DatabaseSettings`, else `DB_CONNECTION`, else
   `DatabaseSettings:ConnectionString`. PostgreSQL gets one pool keyed `identity`, shared by the context and the set.
 - Ids: users, roles, passkeys, refresh tokens, organizations and sessions take `Guid.CreateVersion7` from the
-  registered `TimeProvider` at creation; claim and sign-in log rows take a `bigint` identity, ring keys an `integer` one. No `TUser` / `TKey` generics: extend through side
+  registered `TimeProvider` at creation; claim and sign-in log rows take a `bigint` identity; ring keys are Guid v7 made by the entity. No `TUser` / `TKey` generics: extend through side
   tables keyed by the user id (`sub`) and claims contributors, never by added columns.
 - A schema change is a new `NNN-name` pair plus the model change; `Identity.Tests.Migrations` fails when the applied
-  schema and the model disagree. Never edit an applied pair (`001` and `002` still say SQLite shares their names; they
-  stay as applied).
+  schema and the model disagree. Never edit an applied pair.
 
 ## Slices
 

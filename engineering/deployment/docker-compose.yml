@@ -12,13 +12,13 @@
 # instead of spinning as PID 1.
 services:
   database:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: identity
       POSTGRES_USER: identity
       POSTGRES_PASSWORD: identity
     volumes:
-      - database:/var/lib/postgresql/data
+      - database:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U identity -d identity"]
       interval: 5s

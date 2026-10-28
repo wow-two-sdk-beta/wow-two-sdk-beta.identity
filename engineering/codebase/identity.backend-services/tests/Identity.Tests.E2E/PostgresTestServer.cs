@@ -40,7 +40,7 @@ public static class PostgresTestServer
 
     private static async Task<PostgreSqlContainer> StartAsync()
     {
-        var container = new PostgreSqlBuilder().WithImage("postgres:16-alpine").Build();
+        var container = new PostgreSqlBuilder().WithImage("postgres:18-alpine").Build();
         await container.StartAsync();
         return container;
     }

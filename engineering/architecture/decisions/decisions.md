@@ -46,6 +46,9 @@
 | 2026-10-28 | products may key into the published `identity_users` and `identity_organizations` inside one database; they map them read-only and write through the module or the API (reverses T10's ban) | migrations M5, M7, M79 |
 | 2026-10-28 | deleting a person soft-deletes the row; erasure scrubs personal columns in place, so a product's key never blocks | migrations M5, M75 |
 | 2026-10-28 | published tables, keys and readable columns change by expand and contract only; a contract file is headed `-- @contract since=vX.Y` | migrations M5, M21, M76 |
+| 2026-10-28 | PostgreSQL 18 everywhere: compose, CI and test containers | owner, migrations M65 |
+| 2026-10-28 | EF migrations, `EnsureCreated` and `Database.Migrate()` are banned; test databases take the schema from the set's SQL | owner |
+| 2026-10-28 | the set is rewritten in place while no database keeps data: soft delete folds into `001-accounts`, every file is idempotent; once one keeps data, applied files are never edited | owner, migrations M5 |
 | 2026-10-28 | a per-product instance (Ocharo's) is a service of the product, its set in the product's database, schema `identity`; a shared instance (wow2's) is a Wheelhouse product with its own database (Q5, Q63; replaces Q55's own database) | migrations M6, M77 |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum

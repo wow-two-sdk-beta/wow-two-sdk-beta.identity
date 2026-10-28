@@ -149,16 +149,18 @@ later, in a platform repository.
 
 - one linear SQL migration set in the Module creates the whole `identity` schema whatever the configuration; a
   feature that is off neither reads nor writes its tables.
-- PostgreSQL only (decided 2026-10-27, as SQLite is banned for products): the set ships in `Migrations/Postgres/` and
-  runs as the be sdk named set `identity`, with its own history and lock; the Module's `IdentityDbContext` maps it with
-  every name pinned and never generates it.
+- PostgreSQL 18 only (decided 2026-10-27, as SQLite is banned for products; 18 since 2026-10-28): the set ships in
+  `Migrations/Postgres/` and runs as the be sdk named set `identity`, with its own history and lock; the Module's
+  `IdentityDbContext` maps it with every name pinned and never generates it (EF migrations, `EnsureCreated` and
+  `Database.Migrate()` are banned, tests included).
+- every `Apply.sql` and `Rollback.sql` is idempotent, proven by the be sdk lint and idempotency proof over every file.
 - tables keep the `identity_` prefix inside the `identity` schema (`Identity:Database:Schema`); `001-accounts` creates
-  the 11 account tables, `002-oidc` OpenIddict's four `identity_oidc_*` tables (present in every form, used only by the
+  the 11 account tables (`identity_users` with `deleted_at` and indexes over live rows), `002-oidc` OpenIddict's four `identity_oidc_*` tables (present in every form, used only by the
   Server), `003-spine` the sessions, the sign-in log and the Data Protection ring.
 - the set claims its schema with an owner kind: `module` in a Form 1 product, `service` in an instance, which migrates
   through `Identity.Api migrate`, the be sdk verb tree (`check`, `plan`, `apply`, `seed`, `rollback` and the rest).
-- keys are `uuid` made as Guid v7 in code, claim and sign-in log rows a `bigint` identity, ring keys an `integer`
-  one.
+- keys are `uuid` made as Guid v7 in code, ring keys included; only claim and sign-in log rows take a `bigint`
+  identity.
 - the set publishes `identity_users` and `identity_organizations` as referenceable tables: inside one database a
   product may key into them, after declaring `DependsOn("identity", <level>)` on its own set (decided 2026-10-28,
   reversing T10's ban).

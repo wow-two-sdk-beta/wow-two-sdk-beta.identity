@@ -6,8 +6,11 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 /// </summary>
 public sealed class IdentityDataProtectionKey
 {
-    /// <summary>Primary key, a database identity.</summary>
-    public int Id { get; set; }
+    /// <summary>Creates a key row with a time-ordered id, so the ring reads in the order it was written.</summary>
+    public IdentityDataProtectionKey() => Id = Guid.CreateVersion7();
+
+    /// <summary>Primary key, a Guid v7 made in code.</summary>
+    public Guid Id { get; set; }
 
     /// <summary>The key manager's name for the element, such as <c>key-{guid}</c>.</summary>
     public string? FriendlyName { get; set; }

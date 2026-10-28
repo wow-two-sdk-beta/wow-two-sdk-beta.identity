@@ -18,7 +18,7 @@ namespace Identity.Tests.E2E;
 public sealed class MigrateVerbTests : IAsyncLifetime
 {
     /// <summary>Every migration the identity set carries, in apply order.</summary>
-    private static readonly string[] Migrations = ["001-accounts", "002-oidc", "003-spine", "004-user-soft-delete"];
+    private static readonly string[] Migrations = ["001-accounts", "002-oidc", "003-spine"];
 
     private string _connectionString = "";
     private WebApplication _app = null!;
@@ -91,16 +91,16 @@ public sealed class MigrateVerbTests : IAsyncLifetime
         var verbs = Verbs();
         await verbs.AssertExitAsync(0, "apply");
 
-        (await verbs.AssertExitAsync(1, "rollback", "--to", "3")).Result.Message.Should().Contain("--confirm");
-        await verbs.AssertExitAsync(1, "rollback", "--to", "3", "--confirm", "another_database");
+        (await verbs.AssertExitAsync(1, "rollback", "--to", "2")).Result.Message.Should().Contain("--confirm");
+        await verbs.AssertExitAsync(1, "rollback", "--to", "2", "--confirm", "another_database");
         Identity((await verbs.AssertCheckWritesNothingAsync()).Result).State.Should().Be(MigrationLevelState.Current, "a refused rollback runs no SQL");
 
-        await verbs.AssertExitAsync(0, "rollback", "--to", "3", "--confirm", Database);
-        await verbs.AssertRerunChangesNothingAsync("rollback", "--to", "3", "--confirm", Database);
+        await verbs.AssertExitAsync(0, "rollback", "--to", "2", "--confirm", Database);
+        await verbs.AssertRerunChangesNothingAsync("rollback", "--to", "2", "--confirm", Database);
         (await verbs.AssertExitAsync(1, "check")).Result.Sets.Should().ContainSingle().Which.State.Should().Be(MigrationLevelState.Behind);
 
         var reapplied = await verbs.AssertExitAsync(0, "apply");
-        Identity(reapplied.Result).Applied.Select(label => label.Label).Should().Equal("004-user-soft-delete");
+        Identity(reapplied.Result).Applied.Select(label => label.Label).Should().Equal("003-spine");
     }
 
     [Fact]

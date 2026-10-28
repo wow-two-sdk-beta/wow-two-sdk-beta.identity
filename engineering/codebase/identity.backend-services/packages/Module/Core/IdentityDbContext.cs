@@ -31,7 +31,7 @@ public sealed class IdentityDbContext : AppDbContextBase
         Schema = database.Schema;
     }
 
-    /// <summary>The partial-index predicate that scopes a user index to live accounts, as <c>004-user-soft-delete</c> builds it.</summary>
+    /// <summary>The partial-index predicate that scopes a user index to live accounts, as <c>001-accounts</c> builds it.</summary>
     internal const string LiveUserFilter = "deleted_at IS NULL";
 
     /// <summary>The PostgreSQL schema this context's model qualifies its tables with.</summary>
@@ -119,7 +119,7 @@ public sealed class IdentityDbContext : AppDbContextBase
     /// <summary>Maps users, roles and their relation, claim, login and token rows.</summary>
     /// <remarks>
     /// <see cref="IdentityUser"/> is <c>ISoftDeletable</c>: the base context's conventions hide rows whose
-    /// <c>deleted_at</c> is set from every query, and the user-name and email indexes cover live rows only (<c>004</c>).
+    /// <c>deleted_at</c> is set from every query, and the user-name and email indexes cover live rows only (<c>001</c>).
     /// </remarks>
     private static void MapAccounts(ModelBuilder modelBuilder)
     {
@@ -335,6 +335,7 @@ public sealed class IdentityDbContext : AppDbContextBase
         {
             key.ToTable("identity_data_protection_keys");
             key.HasKey(k => k.Id);
+            key.Property(k => k.Id).ValueGeneratedNever();
         });
     }
 

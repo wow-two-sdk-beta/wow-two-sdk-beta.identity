@@ -13,15 +13,12 @@ namespace Identity.Tests.Migrations;
 
 /// <summary>
 /// The rules the <c>identity</c> set ships under: the be sdk lint over the set as the Module registers it, idempotent
-/// scripts, the tables it publishes to products, and what <c>004-user-soft-delete</c> lets the database hold.
+/// scripts, the tables it publishes to products, and what the soft-delete indexes let the database hold.
 /// </summary>
 /// <param name="fixture">The shared container.</param>
 [Collection(PostgresMigratorCollection.Name)]
 public sealed class IdentityMigrationRulesTests(MigratorPostgresFixture fixture) : IAsyncLifetime
 {
-    /// <summary>The last ordinal applied before the lint and the idempotency proof: <c>001</c>–<c>003</c> stay as they were applied.</summary>
-    private const int AppliedCutoff = 3;
-
     /// <inheritdoc />
     public async Task InitializeAsync() => await fixture.ResetAsync();
 
@@ -29,33 +26,21 @@ public sealed class IdentityMigrationRulesTests(MigratorPostgresFixture fixture)
     public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
-    public async Task Lint_ShouldFindNothing_AboveTheAppliedFiles()
+    public async Task Lint_ShouldFindNothing_OverEveryFile()
     {
         await using var provider = CreateModuleProvider();
 
-        var findings = await MigrationLint.CheckAsync(provider, lint => lint
-            .ExpandOnlyAfter(IdentityDatabaseOptions.MigrationSetName, AppliedCutoff)
-            .LintAfter(IdentityDatabaseOptions.MigrationSetName, AppliedCutoff));
+        var findings = await MigrationLint.CheckAsync(provider, lint => lint.ExpandOnlyAfter(IdentityDatabaseOptions.MigrationSetName, 0));
 
-        findings.Should().BeEmpty();
+        findings.Should().BeEmpty("every file only creates what it indexes, and the lock-risk rules read all of them");
     }
 
     [Fact]
-    public async Task Lint_ShouldFindNothing_WhenTheLockRiskRulesReadEveryFile()
-    {
-        await using var provider = CreateModuleProvider();
-
-        var findings = await MigrationLint.CheckAsync(provider, lint => lint.ExpandOnlyAfter(IdentityDatabaseOptions.MigrationSetName, AppliedCutoff));
-
-        findings.Should().BeEmpty("001–003 only index the tables they create, and 004 builds its indexes concurrently");
-    }
-
-    [Fact]
-    public async Task Scripts_ShouldBeIdempotent_AboveTheAppliedFiles()
+    public async Task Scripts_ShouldBeIdempotent_EveryFile()
     {
         await using var migrator = IdentitySchemaTests.CreateMigrator(fixture);
 
-        await migrator.AssertIdempotentAsync(IdentityDatabaseOptions.MigrationSetName, after: AppliedCutoff);
+        await migrator.AssertIdempotentAsync(IdentityDatabaseOptions.MigrationSetName);
     }
 
     [Fact]
@@ -98,27 +83,6 @@ public sealed class IdentityMigrationRulesTests(MigratorPostgresFixture fixture)
 
         (await duplicate.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
         (await connection.ExecuteScalarAsync<long>("select count(*) from identity.identity_users where normalized_user_name = 'ALICE'")).Should().Be(3);
-    }
-
-    [Fact]
-    public async Task RollingBackTheSoftDelete_ShouldDropTheDeletedRows_AndKeepTheLiveOnes()
-    {
-        await using var migrator = IdentitySchemaTests.CreateMigrator(fixture);
-        (await migrator.ApplyAllAsync()).ValueOrThrow();
-        var at = new DateTimeOffset(2026, 10, 28, 9, 0, 0, TimeSpan.Zero);
-        var live = Guid.CreateVersion7(at);
-        await using (var connection = await migrator.OpenConnectionAsync())
-        {
-            await InsertUserAsync(connection, Guid.CreateVersion7(at), "BOB", deletedAt: at);
-            await InsertUserAsync(connection, live, "BOB", deletedAt: null);
-        }
-
-        (await migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName).RollbackAsync(targetOrdinal: AppliedCutoff)).ValueOrThrow()
-            .Should().Equal("004-user-soft-delete");
-
-        await using var after = await migrator.OpenConnectionAsync();
-        (await after.QueryAsync<Guid>("select id from identity.identity_users")).Should().Equal(live);
-        (await IdentitySchemaTests.HasColumnAsync(migrator, "identity_users", "deleted_at")).Should().BeFalse();
     }
 
     /// <summary>The set exactly as the Module registers it: its options, published tables included, and its embedded SQL.</summary>

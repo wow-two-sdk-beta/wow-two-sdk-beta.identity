@@ -55,7 +55,7 @@ jobs:
           image="ghcr.io/${GITHUB_REPOSITORY,,}/identity:$TAG"
           docker network create identity
           docker run --detach --name identity-db --network identity \
-            --env POSTGRES_DB=identity --env POSTGRES_USER=identity --env POSTGRES_PASSWORD=identity postgres:16-alpine
+            --env POSTGRES_DB=identity --env POSTGRES_USER=identity --env POSTGRES_PASSWORD=identity postgres:18-alpine
           for _ in $(seq 1 30); do
             docker exec identity-db pg_isready -U identity -d identity >/dev/null 2>&1 && break
             sleep 2

@@ -7,7 +7,7 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 |---|---|
 | `deploy.yml` | descriptor 2: one service, `identity` (`/health`, 256 MB, `needs: [postgres]`, typed keys: `DatabaseSettings:ConnectionString` filled from the target's database, the OIDC issuer, the first signing and encryption certificates and the first ring certificate required as vault secrets, `Ephemeral` defaulting to `false`; no volume); sites `app` (public, primary) and `console` (private), both at `/` and `/api`; `dotnetEnvironment: true` and the `verify` dev check |
 | `Dockerfile` | three stages: build the frontend workspace (`fe-identity`, then `apps/web`), publish `service/Identity.Api` with its packages and the pages in `wwwroot`, run on `aspnet` with `curl` |
-| `docker-compose.yml` | local verification: a PostgreSQL service, `identity-keys` makes throwaway OIDC and ring certificates with the image's `keys generate` once, `identity-migrate` runs its `migrate` command, then the image serves on `http://127.0.0.1:8389`; every image runs under an init process |
+| `docker-compose.yml` | local verification: a PostgreSQL 18 service (its volume at `/var/lib/postgresql`, as 18 refuses the old `data` mount), `identity-keys` makes throwaway OIDC and ring certificates with the image's `keys generate` once, `identity-migrate` runs its `migrate` command, then the image serves on `http://127.0.0.1:8389`; every image runs under an init process |
 
 ## Contract with Wheelhouse
 
@@ -19,7 +19,7 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 - Settings a target provides in `/app/appsettings.Target.json`: `DatabaseSettings:ConnectionString`, which Wheelhouse
   fills from the target's own PostgreSQL database (`needs: [postgres]`); `Deployment:TrustedProxies` or
   `Deployment:TrustedNetworks` names the ingress; the OIDC server's and the ring's settings below.
-- Database: PostgreSQL only (SQLite is banned for products), one database per instance and environment; the service
+- Database: PostgreSQL 18 only (SQLite is banned for products), one database per instance and environment; the service
   keeps nothing on a volume. The schema is the Module's `identity` migration set, run by the be sdk verb tree:
   `dotnet Identity.Api.dll migrate <verb>` answers `check · plan · apply · seed · sets · rollback · forget · repair ·
   baseline · claim · locks · unlock`, and a bare `migrate` runs `apply` then `seed`. It exits `0` done or current, `1`
