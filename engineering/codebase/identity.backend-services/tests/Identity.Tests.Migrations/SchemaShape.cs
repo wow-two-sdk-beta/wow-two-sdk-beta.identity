@@ -16,8 +16,8 @@ public sealed record ColumnShape(string Name, string Type, bool Nullable, bool G
 /// <summary>A primary key: its constraint name and columns in key order.</summary>
 public sealed record KeyShape(string Name, string Columns);
 
-/// <summary>An index: its name, columns in index order and uniqueness.</summary>
-public sealed record IndexShape(string Name, string Columns, bool Unique);
+/// <summary>An index: its name, columns in index order, uniqueness and partial-index predicate (null when it covers every row).</summary>
+public sealed record IndexShape(string Name, string Columns, bool Unique, string? Filter);
 
 /// <summary>Reads the identity tables' shape from the EF model and from an applied database, so a test compares them.</summary>
 public static class SchemaShape
@@ -45,7 +45,7 @@ public static class SchemaShape
     public static readonly IReadOnlyList<string> AllTables = [.. AccountTables.Concat(OidcTables).Concat(SpineTables).Order(StringComparer.Ordinal)];
 
     /// <summary>The set's migrations in apply order.</summary>
-    public static readonly IReadOnlyList<string> Migrations = ["001-accounts", "002-oidc", "003-spine"];
+    public static readonly IReadOnlyList<string> Migrations = ["001-accounts", "002-oidc", "003-spine", "004-user-soft-delete"];
 
     /// <summary>The identity set's own history table, which the model does not map.</summary>
     private const string MigrationHistoryTable = $"{IdentityDatabaseOptions.MigrationSetName}_migration_history";
@@ -74,7 +74,7 @@ public static class SchemaShape
                     .ToList(),
                 new KeyShape(table.PrimaryKey!.Name, string.Join(',', table.PrimaryKey.Columns.Select(column => column.Name))),
                 table.Indexes
-                    .Select(index => new IndexShape(index.Name, string.Join(',', index.Columns.Select(column => column.Name)), index.IsUnique))
+                    .Select(index => new IndexShape(index.Name, string.Join(',', index.Columns.Select(column => column.Name)), index.IsUnique, NormalizeFilter(index.Filter)))
                     .OrderBy(index => index.Name, StringComparer.Ordinal)
                     .ToList()))
             .OrderBy(table => table.Name, StringComparer.Ordinal)
@@ -106,14 +106,15 @@ public static class SchemaShape
             where n.nspname = @schema and con.contype = 'p'
             """,
             new { schema });
-        var indexes = await connection.QueryAsync<(string Table, string Name, string Columns, bool Unique)>(
+        var indexes = await connection.QueryAsync<(string Table, string Name, string Columns, bool Unique, string? Filter)>(
             """
             select t.relname, x.relname,
                    array_to_string(array(
                        select a.attname from unnest(i.indkey::int2[]) with ordinality k(attnum, ord)
                        join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum
                        order by k.ord), ','),
-                   i.indisunique
+                   i.indisunique,
+                   pg_get_expr(i.indpred, i.indrelid)
             from pg_index i
             join pg_class t on t.oid = i.indrelid
             join pg_class x on x.oid = i.indexrelid
@@ -125,7 +126,19 @@ public static class SchemaShape
         return Assemble(
             columns.Select(c => (c.Table, new ColumnShape(c.Column, c.Type, c.Nullable, c.Generated))),
             keys.ToDictionary(k => k.Table, k => new KeyShape(k.Name, k.Columns)),
-            indexes.Select(i => (i.Table, new IndexShape(i.Name, i.Columns, i.Unique))));
+            indexes.Select(i => (i.Table, new IndexShape(i.Name, i.Columns, i.Unique, NormalizeFilter(i.Filter)))));
+    }
+
+    /// <summary>Reads a predicate as PostgreSQL prints it: one pair of outer parentheses dropped, keywords upper case.</summary>
+    private static string? NormalizeFilter(string? filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+            return null;
+
+        var trimmed = filter.Trim();
+        if (trimmed.StartsWith('(') && trimmed.EndsWith(')'))
+            trimmed = trimmed[1..^1].Trim();
+        return trimmed.Replace(" is null", " IS NULL", StringComparison.OrdinalIgnoreCase);
     }
 
     private static List<TableShape> Assemble(

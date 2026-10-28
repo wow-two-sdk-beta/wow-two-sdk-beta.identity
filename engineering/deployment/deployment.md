@@ -20,14 +20,18 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
   fills from the target's own PostgreSQL database (`needs: [postgres]`); `Deployment:TrustedProxies` or
   `Deployment:TrustedNetworks` names the ingress; the OIDC server's and the ring's settings below.
 - Database: PostgreSQL only (SQLite is banned for products), one database per instance and environment; the service
-  keeps nothing on a volume. The schema is the Module's `identity` migration set: `dotnet Identity.Api.dll migrate`
-  creates the database, applies the set and claims the schema as `service`, exiting `0` applied or current, `1`
-  refused, `2` a script failed. A deployed boot (`DEPLOY_ENVIRONMENT` set) only verifies the level and refuses to start
+  keeps nothing on a volume. The schema is the Module's `identity` migration set, run by the be sdk verb tree:
+  `dotnet Identity.Api.dll migrate <verb>` answers `check · plan · apply · seed · sets · rollback · forget · repair ·
+  baseline · claim · locks · unlock`, and a bare `migrate` runs `apply` then `seed`. It exits `0` done or current, `1`
+  refused, `2` failed, `3` busy; `rollback`, `forget`, `repair`, `baseline`, `claim` and `unlock` need
+  `--confirm <database>`; stdout ends with one `migrate-result` line. A deployed boot (`DEPLOY_ENVIRONMENT` set) only verifies the level and refuses to start
   while the set is behind; a local run applies it at boot. `GET /health` answers 200 only while the database answers.
 - First deploy after the move from SQLite: the old `data` volume holds nothing the service reads any more (accounts,
   OIDC clients and the ring start empty in PostgreSQL); remove it once the new database serves.
-- Migrate step: descriptor 2 has no step that runs a command before the new image serves, so `deploy.yml` declares
-  none, and the first deployment waits for one; a release that adds a migration needs `migrate` run first.
+- Migrate step: `deploy.yml` gains its `migrate:` item once the pipelines generator ships that list, and the step runs
+  once Wheelhouse ships its step and bridge; until then a release that adds a migration needs `migrate` run first.
+- Placement: Ocharo's instance is a service of Ocharo's own `deploy.yml`, the image pinned by tag, its set in Ocharo's
+  database; wow2's shared instance is a Wheelhouse product of its own.
 - Dev check: after a dev rollout, `verify` curls `$VERIFY_SERVICE_IDENTITY/health` and `/api/system/status` with
   `Host: localhost`; `HostFilteringTests` replays the descriptor's requests.
 - After each main image publish, `conformance.yml` runs the contract suite against the released image.

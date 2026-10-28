@@ -1,6 +1,6 @@
 # decisions/
 
-*Last updated: 2026-10-27*
+*Last updated: 2026-10-28*
 
 > Identity's confirmed architecture decisions, newest last; a decision that needs its own record becomes
 > `NNNN-{slug}.md` beside this doc. Decisions spanning capabilities: `wow-two-ws/docs/platform-decisions.md`.
@@ -29,7 +29,6 @@
 | 2026-10-26 | schema `identity` plus the `identity_` table prefix | Q52 |
 | 2026-10-26 | never two instances on one identity schema; a database per instance by default, a schema per instance allowed | Q53 |
 | 2026-10-26 | one instance per isolation boundary: owner, product or residency (widens D2) | Q54 |
-| 2026-10-26 | Ocharo gets its own database with a one-time copy of Desk's converted accounts | Q55 |
 | 2026-10-26 | several phones per person in one table, one primary | Q56 |
 | 2026-10-26 | production migrations run as an explicit `migrate` deploy step; apply-on-boot in development only | Q57 |
 | 2026-10-26 | breaking changes are allowed in the SDKs and products while the products have no users | developer |
@@ -43,6 +42,11 @@
 | 2026-10-27 | a cookie without `sid` passes the session check while other sign-in paths start none; the stamp check still covers it | spine build |
 | 2026-10-27 | the sign-in log keeps no `country` or `organization_id` yet; a second factor logs as `2fa:{method}` | spine build |
 | 2026-10-27 | SQLite data is not carried to PostgreSQL; an instance that ran on SQLite starts empty | spine build |
+| 2026-10-28 | the image's `migrate` is the be sdk verb tree; apply-on-boot stays for local runs only | migrations M10, M11, M57 |
+| 2026-10-28 | products may key into the published `identity_users` and `identity_organizations` inside one database; they map them read-only and write through the module or the API (reverses T10's ban) | migrations M5, M7, M79 |
+| 2026-10-28 | deleting a person soft-deletes the row; erasure scrubs personal columns in place, so a product's key never blocks | migrations M5, M75 |
+| 2026-10-28 | published tables, keys and readable columns change by expand and contract only; a contract file is headed `-- @contract since=vX.Y` | migrations M5, M21, M76 |
+| 2026-10-28 | a per-product instance (Ocharo's) is a service of the product, its set in the product's database, schema `identity`; a shared instance (wow2's) is a Wheelhouse product with its own database (Q5, Q63; replaces Q55's own database) | migrations M6, M77 |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

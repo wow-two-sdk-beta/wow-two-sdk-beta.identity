@@ -76,7 +76,8 @@ public sealed class UserAccountService(IUserRepository repository, IdentityCoreO
         return holder is not null && (owner is null || holder.Id != owner.Id);
     }
 
-    /// <summary>Delete a user.</summary>
+    /// <summary>Delete a user: a soft delete that keeps the row, so no lookup, sign-in or token finds the account again.</summary>
+    /// <remarks>Its user name and email become free for a new account. Erasing personal data is <c>UserPersonalDataService.DeleteAsync</c>.</remarks>
     /// <param name="user">The user to delete.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<IdentityResult> DeleteAsync(IdentityUser user, CancellationToken cancellationToken = default)

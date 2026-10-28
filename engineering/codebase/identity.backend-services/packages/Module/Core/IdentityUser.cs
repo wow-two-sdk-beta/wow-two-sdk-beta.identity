@@ -8,7 +8,11 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 /// added columns. Optional slices (password, email, lockout, …) read/write the matching properties; core owns identity +
 /// lookup keys only.
 /// </summary>
-public sealed class IdentityUser : IKeyedEntity<Guid>, IAuditable
+/// <remarks>
+/// A deleted account keeps its row (<see cref="DeletedAt"/> set), so a product's key into <c>identity_users</c> never
+/// dangles; the context hides such rows from every query, and erasure also scrubs the personal columns in place.
+/// </remarks>
+public sealed class IdentityUser : IKeyedEntity<Guid>, IAuditable, ISoftDeletable
 {
     /// <summary>Primary key and the person's <c>sub</c>: a uuid v7 the account service assigns from <see cref="TimeProvider"/> at creation.</summary>
     public Guid Id { get; set; }
@@ -60,4 +64,7 @@ public sealed class IdentityUser : IKeyedEntity<Guid>, IAuditable
 
     /// <summary>When the row was last modified (UTC) — stamped by the audit interceptor.</summary>
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>When the account was deleted (UTC), or null while it is live; a deleted account no longer signs in or resolves.</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
 }

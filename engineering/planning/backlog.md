@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Backlog
 
-*Last updated: 2026-10-27*
+*Last updated: 2026-10-28*
 
 Every unbuilt item, grouped; top of each group = next. Shipped work lives in [`version-track/`](version-track/).
 Shape: wow-two-ws/conventions/planning/version-track/version-track.md
@@ -33,6 +33,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | test mode | feature | fake channels, code sink, personas, refused in production |
 | hosted pages and console | feature | `apps/web` over `fe-identity` (`./kit`, `./admin`); sign-in passes `?clientId=` for the sign-in log |
 | console layout review | product | with the developer once Ocharo's capabilities are verified; the console starts on Wheelhouse's layout |
+| Ocharo's instance as Ocharo's service | product | the image pinned by tag in Ocharo's `deploy.yml`, its first `migrate:` item when `access.*` moves (Q66) |
 | conformance in CI | feature | OpenID Foundation suite against the image in `Testing` mode |
 | broker conformance | feature | the module, the client and the fake pass the same broker cases |
 
@@ -49,6 +50,10 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 
 | Item | Type | Notes |
 |---|---|---|
+| `migrate:` in `deploy.yml` | engineering | `{ service: identity, command: [dotnet, Identity.Api.dll, migrate], timeout: 10m }` once the pipelines generator ships the list |
+| settings-free `migrate sets` | engineering | the image answers `migrate sets --json` with no network and no settings file, for the pipelines check |
+| migrate connection key | engineering | settings gain `Migrations:ConnectionString` (the runtime role in v1) with the `migrate:` item |
+| Wheelhouse migrate step | engineering | rank 2 with Files, one release: the command, the step, then the SDK bump; waits on Wheelhouse's step and bridge |
 | Fido2 upgrade | engineering | Fido2 4.3.1: passkey transports and backup state |
 | instance composition in a package | engineering | one call holding what `service/Identity.Api` wires, so an own host stays thin ([own hosts](../architecture/architecture.md#own-hosts)) |
 | host CLI in a package | engineering | `admin create` and a one-time sign-in beside `keys generate` |

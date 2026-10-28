@@ -7,8 +7,9 @@
   <!--
     E2E tier — boots the real Identity.Api host in-process (WebApplicationFactory via the SDK WebApiTestHost) over a
     throwaway PostgreSQL database on the tier's one Testcontainers instance (PostgresTestServer): the HTTP wire, the OIDC
-    code flow, sessions, the hosted pages, /health and the descriptor's dev check. Needs Docker. The SDK testing package
-    brings xunit, AwesomeAssertions, Npgsql and Testcontainers transitively.
+    code flow, sessions, the hosted pages, /health and the descriptor's dev check; and the image's migrate verbs on the
+    Testing.Data verb harness, over the host's own services. Needs Docker. The SDK testing packages bring xunit,
+    AwesomeAssertions, Npgsql and Testcontainers transitively.
   -->
   <!-- The shared framework, as the service has it: framework packages OpenIddict asks for (Data Protection) are pruned, not restored. -->
   <ItemGroup>
@@ -17,6 +18,7 @@
 
   <ItemGroup>
     <PackageReference Include="WoW2.Sdk.Beta.Be.Testing" />
+    <PackageReference Include="WoW2.Sdk.Beta.Be.Testing.Data" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
   </ItemGroup>

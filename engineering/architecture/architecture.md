@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Architecture
 
-*Last updated: 2026-10-27*
+*Last updated: 2026-10-28*
 
 > One broker contract, seven packages, one service that hosts the Form 1 module. Contract as built:
 > [contract.md](contract.md); packages and consumers: [package-registry.md](package-registry.md); evidence:
@@ -139,10 +139,9 @@ later, in a platform repository.
 - before an own host stays thin:
   1. the instance composition in `service/Identity.Api/Configurations/` (sign-in cookie, Data Protection ring, account
      API, server endpoints, readiness) becomes one package-level call;
-  2. the `migrate` command's exit codes move to the be sdk helper the Wheelhouse migrate-step spec names;
-  3. `apps/web` stays a thin composition of `fe-identity`'s `./kit` and `./admin`, so an own host builds its pages
+  2. `apps/web` stays a thin composition of `fe-identity`'s `./kit` and `./admin`, so an own host builds its pages
      from the same exports;
-  4. the host CLI (`admin create`, a one-time sign-in) joins `keys generate` in a package, not the service.
+  3. the host CLI (`admin create`, a one-time sign-in) joins `keys generate` in a package, not the service.
 
 ---
 
@@ -157,8 +156,20 @@ later, in a platform repository.
   the 11 account tables, `002-oidc` OpenIddict's four `identity_oidc_*` tables (present in every form, used only by the
   Server), `003-spine` the sessions, the sign-in log and the Data Protection ring.
 - the set claims its schema with an owner kind: `module` in a Form 1 product, `service` in an instance, which migrates
-  through `Identity.Api migrate`.
+  through `Identity.Api migrate`, the be sdk verb tree (`check`, `plan`, `apply`, `seed`, `rollback` and the rest).
 - keys are `uuid` made as Guid v7 in code, claim and sign-in log rows a `bigint` identity, ring keys an `integer`
-  one; products key their own data on `sub`, never on a foreign key into Identity.
+  one.
+- the set publishes `identity_users` and `identity_organizations` as referenceable tables: inside one database a
+  product may key into them, after declaring `DependsOn("identity", <level>)` on its own set (decided 2026-10-28,
+  reversing T10's ban).
+- a product maps the published tables read-only and writes through the module or the API; deleting a person
+  soft-deletes the row (`deleted_at`) and erasure scrubs its personal columns in place, so a product's key never
+  blocks.
+- published tables, keys and readable columns change by expand and contract only; a contract sits in its own file
+  headed `-- @contract since=vX.Y`, the library release that no longer reads or writes what it removes.
+- OIDC clients and the first admin come from configuration, never from migrations; reference rows the code needs in
+  every environment are idempotent upserts in the set.
+- a per-product instance (Ocharo's) is a service of the product: the image pinned by tag, its set in the product's
+  database, schema `identity`. A shared instance (wow2's) is a Wheelhouse product of its own, with its own database.
 - never two instances on one identity schema: a database per instance by default, a schema per instance allowed.
 - evidence and the table inventory: [T10](../research/identity-analysis-2026-10/t10-schema-migrations.md).

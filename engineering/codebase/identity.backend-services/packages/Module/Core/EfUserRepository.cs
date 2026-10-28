@@ -3,16 +3,21 @@ using Microsoft.EntityFrameworkCore;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>Accesses user entities through the Module's <see cref="IdentityDbContext"/>.</summary>
+/// <remarks>Every lookup sees live accounts only: the context hides rows whose <see cref="IdentityUser.DeletedAt"/> is set.</remarks>
 public sealed class EfUserRepository : IUserRepository
 {
     private readonly IdentityDbContext _context;
+    private readonly TimeProvider _time;
 
     /// <summary>Create the store over <paramref name="context"/>.</summary>
     /// <param name="context">The identity context.</param>
-    public EfUserRepository(IdentityDbContext context)
+    /// <param name="time">The clock a deletion stamps <see cref="IdentityUser.DeletedAt"/> from.</param>
+    public EfUserRepository(IdentityDbContext context, TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(time);
         _context = context;
+        _time = time;
     }
 
     private DbSet<IdentityUser> Users => _context.Set<IdentityUser>();
@@ -55,6 +60,11 @@ public sealed class EfUserRepository : IUserRepository
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A soft delete: the row stays with <see cref="IdentityUser.DeletedAt"/> set, so keys into it hold, and leaves every
+    /// lookup; its role, claim, login, stored-token and refresh-token rows leave in the same save, freeing its external
+    /// logins. The user is detached afterwards, as a removed entity would be.
+    /// </remarks>
     public async Task DeleteAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
@@ -66,8 +76,14 @@ public sealed class EfUserRepository : IUserRepository
         _context.RemoveRange(await _context.Set<IdentityUserLogin>().Where(l => l.UserId == userId).ToListAsync(cancellationToken));
         _context.RemoveRange(await _context.Set<IdentityUserToken>().Where(t => t.UserId == userId).ToListAsync(cancellationToken));
         _context.RemoveRange(await _context.Set<IdentityRefreshToken>().Where(t => t.UserId == userId).ToListAsync(cancellationToken));
-        Users.Remove(user);
+
+        // Attach first, as an update does: a detached user's loaded stamp becomes the original value the concurrency check compares.
+        if (_context.Entry(user).State == EntityState.Detached)
+            Users.Attach(user);
+        user.DeletedAt ??= _time.GetUtcNow();
+        user.ConcurrencyStamp = Guid.NewGuid().ToString();
         await _context.SaveChangesAsync(cancellationToken);
+        _context.Entry(user).State = EntityState.Detached;
     }
 
     /// <inheritdoc />

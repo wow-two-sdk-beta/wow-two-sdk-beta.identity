@@ -6,9 +6,11 @@
 
   <!--
     Migrations tier: the module's embedded Migrations/Postgres/NNN-name/*.sql as the "identity" set — apply,
-    idempotency, apply → rollback → apply, the applied schema against the IdentityDbContext model column for column, and
-    the module's own registration into a configured schema — on PostgreSQL in Testcontainers, one container for the
-    tier. Rides the SDK Testing.Data harness (MigratorHarness, MigratorPostgresFixture).
+    apply → rollback → apply, the applied schema against the IdentityDbContext model column for column (index filters
+    included), the module's own registration into a configured schema, the be sdk lint above the applied 001–003, the
+    published tables and the soft-delete indexes — on PostgreSQL in Testcontainers, one container for the tier. Rides
+    the SDK Testing.Data harness (MigratorHarness, MigratorPostgresFixture, MigrationLint). The idempotency mode waits:
+    001–003 predate the rule and cannot pass it, and the proof has no cutoff yet.
   -->
   <ItemGroup>
     <PackageReference Include="WoW2.Sdk.Beta.Be.Testing.Data" />

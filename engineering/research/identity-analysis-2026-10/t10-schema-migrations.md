@@ -1,6 +1,6 @@
 # T10 — Identity schema, feature switches and migrations
 
-*Last updated: 2026-10-26*
+*Last updated: 2026-10-28*
 
 > One `identity` PostgreSQL schema holds every table the infrastructure may use (29 in P1, 40 at full extent),
 > created by one linear SQL migration set shipped in `Identity.Module`, whatever the configuration; features read
@@ -167,7 +167,10 @@ Identity:Server:Enabled               Forms 2/3 only
 | `user_claims` rows | identity tables | nobody | 1, 2, 3 | admin-set flags | exists |
 | events (`PersonChanged`, `PersonDeleted`) | the extender's tables | the extender | 1, 2, 3 | keeping side tables and projections current; erasure | pairs with side tables |
 
-- No foreign key from a product table to `identity_users`, even in Form 1; Form 3 has no such table. `sub` is a plain `uuid` column.
+- ~~No foreign key from a product table to `identity_users`, even in Form 1~~ → reversed 2026-10-28 (migrations M5):
+  inside one database a product may key into the published `identity_users` and `identity_organizations`, maps them
+  read-only and writes through the module or the API (M7); Form 3 has no such table, so there `sub` stays a plain
+  `uuid` column.
 - Other domains (File Storage, Events, Harvest, Notifications) never add columns to identity tables; they key on `sub` and `org_id` (T7 chain rule).
 - Attributes are declared per instance (`Identity:Attributes:{name}`: type, max length, who may edit, emit as claim).
 - Writes validate against the declaration; a row holds at most about 4 KB; keys are global or `{app}.{key}`.
@@ -333,7 +336,8 @@ What to do instead:
 
 ### Living beside product tables
 
-- Product tables stay in `public` or the product's schema, never in `identity`; no cross-schema foreign keys.
+- Product tables stay in `public` or the product's schema, never in `identity`; ~~no cross-schema foreign keys~~ →
+  keys into the published tables are allowed (reversed 2026-10-28, migrations M5).
 - The Module owns an `IdentityDbContext` with snake_case pinned in both dialects; the host's naming convention cannot reach it.
 - Pilots already keep a separate identity context, so the switch is a type swap there.
 - `search_path` stays untouched; the context qualifies the schema.

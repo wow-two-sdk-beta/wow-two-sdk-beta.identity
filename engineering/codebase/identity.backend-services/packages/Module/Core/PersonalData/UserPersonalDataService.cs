@@ -4,13 +4,13 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 
 /// <summary>
 /// Provides the personal-data rights of an account: export everything the SDK and the product hold for the user, and
-/// delete the account — the product's handlers first, then every identity row, in one transaction when none is open.
-/// Secrets (password hash, tokens, keys) are never exported.
+/// erase the account — the product's handlers first, then every identity relation row and the account's personal
+/// columns, in one transaction when none is open. Secrets (password hash, tokens, keys) are never exported.
 /// </summary>
 /// <param name="context">The identity context.</param>
 /// <param name="exporters">The product's sections, and roles when that slice is registered.</param>
 /// <param name="handlers">The product's deletion handlers.</param>
-/// <param name="time">Stamps the export.</param>
+/// <param name="time">Stamps the export and the erasure.</param>
 public sealed class UserPersonalDataService(
     IdentityDbContext context,
     IEnumerable<IPersonalDataExporter> exporters,
@@ -57,10 +57,13 @@ public sealed class UserPersonalDataService(
     }
 
     /// <summary>
-    /// Deletes the account: the product's handlers, then roles, claims, logins, stored tokens, refresh tokens, sign-in
-    /// sessions, passkeys, organization memberships and the user row. Issued access tokens live until they expire; sign-in
-    /// log rows stay until their retention ends, naming an id that no longer resolves.
+    /// Erases the account: the product's handlers, then roles, claims, logins, stored tokens, refresh tokens, sign-in
+    /// sessions, passkeys and organization memberships leave, and the user row is scrubbed in place — names, email,
+    /// phone and password hash cleared, flags reset, the stamps replaced and <see cref="IdentityUser.DeletedAt"/> set
+    /// unless it already was. The row stays, so a product's key into <c>identity_users</c> never blocks; it resolves no
+    /// more. Issued access tokens live until they expire; sign-in log rows stay until their retention ends.
     /// </summary>
+    /// <remarks>Runs again safely after a failure, and on an account that was soft-deleted before.</remarks>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task DeleteAsync(IdentityUser user, CancellationToken cancellationToken = default)
@@ -80,9 +83,42 @@ public sealed class UserPersonalDataService(
         await DeleteRowsAsync<IdentitySession>(row => row.UserId == user.Id, cancellationToken);
         await DeleteRowsAsync<IdentityPasskey>(row => row.UserId == user.Id, cancellationToken);
         await DeleteRowsAsync<IdentityMembership>(row => row.UserId == user.Id, cancellationToken);
-        await context.Set<IdentityUser>().Where(row => row.Id == user.Id).ExecuteDeleteAsync(cancellationToken);
+        await ScrubAsync(user.Id, cancellationToken);
         if (transaction is not null)
             await transaction.CommitAsync(cancellationToken);
+
+        // A tracked copy would still carry the erased values; the next read goes to the scrubbed row.
+        if (context.ChangeTracker.Entries<IdentityUser>().FirstOrDefault(entry => entry.Entity.Id == user.Id) is { } tracked)
+            tracked.State = EntityState.Detached;
+    }
+
+    /// <summary>Clears the account's personal columns in place, deleted rows included; the row and its id stay.</summary>
+    private Task<int> ScrubAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        var securityStamp = Guid.NewGuid().ToString("N");
+        var concurrencyStamp = Guid.NewGuid().ToString();
+        return context.Set<IdentityUser>()
+            .IgnoreQueryFilters()
+            .Where(row => row.Id == userId)
+            .ExecuteUpdateAsync(
+                row => row
+                    .SetProperty(u => u.UserName, (string?)null)
+                    .SetProperty(u => u.NormalizedUserName, (string?)null)
+                    .SetProperty(u => u.Email, (string?)null)
+                    .SetProperty(u => u.NormalizedEmail, (string?)null)
+                    .SetProperty(u => u.EmailConfirmed, false)
+                    .SetProperty(u => u.PasswordHash, (string?)null)
+                    .SetProperty(u => u.SecurityStamp, securityStamp)
+                    .SetProperty(u => u.ConcurrencyStamp, concurrencyStamp)
+                    .SetProperty(u => u.PhoneNumber, (string?)null)
+                    .SetProperty(u => u.PhoneNumberConfirmed, false)
+                    .SetProperty(u => u.TwoFactorEnabled, false)
+                    .SetProperty(u => u.LockoutEnd, (DateTimeOffset?)null)
+                    .SetProperty(u => u.AccessFailedCount, 0)
+                    .SetProperty(u => u.UpdatedAt, now)
+                    .SetProperty(u => u.DeletedAt, u => u.DeletedAt ?? now),
+                cancellationToken);
     }
 
     private Task<int> DeleteRowsAsync<TRow>(System.Linq.Expressions.Expression<Func<TRow, bool>> owned, CancellationToken cancellationToken)

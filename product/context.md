@@ -1,6 +1,6 @@
 # Identity — Product Context
 
-*Last updated: 2026-10-27*
+*Last updated: 2026-10-28*
 
 > Current state — changes often. Durable definition: [product.md](product.md).
 
@@ -51,9 +51,9 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
 | Move the spec and the analysis batch into the repo | ✅ | 2026-10-26 |
 | First npm publish of `@wow-two-beta/fe-identity` | ⬜ | by hand once real fe content lands; then its trusted publisher; tag `fe-v0.0.1` is burned |
 | NuGet trusted-publishing consent for the seven ids | ✅ | 2026-10-27; the family published at `10.0.0-beta` |
-| Wheelhouse registration, secrets and DNS for an instance | ⬜ | by hand; waits on Q4 and Q5 |
+| Ocharo's secrets and DNS for its instance | ⬜ | by hand; the instance is a service in Ocharo's `deploy.yml` |
 | Migrator follow-ups before the first deploy | ✅ | owner marker, baseline and multi-set harness in be sdk `10.0.82-beta` |
-| Shortlist Ocharo's needs, close the gaps, deploy with Ocharo | ⬜ | after the Wheelhouse migrate step; from the [backlog](../engineering/planning/backlog.md) P1 group |
+| Shortlist Ocharo's needs, close the gaps, deploy with Ocharo | ⬜ | migrations settled 2026-10-28; from the [backlog](../engineering/planning/backlog.md) P1 group |
 | Rest of P1, Ocharo fixes, console layout review | ⬜ | after Ocharo's capabilities are verified on its deploy |
 
 ---
@@ -62,7 +62,7 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
 
 - Q2 — confirm the registration shape: `Identity:Mode = Module | Oidc`, a shared `IdentityMode` enum, options from
   configuration overridable in code.
-- Q4, Q5 — the Form 3 host, and how Wheelhouse models two owners' instances of one image.
+- Q4 — the Form 3 host.
 - Q7–Q11 — browser mode, organization scope in tokens, revocation, front-channel logout, management authorization.
 - Q13 (D5) — Identity owns the Ocharo bot's webhook.
 - Q19, Q25–Q28, Q30 — hosted-page headers, signing keys, the Data Protection ring, counsel on the telecom clause,
@@ -91,8 +91,10 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
   hosted pages; `auth` stays in `@wow-two-beta/fe`.
 - 2026-10-26 — the whole identity schema is always created and configuration switches only reads and writes; one SQL
   migration set in the Module; schema `identity` plus the `identity_` prefix; never two instances on one schema.
-- 2026-10-26 — D2 widens to one instance per isolation boundary (owner, product or residency); Ocharo gets its own
-  database; production migrations run as an explicit deploy step; SQLite stays a supported Form 1 dialect.
+- 2026-10-26 — D2 widens to one instance per isolation boundary (owner, product or residency); production migrations
+  run as an explicit deploy step.
+- 2026-10-28 — Ocharo's instance is a service of Ocharo's product, its schema in Ocharo's database; wow2's shared
+  instance is a Wheelhouse product of its own. Products may key into Identity's published tables.
 - 2026-10-26 — breaking changes are allowed while the products have no users.
 - 2026-10-26 — the management screens ship in `@wow-two-beta/fe-identity`'s `./admin` export; `apps/web` composes
   them into the console, and a central services console or a product's admin page imports the same export.

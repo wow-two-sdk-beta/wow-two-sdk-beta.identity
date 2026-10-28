@@ -17,7 +17,7 @@ public interface IUserRepository
     /// <remarks>A replacement instance is rejected while the original user is tracked.</remarks>
     Task UpdateAsync(IdentityUser user, CancellationToken cancellationToken = default);
 
-    /// <summary>Delete a user.</summary>
+    /// <summary>Delete a user: stamp its <see cref="IdentityUser.DeletedAt"/> and keep the row, which no lookup finds again.</summary>
     /// <param name="user">The user to delete.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task DeleteAsync(IdentityUser user, CancellationToken cancellationToken = default);

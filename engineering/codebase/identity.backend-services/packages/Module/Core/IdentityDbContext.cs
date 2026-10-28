@@ -31,6 +31,9 @@ public sealed class IdentityDbContext : AppDbContextBase
         Schema = database.Schema;
     }
 
+    /// <summary>The partial-index predicate that scopes a user index to live accounts, as <c>004-user-soft-delete</c> builds it.</summary>
+    internal const string LiveUserFilter = "deleted_at IS NULL";
+
     /// <summary>The PostgreSQL schema this context's model qualifies its tables with.</summary>
     internal string Schema { get; }
 
@@ -114,6 +117,10 @@ public sealed class IdentityDbContext : AppDbContextBase
     }
 
     /// <summary>Maps users, roles and their relation, claim, login and token rows.</summary>
+    /// <remarks>
+    /// <see cref="IdentityUser"/> is <c>ISoftDeletable</c>: the base context's conventions hide rows whose
+    /// <c>deleted_at</c> is set from every query, and the user-name and email indexes cover live rows only (<c>004</c>).
+    /// </remarks>
     private static void MapAccounts(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<IdentityUser>(user =>
@@ -121,8 +128,8 @@ public sealed class IdentityDbContext : AppDbContextBase
             user.ToTable("identity_users");
             user.HasKey(u => u.Id);
             user.Property(u => u.Id).ValueGeneratedNever();
-            user.HasIndex(u => u.NormalizedUserName).IsUnique();
-            user.HasIndex(u => u.NormalizedEmail);
+            user.HasIndex(u => u.NormalizedUserName).IsUnique().HasFilter(LiveUserFilter);
+            user.HasIndex(u => u.NormalizedEmail).HasFilter(LiveUserFilter);
             user.HasIndex(u => u.PhoneNumber);
             user.Property(u => u.UserName).HasMaxLength(256);
             user.Property(u => u.NormalizedUserName).HasMaxLength(256);

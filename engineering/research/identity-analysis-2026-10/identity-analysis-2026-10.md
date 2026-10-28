@@ -1,6 +1,6 @@
 # Identity — full analysis before the build
 
-*Last updated: 2026-10-26*
+*Last updated: 2026-10-28*
 
 > The analysis batch behind `wow-two-sdk-beta.identity` (#2 in the platform app order, `wow-two-ws/docs/platform-apps.md`):
 > every integration, the feature vector against the market, the code we already have, how products plug in, the
@@ -71,7 +71,9 @@ holding the evidence. A ticked line carries the developer's answer; the answer m
 - [x] Q3 (developer 2026-10-26: confirmed — a self-serving product drops the Module package and adds the Client,
   whose brokers delegate to the running server) Form 1 → 3 move: config plus deleting the module package (T4)
 - [ ] Q4 Form 3 host: the control host is off-limits for products → a WoW2 products host, none exists yet (T6)
-- [ ] Q5 two owners' instances of one image in Wheelhouse (descriptor keys one slug per repo) → model before Ocharo (T6)
+- [x] Q5 two owners' instances of one image in Wheelhouse (descriptor keys one slug per repo) → B, a Wheelhouse
+  product of its own, for shared instances only (wow2's); a per-product instance (Ocharo's) is a service of the
+  product with its set in the product's database (2026-10-28, migrations M6, M77) (T6)
 - [x] Q6 [folded into Q54] D2 widens to one instance per owner and per residency, with an onshore option → yes (T6)
 
 ### B · Tokens and protocol

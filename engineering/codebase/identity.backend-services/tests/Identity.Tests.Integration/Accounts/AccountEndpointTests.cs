@@ -309,7 +309,12 @@ public sealed partial class AccountEndpointTests
             var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
             (await db.Set<IdentityRefreshToken>().CountAsync()).Should().Be(0);
             (await db.Set<IdentityUserRole>().CountAsync()).Should().Be(0);
-            (await db.Set<IdentityUser>().CountAsync()).Should().Be(0);
+            (await db.Set<IdentityUser>().CountAsync()).Should().Be(0, "an erased account resolves no more");
+            var erased = await db.Set<IdentityUser>().IgnoreQueryFilters().SingleAsync();
+            erased.Should().BeEquivalentTo(
+                new { UserName = (string?)null, Email = (string?)null, PasswordHash = (string?)null },
+                options => options.ExcludingMissingMembers());
+            erased.DeletedAt.Should().NotBeNull("the row stays, scrubbed, so a product's key into it never blocks");
         }
     }
 

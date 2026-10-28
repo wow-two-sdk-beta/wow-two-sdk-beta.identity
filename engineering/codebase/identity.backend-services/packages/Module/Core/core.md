@@ -50,6 +50,8 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
   `identity_sign_in_log` (every attempt, deleted after the retention; `SignInLog/`) and
   `identity_data_protection_keys` (the instance's Data Protection ring, read and written only by the Server package's
   `AddDataProtectionRing`).
+- `004-user-soft-delete` adds `identity_users.deleted_at` and scopes the user-name (unique) and email indexes to live
+  rows, `WHERE deleted_at IS NULL`.
 - The SQL owns the schema: `../Migrations/Postgres/NNN-name/{Apply,Rollback}.sql`, embedded and run as the be sdk
   migration set `identity` (history `identity_migration_history`, its own advisory lock). EF only maps.
 - Names are pinned in the model, whatever the host's naming convention: snake_case columns, `pk_{table}`,
@@ -97,12 +99,15 @@ a repository the host registered first wins.
 
 ## Notes
 
-- Uniqueness is enforced **both** in the facade (`DuplicateUserName`/`DuplicateEmail`) and by the DB unique index.
+- Uniqueness is enforced **both** in the facade (`DuplicateUserName`/`DuplicateEmail`) and by the DB unique index, among
+  live accounts.
 - A capability that isn't registered is **absent** — resolving its service fails at resolution, rather than
   silently no-op'ing. Optional collaborators (lockout inside sign-in, tokens inside passwords) switch steps on or off.
 - Credential changes (password, email, role or claim removal, 2FA changes, unlinking) rotate the security stamp, which
   ends every session of the person.
-- Deleting a user removes its role, claim, login and token rows in the same save; the schema has no foreign keys.
+- Deleting a user is a soft delete: the row stays with `deleted_at` set, and no lookup, sign-in or token finds it again
+  (`IdentityUser` is `ISoftDeletable`, so the context filters it); its role, claim, login and token rows go in the same
+  save, and its user name and email become free. Erasure (`AddPersonalData`) also scrubs the row's personal columns.
 - `IdentityDbContext` registers through the SDK context path, so the host's EF interceptors (audit stamps for
   `CreatedAt` / `UpdatedAt`) attach to it as to the host's own context.
 - `IdentityResult.ToValidationError()` turns failures into field errors (code + values) that error translation matches.

@@ -52,7 +52,9 @@ internal static partial class IdentityDatabaseServiceCollectionExtensions
             options => options.UsePooling = false,
             static (provider, builder) => builder.UseNpgsql(provider.GetRequiredKeyedService<NpgsqlDataSource>(IdentityDatabaseOptions.MigrationSetName)));
 
-        // The schema is the Module's: its embedded SQL, under its own history, lock and owner marker.
+        // The schema is the Module's: its embedded SQL, under its own history, lock and owner marker. It publishes the
+        // accounts and organizations a product's set may key into (DependsOn("identity", level)) and read; every other
+        // table, and every credential column, stays the Module's own.
         services.AddDatabaseBespokeMigrationSet(
             IdentityDatabaseOptions.MigrationSetName,
             static _ => new EmbeddedResourceMigrationBroker(typeof(IdentityDbContext).Assembly, MigrationResourcePrefix));
@@ -62,6 +64,8 @@ internal static partial class IdentityDatabaseServiceCollectionExtensions
                 migration.Provider = DatabaseProvider.Postgres;
                 migration.SchemaName = database.Schema;
                 migration.SchemaOwner = database.SchemaOwner;
+                foreach (var table in IdentityDatabaseOptions.ReferenceableTables)
+                    migration.AddReferenceableTable(table.Table, table.Keys, table.ReadableColumns);
             });
 
         services.TryAddScoped<IUserRepository, EfUserRepository>();

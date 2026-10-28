@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore;
@@ -19,7 +20,7 @@ namespace Identity.Tests.Migrations;
 public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyncLifetime
 {
     /// <summary>The default identity schema.</summary>
-    private const string Schema = "identity";
+    internal const string Schema = "identity";
 
     /// <inheritdoc />
     public async Task InitializeAsync() => await fixture.ResetAsync();
@@ -30,23 +31,27 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
     [Fact]
     public async Task Apply_ShouldCreateEveryTable_AndRecordTheSet()
     {
-        await using var migrator = CreateMigrator();
+        await using var migrator = CreateMigrator(fixture);
 
         var applied = (await migrator.ApplyAllAsync()).ValueOrThrow();
 
         applied.Should().ContainSingle().Which.Applied.Should().Equal(SchemaShape.Migrations);
         foreach (var table in SchemaShape.AllTables)
             (await migrator.HasTableAsync(Schema, table)).Should().BeTrue($"the set creates {table}");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3);
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
     [Fact]
     public async Task ApplyRollbackApply_ShouldRebuildTheSchema()
     {
-        await using var migrator = CreateMigrator();
+        await using var migrator = CreateMigrator(fixture);
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
+
+        (await runner.RollbackAsync(targetOrdinal: 3)).ValueOrThrow().Should().Equal("004-user-soft-delete");
+        (await HasColumnAsync(migrator, "identity_users", "deleted_at")).Should().BeFalse("rolling 004 back drops deleted_at");
+        (await migrator.HasTableAsync(Schema, "identity_sessions")).Should().BeTrue("003-spine stays applied");
 
         (await runner.RollbackAsync(targetOrdinal: 2)).ValueOrThrow().Should().Equal("003-spine");
         foreach (var table in SchemaShape.SpineTables)
@@ -71,7 +76,7 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
     [Fact]
     public async Task AppliedSchema_ShouldMatchTheModel()
     {
-        await using var migrator = CreateMigrator();
+        await using var migrator = CreateMigrator(fixture);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
         await using var context = SchemaShape.CreateContext(fixture.ConnectionString, Schema);
         await using var connection = await migrator.OpenConnectionAsync();
@@ -166,8 +171,17 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         (await stored.DataProtectionKeys.SingleAsync()).Should().BeEquivalentTo(new { Id = 1, FriendlyName = "key-1", Xml = "<key />" });
     }
 
+    /// <summary>Returns whether <paramref name="table"/> in the identity schema has <paramref name="column"/>.</summary>
+    internal static async Task<bool> HasColumnAsync(MigratorHarness migrator, string table, string column)
+    {
+        await using var connection = await migrator.OpenConnectionAsync();
+        return await connection.ExecuteScalarAsync<bool>(
+            "select exists (select 1 from information_schema.columns where table_schema = @schema and table_name = @table and column_name = @column)",
+            new { schema = Schema, table, column });
+    }
+
     /// <summary>A harness running the Module's embedded SQL as the <c>identity</c> set, rollback allowed.</summary>
-    private MigratorHarness CreateMigrator() => MigratorHarness.CreatePostgres(fixture.ConnectionString, sets => sets.Add(
+    internal static MigratorHarness CreateMigrator(MigratorPostgresFixture fixture) => MigratorHarness.CreatePostgres(fixture.ConnectionString, sets => sets.Add(
         IdentityDatabaseOptions.MigrationSetName,
         _ => new EmbeddedResourceMigrationBroker(typeof(IdentityDbContext).Assembly, IdentityDatabaseServiceCollectionExtensions.MigrationResourcePrefix),
         options =>
