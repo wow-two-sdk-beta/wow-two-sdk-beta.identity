@@ -9,7 +9,7 @@ public static class CookiesServiceCollectionExtensions
 {
     /// <summary>Register cookie authentication with secure defaults (HTTP-only, SameSite=Lax, HTTPS-only).</summary>
     /// <param name="services">The service collection to configure.</param>
-    /// <param name="configure">Optional override of cookie name, expiration, paths, and challenge mode.</param>
+    /// <param name="configure">Optional override of cookie name and environment, expiration, paths, and challenge mode.</param>
     public static IServiceCollection AddCookieAuthentication(this IServiceCollection services, Action<CookieAuthOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -20,7 +20,7 @@ public static class CookiesServiceCollectionExtensions
         services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(b =>
             {
-                b.Cookie.Name = opts.CookieName;
+                b.Cookie.Name = EnvironmentCookieName.For(opts.CookieName, opts.Environment, opts.PrimaryEnvironment);
                 b.Cookie.HttpOnly = true;
                 b.Cookie.SameSite = SameSiteMode.Lax;
                 b.Cookie.SecurePolicy = CookieSecurePolicy.Always;
