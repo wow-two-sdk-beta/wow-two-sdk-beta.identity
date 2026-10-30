@@ -4,6 +4,7 @@
 #   other branches → candidate sha-<commit>; trunk only, no dev or test branch
 #   workflow_dispatch → a candidate for one commit that has no build yet
 #   pull request  → ci only
+#   renovate/**   → ci only, never published; Renovate merges a branch it automerges once its checks pass
 # There is no deploy job: Wheelhouse deploys the published bundle to dev, then promotes it to prod. Wheelhouse detects
 # a publishable repository by this file's path, so it keeps the name. The NuGet family and the npm package ship from
 # publish-packages.yml on their own be-v / fe-v tags, which this workflow's v* tags never match.
@@ -11,7 +12,7 @@ name: publish-docker-image
 
 on:
   push:
-    branches: ['**', '!renovate/**']
+    branches: ['**']
   pull_request:
   workflow_dispatch:
     inputs:
@@ -26,13 +27,13 @@ permissions:
 
 concurrency:
   group: delivery-${{ github.repository }}-${{ inputs.commit || github.ref }}
-  # main queues, so a newer push never cancels an active target operation; other refs cancel a superseded run.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main') }}
+  # One run per ref at a time, queued, so a newer push never cancels an active target operation. No cancel-in-progress:
+  # GitHub refuses queue: max beside one that evaluates true, and starts no job.
   queue: max
 
 jobs:
   delivery:
-    uses: wow-two-platform/wow-two-platform.pipelines/.github/workflows/delivery.yml@v0.10.0
+    uses: wow-two-platform/wow-two-platform.pipelines/.github/workflows/delivery.yml@v0.13.0
     with:
       commit: ${{ inputs.commit }}
       # Backend: every tier (unit, integration, E2E, migrations, conformance in process); the database tiers run on

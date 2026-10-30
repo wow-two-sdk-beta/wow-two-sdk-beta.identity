@@ -12,8 +12,10 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 ## Contract with Wheelhouse
 
 - Image: `ghcr.io/<owner>/<repo>/identity`, published by `.github/workflows/publish-docker-image.yml` through the shared
-  `delivery.yml` of `wow-two-platform.pipelines` (pinned `v0.10.0`); CI never deploys. `v0.10.0` carries the typed
-  setting keys (`settings.keys`) into the bundle; the runner needs Wheelhouse v0.5 or later.
+  `delivery.yml` of `wow-two-platform.pipelines` (pinned `v0.13.0`, as is `codeql.yml`); CI never deploys. Every push
+  and pull request runs the checks, `renovate/**` branches included, which publish nothing; the concurrency group queues
+  (`queue: max`) and sets no `cancel-in-progress`, which GitHub refuses beside it. The bundle carries the typed setting
+  keys (`settings.keys`); the runner needs Wheelhouse v0.5 or later.
 - Version: `X.Y` from the newest `planning/version-track/v{X.Y}/`; the image tag and `GET /api/system/status` report the
   same `X.Y.Z`, plus the build's commit after a `+`. Package releases (`be-v*`, `fe-v*`) never move it.
 - Settings a target provides in `/app/appsettings.Target.json`: `DatabaseSettings:ConnectionString`, which Wheelhouse
