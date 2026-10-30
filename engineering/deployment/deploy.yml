@@ -4,6 +4,9 @@
 # and environments live in Wheelhouse targets, never here. Paths are relative to engineering/.
 descriptor: 2
 product: identity
+# What the console and every other reader call it (pipelines v0.11.0); it replaced product/product.json.
+name: Identity
+description: Sign-in, accounts and member access for every product.
 platform: linux/amd64
 # Dev runs as .NET Development, prod as Production; appsettings.Development.json holds defaults only, and an IDE
 # run's own values live in appsettings.Local.json.
@@ -24,6 +27,15 @@ verify:
       "$VERIFY_SERVICE_IDENTITY/api/system/status"
       && echo "health and status answered"
   timeout: 1m
+# The migrate step (pipelines v0.12.0): on every forward deploy, after the pull and before the service restarts, the
+# runner runs the image's bare `migrate` (apply, then seed) in a one-off container with the service's settings plus
+# Migrations:ConnectionString, which it fills from the target's database and the be sdk verbs connect the identity set
+# through. A deployed boot only verifies the set's level; a return to an older release runs that release's
+# `migrate check` first. The publish runs `migrate sets --json` offline and records the set in the bundle.
+migrate:
+  - service: identity
+    command: [dotnet, Identity.Api.dll, migrate]
+    timeout: 10m
 # Two host roles: the public front door for the API and the hosted pages, and the private admin console. One app
 # serves both; Wheelhouse binds each site to its own host per environment.
 sites:
@@ -41,7 +53,7 @@ services:
       - codebase/identity.frontend-services/**
     health: /health
     memory: 256m
-    # Typed keys (pipelines v0.10.0): Wheelhouse checks each saved value against its type; a required key joins
+    # Typed keys (since pipelines v0.10.0): Wheelhouse checks each saved value against its type; a required key joins
     # settings.required. The service needs the target's PostgreSQL database: Wheelhouse fills the connection string
     # from it, and the name ends in ConnectionString, so the value stays in its vault. The OIDC server pins its issuer
     # and reads one signing and one encryption certificate at least (a rotation adds :1, :2 …); a deployed boot refuses

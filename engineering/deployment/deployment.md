@@ -5,7 +5,7 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 
 | File | Role |
 |---|---|
-| `deploy.yml` | descriptor 2: one service, `identity` (`/health`, 256 MB, `needs: [postgres]`, typed keys: `DatabaseSettings:ConnectionString` filled from the target's database, the OIDC issuer, the first signing and encryption certificates and the first ring certificate required as vault secrets, `Ephemeral` defaulting to `false`; no volume); sites `app` (public, primary) and `console` (private), both at `/` and `/api`; `dotnetEnvironment: true` and the `verify` dev check |
+| `deploy.yml` | descriptor 2: the product's `name` and `description`; one service, `identity` (`/health`, 256 MB, `needs: [postgres]`, typed keys: `DatabaseSettings:ConnectionString` filled from the target's database, the OIDC issuer, the first signing and encryption certificates and the first ring certificate required as vault secrets, `Ephemeral` defaulting to `false`; no volume); sites `app` (public, primary) and `console` (private), both at `/` and `/api`; `dotnetEnvironment: true`, the `verify` dev check and one `migrate:` item |
 | `Dockerfile` | three stages: build the frontend workspace (`fe-identity`, then `apps/web`), publish `service/Identity.Api` with its packages and the pages in `wwwroot`, run on `aspnet` with `curl` |
 | `docker-compose.yml` | local verification: a PostgreSQL 18 service (its volume at `/var/lib/postgresql`, as 18 refuses the old `data` mount), `identity-keys` makes throwaway OIDC and ring certificates with the image's `keys generate` once, `identity-migrate` runs its `migrate` command, then the image serves on `http://127.0.0.1:8389`; every image runs under an init process |
 
@@ -30,8 +30,12 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
   while the set is behind; a local run applies it at boot. `GET /health` answers 200 only while the database answers.
 - First deploy after the move from SQLite: the old `data` volume holds nothing the service reads any more (accounts,
   OIDC clients and the ring start empty in PostgreSQL); remove it once the new database serves.
-- Migrate step: `deploy.yml` gains its `migrate:` item once the pipelines generator ships that list, and the step runs
-  once Wheelhouse ships its step and bridge; until then a release that adds a migration needs `migrate` run first.
+- Migrate step: `deploy.yml` declares one `migrate:` item, `identity` running `[dotnet, Identity.Api.dll, migrate]`
+  within `10m`. On every forward deploy Wheelhouse's runner runs it after the pull and before the service restarts, in a
+  one-off container with the service's settings plus `Migrations:ConnectionString`, which it fills from the target's
+  database and the be sdk verbs connect the set through; any failure stops the deploy before a restart. A return to an
+  older release runs that release's `migrate check` first. The publish runs `migrate sets --json` offline (no network,
+  no settings) and records the `identity` set and its level in the bundle.
 - Placement: Ocharo's instance is a service of Ocharo's own `deploy.yml`, the image pinned by tag, its set in Ocharo's
   database; wow2's shared instance is a Wheelhouse product of its own.
 - Dev check: after a dev rollout, `verify` curls `$VERIFY_SERVICE_IDENTITY/health` and `/api/system/status` with

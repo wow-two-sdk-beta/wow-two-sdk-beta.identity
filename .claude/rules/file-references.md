@@ -6,7 +6,7 @@
 | Question about | Read |
 |---|---|
 | The capability — problem, forms, model, phases | `product/product.md` |
-| Name and one-line description (read by consoles) | `product/product.json` |
+| Name and one-line description (read by consoles) | `engineering/deployment/deploy.yml` (`name`, `description`) |
 | State, tasks, decisions | `product/context.md` |
 | Feature list + state | `engineering/planning/backlog.md` § Features |
 | One feature's spec | `product/features/{feature}.md` |

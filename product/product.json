@@ -1,6 +1,0 @@
-{
-  "$schema": "../../../../conventions/design/identity/product.schema.json",
-  "manifest": 1,
-  "name": "Identity",
-  "description": "Our own identity: user store, OIDC provider, hosted sign-in and admin console, shipped as an SDK library, a self-hosted image or a provided service."
-}
