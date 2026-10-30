@@ -50,7 +50,6 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 
 | Item | Type | Notes |
 |---|---|---|
-| Wheelhouse migrate step | engineering | rank 2 with Files, one release: the command, the step, then the SDK bump; waits on Wheelhouse's step and bridge |
 | Fido2 upgrade | engineering | Fido2 4.3.1: passkey transports and backup state |
 | instance composition in a package | engineering | one call holding what `service/Identity.Api` wires, so an own host stays thin ([own hosts](../architecture/architecture.md#own-hosts)) |
 | host CLI in a package | engineering | `admin create` and a one-time sign-in beside `keys generate` |
