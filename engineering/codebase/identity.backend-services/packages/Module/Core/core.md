@@ -88,7 +88,7 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 | `AddOrganizations(o => …)` | `OrganizationService` (organizations, memberships, role and permission claims) | `Organizations/` |
 | `AddEmailSignIn(o => …)` | `UserEmailSignInService` (single-use link or code over OTP) | `EmailSignIn/` |
 | `AddPersonalData()` | `UserPersonalDataService` (export sections, account erasure hooks) | `PersonalData/` |
-| `AddAccountEndpoints()` + `MapUserAccountEndpoints()` | account HTTP API | `Endpoints/` |
+| `AddAccountEndpoints()` + `MapUserAccountEndpoints()` | account HTTP API; sign-up off unless `Identity:SignUp:Enabled` | `Endpoints/` |
 | `AddSignIn()` | `SignInService` | `SignIn/` |
 
 Table-backed slices (`AddRoles`, `AddUserClaims`, `AddExternalLogins`, `AddTwoFactor`, `AddRefreshTokens`, `AddPasskeys`,

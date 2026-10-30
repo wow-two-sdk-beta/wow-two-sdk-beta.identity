@@ -90,6 +90,9 @@ public static class IdentityErrorCodeConstants
     /// <summary>The credentials were right but the email or phone is not confirmed yet.</summary>
     public const string SignInNotAllowed = "SignInNotAllowed";
 
+    /// <summary>The instance takes no self sign-up: an admin adds every account.</summary>
+    public const string SignUpClosed = "SignUpClosed";
+
     /// <summary>The password was right; the request must repeat with a second-factor code.</summary>
     public const string TwoFactorRequired = "TwoFactorRequired";
 

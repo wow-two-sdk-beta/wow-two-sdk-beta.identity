@@ -138,7 +138,7 @@ public sealed class SessionEndpointTests
             .AddSessions()
             .AddSignInLog()
             .AddSignIn()
-            .AddAccountEndpoints();
+            .AddAccountEndpoints(o => o.Enabled = true);
         builder.Services.AddCookieAuthentication(o => o.Mode = AuthChallengeMode.Api);
         builder.Services.AddAuthorization();
 

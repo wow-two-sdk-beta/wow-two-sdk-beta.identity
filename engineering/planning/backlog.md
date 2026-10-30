@@ -31,7 +31,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | I19 OIDC client | feature | the `Client` package: cookie session, organization claims, logout receiver |
 | I20 Telegram | feature | link on first sign-in; Log in with Telegram with the `phone` scope |
 | test mode | feature | fake channels, code sink, personas, refused in production |
-| hosted pages and console | feature | `apps/web` over `fe-identity` (`./kit`, `./admin`); sign-in passes `?clientId=` for the sign-in log |
+| hosted pages and console | feature | `apps/web` over `fe-identity` (`./kit`, `./admin`); sign-in passes `?clientId=` for the sign-in log; sign-up shows only while `Identity:SignUp:Enabled` is on, read at runtime |
 | console layout review | product | with the developer once Ocharo's capabilities are verified; the console starts on Wheelhouse's layout |
 | Ocharo's instance as Ocharo's service | product | the image pinned by tag in Ocharo's `deploy.yml`, its first `migrate:` item when `access.*` moves (Q66) |
 | conformance in CI | feature | OpenID Foundation suite against the image in `Testing` mode |

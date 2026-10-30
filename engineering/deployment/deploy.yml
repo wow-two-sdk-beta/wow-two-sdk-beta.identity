@@ -61,12 +61,14 @@ services:
     # certificate value is the PEM bundle `keys generate` prints, pasted as is: a vault secret the settings render
     # carries, never a file on a volume. The Data Protection ring lives in the database, wrapped by its own
     # certificate (`keys generate --role data-protection`); a deployed boot refuses to start without one. Clients
-    # (Identity:Server:Clients:N:…) are owner keys, added per environment.
+    # (Identity:Server:Clients:N:…) are owner keys, added per environment. Self sign-up stays off unless an environment
+    # turns it on: off, POST /api/account/register answers 403 and an admin adds every account.
     settings:
       keys:
         DatabaseSettings:ConnectionString: { required: true }
         Identity:Server:Issuer: { type: url, required: true }
         Identity:Server:Keys:Ephemeral: { type: boolean, default: false }
+        Identity:SignUp:Enabled: { type: boolean, default: false }
         Identity:Server:Keys:Signing:0: { secret: true, required: true }
         Identity:Server:Keys:Encryption:0: { secret: true, required: true }
         Identity:DataProtection:Certificates:0: { secret: true, required: true }

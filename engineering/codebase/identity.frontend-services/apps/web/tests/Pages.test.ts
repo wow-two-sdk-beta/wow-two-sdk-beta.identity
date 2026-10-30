@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { RouterHistoryMode } from '@wow-two-beta/fe/router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import AppRoot from '../src/bootstrap/AppRoot.vue';
-import { createWebRouter } from '../src/bootstrap/router/Routes';
+import { createWebRouter, routes } from '../src/bootstrap/router/Routes';
 
 const wrappers: ReturnType<typeof mount>[] = [];
 
@@ -51,5 +51,24 @@ describe('hosted greeting route', () => {
 
     expect(wrapper.find('input[name="name"]').exists()).toBe(true);
     expect(wrapper.find('a').exists()).toBe(false);
+  });
+});
+
+describe('sign-up', () => {
+  // An instance keeps self sign-up off (Identity:SignUp:Enabled) and refuses register, so no page may offer it.
+  it('is offered by no route and no link while the instance keeps it closed', async () => {
+    const paths = routes.flatMap((route) => [
+      route.path ?? '',
+      ...(route.children ?? []).map((child) => child.path ?? ''),
+    ]);
+    expect(paths.filter((path) => /sign-?up|regist/i.test(path))).toEqual([]);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json(status)),
+    );
+    const wrapper = await renderAt('/');
+
+    expect(wrapper.text()).not.toMatch(/sign.?up|register|create an account/i);
   });
 });

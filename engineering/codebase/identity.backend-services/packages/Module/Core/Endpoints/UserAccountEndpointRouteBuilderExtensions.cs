@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Foundation.Errors;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Emails;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.EmailSignIn;
@@ -40,7 +41,8 @@ public static class UserAccountEndpointRouteBuilderExtensions
     /// group such as <c>app.MapGroup("/account")</c>. Sign-in returns a bearer session (JWT via <see cref="ITokenIssuer"/>,
     /// plus a refresh token when registered) or, with <c>?useCookies=true</c>, a cookie that carries a new session's
     /// <c>sid</c> when sessions are registered. Each sign-in route takes an optional <c>?clientId=</c> the sign-in log
-    /// records. Failures surface as problem details, translated when error translation is enabled.
+    /// records. <c>register</c> answers <c>403</c> (message key <c>SignUpClosed</c>) unless <see cref="SignUpOptions.Enabled"/>
+    /// is on. Failures surface as problem details, translated when error translation is enabled.
     /// </summary>
     /// <param name="endpoints">The route builder or group.</param>
     public static IEndpointRouteBuilder MapUserAccountEndpoints(this IEndpointRouteBuilder endpoints)
@@ -105,6 +107,9 @@ public static class UserAccountEndpointRouteBuilderExtensions
     private static async Task<IResult> RegisterAsync(RegisterAccountApiRequest request, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
+        if (services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.Enabled != true)
+            throw AppError.Of(AppErrorType.Forbidden, "Sign-up is closed; ask an admin to add you.", MessageKey(IdentityErrorCodeConstants.SignUpClosed)).ToException();
+
         var user = new IdentityUser { UserName = string.IsNullOrWhiteSpace(request.UserName) ? request.Email : request.UserName, Email = request.Email };
         var created = await services.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(user, request.Password, cancellationToken);
         if (!created.Succeeded)

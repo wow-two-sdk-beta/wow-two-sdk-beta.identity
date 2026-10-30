@@ -8,7 +8,7 @@ The account HTTP API over the identity slices — the SDK's `MapIdentityApi`, bu
 services.AddUserAccounts()
         .AddArgon2Passwords().AddUserTokens(o => o.SigningKey = key).AddEmailConfirmation()
         .AddLockout().AddRefreshTokens().AddSignIn()
-        .AddAccountEndpoints();                              // email links + texts from configuration
+        .AddAccountEndpoints(o => o.Enabled = true);         // email links + texts from configuration; sign-up on
 services.AddJwtTokenIssuance(…).AddJwtBearerAuthentication(…);
 
 app.MapGroup("/account").MapUserAccountEndpoints();
@@ -18,12 +18,13 @@ app.MapGroup("/account").MapUserAccountEndpoints();
 "UserAccounts": { "Emails": {
   "ConfirmationLink": "https://app.example/confirm-email?userId={userId}&token={token}",
   "ResetLink": "https://app.example/reset-password?email={email}&token={token}"
-} }
+} },
+"Identity": { "SignUp": { "Enabled": true } }   // wins over code; read live
 ```
 
 | Route | Does |
 |---|---|
-| `POST register` | creates the account; sends the confirmation email when configured |
+| `POST register` | creates the account and sends the confirmation email when configured, only while sign-up is on |
 | `POST login[?useCookies=true]` | bearer `{ accessToken, expiresIn, refreshToken }` or a cookie; `twoFactorCode` / `recoveryCode` / `twoFactorMethod` in the body |
 | `POST refresh` · `POST logout` | rotate the refresh token · revoke it, end the cookie's session and clear the cookie |
 | `GET confirm-email?userId&token` | confirms the email |
@@ -45,6 +46,9 @@ app.MapGroup("/account").MapUserAccountEndpoints();
 - Every sign-in route takes an optional `?clientId=` (the OIDC client the hosted pages serve), which the sign-in log
   records with each attempt (`.AddSignInLog()`, `../SignInLog/sign-in-log.md`).
 - Lockout answers `429`, an unconfirmed account `403`, wrong credentials and a missing second factor `401`.
+- Sign-up is off by default: `register` answers `403` (message key `SignUpClosed`) and creates nothing until
+  `SignUpOptions.Enabled` turns it on, in code or in the host section `Identity:SignUp`; an admin's code path
+  (`UserAccountService`) still creates accounts, and sign-in is unaffected.
 - Refresh renews without a second factor but re-checks lockout and confirmation; a refused renewal revokes the token.
 - Without an `IEmailBroker` or a link template, emails are skipped and `confirmationSent` is false.
 

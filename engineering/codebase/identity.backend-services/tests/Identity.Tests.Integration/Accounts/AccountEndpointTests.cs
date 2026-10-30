@@ -100,6 +100,19 @@ public sealed partial class AccountEndpointTests
     }
 
     [Fact]
+    public async Task Register_IsRefused_WhenTheHostSectionClosesSignUpTheCodeOpened()
+    {
+        await using var app = await StartAsync(new Dictionary<string, string?> { ["Identity:SignUp:Enabled"] = "false" });
+        var client = app.Server.CreateClient();
+
+        using var refused = await client.PostAsJsonAsync("/account/register", new { email = "ned@example.test", password = Password });
+
+        refused.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await Problem(refused)).GetProperty("detail").GetString().Should().StartWith("Sign-up is closed");
+        app.Mail.Sent.Should().BeEmpty("a refused sign-up creates no account to confirm");
+    }
+
+    [Fact]
     public async Task TwoFactor_IsManagedAndThenRequiredAtSignIn()
     {
         await using var app = await StartAsync();
@@ -374,7 +387,7 @@ public sealed partial class AccountEndpointTests
                 o.Origins.Add("https://app.test");
             })
             .AddSignIn()
-            .AddAccountEndpoints();
+            .AddAccountEndpoints(o => o.Enabled = true);
         builder.Services.AddJwtBearerAuthentication(o => { o.Issuer = "tests"; o.Audience = "tests"; o.SymmetricKey = JwtKey; });
         builder.Services.AddJwtTokenIssuance(o => { o.Issuer = "tests"; o.Audience = "tests"; o.SigningKey = JwtKey; });
         builder.Services.AddAuthorization();
