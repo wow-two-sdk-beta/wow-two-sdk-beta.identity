@@ -74,6 +74,7 @@ We do **not** add any `ClaimActions` / claim mapping here. Claim normalization i
 
 ## See also
 
+- [`Endpoints/endpoints.md`](Endpoints/endpoints.md) — `MapOAuthSignInEndpoints`: sign-in, me and sign-out over any provider scheme.
 - `Identity/Claims` — the normalized-claim contract; consumes the `wt:provider` stamp via `NormalizedClaimTypeConstants.Provider`.
 - `Identity/Cookies` — pair `AddCookieAuthentication` with any provider for the sign-in cookie.
 - Underlying libs: [aspnet-contrib OAuth providers](https://github.com/aspnet-contrib/AspNet.Security.OAuth.Providers).
