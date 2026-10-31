@@ -1,6 +1,6 @@
 # decisions/
 
-*Last updated: 2026-10-28*
+*Last updated: 2026-10-31*
 
 > Identity's confirmed architecture decisions, newest last; a decision that needs its own record becomes
 > `NNNN-{slug}.md` beside this doc. Decisions spanning capabilities: `wow-two-ws/docs/platform-decisions.md`.
@@ -51,6 +51,11 @@
 | 2026-10-28 | EF migrations, `EnsureCreated` and `Database.Migrate()` are banned; test databases take the schema from the set's SQL | owner |
 | 2026-10-28 | the set is rewritten in place while no database keeps data: soft delete folds into `001-accounts`, every file is idempotent; once one keeps data, applied files are never edited | owner, migrations M5 |
 | 2026-10-28 | a per-product instance (Ocharo's) is a service of the product, its set in the product's database, schema `identity`; a shared instance (wow2's) is a Wheelhouse product with its own database (Q5, Q63; replaces Q55's own database) | migrations M6, M77 |
+| 2026-10-31 | console users are personal accounts gated by an instance role; no shared account | developer |
+| 2026-10-31 | every method, verification and policy is set from `Identity:*` settings (Q51); password rules stay structured fields, never a regex | developer |
+| 2026-10-31 | a public declaration names the enabled methods, their fields and their rules; `fe-identity` renders forms and pages from it | developer |
+| 2026-10-31 | Ocharo signs in by phone through its own Telegram bot | developer |
+| 2026-10-31 | the phone settings name the allowed countries; the fe sdk's `PhoneInput` takes the list | developer |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

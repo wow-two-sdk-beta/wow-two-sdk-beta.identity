@@ -1,6 +1,6 @@
 # Identity — Product Context
 
-*Last updated: 2026-10-28*
+*Last updated: 2026-10-31*
 
 > Current state — changes often. Durable definition: [product.md](product.md).
 
@@ -54,6 +54,7 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
 | Ocharo's secrets and DNS for its instance | ⬜ | by hand; the instance is a service in Ocharo's `deploy.yml` |
 | Migrator follow-ups before the first deploy | ✅ | owner marker, baseline and multi-set harness in be sdk `10.0.82-beta` |
 | Shortlist Ocharo's needs, close the gaps, deploy with Ocharo | ⬜ | migrations settled 2026-10-28; from the [backlog](../engineering/planning/backlog.md) P1 group |
+| Sign-in configuration: settings, declaration, kit, roles, console access | ⬜ | [analysis](../engineering/research/sign-in-config-2026-10/sign-in-config-2026-10.md), points C1–C7 open; Ocharo's Telegram sign-in first |
 | Rest of P1, Ocharo fixes, console layout review | ⬜ | after Ocharo's capabilities are verified on its deploy |
 
 ---
