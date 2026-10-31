@@ -33,7 +33,8 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | test mode | feature | fake channels, code sink, personas, refused in production |
 | hosted pages and console | feature | `apps/web` over `fe-identity` (`./kit`, `./admin`); sign-in passes `?clientId=` for the sign-in log; sign-up shows only while `Identity:SignUp:Enabled` is on, read at runtime |
 | console layout review | product | with the developer once Ocharo's capabilities are verified; the console starts on Wheelhouse's layout |
-| Ocharo's instance as Ocharo's service | product | the image pinned by tag in Ocharo's `deploy.yml`, its first `migrate:` item when `access.*` moves (Q66) |
+| Ocharo's instance as Ocharo's service | product | the image pinned by tag in Ocharo's `deploy.yml`, its first `migrate:` item when `access.*` moves (Q66); Wheelhouse v0.11 generates its keys and links the client secret (`deployment.md` § Pinning the instance) |
+| generated keys in its own `deploy.yml` | feature | `generate` on the three certificates and `from` on the issuer once pipelines `v0.14.0` ships, for wow2's shared instance |
 | conformance in CI | feature | OpenID Foundation suite against the image in `Testing` mode |
 | broker conformance | feature | the module, the client and the fake pass the same broker cases |
 

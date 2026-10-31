@@ -37,7 +37,8 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
   older release runs that release's `migrate check` first. The publish runs `migrate sets --json` offline (no network,
   no settings) and records the `identity` set and its level in the bundle.
 - Placement: Ocharo's instance is a service of Ocharo's own `deploy.yml`, the image pinned by tag, its set in Ocharo's
-  database; wow2's shared instance is a Wheelhouse product of its own.
+  database; wow2's shared instance is a Wheelhouse product of its own. A product pinning it declares its keys as in
+  [Pinning the instance](#pinning-the-instance).
 - Dev check: after a dev rollout, `verify` curls `$VERIFY_SERVICE_IDENTITY/health` and `/api/system/status` with
   `Host: localhost`; `HostFilteringTests` replays the descriptor's requests.
 - After each main image publish, `conformance.yml` runs the contract suite against the released image.
@@ -57,24 +58,69 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 | `Identity:SignInLog:{RetentionDays,CleanupInterval}` | — | defaults 180 days, 1 h |
 | `Identity:SignUp:Enabled` | — | `false` by the descriptor's default: `POST /api/account/register` answers `403` and creates nothing, and an admin adds every account; an environment that takes self sign-up sets `true` in Wheelhouse's console |
 
-- Each certificate value is one PEM bundle (certificate, then its unencrypted PKCS#8 private key), pasted as is from
-  `keys generate`; `deploy.yml` declares the first of each `secret: true`, so the value lives in Wheelhouse's vault and
-  its settings render carries it into `/app/appsettings.Target.json`. A rotation's `:1` is an owner key, added the same
-  way. A value may also be a file path inside the container; no target needs one.
+- Each certificate value is one PEM bundle (certificate, then its unencrypted PKCS#8 private key) from `keys generate`;
+  `deploy.yml` declares the first of each `secret: true`, so the value lives in Wheelhouse's vault and its settings
+  render carries it into `/app/appsettings.Target.json`. A rotation's `:1` is an owner key. A value may also be a file
+  path inside the container; no target needs one.
 - A deployed boot (`DEPLOY_ENVIRONMENT` set) refuses to start on an unreadable value, a certificate without its private
   key, a role with no certificate valid now, ephemeral keys, or a missing or unfit ring certificate; the log names each
   setting, never its key material. A local run uses the ephemeral keys `appsettings.Development.json` turns on and may
   keep the ring unwrapped.
 - The OIDC endpoints (`/connect/*`, `/.well-known/*`) answer HTTPS only: behind the ingress the trusted forwarded
   scheme makes them so, while the plain-HTTP compose check reaches `/health` but gets `ID2083` from them.
-- The owner makes each file with the image itself; nothing generates keys in CI or at runtime:
+- Each bundle comes from the image's own `keys generate`; nothing generates keys in CI or in the running service:
 
 ```bash
 docker run --rm <image> keys generate --role signing|encryption|data-protection [--days N] [--not-before <yyyy-MM-ddTHH:mm:ssZ>]
 ```
 
-- The bundle goes to standard output and the thumbprint and dates to standard error; paste the bundle into the vault
-  secret and keep no copy.
+- The bundle goes to standard output and the thumbprint and dates to standard error. Wheelhouse runs it for a key that
+  declares it as `generate` (Wheelhouse v0.11, pipelines `v0.14.0`): the bundle goes straight into its vault, its
+  expiry from the certificate, and no person or agent sees it. By hand, paste the bundle into the vault secret and keep
+  no copy.
+
+## Pinning the instance
+
+A product running its own instance declares the keys below on the pinned service; Wheelhouse makes every secret on the
+first deploy of each environment, so dev and prod never share one (descriptor:
+wow-two-ws/conventions/deployment/descriptor/deploy-descriptor.md § Generated and linked keys).
+
+```yaml
+services:
+  identity:
+    image: ghcr.io/wow-two-sdk-beta/wow-two-sdk-beta.identity/identity:0.3.6
+    health: /health
+    needs: [postgres]
+    settings:
+      keys:
+        DatabaseSettings:ConnectionString: { required: true }
+        Identity:Server:Issuer: { from: Sites:identity:Url }
+        Identity:Server:Keys:Signing:0:
+          { secret: true, required: true, generate: { command: [dotnet, Identity.Api.dll, keys, generate, --role, signing] } }
+        Identity:Server:Keys:Encryption:0:
+          { secret: true, required: true, generate: { command: [dotnet, Identity.Api.dll, keys, generate, --role, encryption] } }
+        Identity:DataProtection:Certificates:0:
+          { secret: true, required: true, generate: { command: [dotnet, Identity.Api.dll, keys, generate, --role, data-protection] } }
+        Identity:Server:Clients:0:ClientId: { required: true }
+        Identity:Server:Clients:0:ClientSecret: { secret: true, required: true, generate: { random: 32 } }
+    sites:
+      identity: { paths: [/, /api] }
+  desk:                                  # the product's app, a confidential client
+    settings:
+      keys:
+        Auth:ClientSecret: { from: Identity:Server:Clients:0:ClientSecret }
+migrate:
+  - service: identity
+    command: [dotnet, Identity.Api.dll, migrate]
+    timeout: 10m
+sites:
+  identity: {}                           # bound to its host per environment in Wheelhouse
+```
+
+- `Sites:identity:Url` is the site's origin, so the issuer follows the host Wheelhouse binds; after a host change,
+  earlier tokens stop validating and users sign in again.
+- A client's id, redirect URIs and audience are plain keys the owner sets once; only its secret is generated.
+- The client app names its own keys; `Auth:ClientSecret` stands for whatever path it reads.
 
 ## Key rotation
 
