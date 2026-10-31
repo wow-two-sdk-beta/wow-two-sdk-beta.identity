@@ -36,6 +36,7 @@
 | 2026-10-27 | PostgreSQL only: the Module's SQLite dialect retires, as SQLite is banned for products (replaces Q58) | developer |
 | 2026-10-27 | the default image (`service/Identity.Api`) is the general instance any owner pulls and configures; an owner who needs more composes the packages in a host of its own | developer |
 | 2026-10-27 | wow2's own instance gets its own host image on the published packages, in a platform repository, later; the default image keeps serving Ocharo meanwhile | developer |
+| 2026-10-31 | the service and its image stay in this repo beside the libraries; an instance runs as one container; no move to `wow-two-platform` | developer |
 | 2026-10-27 | key and ring certificates are vault secrets as inline PEM (a file path still works); no key file sits on a volume | Q25, Q26 |
 | 2026-10-27 | the Data Protection ring lives in `identity_data_protection_keys`, each key wrapped by the active ring certificate; a deployed boot refuses none | Q26 |
 | 2026-10-27 | `sid` rides in the ID and access tokens, not userinfo; each grant hangs off an authorization naming the session | spine build |
