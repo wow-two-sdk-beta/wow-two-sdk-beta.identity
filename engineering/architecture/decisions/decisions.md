@@ -56,6 +56,7 @@
 | 2026-10-31 | a public declaration names the enabled methods, their fields and their rules; `fe-identity` renders forms and pages from it | developer |
 | 2026-10-31 | Ocharo signs in by phone through its own Telegram bot | developer |
 | 2026-10-31 | the phone settings name the allowed countries; the fe sdk's `PhoneInput` takes the list | developer |
+| 2026-10-31 | settings invalid on their own stop the service; a deployed boot refuses settings that conflict with stored rows, logging `Critical`; `config check` runs after `migrate` and before the restart; a removed method revokes its sessions | developer, C1 |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

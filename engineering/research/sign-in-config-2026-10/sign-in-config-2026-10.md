@@ -35,31 +35,44 @@
 
 ## 2 · Settings that change under existing accounts
 
+Settled on 2026-10-31 (C1): no stored row may contradict the current settings, and the deploy checks before the
+restart.
+
 | Change | Example | Reaction |
 |---|---|---|
-| invalid on its own | `MinLength` above `MaxLength`; Telegram on without a bot token; an unknown country code | refuse: `config check` exits 1, a deployed boot refuses to start |
-| loosens a rule | password minimum 15 → 8; email verification off | applies at once |
-| tightens a rule | password minimum 8 → 15; `RequireDigit` on; email verification or a second factor becomes required | starts; each person meets the rule at the next sign-in, as a required step before any token |
-| removes a method | password sign-in off | starts; sessions and refresh tokens whose `authentication_methods` hold only that method are revoked, by a boot sweep and on each use |
-| strands people | password off while some people have only a password; the bot replaced while people are linked only to the old one | `config check` refuses unless the settings accept it; a boot that meets it anyway starts, logs `Critical` and reports `degraded` |
+| invalid on its own | `MinLength` above `MaxLength`; Telegram on without a bot token; an unknown country code | the service refuses to start; `config check` exits 1 first |
+| loosens a rule | password minimum 15 → 8; a country added to `Phone:AllowedCountries` | applies at once |
+| tightens a rule on stored rows | password minimum 8 → 15; `RequireDigit` on; a country removed while people hold its phones | rows checked under the older rule conflict: a deployed boot refuses to start with a `Critical` log; `config check` exits 1 first |
+| tightens a sign-in requirement | email verification or a second factor becomes required | applies at once; each person meets it at the next sign-in, as a required step before any token; no row conflicts |
+| removes a method | password sign-in off | applies at once; sessions and refresh tokens whose `authentication_methods` hold only that method are revoked, by a boot sweep and on each use |
+| strands people | password off while some people have only a password; the bot replaced while people are linked only to the old one | `config check` exits 1; a deployed boot refuses to start |
 
-- Tightening is a routine owner action, not an inconsistency. Refusing it would make a policy impossible to raise.
-  NIST SP 800-63B and the common identity products apply a new password rule when a password is next set.
-- A password is plain text only during sign-in, so that is when the instance tests it against the current rule. A
-  password that fails signs the person in to a "set a new password" step only.
-- Every reaction compares a person's state with the current settings, so none needs the previous settings.
+- A refusing boot logs `Critical`: the setting, the count of conflicting rows, and the command that resolves them.
+- The previous settings matter per row. A password is plain text only during sign-in, so each password keeps the
+  settings revision it passed (§ 3), and `config check` compares that revision's rules with the current ones.
+- Stored phones are plain, so a narrowed country list is checked exactly; `config check` lists the people it affects.
 - Sessions already record `authentication_methods` (`003-spine`), so the method sweep needs no schema change.
+
+### How a stricter rule deploys (C1b, open)
+
+- Every password set under the older rule blocks the start until something resolves it.
+- Proposed `config apply`: flag those passwords "re-check at next sign-in"; a flagged row claims nothing, so it
+  conflicts with nothing.
+- At sign-in a flagged password that passes takes the current revision; one that fails gets the change step only.
+- Alternative: `config apply` expires those passwords, and every affected person sets a new one.
+- Narrowed countries and stranded people get no automatic resolution: removing a phone or a method may lock a person
+  out, so the owner resolves them and reruns the check.
 
 ### The rule for every wow2 service
 
-- Fail fast on settings that are invalid on their own. The deployed boot already refuses missing keys and ephemeral
-  keys.
-- Never fail on settings that conflict with stored data: start, apply the safe reaction, log `Critical` for what stays
-  unresolved, and report it in `GET /api/system/status`.
-- A crash loop on an identity instance locks out every person, including the admin who would fix it.
-- The deploy is the gate instead. `config check` runs before the restart, as `migrate` does, so a refused change stops
-  the deploy while the old release keeps serving. This needs a descriptor item beside `migrate:` in Wheelhouse
-  (`unverified` whether one exists).
+- Refuse to start on settings invalid on their own. The deployed boot already refuses missing and ephemeral keys.
+- Refuse a deployed start on settings that conflict with stored data, logging `Critical` the setting, the count and
+  the resolving command.
+- Ship a read-only `config check` verb. The deploy runs it after `migrate` and before the restart, so a refused change
+  stops the deploy while the old release keeps serving. Exit codes follow `migrate`: `0` consistent, `1` refused, `2`
+  failed.
+- Wheelhouse needs a descriptor item beside `migrate:` for it; the developer adds it (2026-10-31).
+- Convention: `wow-two-ws/conventions/development/backend/dotnet/core/mla/components/settings.md` § Stored data.
 
 ---
 
@@ -72,7 +85,8 @@
 | C · settings plus a boot snapshot | A, and each boot writes the effective settings, without secrets, to `identity_settings_revisions` with the release and a hash | pick |
 
 - C gives the console a history and a diff (`MinLength` 8 → 15 at release 0.4.1) without a second source.
-- No reaction in § 2 reads the snapshot. It serves audit, the console and the summary `config check` prints.
+- Each password row references the revision it passed, so `config check` reads the snapshot (C1); the console's
+  history and the check's printed summary read it too.
 - Restarting one container takes seconds, so editing settings at runtime buys little.
 
 ---
@@ -182,9 +196,9 @@ Shape, as a draft (rule codes illustrative; the fe sdk's `ValidationCodes` names
 
 1. Settings: bind `Identity:Password`, `Lockout`, `SignIn`, `Methods:*`, `Phone:AllowedCountries`, and the
    verification and second-factor requirements; `MinLength` 15; validated on start.
-2. `config check` and the § 2 reactions: required steps at sign-in, the method sweep, the stranding count, status
-   `degraded`.
-3. `identity_settings_revisions` and the boot snapshot, in a new migration file.
+2. `identity_settings_revisions`, the boot snapshot and each password's revision, in a new migration file.
+3. `config check` (and `config apply` per C1b) and the § 2 reactions: required steps at sign-in, the method sweep,
+   the conflict counts, the `Critical` refusal on a deployed boot.
 4. The declaration endpoint.
 5. Telegram for Ocharo: phone route, I15, I20, I14.
 6. The `fe-identity` kit and the hosted pages.
@@ -194,9 +208,28 @@ Shape, as a draft (rule codes illustrative; the fe sdk's `ValidationCodes` names
 
 ---
 
-## 8 · Points
+## 8 · Boolean names
 
-- [ ] C1 Settings changes: refuse only settings invalid on their own; tightening applies at the next sign-in; a removed method revokes its sessions; stranding is refused by `config check` before the restart, never by a crash loop → yes
+- The backend has 50 public booleans; 5 carry `Is` or `Has` (`IsLockedOut`, `HasPassword`).
+- Options and settings keys hold most: `RequireDigit` → `IsDigitRequired`, `SignUp:Enabled` → `SignUp:IsEnabled`.
+- `IsDigitsAllowed` would restrict characters; the current fields require them, so the name is `IsDigitRequired`.
+- Entity flags `email_confirmed`, `phone_number_confirmed`, `two_factor_enabled`, `lockout_enabled` sit in the published
+  `identity_users`: renamed in place while no database keeps data, by expand and contract after.
+- Result flags `Success`, `Succeeded`, `Ok` become `IsSuccess`.
+- `deploy.yml` keys `Identity:SignUp:Enabled` and `Identity:Server:Keys:Ephemeral` rename with Ocharo's `deploy.yml` and
+  Wheelhouse's stored values.
+- Copies of ASP.NET Core names (`SaveTokens`, `SlidingExpiration`, `ValidateLifetime`) rename on our side and map.
+- The fe sdk already prefixes `is*`, `has*`, `can*`, `show*` (`frontend/core/lla/notation/naming/props.md`); the backend
+  conventions have no rule, and the be sdk prefixes 47 of 330.
+- Parked: the wow2 convention and its sweep (developer, 2026-10-31).
+
+---
+
+## 9 · Points
+
+- [x] C1 Settings changes → settings invalid on their own stop the service; a stricter rule that invalidates stored rows fails the start with a log; `config check` lets Wheelhouse check first (developer, 2026-10-31)
+- [ ] C1b A stricter password rule deploys through `config apply`, which flags older passwords for a re-check at the next sign-in → yes
+- [ ] C8 Identity takes `Is` names in § 7 step 1, before Ocharo's first deploy keeps data → yes
 - [ ] C2 Settings stay the only source; each boot snapshots them into `identity_settings_revisions` → yes
 - [ ] C3 The role catalog of § 4, with wow2's `operator` renamed `editor` → yes
 - [ ] C4 The console signs in by the instance's own cookie; Wheelhouse bootstraps and opens it through one-time links and keeps no password → yes
