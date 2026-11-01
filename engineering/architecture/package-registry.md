@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Package registry
 
-*Last updated: 2026-10-27*
+*Last updated: 2026-11-01*
 
 > Every package this repo publishes, one version line per registry. Layer rules:
 > wow-two-ws/conventions/development/repo/structure/domain-structure.md § Layers; the cut and its reasons:
@@ -13,20 +13,20 @@ folder under a package is a namespace below `WoW.Two.Sdk.Beta.Be.Identity`, kept
 
 | Package | Layer | Holds | References | Heavy deps | Forms |
 |---|---|---|---|---|---|
-| `WoW2.Sdk.Beta.Be.Identity.Abstractions` | contract | `Core/`: `IdentityErrorCodeConstants` (43 codes), `IdentityErrorTextConstants` (their ru/uz texts), `AuthenticationMethodConstants` (`amr`), `SessionClaimTypeConstants` (`sid`); `Core/Organizations/`: `OrganizationClaimTypeConstants` (`org_id`, `org_role`, `org_permission`), `OrganizationClaimsPrincipalExtensions` | the kernel `WoW2.Sdk.Beta.Be.Abstractions` only; no framework reference | none | all |
+| `WoW2.Sdk.Beta.Be.Identity.Abstractions` | contract | `Core/`: `IdentityErrorCodeConstants` (44 codes), `IdentityErrorTextConstants` (their ru/uz texts), `AuthenticationMethodConstants` (`amr`), `SessionClaimTypeConstants` (`sid`); `Core/Organizations/`: `OrganizationClaimTypeConstants` (`org_id`, `org_role`, `org_permission`), `OrganizationClaimsPrincipalExtensions` | the kernel `WoW2.Sdk.Beta.Be.Abstractions` only; no framework reference | none | all |
 | `WoW2.Sdk.Beta.Be.Identity.Auth` | edge | `Cookies/`, `ApiKeys/`, `Authorization/` (allowlist, default deny), `Guest/`, `CurrentUser/` (`CookieCurrentUserService`), `Jwt/` (bearer validation, HMAC `ITokenIssuer`) | Abstractions, core | `Microsoft.AspNetCore.Authentication.JwtBearer`, `Microsoft.IdentityModel.JsonWebTokens`, `.Tokens` | all |
-| `WoW2.Sdk.Beta.Be.Identity.Module` | forms | `Core/` (`AddUserAccounts`, entities with the four OIDC entities, sessions, sign-in log and ring keys, `IdentityDbContext`, EF stores, 19 slices, account endpoints), `Migrations/Postgres/` (the `identity` set: `001-accounts`, `002-oidc`, `003-spine`), `Otp/` (service + 5 channels), `Mfa/` (TOTP, WebAuthn), `PasswordHashing/` (Argon2) | Auth, core | `Fido2.AspNet`, `Otp.NET`, `Konscious.Security.Cryptography.Argon2`, `Telegram.Bot`; `OpenIddict.EntityFrameworkCore.Models` (entity classes only, no dependencies) | 1 |
+| `WoW2.Sdk.Beta.Be.Identity.Module` | forms | `Core/` (`AddUserAccounts`, entities with the four OIDC entities, sessions, sign-in log, ring keys, one-time codes and Telegram links, `IdentityDbContext`, EF stores, 19 slices plus the password change, SMTP email (core's MailKit broker), database code store and phone sign-in, account endpoints), `Migrations/Postgres/` (the `identity` set: `001-accounts`, `002-oidc`, `003-spine`, `004-phone-sign-in`), `Otp/` (service + 5 channels, keyed code digests), `Telegram/` (the instance's bot: links, start links, webhook), `Mfa/` (TOTP, WebAuthn), `PasswordHashing/` (Argon2) | Auth, core | `Fido2.AspNet`, `Otp.NET`, `Konscious.Security.Cryptography.Argon2`, `Telegram.Bot`; `OpenIddict.EntityFrameworkCore.Models` (entity classes only, no dependencies) | 1 |
 | `WoW2.Sdk.Beta.Be.Identity.Client` | forms | `Oidc/` (`AddOpenIdConnectAuthentication`, Authorization Code + PKCE) | Auth, core | `Microsoft.AspNetCore.Authentication.OpenIdConnect` | 2, 3 |
 | `WoW2.Sdk.Beta.Be.Identity.Providers` | extension | `OAuth/` (17 provider wrappers, Google ID-token authenticator, sign-in · me · sign-out endpoints), `Claims/` (claim normalizer, `NormalizedClaimTypeConstants`) | core | 14 `AspNet.Security.OAuth.*`, `Microsoft.AspNetCore.Authentication.{Facebook,Google,MicrosoftAccount}`, `Google.Apis.Auth` | 1, M0 |
 | `WoW2.Sdk.Beta.Be.Identity.Server` | extension | `OidcServer/` (`AddOidcServer`, `MapOidcServerEndpoints`, options, claim mapping, client seeding), `Keys/` (`ISigningKeySource`, settings source for inline PEM or file paths, boot check, per-token key pick, certificate generator, `keys generate`), `DataProtection/` (`AddDataProtectionRing`: the ring in the identity database, certificate-wrapped), the session revocation handler; I19 (back-channel, exchange grants) lands later | Module, core | `OpenIddict.AspNetCore`, `OpenIddict.EntityFrameworkCore` 7.7.2 | service only |
 | `WoW2.Sdk.Beta.Be.Identity.Testing` | test kit | nothing yet: fakes, personas and broker conformance bases land with the contract's brokers | Abstractions, `WoW2.Sdk.Beta.Be.Testing` | xunit (via be Testing) | all |
-| `@wow-two-beta/fe-identity` | fe | the template's `GreetingWidget` kit until the sign-in kit replaces it | peers `@wow-two-beta/fe` `>=0.0.n <0.1.0`, `vue` | none | all |
+| `@wow-two-beta/fe-identity` | fe | `./contracts` (the account API's shapes and routes, the hosted page paths) and `./kit` (`createAccountClient`, `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm`) | peers `@wow-two-beta/fe` `>=0.0.n <0.1.0`, `vue` | none | all |
 
 | Package | Files | LOC |
 |---|---|---|
 | Abstractions | 5 `.cs` | ~310 |
 | Auth | 39 `.cs` · 11 docs | ~1.4k |
-| Module | 192 `.cs` · 27 docs | ~8.4k |
+| Module | 273 `.cs` · 30 docs | ~12.7k |
 | Client | 2 `.cs` · 1 doc | ~70 |
 | Providers | 31 `.cs` · 10 docs | ~1.2k |
 | Server | 20 `.cs` · 2 docs | ~1.3k |

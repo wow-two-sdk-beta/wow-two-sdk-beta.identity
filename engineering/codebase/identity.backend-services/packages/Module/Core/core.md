@@ -51,6 +51,10 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
   `identity_sign_in_log` (every attempt, deleted after the retention; `SignInLog/`) and
   `identity_data_protection_keys` (the instance's Data Protection ring, read and written only by the Server package's
   `AddDataProtectionRing`).
+- `004-phone-sign-in` adds `identity_otp_codes` (one-time codes as keyed digests, shared by every instance; `OneTimeCodes/`),
+  `identity_telegram_links` (a phone number's chat with the instance's bot, unique per bot and number) and
+  `identity_telegram_link_requests` (the bot's pending start links); the bot is in `../Telegram/`. None is published to
+  products.
 - The SQL owns the schema: `../Migrations/Postgres/NNN-name/{Apply,Rollback}.sql`, embedded and run as the be sdk
   migration set `identity` (history `identity_migration_history`, its own advisory lock). EF only maps.
 - Names are pinned in the model, whatever the host's naming convention: snake_case columns, `pk_{table}`,
@@ -60,8 +64,8 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
   schema one kind claimed refuses the other's migrations.
 - Connection: `Identity:Database:ConnectionStringName`, else the host's `DatabaseSettings`, else `DB_CONNECTION`, else
   `DatabaseSettings:ConnectionString`. PostgreSQL gets one pool keyed `identity`, shared by the context and the set.
-- Ids: users, roles, passkeys, refresh tokens, organizations and sessions take `Guid.CreateVersion7` from the
-  registered `TimeProvider` at creation; claim and sign-in log rows take a `bigint` identity; ring keys are Guid v7 made by the entity. No `TUser` / `TKey` generics: extend through side
+- Ids: users, roles, passkeys, refresh tokens, organizations, sessions, one-time codes and Telegram links take
+  `Guid.CreateVersion7` from the registered `TimeProvider` at creation; claim and sign-in log rows take a `bigint` identity; ring keys are Guid v7 made by the entity. No `TUser` / `TKey` generics: extend through side
   tables keyed by the user id (`sub`) and claims contributors, never by added columns.
 - A schema change is a new `NNN-name` pair plus the model change; `Identity.Tests.Migrations` fails when the applied
   schema and the model disagree. Never edit an applied pair.
@@ -72,15 +76,19 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 |---|---|---|
 | `AddUserAccounts()` | `UserAccountService`, `UserClaimsPrincipalFactory`, `IdentityDbContext` | `./` |
 | `AddArgon2Passwords()` · `AddBreachedPasswordCheck()` | `UserPasswordService` | `Passwords/` |
+| `AddPasswordChange()` | `UserPasswordChangeService` (confirmed change by code or link, the change a sign-in forces) | `Passwords/` |
 | `AddUserTokens(o => o.SigningKey = …)` | `UserTokenIssuer` | `Tokens/` |
-| `AddEmailConfirmation()` | `UserEmailService` | `Emails/` |
+| `AddEmailConfirmation()` | `UserEmailService` (lists a confirmed email as a verified channel) | `Emails/` |
+| `AddSmtpEmail(configuration)` | the `IEmailBroker`: an SMTP relay from `Identity:Email`, else one that skips and logs every send | `Emails/` |
 | `AddLockout()` | `UserLockoutService` | `Lockout/` |
 | `AddSecurityStampValidation()` | `SecurityStampValidator` + cookie/JWT hooks | `SecurityStamps/` |
 | `AddRoles()` | `RoleService`, `UserRoleService` | `Roles/` |
 | `AddUserClaims()` | `UserClaimService` | `UserClaims/` |
 | `AddExternalLogins()` | `UserLoginService` | `Logins/` |
 | `AddTwoFactor()` | `UserTwoFactorService` | `TwoFactor/` |
-| `AddPhoneNumbers()` | `UserPhoneService` | `Phones/` |
+| `AddPhoneNumbers(o => …)` | `UserPhoneService`, `PhoneNumberPolicy` (E.164, `Identity:Phone`) | `Phones/` |
+| `AddDatabaseOtpStore()` | `EfOtpRepository`: one-time codes in `identity_otp_codes` in place of memory | `OneTimeCodes/` |
+| `AddPhoneSignIn(…)` + `MapPhoneSignInEndpoints()` | `UserPhoneSignInService` (code over the instance's Telegram bot; needs `AddTelegramLinks`, which it registers) | `PhoneSignIn/` |
 | `AddRefreshTokens()` | `RefreshTokenService` | `RefreshTokens/` |
 | `AddSessions(o => …)` | `UserSessionService` (one session per cookie sign-in, `sid`, list and revoke) + cookie hook | `Sessions/` |
 | `AddSignInLog(o => …)` | `SignInLogService` (every attempt, masked) + the retention cleanup job | `SignInLog/` |
@@ -94,6 +102,18 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 Table-backed slices (`AddRoles`, `AddUserClaims`, `AddExternalLogins`, `AddTwoFactor`, `AddRefreshTokens`, `AddPasskeys`,
 `AddOrganizations`, `AddSessions`, `AddSignInLog`) register their repositories over `IdentityDbContext` with `TryAdd`, so
 a repository the host registered first wins.
+
+## Settings
+
+- The rules bind from the host after the code: `Identity:Password` (with `Change:{Confirmation,IsSignInAgainRequired,Lifetime,LinkTemplate,…}`),
+  `Identity:SignIn` and `Identity:Lockout`. A value invalid on its own, or a `Change:Confirmation` of `Link` without a
+  `LinkTemplate` holding `{token}`, refuses the start.
+- `Identity:Email` (`From`, `FromName`, `Smtp:{Host,Port,SecureSocket,Username,Password}`) configures `AddSmtpEmail`; with no
+  `Smtp:Host` the instance boots and every send fails with a logged `smtp_not_configured`.
+- `Identity:Phone:AllowedCountries`, `Identity:Otp:HashKey`, `Identity:Telegram:*`: `PhoneSignIn/phone-sign-in.md`.
+- `Identity:Tokens:SigningKey` signs purpose tokens (`Tokens/`); the service reads it as base64 of 32+ bytes or a file path.
+- Verified channels: each slice that proves a way to reach a person lists it through `IUserVerifiedChannelSource`
+  (`Channels/`; a confirmed email is the only source today), so a flow that must reach them names no channel.
 
 ## Notes
 

@@ -5,15 +5,22 @@ Defer to `wow-two-ws/conventions/development/frontend/`.
 ## Workspace
 
 - Frontend root: `engineering/codebase/identity.frontend-services/`; Node `24.11.0` from `.nvmrc`, `pnpm@10.33.2`.
-- `packages/fe-identity` is `@wow-two-beta/fe-identity`, published to npm: `./contracts` (the TypeScript mirror of the be
-  contract) and `./kit` (`GreetingWidget`, `createGreetingsClient`, `forwardToHostedGreeting`). It peers
-  `@wow-two-beta/fe` at `>=0.0.n <0.1.0`, `n` the pinned version; `check:package` enforces it.
-- `apps/web` is `@identity/web`, private: the hosted pages (`/greet`) and the console (`/`). It takes `fe-identity` by
+- `packages/fe-identity` is `@wow-two-beta/fe-identity`, published to npm: `./contracts` (the TypeScript mirror of the
+  account API: shapes, `AccountRouteConstants`, `HostedPageRouteConstants`) and `./kit` (`createAccountClient` and the
+  components `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`,
+  `ChangePasswordForm`). It peers `@wow-two-beta/fe` at `>=0.0.n <0.1.0`, `n` the pinned version; `check:package` enforces it.
+- `apps/web` is `@identity/web`, private: the hosted pages (`/sign-in`, `/sign-up`, `/confirm-email`, `/forgot-password`,
+  `/reset-password`, `/change-password`, `/account/security`) and the console (`/`). It takes `fe-identity` by
   `workspace:*`, through its `exports` only — the way a product would; the package never imports `apps/`.
 - App source uses `bootstrap`, `presentation`, `application`, `domain`, and `integration` layers.
 - Routes live in `src/bootstrap/router/Routes.ts` on the fe sdk router (`createAppRouter`, `lazyPage`); a new hosted
-  page is one route there, its path a constant in `fe-identity/contracts`, its props decoded from the route.
+  page is one route there, its path a constant in `fe-identity/contracts`, its props decoded from the route
+  (`application/account/ReadAccountRequests.ts`).
+- Every hosted page sits in `HostedLayout`, which takes the fe sdk theme by registry id (`theme-{id}` from
+  `@wow-two-beta/fe/themes.css`) and a same-origin background image from `SignInOptions`; `signInOptionsApi` is where the
+  instance's methods, brand and per-app look come from, until `GET /api/account/sign-in-options` exists.
 - The kit's UI is form-agnostic: it calls the consumer's origin (Form 1) or the service's (`baseUrl`), never both.
+- A link's one-time token stays out of the query: the change-password page reads it from the URL fragment and clears it.
 
 ## Commands
 

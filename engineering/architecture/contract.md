@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Contract
 
-*Last updated: 2026-10-27*
+*Last updated: 2026-11-01*
 
 > One broker per capability, the same in every form. Rules: wow-two-ws/conventions/development/capability-forms.md
 > § Contract. Target shape: [integration modes](../research/identity-analysis-2026-10/t4-integration-modes.md) (T4)
@@ -22,13 +22,16 @@
 
 | Type | Holds |
 |---|---|
-| `IdentityErrorCodeConstants` | 43 stable codes the slices return as `IdentityError.Code`: user name and email, password rules and breach check, tokens, lockout, roles, logins, two-factor and recovery codes, phone codes, sign-in, refresh tokens, passkeys, email sign-in, organizations |
+| `IdentityErrorCodeConstants` | 44 stable codes the slices return as `IdentityError.Code`: user name and email, password rules and breach check, tokens, lockout, roles, logins, two-factor and recovery codes, phone codes, sign-in, refresh tokens, passkeys, email sign-in, organizations, sign-up |
 | `IdentityErrorTextConstants.Messages` | culture (`ru`, `uz`) → code → template; `{Name}` placeholders fill from the error's `Params` |
 
 - Failures travel as Module's `IdentityResult` of `IdentityError { Code, Description, Params }`;
   `IdentityResult.ToValidationError()` turns them into core `FieldError`s that error translation matches by code.
 - `AddUserAccounts` contributes the texts through core's `AddErrorTexts(culture, messages)`; the host catalog
   (`Validation:Translation:Messages`) still wins over them.
+- Codes only the account API raises sit beside the catalogue in the Module (`AccountApiErrorCodeConstants`,
+  `PasswordChangeErrorCodeConstants`, `PhoneSignInErrorCodeConstants`); a problem carries them in its `identityCode`
+  extension next to the message key.
 - T4 moves failures to `Result` / `AppError` from an Identity catalogue; the codes stay, the carrier changes.
 
 ### Organization claims
@@ -80,7 +83,7 @@ Namespaces are unchanged from the be sdk. Entities are not generic: one `Identit
 |---|---|---|---|
 | kernel | core | — | `ICurrentUserService` (`Id`, `Kind`), `UserKind` — read by core's Audit, SoftDelete and Idempotency |
 | edge | Auth | `AddCookieAuthentication`, `AddApiKeyAuthentication`, `AddPrincipalAllowlist`, `AddDefaultDenyAuthorization`, `AddGuestSession`, `AddCurrentUser`, `AddJwtBearerAuthentication`, `AddJwtTokenIssuance` | `IApiKeyRepository`, `IGuestSessionService`, `ITokenIssuer`; `CookieCurrentUserService` implements the kernel's `ICurrentUserService` |
-| 1 | Module | `AddUserAccounts(configure, configureDatabase)` → `IdentityBuilder`; `IdentityDbContext`; the `identity` migration set | store ports `IUserRepository`, `IRoleRepository`, `IUserRoleRepository`, `IUserClaimRepository`, `IUserLoginRepository`, `IUserTokenRepository`, `IRefreshTokenRepository`, `IUserPasskeyRepository`, `IOrganizationRepository`, `IUserSessionRepository`, `ISignInLogRepository` (EF defaults ship); hooks `IUserPasswordValidator`, `IAccountDeletionHandler`, `IPersonalDataExporter`, `IPwnedPasswordsClient`, `ISessionRevocationHandler` |
+| 1 | Module | `AddUserAccounts(configure, configureDatabase)` → `IdentityBuilder`; `IdentityDbContext`; the `identity` migration set | store ports `IUserRepository`, `IRoleRepository`, `IUserRoleRepository`, `IUserClaimRepository`, `IUserLoginRepository`, `IUserTokenRepository`, `IRefreshTokenRepository`, `IUserPasskeyRepository`, `IOrganizationRepository`, `IUserSessionRepository`, `ISignInLogRepository`, `ITelegramLinkRepository` (EF defaults ship); hooks `IUserPasswordValidator`, `IUserVerifiedChannelSource`, `IAccountDeletionHandler`, `IPersonalDataExporter`, `IPwnedPasswordsClient`, `ISessionRevocationHandler`, `ITelegramLinkCompletionHandler` |
 | 1 | Module | OTP: `AddOtpService`, `Add{Email,Sms,Telegram,TelegramGateway,WhatsApp}OtpDelivery`; `AddTotp`; `AddFido2WebAuthn` | `IOtpService`, `IOtpRepository`, `IOtpCodeGenerator`, `IOtpMessageFormatter`, `IOtpDeliveryHandler` (keyed by `OtpChannelNameConstants`), `IOtpDeliveryHandlerFactory`, `ITotpService` |
 | 2/3 | Client | `AddOpenIdConnectAuthentication(OidcOptions)` | none: an OIDC client over cookies; brokers over the management API land here |
 | service | Server | `AddOidcServer(configure)` and `AddDataProtectionRing(configure)` on the Module's builder; `MapOidcServerEndpoints()`; `Identity:Server` (issuer, sign-in path, lifetimes, keys, clients); `Identity:DataProtection` (ring certificates) | `ISigningKeySource` (the settings by default: inline PEM or file paths); `SigningCertificateGenerator` and the service's `keys generate` |
@@ -92,15 +95,19 @@ Namespaces are unchanged from the be sdk. Entities are not generic: one `Identit
 |---|---|
 | core | `UserAccountService`, `UserClaimsPrincipalFactory` |
 | `AddArgon2Passwords` · `AddBreachedPasswordCheck` | `UserPasswordService`, `PasswordRulesValidator`, `BreachedPasswordValidator` |
+| `AddPasswordChange` | `UserPasswordChangeService` |
 | `AddUserTokens` | `UserTokenIssuer` |
 | `AddEmailConfirmation` | `UserEmailService` |
+| `AddSmtpEmail` | the SMTP `IEmailBroker` (`Identity:Email`) |
 | `AddLockout` | `UserLockoutService` |
 | `AddSecurityStampValidation` | `SecurityStampValidator` |
 | `AddRoles` | `RoleService`, `UserRoleService` |
 | `AddUserClaims` | `UserClaimService` |
 | `AddExternalLogins` | `UserLoginService` |
 | `AddTwoFactor` | `UserTwoFactorService`, `UserTwoFactorMethodService` |
-| `AddPhoneNumbers` | `UserPhoneService` |
+| `AddPhoneNumbers` | `UserPhoneService`, `PhoneNumberPolicy` |
+| `AddDatabaseOtpStore` | `EfOtpRepository` |
+| `AddPhoneSignIn` (+ `AddTelegramLinks`) | `UserPhoneSignInService`, `TelegramLinkService` |
 | `AddRefreshTokens` | `RefreshTokenService` |
 | `AddSessions` | `UserSessionService` |
 | `AddSignInLog` | `SignInLogService` |
@@ -114,11 +121,13 @@ Namespaces are unchanged from the be sdk. Entities are not generic: one `Identit
 ### Account HTTP API (Module)
 
 Mounted by the host on a group such as `/account`; routes beyond the first nine appear only when their slice is
-registered.
+registered. Sign-in by phone maps apart, with `MapPhoneSignInEndpoints`.
 
 | Slice | Routes |
 |---|---|
 | always | `POST register` · `POST login` · `POST refresh` · `POST logout` · `GET confirm-email` · `POST resend-confirmation-email` · `POST forgot-password` · `POST reset-password` · `GET manage/info` |
+| password change | `POST manage/password/confirmation` · `POST manage/password` · `POST password/change` |
+| phone sign-in | `POST phone-sign-in/send` · `POST phone-sign-in` |
 | two-factor | `GET manage/2fa` · `POST manage/2fa/{authenticator,enable,disable,recovery-codes,preferred}` · `POST manage/2fa/methods/{method}/{send,enable}` · `POST login/two-factor` |
 | personal data | `GET manage/personal-data` · `POST manage/delete-account` |
 | email sign-in | `POST email-sign-in/send` · `POST email-sign-in` |
@@ -128,10 +137,15 @@ registered.
 - Sign-in answers a bearer session (JWT through `ITokenIssuer`, plus a refresh token when registered) or, with
   `?useCookies=true`, a cookie carrying a new session's `sid` when sessions are registered; every sign-in route takes an
   optional `?clientId=` for the sign-in log; failures are problem details, translated when error translation is on.
-- `service/Identity.Api` hosts `AddUserAccounts` over its own PostgreSQL context with Argon2 passwords, sign-in,
-  lockout, stamps, sessions, the sign-in log and organizations, and maps the account API at `/api/account` for cookie
-  sessions (the sign-in the OIDC authorize endpoint reads). It registers no `ITokenIssuer`: its tokens come from the OIDC server, so bearer sign-in
-  and the routes of unregistered slices are not served yet.
+- A password sign-in whose password matches but breaks the current rules answers `200` with `isPasswordChangeRequired` and
+  a ticket instead of a session; the ticket opens the password change routes only.
+- A host without `ITokenIssuer` (or refresh tokens) is cookie-only: bearer sign-in and `refresh` answer `400`
+  (`BearerSignInUnsupported`) before any credential is checked.
+- `service/Identity.Api` hosts `AddUserAccounts` over its own PostgreSQL context with Argon2 passwords, the password
+  change, sign-in, lockout, stamps, sessions, the sign-in log, organizations, SMTP email and phone sign-in, and maps the
+  account API at `/api/account` for cookie sessions (the sign-in the OIDC authorize endpoint reads). It registers no
+  `ITokenIssuer`: its tokens come from the OIDC server, so bearer sign-in answers `400` and the routes of unregistered
+  slices are not served.
 
 ## Forms map
 
@@ -139,4 +153,4 @@ registered.
 |---|---|---|
 | 1 | Module services over the consumer's `DbContext` | in process |
 | 2/3 | Client: OIDC sign-in against an instance | OIDC (`/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/endsession`, discovery, JWKS) served by Server; no broker wire yet |
-| fe | `@wow-two-beta/fe/auth` strategies in the fe sdk (default paths `/api/identity/*`); `fe-identity` still holds the template's greetings kit | the host's session routes |
+| fe | `@wow-two-beta/fe/auth` strategies in the fe sdk (default paths `/api/identity/*`); `fe-identity` holds the account client and the sign-in and password components the hosted pages render | the host's session routes |

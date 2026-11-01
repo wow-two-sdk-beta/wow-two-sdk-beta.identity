@@ -38,16 +38,16 @@
 |---|---|
 | `packages/Abstractions` | the contract: error catalogue, organization, `amr` and `sid` claims (brokers not built) |
 | `packages/Auth` | store-less auth: JWT, cookies, API keys, allowlists, current user, guest sessions |
-| `packages/Module` | Form 1: `AddUserAccounts` and its slices (sessions and the sign-in log included), OTP and its channels, account HTTP API, the PostgreSQL schema (OIDC and Data Protection tables included) |
+| `packages/Module` | Form 1: `AddUserAccounts` and its slices (sessions, the sign-in log, password change, SMTP email and phone sign-in included), OTP and its channels, the Telegram bot, account HTTP API, the PostgreSQL schema (OIDC, Data Protection, one-time code and Telegram link tables included) |
 | `packages/Client` | Forms 2/3: the broker over the service's HTTP API (empty until brokers exist) |
 | `packages/Providers` | upstream sign-in: OAuth providers and claim normalization |
 | `packages/Server` | the OIDC server: OpenIddict over the Module, pass-through endpoints, client seeding, keys from settings (inline PEM or path) and `keys generate`, grants tied to sessions, the Data Protection ring in the database |
 | `packages/Testing` | fakes and the conformance suites (empty until brokers exist) |
-| `service/Identity.Api` | the deployable host: the module and the OIDC server over its own context, the account API, the hosted pages |
+| `service/Identity.Api` | the deployable host: the module and the OIDC server over its own context, the account API, phone sign-in and the bot's webhook, the hosted pages |
 | `tests/Identity.Tests.{Unit,Integration,E2E,Conformance,Migrations}` | the test tiers |
 
 ### `codebase/identity.frontend-services/`
 | Project | What it is |
 |---|---|
-| `packages/fe-identity` | `@wow-two-beta/fe-identity`: `./contracts` · `./kit` · `./admin`; still the template's Greetings sample, unpublished |
-| `apps/web` | hosted pages and the console, served by `Identity.Api`; still the template's sample |
+| `packages/fe-identity` | `@wow-two-beta/fe-identity`: `./contracts` (the account API's shapes and routes) · `./kit` (the account client, sign-in and password components); no `./admin` yet |
+| `apps/web` | the hosted pages (sign-in, sign-up, email and password pages, account security) and the console, served by `Identity.Api` |

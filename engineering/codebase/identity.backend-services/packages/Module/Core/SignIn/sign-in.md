@@ -6,7 +6,9 @@
 ## Quick start
 
 ```csharp
-identity.AddArgon2Passwords().AddLockout().AddUserTokens(o => o.SigningKey = key).AddTwoFactor().AddSignIn();
+identity.AddArgon2Passwords().AddLockout().AddUserTokens(o => o.SigningKey = key).AddTwoFactor()
+        .AddPasswordChange()                                       // optional: forces a change when a stored password breaks the rules
+        .AddSignIn();
 
 var result = await signIn.PasswordSignInAsync(request.Login, request.Password);
 switch (result.Status)
@@ -17,6 +19,8 @@ switch (result.Status)
         break;
     case SignInStatus.RequiresTwoFactor:
         return new { result.UserId, result.TwoFactorTicket };      // client returns both with the code
+    case SignInStatus.PasswordChangeRequired:
+        return new { result.PasswordChangeTicket };                // no session: the ticket opens the change routes only
 }
 
 await signIn.TwoFactorSignInAsync(userId, ticket, code);          // or RecoveryCodeSignInAsync
@@ -33,7 +37,13 @@ await signIn.TwoFactorSignInAsync(userId, ticket, code);          // or Recovery
 - The principal carries `amr` claims (`AuthenticationMethodConstants`): `pwd` after a password, `hwk` after a passkey,
   `otp` and `mfa` after a second factor; a renewal records none. The OIDC server copies them into tokens.
 - `PasskeySignInAsync(state, assertionJson)` verifies a passkey, then applies lockout and preconditions; no second factor.
-- Preconditions: `IdentityCoreOptions.SignIn` (`IsConfirmedEmailRequired`, `IsConfirmedPhoneNumberRequired`, `IsEmailLoginAllowed`).
+- Preconditions: `IdentityCoreOptions.SignIn` (`IsConfirmedEmailRequired`, `IsConfirmedPhoneNumberRequired`, `IsEmailLoginAllowed`),
+  set in code or in the host section `Identity:SignIn`, which is applied last.
+- With `.AddPasswordChange()`, a password that matches its hash is then checked against the current structured rules (never
+  the breach check); one that fails them ends as `PasswordChangeRequired` with `PasswordChangeTicket`, no principal, and
+  the sign-in log reason `PasswordBreaksRules`. The old hash stays until the person changes it (`../Passwords/passwords.md`).
+- A person with a second factor who also needs the change gets `RequiresTwoFactor` with `IsPasswordChangeRequired` set;
+  `FinishPasswordSignInAsync(firstFactor, completed)` turns the completed second factor into `PasswordChangeRequired`.
 - With `.AddSignInLog()`, every attempt it judges leaves a sign-in log row (`../SignInLog/sign-in-log.md`) and the result
   carries its id (`SignInLogEntryId`); `SignInAsync(user, methods, logMethod)` names the step the row records.
 - A cookie sign-in through the account API starts a session (`../Sessions/sessions.md`); the principal then carries `sid`.
