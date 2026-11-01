@@ -65,7 +65,7 @@
 | 2026-11-01 | the declaration lists each method's fields and rules as fe sdk rule codes with messages in the request's locale, at a public `GET /api/account/sign-in-options`; `?clientId=` returns that app's methods, theme and background; `fe-identity` builds one component per method | developer, C5–C7 |
 | 2026-11-01 | from 0.3.7 on the migration set is forward-only: Ocharo resets dev and prod once for the in-place `001-accounts`, then no applied file changes | Ocharo |
 | 2026-11-01 | only the instance reads its Telegram bot's updates: a webhook when hosted, polling on a local run | developer, Ocharo |
-| 2026-11-01 | one bot per environment serves a whole product (Ocharo: Desk and the platform) — prod, dev, and a local bot for developer runs, since a hosted webhook blocks polling; the instance reads its updates, other services may only send through it | developer, Ocharo |
+| 2026-11-01 | one bot per environment serves a whole product (Ocharo: Desk and the platform) — prod and dev, no local bot for now (a local run polls only while no hosted webhook holds the dev bot); the instance reads its updates, other services may only send through it | developer, Ocharo |
 | 2026-11-01 | the hosted pages take one look per instance (`Identity:Pages:{BrandName,Theme,BackgroundUrl}`), as an instance serves one product; no per-client look | developer |
 | 2026-11-01 | no test mode, fake channel or message sink in the runtime; dev and local flows use real dev accounts and bots; fakes live in test projects | developer |
 | 2026-11-01 | every route and member says sign in, sign up and sign out: `/api/account/{sign-in,sign-up,sign-out}`, a BFF's `/api/identity/{session,sign-in,sign-out,callback}` | developer |
