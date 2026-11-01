@@ -13,9 +13,12 @@
 # instead of spinning as PID 1.
 #
 # The service sends its emails (account confirmation, password reset, password-change codes and links) to Mailpit, a
-# local mail sink, until wow2's dev mailboxes exist: nothing leaves the machine, and http://127.0.0.1:8025 shows every
-# message. Mailpit is a separate container, not part of the service: the runtime ships no test mode, fake channel or
-# message sink. identity-keys also makes the key that signs the service's confirmation and reset tokens. Sign-up is on
+# local mail sink, until wow2's dev mailboxes exist: identity.mailpit.env holds the relay settings, nothing leaves the
+# machine, and http://127.0.0.1:8025 shows every message. Mailpit is a separate container, not part of the service: the
+# runtime ships no test mode, fake channel or message sink. To send through wow2's dev sender, set the same keys in
+# identity.local.env (below), which is read after identity.mailpit.env and wins; an environment: entry would beat both,
+# so none sets an email key. identity-keys also makes the key that signs the service's confirmation and reset tokens.
+# Sign-up is on
 # here, so a local sign-up produces a confirmation email to read; a deployed environment turns it on in its own settings.
 #
 # The service runs as a local run (Development without DEPLOY_ENVIRONMENT), which the bot's polling needs: a deployed boot
@@ -33,10 +36,19 @@
 # beside this file (optional, gitignored). Make it in your own terminal or editor, never through a chat, and keep the
 # token out of any message or command a chat runs:
 #   touch identity.local.env && chmod 600 identity.local.env
-# then add, in an editor, for the local bot (a hosted instance's bot answers 409 to polling, so it is a bot of its own):
+# then add, in an editor, for wow2's dev bot (it polls here, so no hosted instance may have set a webhook on it, or
+# polling answers 409):
 #   Identity__Telegram__IsEnabled=true
 #   Identity__Telegram__BotUserName=<the bot's user name>
 #   Identity__Telegram__BotToken=<the token BotFather gave>
+# and, for wow2's dev sender instead of Mailpit (the password is typed in the editor like the token):
+#   Identity__Email__From=<the sender's address>
+#   Identity__Email__FromName=<its display name>
+#   Identity__Email__Smtp__Host=<the relay host>
+#   Identity__Email__Smtp__Port=<the relay port>
+#   Identity__Email__Smtp__SecureSocket=<None, Auto, SslOnConnect, StartTls or StartTlsWhenAvailable>
+#   Identity__Email__Smtp__Username=<the relay user>
+#   Identity__Email__Smtp__Password=<the relay password or key>
 # Add Identity__Phone__AllowedCountries__0=UZ (one line per country) to limit the numbers; then `docker compose up -d`.
 services:
   database:
@@ -107,6 +119,7 @@ services:
     ports:
       - "127.0.0.1:8389:8080"
     env_file:
+      - path: identity.mailpit.env
       - path: identity.local.env
         required: false
     environment:
@@ -121,11 +134,6 @@ services:
       Identity__DataProtection__Certificates__0: /data/keys/data-protection.pem
       Identity__Tokens__SigningKey: /data/keys/token.key
       Identity__SignUp__IsEnabled: "true"
-      Identity__Email__From: identity@identity.local
-      Identity__Email__FromName: Identity (local)
-      Identity__Email__Smtp__Host: mailpit
-      Identity__Email__Smtp__Port: "1025"
-      Identity__Email__Smtp__SecureSocket: None
     volumes:
       - identity-keys:/data
     mem_limit: 256m
