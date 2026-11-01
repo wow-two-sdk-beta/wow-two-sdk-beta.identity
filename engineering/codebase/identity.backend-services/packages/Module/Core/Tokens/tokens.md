@@ -8,7 +8,7 @@ Nothing is stored; rotating the stamp voids every outstanding token.
 ```csharp
 identity.AddUserTokens(o =>
 {
-    o.SigningKey = cfg["Identity:TokenKey"];                     // base64, ≥ 32 bytes, same on every host
+    o.SigningKey = cfg["Identity:TokenKey"];                     // base64 or base64url, ≥ 32 bytes, same on every host
     o.Lifetimes[UserTokenPurposeConstants.PasswordReset] = TimeSpan.FromMinutes(30);
 });
 

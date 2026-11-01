@@ -3,7 +3,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 /// <summary>Holds the purpose-token key and lifetimes.</summary>
 public sealed record UserTokenOptions
 {
-    /// <summary>Base64 HMAC-SHA256 key, at least 32 bytes decoded; every host verifying a token needs the same key.</summary>
+    /// <summary>Base64 or base64url HMAC-SHA256 key (padding optional), at least 32 bytes decoded; every host verifying a token needs the same key.</summary>
     public string? SigningKey { get; set; }
 
     /// <summary>Lifetime of a purpose without an entry in <see cref="Lifetimes"/>. Default 1 day.</summary>

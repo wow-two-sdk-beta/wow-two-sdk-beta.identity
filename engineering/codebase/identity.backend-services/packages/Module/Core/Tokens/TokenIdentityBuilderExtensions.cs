@@ -18,20 +18,11 @@ public static class TokenIdentityBuilderExtensions
         builder.Services.AddValidatedOptions(
             configure,
             options => options
-                .Validate(o => DecodedLength(o.SigningKey) >= 32, "UserTokenOptions.SigningKey must be base64 of at least 32 bytes.")
+                .Validate(o => SecretKeyEncoding.DecodedLength(o.SigningKey) >= 32, "UserTokenOptions.SigningKey must be base64 or base64url of at least 32 bytes.")
                 .Validate(o => o.DefaultLifetime > TimeSpan.Zero, "UserTokenOptions.DefaultLifetime must be positive.")
                 .Validate(o => o.Lifetimes.Values.All(lifetime => lifetime > TimeSpan.Zero), "UserTokenOptions.Lifetimes must be positive."));
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<UserTokenIssuer>();
         return builder;
-    }
-
-    private static int DecodedLength(string? key)
-    {
-        if (string.IsNullOrWhiteSpace(key))
-            return 0;
-
-        var buffer = new byte[key.Length];
-        return Convert.TryFromBase64String(key, buffer, out var written) ? written : 0;
     }
 }

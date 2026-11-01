@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using WoW.Two.Sdk.Beta.Be.Foundation.Options;
+using WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Otp;
 
@@ -29,7 +30,7 @@ public static class OtpServiceCollectionExtensions
                 .Validate(o => o.MaxAttempts > 0, "OtpOptions.MaxAttempts must be positive.")
                 .Validate(o => o.RateLimitWindow >= TimeSpan.Zero, "OtpOptions.RateLimitWindow must not be negative.")
                 .Validate(o => !string.IsNullOrWhiteSpace(o.Messages.DefaultCulture), "OtpOptions.Messages.DefaultCulture must not be empty.")
-                .Validate(o => IsUsableKey(o.HashKey), "OtpOptions.HashKey must be base64 of at least 32 bytes when set."));
+                .Validate(o => IsUsableKey(o.HashKey), "OtpOptions.HashKey must be base64 or base64url of at least 32 bytes when set."));
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IOtpCodeGenerator, OtpCodeGenerator>();
         services.TryAddSingleton<OtpCodeHasher>();
@@ -41,15 +42,8 @@ public static class OtpServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>Whether <paramref name="key"/> is unset, or base64 of 32 bytes or more.</summary>
-    private static bool IsUsableKey(string? key)
-    {
-        if (string.IsNullOrWhiteSpace(key))
-            return true;
-
-        var buffer = new byte[key.Length];
-        return Convert.TryFromBase64String(key, buffer, out var written) && written >= 32;
-    }
+    /// <summary>Whether <paramref name="key"/> is unset, or base64 or base64url of 32 bytes or more.</summary>
+    private static bool IsUsableKey(string? key) => string.IsNullOrWhiteSpace(key) || SecretKeyEncoding.DecodedLength(key) >= 32;
 
     /// <summary>Registers <typeparamref name="THandler"/> for <paramref name="channel"/>: keyed for methods and additive for callers that enumerate handlers.</summary>
     /// <typeparam name="THandler">The delivery handler.</typeparam>

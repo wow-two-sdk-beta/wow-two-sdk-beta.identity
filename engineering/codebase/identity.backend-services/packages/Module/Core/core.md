@@ -111,7 +111,7 @@ a repository the host registered first wins.
 - `Identity:Email` (`From`, `FromName`, `Smtp:{Host,Port,SecureSocket,Username,Password}`) configures `AddSmtpEmail`; with no
   `Smtp:Host` the instance boots and every send fails with a logged `smtp_not_configured`.
 - `Identity:Phone:AllowedCountries`, `Identity:Otp:HashKey`, `Identity:Telegram:*`: `PhoneSignIn/phone-sign-in.md`.
-- `Identity:Tokens:SigningKey` signs purpose tokens (`Tokens/`); the service reads it as base64 of 32+ bytes or a file path.
+- `Identity:Tokens:SigningKey` signs purpose tokens (`Tokens/`); the service reads it as base64 or base64url of 32+ bytes, or a file path.
 - Verified channels: each slice that proves a way to reach a person lists it through `IUserVerifiedChannelSource`
   (`Channels/`; a confirmed email is the only source today), so a flow that must reach them names no channel.
 

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Otp;
 
@@ -17,7 +18,7 @@ public sealed class OtpCodeHasher
     public OtpCodeHasher(OtpOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        _key = string.IsNullOrWhiteSpace(options.HashKey) ? RandomNumberGenerator.GetBytes(32) : Convert.FromBase64String(options.HashKey);
+        _key = string.IsNullOrWhiteSpace(options.HashKey) ? RandomNumberGenerator.GetBytes(32) : SecretKeyEncoding.Decode(options.HashKey, "Identity:Otp:HashKey");
         IsKeyConfigured = !string.IsNullOrWhiteSpace(options.HashKey);
     }
 

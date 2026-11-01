@@ -23,7 +23,7 @@ public sealed record OtpOptions
     public int MaxAttempts { get; set; } = 5;
 
     /// <summary>
-    /// Gets or sets the base64 key (32 bytes or more) every stored code, subject and origin is keyed with; a secret.
+    /// Gets or sets the base64 or base64url key (padding optional, 32 bytes or more) every stored code, subject and origin is keyed with; a secret.
     /// Every instance sharing a database store needs the same key. Unset, each process draws its own: enough for one
     /// process, and its live codes stop verifying on restart.
     /// </summary>

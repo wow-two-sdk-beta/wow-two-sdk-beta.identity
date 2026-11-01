@@ -31,7 +31,7 @@ public sealed class UserTokenIssuer
         ArgumentNullException.ThrowIfNull(timeProvider);
         _options = options;
         _timeProvider = timeProvider;
-        _key = Convert.FromBase64String(options.SigningKey ?? throw new InvalidOperationException("UserTokenOptions.SigningKey is required."));
+        _key = SecretKeyEncoding.Decode(options.SigningKey, "UserTokenOptions.SigningKey");
     }
 
     /// <summary>Issue a token binding <paramref name="purpose"/> to <paramref name="user"/> and the current security stamp.</summary>

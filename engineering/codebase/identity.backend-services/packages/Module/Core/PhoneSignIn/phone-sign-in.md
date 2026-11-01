@@ -18,7 +18,7 @@ app.MapTelegramWebhook();                                    // POST /api/telegr
 "Identity": {
   "Telegram": { "IsEnabled": true, "BotToken": "…", "BotUserName": "…", "WebhookSecret": "…", "UpdateMode": "Webhook" },   // vault secrets; Polling on a local run
   "Phone": { "AllowedCountries": ["UZ"] },
-  "Otp": { "HashKey": "…" }                    // base64, 32+ bytes, a vault secret; required on a deployed boot while the bot is on
+  "Otp": { "HashKey": "…" }                    // base64 or base64url, 32+ bytes, a vault secret; required on a deployed boot while the bot is on
 }
 ```
 
