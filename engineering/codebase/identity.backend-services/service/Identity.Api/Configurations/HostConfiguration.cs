@@ -23,6 +23,7 @@ public static partial class HostConfiguration
 
         return builder
             .AddIdentityModule()
+            .AddPhoneSignInByTelegram()
             .AddSignInSession()
             .AddControllers();
     }
@@ -42,6 +43,7 @@ public static partial class HostConfiguration
             identity.UseAuthorization();
         });
         app.MapIdentityEndpoints();
+        app.MapPhoneSignInByTelegram();
         app.MapControllers();
 
         return app;

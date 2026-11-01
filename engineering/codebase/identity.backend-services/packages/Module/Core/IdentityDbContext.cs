@@ -8,7 +8,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>
 /// The Module's own context over the identity schema in PostgreSQL: 11 account tables, OpenIddict's four
-/// <c>identity_oidc_*</c> tables, and the sessions, sign-in log and Data Protection key tables, mapped only. The embedded
+/// <c>identity_oidc_*</c> tables, the sessions, sign-in log and Data Protection key tables, and the one-time code and
+/// Telegram link tables, mapped only. The embedded
 /// SQL migration set <see cref="IdentityDatabaseOptions.MigrationSetName"/> creates and evolves them; EF never does.
 /// </summary>
 /// <remarks>
@@ -91,6 +92,15 @@ public sealed class IdentityDbContext : AppDbContextBase
     /// <summary>The instance's Data Protection key ring (<c>identity_data_protection_keys</c>).</summary>
     public DbSet<IdentityDataProtectionKey> DataProtectionKeys => Set<IdentityDataProtectionKey>();
 
+    /// <summary>One-time codes as digests, shared by every instance (<c>identity_otp_codes</c>).</summary>
+    public DbSet<IdentityOtpCode> OtpCodes => Set<IdentityOtpCode>();
+
+    /// <summary>Phone numbers linked to the bot's Telegram chats (<c>identity_telegram_links</c>).</summary>
+    public DbSet<IdentityTelegramLink> TelegramLinks => Set<IdentityTelegramLink>();
+
+    /// <summary>Pending start links of the bot (<c>identity_telegram_link_requests</c>).</summary>
+    public DbSet<IdentityTelegramLinkRequest> TelegramLinkRequests => Set<IdentityTelegramLinkRequest>();
+
     /// <inheritdoc />
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -113,6 +123,7 @@ public sealed class IdentityDbContext : AppDbContextBase
         MapOrganizations(modelBuilder);
         MapOidc(modelBuilder);
         MapSpine(modelBuilder);
+        MapPhoneSignIn(modelBuilder);
         PinNames(modelBuilder);
     }
 
@@ -336,6 +347,51 @@ public sealed class IdentityDbContext : AppDbContextBase
             key.ToTable("identity_data_protection_keys");
             key.HasKey(k => k.Id);
             key.Property(k => k.Id).ValueGeneratedNever();
+        });
+    }
+
+    /// <summary>Maps one-time codes, Telegram links and the bot's start links (<c>004-phone-sign-in</c>).</summary>
+    private static void MapPhoneSignIn(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<IdentityOtpCode>(code =>
+        {
+            code.ToTable("identity_otp_codes");
+            code.HasKey(c => c.Id);
+            code.Property(c => c.Id).ValueGeneratedNever();
+            code.HasIndex(c => new { c.SubjectHash, c.Scope });
+            code.HasIndex(c => new { c.OriginHash, c.Scope });
+            code.HasIndex(c => c.ExpiresAt);
+            code.Property(c => c.SubjectHash).HasMaxLength(64);
+            code.Property(c => c.Scope).HasMaxLength(100);
+            code.Property(c => c.CodeHash).HasMaxLength(64);
+            code.Property(c => c.OriginHash).HasMaxLength(64);
+        });
+
+        modelBuilder.Entity<IdentityTelegramLink>(link =>
+        {
+            link.ToTable("identity_telegram_links");
+            link.HasKey(l => l.Id);
+            link.Property(l => l.Id).ValueGeneratedNever();
+            link.HasIndex(l => new { l.BotUserName, l.PhoneNumber }).IsUnique();
+            link.Property(l => l.BotUserName).HasMaxLength(64);
+            link.Property(l => l.PhoneNumber).HasMaxLength(32);
+        });
+
+        modelBuilder.Entity<IdentityTelegramLinkRequest>(request =>
+        {
+            request.ToTable("identity_telegram_link_requests");
+            request.HasKey(r => r.Id);
+            request.Property(r => r.Id).ValueGeneratedNever();
+            request.HasIndex(r => r.TokenHash).IsUnique();
+            request.HasIndex(r => r.TelegramUserId);
+            request.HasIndex(r => r.PhoneNumber);
+            request.HasIndex(r => r.OriginHash);
+            request.HasIndex(r => r.ExpiresAt);
+            request.Property(r => r.TokenHash).HasMaxLength(64);
+            request.Property(r => r.Purpose).HasMaxLength(64);
+            request.Property(r => r.BotUserName).HasMaxLength(64);
+            request.Property(r => r.PhoneNumber).HasMaxLength(32);
+            request.Property(r => r.OriginHash).HasMaxLength(64);
         });
     }
 

@@ -39,7 +39,7 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         foreach (var table in SchemaShape.AllTables)
             (await migrator.HasTableAsync(Schema, table)).Should().BeTrue($"the set creates {table}");
         (await HasColumnAsync(migrator, "identity_users", "deleted_at")).Should().BeTrue("001-accounts creates the soft-delete column");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3);
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
@@ -49,6 +49,11 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         await using var migrator = CreateMigrator(fixture);
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
+
+        (await runner.RollbackAsync(targetOrdinal: 3)).ValueOrThrow().Should().Equal("004-phone-sign-in");
+        foreach (var table in SchemaShape.PhoneSignInTables)
+            (await migrator.HasTableAsync(Schema, table)).Should().BeFalse($"rolling 004-phone-sign-in back drops {table}");
+        (await migrator.HasTableAsync(Schema, "identity_sessions")).Should().BeTrue("003-spine stays applied");
 
         (await runner.RollbackAsync(targetOrdinal: 2)).ValueOrThrow().Should().Equal("003-spine");
         foreach (var table in SchemaShape.SpineTables)

@@ -2,11 +2,15 @@ using System.Globalization;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
+using Telegram.Bot.Types.ReplyMarkups;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp.Models;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Otp.Telegram;
 
-/// <summary>Handles <see cref="OtpDeliveryEnvelopeModel"/> deliveries as Telegram bot messages; the delivery address is the chat id.</summary>
+/// <summary>
+/// Handles <see cref="OtpDeliveryEnvelopeModel"/> deliveries as Telegram bot messages; the delivery address is the chat id.
+/// The metadata key <see cref="TelegramOtpMetadataConstants.RemoveKeyboard"/> also takes away a reply keyboard the bot showed.
+/// </summary>
 public sealed class TelegramOtpDeliveryHandler : IOtpDeliveryHandler
 {
     private readonly ITelegramBotClient _botClient;
@@ -44,7 +48,8 @@ public sealed class TelegramOtpDeliveryHandler : IOtpDeliveryHandler
 
         try
         {
-            await _botClient.SendMessage(chatId, text, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var isKeyboardRemoved = envelope.Metadata?.ContainsKey(TelegramOtpMetadataConstants.RemoveKeyboard) == true;
+            await _botClient.SendMessage(chatId, text, replyMarkup: isKeyboardRemoved ? new ReplyKeyboardRemove() : null, cancellationToken: cancellationToken).ConfigureAwait(false);
             return new OtpDeliveryResult { IsSuccess = true };
         }
         catch (RequestException exception)

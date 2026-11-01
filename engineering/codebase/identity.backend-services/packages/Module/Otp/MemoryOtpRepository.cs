@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Otp;
 
-/// <summary>Accesses one-time-code records in process memory.</summary>
+/// <summary>Accesses one-time-code records in process memory; for tests and single-process hosts.</summary>
 public sealed class MemoryOtpRepository : IOtpRepository
 {
     private static readonly TimeSpan PruneGrace = TimeSpan.FromHours(1);
@@ -19,13 +19,16 @@ public sealed class MemoryOtpRepository : IOtpRepository
     }
 
     /// <inheritdoc />
-    public Task<bool> HasRecentPendingAsync(string subject, string scope, TimeSpan window, CancellationToken cancellationToken = default)
+    public Task<bool> HasRecentAsync(string subjectHash, string scope, string? originHash, TimeSpan window, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(subject);
+        ArgumentException.ThrowIfNullOrWhiteSpace(subjectHash);
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
 
         var cutoff = _timeProvider.GetUtcNow() - window;
-        var hasRecent = _records.Values.Any(r => !r.IsConsumed && r.CreatedAt >= cutoff && Matches(r, subject, scope));
+        var hasRecent = _records.Values.Any(r => r.CreatedAt >= cutoff
+            && string.Equals(r.Scope, scope, StringComparison.Ordinal)
+            && ((!r.IsConsumed && string.Equals(r.SubjectHash, subjectHash, StringComparison.Ordinal))
+                || (originHash is not null && string.Equals(r.OriginHash, originHash, StringComparison.Ordinal))));
         return Task.FromResult(hasRecent);
     }
 
@@ -39,45 +42,40 @@ public sealed class MemoryOtpRepository : IOtpRepository
     }
 
     /// <inheritdoc />
-    public Task<OtpRecord?> FindLatestPendingAsync(string subject, string scope, CancellationToken cancellationToken = default)
+    public Task<OtpRecord?> FindLatestPendingAsync(string subjectHash, string scope, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(subject);
+        ArgumentException.ThrowIfNullOrWhiteSpace(subjectHash);
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
 
         var latest = _records.Values
-            .Where(r => !r.IsConsumed && Matches(r, subject, scope))
+            .Where(r => !r.IsConsumed
+                && string.Equals(r.SubjectHash, subjectHash, StringComparison.Ordinal)
+                && string.Equals(r.Scope, scope, StringComparison.Ordinal))
             .OrderByDescending(r => r.CreatedAt)
             .FirstOrDefault();
         return Task.FromResult(latest);
     }
 
     /// <inheritdoc />
-    public Task IncrementAttemptsAsync(Guid recordId, CancellationToken cancellationToken = default)
-    {
-        Mutate(recordId, r => r with { Attempts = r.Attempts + 1 });
-        return Task.CompletedTask;
-    }
+    public Task<bool> TryCountAttemptAsync(Guid recordId, int maxAttempts, CancellationToken cancellationToken = default)
+        => Task.FromResult(TryMutate(recordId, r => !r.IsConsumed && r.Attempts < maxAttempts, r => r with { Attempts = r.Attempts + 1 }));
 
     /// <inheritdoc />
-    public Task MarkConsumedAsync(Guid recordId, CancellationToken cancellationToken = default)
-    {
-        Mutate(recordId, r => r with { IsConsumed = true });
-        return Task.CompletedTask;
-    }
+    public Task<bool> TryConsumeAsync(Guid recordId, CancellationToken cancellationToken = default)
+        => Task.FromResult(TryMutate(recordId, r => !r.IsConsumed, r => r with { IsConsumed = true }));
 
-    private static bool Matches(OtpRecord record, string subject, string scope)
-        => string.Equals(record.Subject, subject, StringComparison.Ordinal)
-           && string.Equals(record.Scope, scope, StringComparison.Ordinal);
-
-    private void Mutate(Guid recordId, Func<OtpRecord, OtpRecord> update)
+    /// <summary>Applies <paramref name="update"/> while <paramref name="condition"/> holds, retrying a lost race.</summary>
+    private bool TryMutate(Guid recordId, Func<OtpRecord, bool> condition, Func<OtpRecord, OtpRecord> update)
     {
         while (_records.TryGetValue(recordId, out var current))
         {
+            if (!condition(current))
+                return false;
             if (_records.TryUpdate(recordId, update(current), current))
-            {
-                return;
-            }
+                return true;
         }
+
+        return false;
     }
 
     private void Prune()

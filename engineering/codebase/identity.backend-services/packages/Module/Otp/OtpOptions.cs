@@ -22,6 +22,13 @@ public sealed record OtpOptions
     /// <summary>Gets or sets the wrong attempts allowed against one code before it locks. Default 5.</summary>
     public int MaxAttempts { get; set; } = 5;
 
+    /// <summary>
+    /// Gets or sets the base64 key (32 bytes or more) every stored code, subject and origin is keyed with; a secret.
+    /// Every instance sharing a database store needs the same key. Unset, each process draws its own: enough for one
+    /// process, and its live codes stop verifying on restart.
+    /// </summary>
+    public string? HashKey { get; set; }
+
     /// <summary>Gets the wording of delivered codes, per culture.</summary>
     public OtpMessageOptions Messages { get; } = new();
 

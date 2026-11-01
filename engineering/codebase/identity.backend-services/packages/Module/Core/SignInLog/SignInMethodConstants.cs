@@ -15,6 +15,9 @@ public static class SignInMethodConstants
     /// <summary>A single-use code sent by email.</summary>
     public const string EmailCode = "email_code";
 
+    /// <summary>A single-use code sent to a phone number's linked channel, such as the instance's Telegram bot.</summary>
+    public const string PhoneCode = "phone_code";
+
     /// <summary>A sign-in completed elsewhere, such as an external provider.</summary>
     public const string External = "external";
 

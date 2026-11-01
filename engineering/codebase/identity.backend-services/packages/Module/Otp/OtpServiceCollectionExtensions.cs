@@ -10,8 +10,8 @@ public static class OtpServiceCollectionExtensions
     /// <summary>
     /// Registers <see cref="IOtpService"/> with the code generator, the in-memory store, the message formatter and the
     /// delivery-handler factory. Options come from <paramref name="configure"/>, then the host section
-    /// <see cref="OtpOptions.SectionName"/>. Register a shared <see cref="IOtpRepository"/> before this call for
-    /// multi-instance hosts, and pair it with an <c>Add…OtpDelivery</c> channel.
+    /// <see cref="OtpOptions.SectionName"/>. Multi-instance hosts take the database store (<c>AddDatabaseOtpStore</c> on
+    /// the identity builder) with a shared <see cref="OtpOptions.HashKey"/>, and pair it with an <c>Add…OtpDelivery</c> channel.
     /// </summary>
     /// <param name="services">The service collection to configure.</param>
     /// <param name="configure">Code length and kind, lifetime, rate limit, attempts and message templates.</param>
@@ -28,15 +28,27 @@ public static class OtpServiceCollectionExtensions
                 .Validate(o => o.DefaultSpec.IsValid, "OtpOptions needs a CodeLength of 4–12, a known CodeKind and a positive CodeLifetime.")
                 .Validate(o => o.MaxAttempts > 0, "OtpOptions.MaxAttempts must be positive.")
                 .Validate(o => o.RateLimitWindow >= TimeSpan.Zero, "OtpOptions.RateLimitWindow must not be negative.")
-                .Validate(o => !string.IsNullOrWhiteSpace(o.Messages.DefaultCulture), "OtpOptions.Messages.DefaultCulture must not be empty."));
+                .Validate(o => !string.IsNullOrWhiteSpace(o.Messages.DefaultCulture), "OtpOptions.Messages.DefaultCulture must not be empty.")
+                .Validate(o => IsUsableKey(o.HashKey), "OtpOptions.HashKey must be base64 of at least 32 bytes when set."));
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IOtpCodeGenerator, OtpCodeGenerator>();
+        services.TryAddSingleton<OtpCodeHasher>();
         services.TryAddSingleton<IOtpRepository, MemoryOtpRepository>();
         services.TryAddSingleton<IOtpMessageFormatter, OtpMessageFormatter>();
         services.TryAddScoped<IOtpDeliveryHandlerFactory, OtpDeliveryHandlerFactory>();
         services.TryAddScoped<IOtpService, OtpService>();
 
         return services;
+    }
+
+    /// <summary>Whether <paramref name="key"/> is unset, or base64 of 32 bytes or more.</summary>
+    private static bool IsUsableKey(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return true;
+
+        var buffer = new byte[key.Length];
+        return Convert.TryFromBase64String(key, buffer, out var written) && written >= 32;
     }
 
     /// <summary>Registers <typeparamref name="THandler"/> for <paramref name="channel"/>: keyed for methods and additive for callers that enumerate handlers.</summary>
