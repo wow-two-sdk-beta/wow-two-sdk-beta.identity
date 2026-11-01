@@ -2,6 +2,7 @@
 import { AppErrorFactory, ResultExtensions, type AppError } from '@wow-two-beta/fe/foundation/results';
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
+import { object, phone as phoneRule } from '@wow-two-beta/fe/foundation/validators';
 import { Field, PhoneInput, TextInput } from '@wow-two-beta/fe/presentation/forms';
 import { shallowRef } from 'vue';
 import type { AccountClient } from '../../../account';
@@ -63,6 +64,7 @@ async function send(value: string, signal?: AbortSignal) {
 
 const phoneForm = useAccountForm({
   defaultValues: { phone: '' },
+  schema: object({ phone: phoneRule({ countries: props.countries }) }),
   onSubmit: async (values, { signal }) => {
     const result = await send(values.phone, signal);
     if (result.ok) {
@@ -112,7 +114,6 @@ function useAnotherPhone() {
           name="phone"
           class="w-full [&>span]:shrink-0 [&>span]:whitespace-nowrap"
           :countries="countries"
-          :placeholder="t('PhoneCodeSignIn.phonePlaceholder', '')"
           :default-country="defaultCountry"
           @blur="field.onBlur"
         />
