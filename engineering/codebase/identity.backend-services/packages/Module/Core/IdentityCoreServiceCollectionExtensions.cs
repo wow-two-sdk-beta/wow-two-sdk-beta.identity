@@ -62,6 +62,8 @@ public static class IdentityCoreServiceCollectionExtensions
             configuration.GetSection(SignInOptions.SectionName).Bind(options.SignIn);
             configuration.GetSection(LockoutOptions.SectionName).Bind(options.Lockout);
         });
+        // The same three sections as a record of their own, so config check follows their members and refuses a misspelt key.
+        services.AddModuleOptions<IdentityRuleSettings>(IdentityRuleSettings.SectionName, configure: null);
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddScoped<UserAccountService>();
         services.TryAddScoped<UserClaimsPrincipalFactory>();

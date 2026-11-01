@@ -54,7 +54,6 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | Item | Type | Notes |
 |---|---|---|
 | channels from the communications library | engineering | email and Telegram delivery, wired in the host for v0.4, move to the communications library once it ships |
-| service verbs from the be sdk | engineering | `keys`, `migrate` and `config check` dispatch through the be sdk's verb host, so `Program.cs` stays thin |
 | Fido2 upgrade | engineering | Fido2 4.3.1: passkey transports and backup state |
 | instance composition in a package | engineering | one call holding what `service/Identity.Api` wires, so an own host stays thin ([own hosts](../architecture/architecture.md#own-hosts)) |
 | host CLI in a package | engineering | `admin create` and a one-time sign-in beside `keys generate` |

@@ -26,7 +26,10 @@ The code lives in `identity.backend-services/` (.NET) and `identity.frontend-ser
   `wwwroot/` (filled by the `BuildSpa` target; `-p:BuildSpa=false` skips it). A local boot applies the set; a deployed boot only verifies it;
   `dotnet Identity.Api.dll migrate` applies it as the deploy step and exits `0` applied or current, `1` refused, `2` a
   script failed. `dotnet Identity.Api.dll keys generate --role signing|encryption|data-protection` prints one PEM
-  bundle and exits before any host boots.
+  bundle and exits before any host boots. `Program.cs` is the be sdk's `ServiceHost.RunAsync` with `keys` as its one
+  pre-host verb; `migrate` and `config check` are built in. `config check` builds the host without serving and prints one
+  `config-result` line (exit `0` consistent, `1` refused, `2` failed); `Identity` is the settings root, so a key under it
+  that no settings record binds is refused, and a deployed boot runs the same checks. No stranding check is registered yet.
 - Tests: `Unit` (package logic, no database: keys, the ring's wrapping and boot check, masks, claim mapping, client
   registration among them), `Integration` (the module over PostgreSQL, a database per host, schema from the migrator:
   every slice, sessions and the sign-in log through the account API, client seeding, session revocation through

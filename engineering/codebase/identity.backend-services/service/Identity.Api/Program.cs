@@ -1,26 +1,13 @@
 using Identity.Api.Configurations;
-using WoW.Two.Sdk.Beta.Be.Data;
 using WoW.Two.Sdk.Beta.Be.Identity.Keys;
+using WoW.Two.Sdk.Beta.Be.Meta;
 
-// The owner's key command (keys generate --role …): print one PEM bundle to stdout and exit before any host boots.
-if (args is ["keys", .. var keyArguments])
-    return SigningKeyCommand.Run(keyArguments, Console.Out, Console.Error, TimeProvider.System);
-
-// Build and configure the host.
-var builder = WebApplication.CreateBuilder(args);
-builder.Configure();
-
-// Build the app.
-var app = builder.Build();
-
-// The be sdk migrate verbs (migrate <verb>; a bare migrate runs apply, then seed): exit with the verb's code instead of
-// serving, before any startup work runs.
-if (MigrateCommand.IsCommand(args))
-    return await app.RunMigrateCommandAsync(args);
-
-// Configure and run.
-await app.ConfigureAsync();
-app.Run();
-return 0;
+// Answer a verb, or build, configure and serve the host. `keys` prints one PEM bundle to stdout before any host boots;
+// `migrate` and `config check` are the be sdk's own.
+return await ServiceHost.RunAsync(
+    args,
+    builder => builder.Configure(),
+    app => app.ConfigureAsync(),
+    verbs => verbs.AddPreHostVerb("keys", verb => SigningKeyCommand.Run(verb.Arguments, verb.Output, verb.Error, TimeProvider.System)));
 
 public partial class Program;

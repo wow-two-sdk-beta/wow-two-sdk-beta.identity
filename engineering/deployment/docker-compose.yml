@@ -20,6 +20,10 @@
 # deployed boot refuses both. Development would also switch on the throwaway OIDC keys, so the two ephemeral switches are
 # set off and the service keeps reading the certificates identity-keys made.
 #
+# The image's own settings check runs against this stack's settings without serving (exit 0, one config-result line last):
+#
+#   docker compose run --rm identity config check
+#
 # The bot is off here. To try it, put local secrets in identity.local.env beside this file (optional, gitignored). Make it
 # in your own terminal or editor, never through a chat, and keep the token out of any message or command a chat runs:
 #   touch identity.local.env && chmod 600 identity.local.env

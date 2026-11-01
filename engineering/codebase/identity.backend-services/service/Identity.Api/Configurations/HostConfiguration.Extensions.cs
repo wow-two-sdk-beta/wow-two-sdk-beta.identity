@@ -1,6 +1,9 @@
+using Identity.Api.Settings;
 using WoW.Two.Sdk.Beta.Be.Data;
 using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore.Audit;
 using WoW.Two.Sdk.Beta.Be.Foundation.Configuration;
+using WoW.Two.Sdk.Beta.Be.Foundation.Configuration.ConfigCheck;
+using WoW.Two.Sdk.Beta.Be.Foundation.Options;
 using WoW.Two.Sdk.Beta.Be.Identity.Cookies;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Emails;
@@ -27,8 +30,11 @@ public static partial class HostConfiguration
     /// <summary>The account API's mount point, under the contract's HTTP mirror.</summary>
     internal const string AccountPath = "/api/account";
 
-    /// <summary>The host section of the purpose-token key: <c>SigningKey</c> (base64, at least 32 bytes, or the path of a file holding it) and <c>IsKeyEphemeral</c>.</summary>
-    internal const string TokensSection = "Identity:Tokens";
+    /// <summary>The service's root settings section: <c>config check</c> refuses every key under it that no settings record binds.</summary>
+    internal const string RootSection = "Identity";
+
+    /// <summary>The host section of the purpose-token key: <c>SigningKey</c> (base64 or base64url, at least 32 bytes, or the path of a file holding it) and <c>IsKeyEphemeral</c>.</summary>
+    internal const string TokensSection = TokenSettings.SectionName;
 
     /// <summary>
     /// Hosts the Form 1 module over the service's own PostgreSQL database, claiming the identity schema as the service:
@@ -37,6 +43,7 @@ public static partial class HostConfiguration
     /// store; and the Data Protection ring in that database.
     /// </summary>
     /// <remarks>
+    ///   - every key under <c>Identity</c> must bind to a settings record, or <c>config check</c> and a deployed boot refuse it
     ///   - the connection is the host's database (<c>DatabaseSettings:ConnectionString</c> or <c>DB_CONNECTION</c>)
     ///   - the password, sign-in and lockout rules come from <c>Identity:Password</c>, <c>Identity:SignIn</c> and
     ///     <c>Identity:Lockout</c>; the change confirmation from <c>Identity:Password:Change</c>
@@ -51,6 +58,7 @@ public static partial class HostConfiguration
     /// </remarks>
     private static WebApplicationBuilder AddIdentityModule(this WebApplicationBuilder builder)
     {
+        builder.Services.AddSettingsRoot(RootSection);
         builder.Services.AddEfCoreAuditInterceptor();
         builder.Services.AddUserAccounts(configureDatabase: database => database.SchemaOwner = IdentitySchemaOwnerConstants.Service)
             .AddArgon2Passwords()
@@ -70,36 +78,36 @@ public static partial class HostConfiguration
             .AddOidcClientPageLooks()
             .AddDataProtectionRing();
         builder.Services.AddEmailOtpDelivery();
-        builder.Services.AddTokenSigningKey();
+        builder.AddTokenSigningKey();
         builder.Services.AddAccountPageLinks();
         builder.Services.AddHealthChecks().AddDatabaseReadinessCheck<IdentityDbContext>();
         return builder;
     }
 
     /// <summary>
-    /// Fills the purpose tokens' key from <c>Identity:Tokens</c>: <c>SigningKey</c> is base64 of at least 32 bytes, or the path
-    /// of a file holding it; a local run may set <c>IsKeyEphemeral</c> for a throwaway key, a deployed boot never.
+    /// Registers the purpose tokens' settings from <c>Identity:Tokens</c> and fills the tokens' options from them:
+    /// <c>SigningKey</c> is base64 or base64url of at least 32 bytes, or the path of a file holding it; a local run may set
+    /// <c>IsKeyEphemeral</c> for a throwaway key, a deployed boot never; <c>DefaultLifetime</c> and <c>Lifetimes</c> set the lifetimes.
     /// </summary>
-    private static IServiceCollection AddTokenSigningKey(this IServiceCollection services)
+    private static WebApplicationBuilder AddTokenSigningKey(this WebApplicationBuilder builder)
     {
-        services.AddOptions<UserTokenOptions>().PostConfigure<IHostEnvironment, IConfiguration>((options, environment, configuration) =>
+        builder.Services.AddValidatedSettings<TokenSettings>(builder.Configuration, TokenSettings.SectionName, rules => rules
+            .ValidateSetting(nameof(TokenSettings.SigningKey), "required",
+                settings => settings.HasKey || settings.IsKeyEphemeral,
+                $"{TokensSection}:SigningKey is required: base64 or base64url of at least 32 bytes, or the path of a file holding it.")
+            .ValidateSetting(nameof(TokenSettings.IsKeyEphemeral), "local-only",
+                settings => settings.HasKey || !settings.IsKeyEphemeral || builder.Environment.IsLocalRun(builder.Configuration),
+                $"{TokensSection}:IsKeyEphemeral is allowed only on a local run (Development without DEPLOY_ENVIRONMENT); a deployed boot reads {TokensSection}:SigningKey."));
+        builder.Services.AddOptions<UserTokenOptions>().PostConfigure<IHostEnvironment, IConfiguration>((options, environment, configuration) =>
         {
-            var section = configuration.GetSection(TokensSection);
-            section.Bind(options);
+            // The settings record validates the section; the options take it unchecked, so a finding names the setting, not the options type.
+            configuration.GetSection(TokensSection).Bind(options);
             if (!string.IsNullOrWhiteSpace(options.SigningKey))
-            {
                 options.SigningKey = ReadKey(options.SigningKey.Trim(), environment.ContentRootPath);
-                return;
-            }
-
-            if (!section.GetValue<bool>("IsKeyEphemeral"))
-                throw new InvalidOperationException($"{TokensSection}:SigningKey is required: base64 of at least 32 bytes, or the path of a file holding it.");
-            if (!environment.IsLocalRun(configuration))
-                throw new InvalidOperationException($"{TokensSection}:IsKeyEphemeral is allowed only on a local run (Development without DEPLOY_ENVIRONMENT); a deployed boot reads {TokensSection}:SigningKey.");
-
-            options.SigningKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+            else if (configuration.GetSection(TokensSection).GetValue<bool>(nameof(TokenSettings.IsKeyEphemeral)) && environment.IsLocalRun(configuration))
+                options.SigningKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
         });
-        return services;
+        return builder;
     }
 
     /// <summary>A key setting is the key itself or the path of a file holding it, relative to the content root.</summary>
