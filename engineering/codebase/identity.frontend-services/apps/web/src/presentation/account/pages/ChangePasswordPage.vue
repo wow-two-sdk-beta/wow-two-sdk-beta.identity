@@ -28,7 +28,7 @@ onMounted(() => {
 
 <template>
   <HostedLayout :options="options" title="Change your password">
-    <ChangePasswordForm v-if="token" :token="token" />
+    <ChangePasswordForm v-if="token" :token="token" :password-rules="options?.passwordRules" />
     <AlertSimple v-else severity="danger">This link is incomplete. Open the link from the message again.</AlertSimple>
     <template #footer>
       <a :href="signInHref" class="font-medium text-primary underline-offset-4 hover:underline">Sign in</a>

@@ -49,6 +49,7 @@ function passwordChanged() {
       v-if="required"
       :ticket="required.ticket"
       :confirmation="required.confirmation"
+      :password-rules="options?.passwordRules"
       @changed="passwordChanged"
     />
     <AlertSimple v-else-if="failure" severity="danger">

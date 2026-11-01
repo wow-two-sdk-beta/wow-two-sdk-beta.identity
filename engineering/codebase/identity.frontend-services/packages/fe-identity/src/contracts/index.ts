@@ -19,6 +19,7 @@ export type { SignInMethodDto } from './SignInMethodDto';
 export { SignInMethodIdConstants } from './SignInMethodIdConstants';
 export type { SignInOptionsDto } from './SignInOptionsDto';
 export type { SignInRequirementsDto } from './SignInRequirementsDto';
+export { SignInRuleCodeConstants } from './SignInRuleCodeConstants';
 export type { SignInRuleDto } from './SignInRuleDto';
 export type { SignUpApiRequest } from './SignUpApiRequest';
 export type { SignedUpAccountDto } from './SignedUpAccountDto';

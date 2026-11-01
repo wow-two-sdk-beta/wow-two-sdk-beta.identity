@@ -2,13 +2,18 @@
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
 import { EmailInput, Field, PasswordInput } from '@wow-two-beta/fe/presentation/forms';
-import { shallowRef } from 'vue';
-import type { SignedUpAccountDto } from '../../../../contracts';
+import { computed, shallowRef } from 'vue';
+import type { SignInRuleDto, SignedUpAccountDto } from '../../../../contracts';
 import type { AccountClient } from '../../../account';
 import { useAccountClient, useAccountForm, useAccountText } from '../../../account/hooks';
+import { passwordRuleMessages } from '../../../account/validation';
 import { FailureAlert } from '../../feedback/failureAlert';
+import { signUpSchema } from './SignUpSchema';
 
-/** Creates an account with an email and password while the instance keeps sign-up on, then says what comes next. */
+/**
+ * Creates an account with an email and password while the instance keeps sign-up on, then says what comes next. An email
+ * that is not one, or a password that breaks `passwordRules`, shows under its field and sends nothing.
+ */
 defineOptions({ name: 'SignUpForm' });
 
 const props = withDefaults(
@@ -19,8 +24,10 @@ const props = withDefaults(
     baseUrl?: string;
     /** Where the person signs in once the account exists; no link when omitted. */
     signInHref?: string;
+    /** The rules a new password meets, the declaration's `passwordRules`; with none, the password is only required. */
+    passwordRules?: ReadonlyArray<SignInRuleDto>;
   }>(),
-  { client: undefined, baseUrl: undefined, signInHref: undefined },
+  { client: undefined, baseUrl: undefined, signInHref: undefined, passwordRules: undefined },
 );
 
 const emit = defineEmits<{
@@ -32,8 +39,14 @@ const client = useAccountClient(props);
 const t = useAccountText();
 const created = shallowRef<{ account: SignedUpAccountDto; email: string } | null>(null);
 
-const form = useAccountForm({
+/** Follows `passwordRules`, which the page may load after the form shows. */
+const schema = computed(() => signUpSchema(props.passwordRules));
+
+const form = useAccountForm(() => ({
   defaultValues: { email: '', password: '' },
+  schema: schema.value,
+  validateOn: 'blur' as const,
+  messages: passwordRuleMessages,
   onSubmit: async (values, { signal }) => {
     const result = await client.signUp(values, signal);
     if (result.ok) {
@@ -42,7 +55,7 @@ const form = useAccountForm({
     }
     return result;
   },
-});
+}));
 </script>
 
 <template>

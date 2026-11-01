@@ -27,7 +27,7 @@ const { account, failure } = useAccountInfo(() => props.onSignInRequired());
       </p>
       <section class="flex flex-col gap-3" aria-labelledby="password-heading">
         <h2 id="password-heading" class="text-lg font-semibold">Password</h2>
-        <ChangePasswordForm />
+        <ChangePasswordForm :password-rules="options?.passwordRules" />
       </section>
     </template>
   </HostedLayout>

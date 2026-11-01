@@ -1,13 +1,16 @@
 <script setup lang="ts">
+import { object } from '@wow-two-beta/fe/foundation/validators';
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
 import { Field, PasswordInput } from '@wow-two-beta/fe/presentation/forms';
-import { shallowRef } from 'vue';
+import { computed, shallowRef } from 'vue';
+import type { SignInRuleDto } from '../../../../contracts';
 import type { AccountClient } from '../../../account';
 import { useAccountClient, useAccountForm, useAccountText } from '../../../account/hooks';
+import { passwordRule, passwordRuleMessages } from '../../../account/validation';
 import { FailureAlert } from '../../feedback/failureAlert';
 
-/** Sets a new password with the token a reset email carried. */
+/** Sets a new password with the token a reset email carried; one that breaks `passwordRules` shows under its field. */
 defineOptions({ name: 'ResetPasswordForm' });
 
 const props = withDefaults(
@@ -22,8 +25,10 @@ const props = withDefaults(
     token: string;
     /** Where the person signs in once the password is set; no link when omitted. */
     signInHref?: string;
+    /** The rules a new password meets, the declaration's `passwordRules`; with none, the password is only required. */
+    passwordRules?: ReadonlyArray<SignInRuleDto>;
   }>(),
-  { client: undefined, baseUrl: undefined, signInHref: undefined },
+  { client: undefined, baseUrl: undefined, signInHref: undefined, passwordRules: undefined },
 );
 
 const emit = defineEmits<{
@@ -35,8 +40,14 @@ const client = useAccountClient(props);
 const t = useAccountText();
 const isReset = shallowRef(false);
 
-const form = useAccountForm({
+/** Follows `passwordRules`, which the page may load after the form shows. */
+const schema = computed(() => object({ newPassword: passwordRule(props.passwordRules, { email: props.email }) }));
+
+const form = useAccountForm(() => ({
   defaultValues: { newPassword: '' },
+  schema: schema.value,
+  validateOn: 'blur' as const,
+  messages: passwordRuleMessages,
   onSubmit: async (values, { signal }) => {
     const result = await client.resetPassword(
       { email: props.email, resetToken: props.token, newPassword: values.newPassword },
@@ -48,7 +59,7 @@ const form = useAccountForm({
     }
     return result;
   },
-});
+}));
 </script>
 
 <template>

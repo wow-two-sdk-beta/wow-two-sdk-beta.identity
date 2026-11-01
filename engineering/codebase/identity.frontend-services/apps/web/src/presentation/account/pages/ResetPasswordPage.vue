@@ -19,7 +19,13 @@ const { signIn: signInHref, forgotPassword: forgotPasswordHref } = HostedPageRou
 
 <template>
   <HostedLayout :options="options" title="Choose a new password">
-    <ResetPasswordForm v-if="request" :email="request.email" :token="request.token" :sign-in-href="signInHref" />
+    <ResetPasswordForm
+      v-if="request"
+      :email="request.email"
+      :token="request.token"
+      :sign-in-href="signInHref"
+      :password-rules="options?.passwordRules"
+    />
     <AlertSimple v-else severity="danger">This link is incomplete. Open the link from the email again.</AlertSimple>
     <template #footer>
       <a :href="forgotPasswordHref" class="font-medium text-primary underline-offset-4 hover:underline">

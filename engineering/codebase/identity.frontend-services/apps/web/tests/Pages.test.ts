@@ -128,8 +128,21 @@ function withOptions(overrides: Partial<SignInOptions>) {
     backgroundImageUrl: null,
     isSignUpEnabled: true,
     methods: [{ id: SignInMethodId.Password }],
+    passwordRules: [],
   };
   vi.spyOn(signInOptionsApi, 'get').mockResolvedValue(ResultExtensions.ok({ ...base, ...overrides }));
+}
+
+/** The message shown under the input named `name`, found through the input's `aria-describedby`. */
+function errorUnder(wrapper: ReturnType<typeof mount>, name: string) {
+  const id = wrapper.get(`input[name="${name}"]`).attributes('aria-describedby');
+  return id ? wrapper.find(`[id="${id}"]`).text() : null;
+}
+
+/** The declaration of `instanceDeclaration` with its password method's rules replaced. */
+function declarationWith(passwordRules: unknown) {
+  const [password, ...others] = instanceDeclaration.methods;
+  return { ...instanceDeclaration, methods: [{ ...password, passwordRules }, ...others] };
 }
 
 const authorize = '/connect/authorize?client_id=desk&response_type=code&state=s1';
@@ -375,5 +388,153 @@ describe('password pages', () => {
     const { wrapper } = await renderAt('/reset-password?email=ann%40example.test');
 
     expect(wrapper.text()).toContain('This link is incomplete.');
+  });
+});
+
+describe('password rules from the declaration', () => {
+  const shortMessage = 'Passwords must be at least 15 characters.';
+
+  it('blocks an email that is not one and a password the declared rules refuse on the sign-up page', async () => {
+    const received = stubApi({ 'POST /api/account/sign-up': () => Response.json({ data: { userId: 'u1' } }) });
+    const { wrapper } = await renderAt('/sign-up');
+
+    await wrapper.get('input[name="email"]').setValue('sdfsdf');
+    await wrapper.get('input[name="password"]').setValue('short');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(errorUnder(wrapper, 'email')).toBe('must be a valid email address');
+    expect(errorUnder(wrapper, 'password')).toBe(shortMessage);
+    expect(received.filter((request) => request.method === 'POST')).toHaveLength(0);
+
+    await wrapper.get('input[name="email"]').setValue('ann@example.test');
+    await wrapper.get('input[name="password"]').setValue('a-much-longer-password');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received.at(-1)?.body).toEqual({ email: 'ann@example.test', password: 'a-much-longer-password' });
+  });
+
+  it('takes the rules and their messages from the declaration it was served, not from a fixed policy', async () => {
+    const received = stubApi({
+      'GET /api/account/sign-in-options': () =>
+        Response.json({
+          data: declarationWith([
+            {
+              code: 'min',
+              params: { min: 20, unit: 'characters' },
+              message: 'Пароль должен содержать не менее 20 символов.',
+            },
+            { code: 'creditCard', params: null, message: 'A rule this page cannot map.' },
+          ]),
+        }),
+    });
+    const { wrapper } = await renderAt('/sign-up');
+
+    // 18 characters: enough for the instance's 15, short of this declaration's 20.
+    await wrapper.get('input[name="email"]').setValue('ann@example.test');
+    await wrapper.get('input[name="password"]').setValue('a-long-password-12');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(errorUnder(wrapper, 'password')).toBe('Пароль должен содержать не менее 20 символов.');
+    expect(received.filter((request) => request.method === 'POST')).toHaveLength(0);
+  });
+
+  it('keeps only the required checks when the declaration lists no password method', async () => {
+    const [, phone] = instanceDeclaration.methods;
+    const received = stubApi({
+      'GET /api/account/sign-in-options': () => Response.json({ data: { ...instanceDeclaration, methods: [phone] } }),
+      'POST /api/account/sign-up': () => Response.json({ data: { userId: 'u1' } }),
+    });
+    const { wrapper } = await renderAt('/sign-up');
+
+    await wrapper.get('input[name="email"]').setValue('ann@example.test');
+    await wrapper.get('input[name="password"]').setValue('x');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received.at(-1)?.body).toEqual({ email: 'ann@example.test', password: 'x' });
+  });
+
+  it('keeps only the required checks while the declaration fails to load', async () => {
+    const received = stubApi({
+      'GET /api/account/sign-in-options': () =>
+        Response.json(
+          { status: 503, detail: 'Unavailable' },
+          { status: 503, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      'POST /api/account/sign-up': () => Response.json({ data: { userId: 'u1' } }),
+    });
+    const { wrapper } = await renderAt('/sign-up');
+
+    await wrapper.get('input[name="email"]').setValue('ann@example.test');
+    await wrapper.get('input[name="password"]').setValue('x');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received.at(-1)?.body).toEqual({ email: 'ann@example.test', password: 'x' });
+  });
+
+  it('applies them to the new password of a reset link, and rejects the email it names', async () => {
+    const received = stubApi({ 'POST /api/account/reset-password': noContent });
+    const { wrapper } = await renderAt('/reset-password?email=ann%40example.test&token=r1');
+
+    await wrapper.get('input[name="newPassword"]').setValue('short');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(errorUnder(wrapper, 'newPassword')).toBe(shortMessage);
+    expect(received.filter((request) => request.method === 'POST')).toHaveLength(0);
+  });
+
+  it('applies them to the new password of a change link', async () => {
+    const received = stubApi({ 'POST /api/account/password/change': noContent });
+    const { wrapper } = await renderAt('/change-password#token=link-token');
+
+    await wrapper.get('input[name="newPassword"]').setValue('short');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(errorUnder(wrapper, 'newPassword')).toBe(shortMessage);
+    expect(received.filter((request) => request.method === 'POST')).toHaveLength(0);
+  });
+
+  it('applies them to the password change a sign-in requires', async () => {
+    const received = stubApi({
+      'POST /api/account/sign-in': () =>
+        Response.json({ data: { isPasswordChangeRequired: true, confirmation: 'None', ticket: 'tk' } }),
+      'POST /api/account/manage/password': noContent,
+    });
+    const { wrapper } = await renderAt('/sign-in');
+
+    await signInWithPassword(wrapper);
+    await wrapper.get('input[name="newPassword"]').setValue('short');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(errorUnder(wrapper, 'newPassword')).toBe(shortMessage);
+    expect(received.map((request) => request.url.pathname)).not.toContain('/api/account/manage/password');
+  });
+
+  it('applies them to the password change on the security page', async () => {
+    const received = stubApi({
+      'GET /api/account/manage/info': () => Response.json({ data: { userId: 'u1', email: 'ann@example.test' } }),
+      'POST /api/account/manage/password/confirmation': () =>
+        Response.json({ data: { confirmation: 'None', isSent: false } }),
+      'POST /api/account/manage/password': noContent,
+    });
+    const { wrapper } = await renderAt('/account/security');
+
+    const start = wrapper.findAll('button').find((button) => button.text() === 'Change the password');
+    await start?.trigger('click');
+    await flushPromises();
+    await wrapper.get('input[name="currentPassword"]').setValue('old-password');
+    await wrapper.get('input[name="newPassword"]').setValue('short');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(errorUnder(wrapper, 'newPassword')).toBe(shortMessage);
+    expect(received.map((request) => request.url.pathname)).not.toContain('/api/account/manage/password');
   });
 });

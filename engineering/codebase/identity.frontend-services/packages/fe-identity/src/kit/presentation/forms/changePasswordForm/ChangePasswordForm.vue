@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import type { AppError } from '@wow-two-beta/fe/foundation/results';
+import { object, string } from '@wow-two-beta/fe/foundation/validators';
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
 import { Field, PasswordInput, TextInput } from '@wow-two-beta/fe/presentation/forms';
 import { computed, onMounted, shallowRef } from 'vue';
-import { PasswordChangeConfirmationType, type PasswordChangeConfirmationDto } from '../../../../contracts';
+import {
+  PasswordChangeConfirmationType,
+  type PasswordChangeConfirmationDto,
+  type SignInRuleDto,
+} from '../../../../contracts';
 import type { AccountClient } from '../../../account';
 import { useAccountClient, useAccountForm, useAccountText } from '../../../account/hooks';
+import { passwordRule, passwordRuleMessages, requiredText } from '../../../account/validation';
 import { FailureAlert } from '../../feedback/failureAlert';
 import { ChangePasswordStage } from './ChangePasswordStage';
 
@@ -14,7 +20,7 @@ import { ChangePasswordStage } from './ChangePasswordStage';
  * Changes a password under the instance's confirmation setting. Signed in, it starts the change and asks for the
  * current password, plus the sent code under `Code`, or says a link went out under `Link`. With the ticket of a
  * sign-in that requires the change, it starts at once and skips the current password. With the token a change link
- * carried, it asks only for the new password.
+ * carried, it asks only for the new password. A new password that breaks `passwordRules` shows under its field.
  */
 defineOptions({ name: 'ChangePasswordForm' });
 
@@ -30,8 +36,10 @@ const props = withDefaults(
     ticket?: string | null;
     /** How the ticket's change is confirmed, as the sign-in answered; asked of the instance when omitted. */
     confirmation?: PasswordChangeConfirmationType | null;
+    /** The rules a new password meets, the declaration's `passwordRules`; with none, the password is only required. */
+    passwordRules?: ReadonlyArray<SignInRuleDto>;
   }>(),
-  { client: undefined, baseUrl: undefined, token: null, ticket: null, confirmation: null },
+  { client: undefined, baseUrl: undefined, token: null, ticket: null, confirmation: null, passwordRules: undefined },
 );
 
 const emit = defineEmits<{
@@ -54,8 +62,20 @@ const isStarting = shallowRef(false);
 const startFailure = shallowRef<AppError | null>(null);
 const isCodeRequired = computed(() => started.value?.confirmation === PasswordChangeConfirmationType.Code);
 
-const form = useAccountForm({
+/** Checks the fields the form shows: the current password and the code are required only while their inputs are. */
+const schema = computed(() =>
+  object({
+    currentPassword: props.token || props.ticket ? string() : requiredText(),
+    newPassword: passwordRule(props.passwordRules),
+    code: isCodeRequired.value ? requiredText() : string(),
+  }),
+);
+
+const form = useAccountForm(() => ({
   defaultValues: { currentPassword: '', newPassword: '', code: '' },
+  schema: schema.value,
+  validateOn: 'blur' as const,
+  messages: passwordRuleMessages,
   onSubmit: async (values, { signal }) => {
     const result = props.token
       ? await client.changePasswordWithLink({ token: props.token, newPassword: values.newPassword }, signal)
@@ -73,7 +93,7 @@ const form = useAccountForm({
     }
     return result;
   },
-});
+}));
 
 /** Asks the instance how the change is confirmed, which sends the code or link that setting calls for. */
 async function start() {
