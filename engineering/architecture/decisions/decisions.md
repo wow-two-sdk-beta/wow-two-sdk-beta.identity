@@ -1,6 +1,6 @@
 # decisions/
 
-*Last updated: 2026-10-31*
+*Last updated: 2026-11-01*
 
 > Identity's confirmed architecture decisions, newest last; a decision that needs its own record becomes
 > `NNNN-{slug}.md` beside this doc. Decisions spanning capabilities: `wow-two-ws/docs/platform-decisions.md`.
@@ -60,6 +60,8 @@
 | 2026-11-01 | every boolean takes an `Is` or `Has` name: members, settings keys, JSON fields and columns; `001-accounts` is rewritten in place and Ocharo dev's identity data is reset | developer, C8 |
 | 2026-11-01 | a stricter password rule is checked at the next sign-in once the password matches its hash; a failing one leads to the change form and stays until changed; only invalid settings and stranding are refused (replaces the C1 row's refusal for stored rows) | developer, C1b |
 | 2026-11-01 | settings stay the only source; the instance keeps no settings history, and Wheelhouse audits each change | developer, C2 |
+| 2026-11-01 | `config check` stays as the boot's own validation run without serving, stateless; it is the pattern for every wow2 service | developer, C9 |
+| 2026-11-01 | a password change takes `Identity:Password:Change:Confirmation` = `None` (default), `Code` or `Link`, sent over any verified channel and enforced by the API; `IsSignInAgainRequired` (off by default) ends the current session too | developer, C10 |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

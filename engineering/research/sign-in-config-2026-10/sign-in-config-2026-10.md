@@ -58,7 +58,27 @@ settings invalid on their own and changes that strand people are refused.
 - At sign-in, once the typed password matches its hash, the instance checks it against the current rules.
 - A failing password signs the person in to the change form only; no token is issued until it changes.
 - The old hash stays until the change, so leaving the form never locks the person out.
-- The form shows inline. An email link adds nothing, as the person has just proven the password.
+- The change follows the C10 confirmation setting, as a change from the account security page does.
+
+### Password change confirmation (C10)
+
+| Setting | Values | Default |
+|---|---|---|
+| `Identity:Password:Change:Confirmation` | `PasswordChangeConfirmationType`: `None` · `Code` · `Link` | `None` |
+| `Identity:Password:Change:IsSignInAgainRequired` | `true` · `false` | `false` |
+
+- `None`: "Change password" opens the change form at once.
+- `Code`: the instance sends a one-time code; the form takes it beside the new password.
+- `Link`: the instance sends a one-time link; only that link opens the form.
+- Both apply to the account security page and to the forced change of C1b.
+- The API enforces the type: a change without a valid code or link token is refused.
+- `Code` and `Link` name no channel: the change service injects `IOtpService` and `IOtpDeliveryHandlerFactory`.
+  - The person's verified channel delivers it: email, Telegram or any later handler.
+- A code or token is one use, 15 minutes, hashed at rest, scoped to the person and `password-change`.
+- A link carries its token in the URL fragment, and the page spends it by `POST`. Mail scanners open links.
+- `IsSignInAgainRequired` ends the current session too; otherwise it stays signed in.
+- Every change ends the person's other sessions and notifies each verified channel.
+- People with no verified channel under `Code` or `Link` count as stranded in `config check`.
 
 ### The rule for every wow2 service
 
@@ -67,7 +87,7 @@ settings invalid on their own and changes that strand people are refused.
   for it.
 - Refuse a change that leaves people no way to use the service, at `config check` and at a deployed boot, logging
   `Critical`.
-- `config check` is the boot's own validation, run without serving: read-only and stateless (C9, open). The deploy runs
+- `config check` is the boot's own validation, run without serving: read-only and stateless (C9). The deploy runs
   it after `migrate` and before the restart, so a refusal leaves the old release serving. Exit codes follow `migrate`:
   `0` consistent, `1` refused, `2` failed.
 - Wheelhouse needs a descriptor item beside `migrate:` for it; the developer adds it (2026-10-31).
@@ -240,7 +260,8 @@ Shape, as a draft (rule codes illustrative; the fe sdk's `ValidationCodes` names
 
 - [x] C1 Settings changes → settings invalid on their own stop the service; a stricter rule that invalidates stored rows fails the start with a log; `config check` lets Wheelhouse check first (developer, 2026-10-31)
 - [x] C1b A stricter password rule → checked at the next sign-in once the password matches; a failing one leads to the change form and stays until changed (developer, 2026-11-01)
-- [ ] C9 `config check` stays: the boot's own validation run without serving, stateless, for invalid settings and stranding → yes
+- [x] C9 `config check` stays: the boot's own validation run without serving, stateless, for invalid settings and stranding; the pattern for every wow2 service (developer, 2026-11-01)
+- [x] C10 Password change confirmation → `None` by default, `Code` or `Link` over any verified channel; `IsSignInAgainRequired` off by default (developer, 2026-11-01)
 - [x] C8 Identity takes `Is` names → renamed at once, columns in place; Ocharo dev's identity data is reset (developer, 2026-11-01)
 - [x] C2 Settings stay the only source → no snapshot table and no per-password revision; Wheelhouse audits settings changes (developer, 2026-11-01)
 - [ ] C3 The role catalog of § 4, with wow2's `operator` renamed `editor` → yes
