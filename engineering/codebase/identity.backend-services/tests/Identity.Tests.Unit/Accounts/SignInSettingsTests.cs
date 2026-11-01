@@ -39,7 +39,7 @@ public sealed class SignInSettingsTests
                 ["Identity:Password:Change:IsSignInAgainRequired"] = "true",
                 ["Identity:Password:Change:Lifetime"] = "00:10:00",
                 ["Identity:SignIn:IsConfirmedEmailRequired"] = "true",
-                ["Identity:SignIn:IsEmailLoginAllowed"] = "false",
+                ["Identity:SignIn:IsEmailIdentifierAllowed"] = "false",
                 ["Identity:Lockout:MaxFailedAttempts"] = "3",
                 ["Identity:Lockout:DefaultLockout"] = "00:30:00",
                 ["Identity:Lockout:IsEnabledForNewUsers"] = "false",
@@ -60,7 +60,7 @@ public sealed class SignInSettingsTests
         options.Password.Change.IsSignInAgainRequired.Should().BeTrue();
         options.Password.Change.Lifetime.Should().Be(TimeSpan.FromMinutes(10));
         options.SignIn.IsConfirmedEmailRequired.Should().BeTrue();
-        options.SignIn.IsEmailLoginAllowed.Should().BeFalse();
+        options.SignIn.IsEmailIdentifierAllowed.Should().BeFalse();
         options.Lockout.MaxFailedAttempts.Should().Be(3);
         options.Lockout.DefaultLockout.Should().Be(TimeSpan.FromMinutes(30));
         options.Lockout.IsEnabledForNewUsers.Should().BeFalse();

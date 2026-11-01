@@ -19,7 +19,7 @@ public sealed record OidcClientOptions
     public List<string> RedirectUris { get; set; } = [];
 
     /// <summary>Gets or sets the exact URIs end-session may return to; HTTPS, or HTTP on a loopback host.</summary>
-    public List<string> PostLogoutRedirectUris { get; set; } = [];
+    public List<string> PostSignOutRedirectUris { get; set; } = [];
 
     /// <summary>Gets or sets the audience (<c>aud</c>) of the app's access tokens; null uses the client id. The app accepts only its own.</summary>
     public string? Audience { get; set; }
@@ -29,16 +29,4 @@ public sealed record OidcClientOptions
     /// <c>org_permission</c> values that start with <c>{namespace}:</c>. Null carries every permission of the role.
     /// </summary>
     public string? PermissionNamespace { get; set; }
-
-    /// <summary>
-    /// Gets or sets the fe sdk theme the app's hosted pages take, by its registry id, such as <c>ocharo</c>; null or empty
-    /// takes <c>Identity:Pages:Theme</c>.
-    /// </summary>
-    public string? Theme { get; set; }
-
-    /// <summary>
-    /// Gets or sets the image behind the app's hosted pages: a path on the instance's origin or an absolute HTTPS URL;
-    /// null or empty takes <c>Identity:Pages:BackgroundUrl</c>.
-    /// </summary>
-    public string? BackgroundUrl { get; set; }
 }

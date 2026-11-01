@@ -12,11 +12,11 @@ public sealed record TwoFactorMethodOptions
     /// <summary>Gets or sets the broker of the channel, such as <c>eskiz</c> or <c>meta</c>; null takes the channel's default.</summary>
     public string? Broker { get; set; }
 
-    /// <summary>Gets or sets the account field the code goes to; null derives it from the channel (email → email, telegram → login, else phone).</summary>
+    /// <summary>Gets or sets the account field the code goes to; null derives it from the channel (email → email, telegram → external account, else phone).</summary>
     public TwoFactorAddressKind? Address { get; set; }
 
-    /// <summary>Gets or sets the external-login provider for <see cref="TwoFactorAddressKind.ExternalLogin"/>. Default <c>Telegram</c>.</summary>
-    public string LoginProvider { get; set; } = "Telegram";
+    /// <summary>Gets or sets the external-account provider for <see cref="TwoFactorAddressKind.ExternalAccount"/>. Default <c>Telegram</c>.</summary>
+    public string ExternalProvider { get; set; } = "Telegram";
 
     /// <summary>Gets the code's characters, length and lifetime.</summary>
     public OtpCodeSpec Code { get; } = new();
@@ -25,7 +25,7 @@ public sealed record TwoFactorMethodOptions
     internal TwoFactorAddressKind AddressKind => Address ?? Channel.ToLowerInvariant() switch
     {
         OtpChannelNameConstants.Email => TwoFactorAddressKind.Email,
-        OtpChannelNameConstants.Telegram => TwoFactorAddressKind.ExternalLogin,
+        OtpChannelNameConstants.Telegram => TwoFactorAddressKind.ExternalAccount,
         _ => TwoFactorAddressKind.PhoneNumber,
     };
 }

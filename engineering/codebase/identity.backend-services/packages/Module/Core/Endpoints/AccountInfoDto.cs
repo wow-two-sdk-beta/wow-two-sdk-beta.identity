@@ -6,7 +6,7 @@ public sealed record AccountInfoDto
     /// <summary>The user id.</summary>
     public required string UserId { get; init; }
 
-    /// <summary>The login name.</summary>
+    /// <summary>The user name.</summary>
     public string? UserName { get; init; }
 
     /// <summary>The email address.</summary>

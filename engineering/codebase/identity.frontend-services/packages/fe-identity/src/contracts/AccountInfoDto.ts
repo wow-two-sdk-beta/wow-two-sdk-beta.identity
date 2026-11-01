@@ -2,7 +2,7 @@
 export interface AccountInfoDto {
   /** The user id. */
   readonly userId: string;
-  /** The login name. */
+  /** The user name. */
   readonly userName: string | null;
   /** The email address. */
   readonly email: string | null;

@@ -19,7 +19,7 @@ public sealed class IdentityErrorTextTests
     [Fact]
     public void IdentityFailures_TranslateThroughTheModuleTextsWithTheirValues()
     {
-        using var provider = Build(Enabled("en", "ru"), register: services => services.AddUserAccounts());
+        using var provider = Build(Enabled("en", "ru"), addServices: collection => collection.AddUserAccounts());
         var result = IdentityResult.Failed(
             new IdentityError { Code = IdentityErrorCodeConstants.PasswordTooShort, Description = "Passwords must be at least 12 characters.", Params = new Dictionary<string, object> { ["MinLength"] = 12 } },
             new IdentityError { Code = IdentityErrorCodeConstants.DuplicateEmail, Description = "Email 'a@b.uz' is already taken.", Params = new Dictionary<string, object> { ["Email"] = "a@b.uz" } });
@@ -41,17 +41,17 @@ public sealed class IdentityErrorTextTests
         return settings;
     }
 
-    private static ServiceProvider Build(Dictionary<string, string?> settings, Action<ValidationOptions>? configure = null, Action<IServiceCollection>? register = null)
-        => Build(new ConfigurationBuilder().AddInMemoryCollection(settings).Build(), configure, register);
+    private static ServiceProvider Build(Dictionary<string, string?> settings, Action<ValidationOptions>? configure = null, Action<IServiceCollection>? addServices = null)
+        => Build(new ConfigurationBuilder().AddInMemoryCollection(settings).Build(), configure, addServices);
 
-    private static ServiceProvider Build(IConfigurationRoot configuration, Action<ValidationOptions>? configure = null, Action<IServiceCollection>? register = null)
+    private static ServiceProvider Build(IConfigurationRoot configuration, Action<ValidationOptions>? configure = null, Action<IServiceCollection>? addServices = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
         services.ConfigureValidation(configure);
         services.AddErrorHttpStatusMapping();
         services.AddSingleton<IAppErrorProblemDetailsFactory, AppErrorProblemDetailsFactory>();
-        register?.Invoke(services);
+        addServices?.Invoke(services);
         return services.BuildServiceProvider();
     }
 

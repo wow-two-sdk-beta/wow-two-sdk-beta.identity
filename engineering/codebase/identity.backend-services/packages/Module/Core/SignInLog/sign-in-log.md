@@ -23,8 +23,8 @@ identity.AddArgon2Passwords().AddLockout().AddSignIn().AddSignInLog(o => o.Reten
 | Column | Holds |
 |---|---|
 | `occurred_at` | when (UTC) |
-| `user_id` | the account the attempt named; null for an unknown login |
-| `subject_masked` | the typed login as a hint: `a***@example.com`, `+998*******45`, `al***` |
+| `user_id` | the account the attempt named; null for an unknown identifier |
+| `subject_masked` | the typed identifier as a hint: `a***@example.com`, `+998*******45`, `al***` |
 | `method` | `password`, `passkey`, `email_link`, `email_code`, `external`, or `2fa:{method}` (`2fa:authenticator`, `2fa:sms`, `2fa:recovery_code`) |
 | `client_id` | the OIDC client the sign-in serves, when the hosted pages pass `?clientId=` |
 | `result` · `reason` | `succeeded`, `failed`, `locked_out`, `not_allowed`, `two_factor_required` · `unknown_account`, `wrong_password`, `wrong_code`, `invalid_passkey`, `invalid_ticket`, `invalid_link_or_code`, `locked_out`, `lockout_started`, `unconfirmed_email`, `unconfirmed_phone` |

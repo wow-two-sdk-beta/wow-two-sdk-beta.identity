@@ -8,9 +8,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 public static class SignInDeclarationIdentityBuilderExtensions
 {
     /// <summary>
-    /// Registers <see cref="SignInDeclarationService"/> over <see cref="HostedPageOptions"/>; map its route with
-    /// <c>MapSignInOptionsEndpoint</c>. A host serving an OIDC client registry adds its <see cref="IHostedPageLookSource"/>
-    /// so each app's own theme and background apply.
+    /// Registers <see cref="SignInDeclarationService"/> over <see cref="HostedPageOptions"/>, the instance's one look; map its
+    /// route with <c>MapSignInOptionsEndpoint</c>.
     /// </summary>
     /// <remarks>A blank brand name, a theme that is no registry id, or a background that is neither a same-origin path nor an HTTPS URL stops the start.</remarks>
     /// <param name="builder">The identity builder.</param>

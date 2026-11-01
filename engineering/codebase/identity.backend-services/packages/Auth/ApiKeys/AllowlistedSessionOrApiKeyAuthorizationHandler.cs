@@ -7,7 +7,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.ApiKeys;
 /// <summary>Admits an API key that grants the requirement's scope, or a session identity the principal allowlist admits.</summary>
 /// <remarks>
 ///   - the session branch skips every identity the <c>ApiKey</c> scheme authenticated, so a key's name never passes for an
-///     allowlisted login and a key never rides the open (empty) allowlist
+///     allowlisted principal and a key never rides the open (empty) allowlist
 ///   - the allowlist keeps its own rule: empty <see cref="AllowlistOptions.Allowed"/> admits any authenticated session
 ///   - without <c>AddPrincipalAllowlist</c> the allowlist is the open default
 /// </remarks>

@@ -4,7 +4,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests;
 
-/// <summary>What the sessions and the sign-in log keep of a request: the network, a hint of the login, a bounded user agent.</summary>
+/// <summary>What the sessions and the sign-in log keep of a request: the network, a hint of the identifier, a bounded user agent.</summary>
 public sealed class PersonalDataMaskTests
 {
     [Theory]

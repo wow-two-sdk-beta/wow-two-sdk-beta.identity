@@ -14,14 +14,14 @@ import {
   type PhoneSignInApiRequest,
   type PhoneSignInSendApiRequest,
   type PhoneSignInSentDto,
-  type RegisterAccountApiRequest,
-  type RegisteredAccountDto,
   type ResetPasswordApiRequest,
   type SignInApiRequest,
   type SignInFieldDto,
   type SignInMethodDto,
   type SignInOptionsDto,
   type SignInRuleDto,
+  type SignUpApiRequest,
+  type SignedUpAccountDto,
 } from '../../contracts';
 
 /** Configures where the account API is reached. */
@@ -47,7 +47,7 @@ export interface AccountSignInOptions {
 
 /** Describes a sign-in declaration request. */
 export interface SignInOptionsQuery {
-  /** The OIDC client the sign-in serves: its own theme and background replace the instance's. */
+  /** The OIDC client the sign-in serves, recorded by the sign-in log; the look stays the instance's. */
   readonly clientId?: string | null;
   /** The locale of the rule messages (`uz`, `ru`, `en`); the browser's `Accept-Language` when omitted. */
   readonly locale?: string | null;
@@ -59,14 +59,14 @@ export interface SignInOptionsQuery {
 export interface AccountClient {
   /**
    * Reads the sign-in declaration: the hosted pages' look, whether sign-up is open, and each enabled method in layout
-   * order with its fields and rules. An unknown `clientId` answers the instance's own look.
+   * order with its fields and rules. The look is the instance's, whatever `clientId` names.
    */
   getSignInOptions(query?: SignInOptionsQuery): Promise<Result<SignInOptionsDto, ApiFailure>>;
-  /** Creates an account while sign-up is on; `403` while it is closed. */
-  register(request: RegisterAccountApiRequest, signal?: AbortSignal): Promise<Result<RegisteredAccountDto, ApiFailure>>;
+  /** Signs an account up while sign-up is on; `403` while it is closed. */
+  signUp(request: SignUpApiRequest, signal?: AbortSignal): Promise<Result<SignedUpAccountDto, ApiFailure>>;
   /**
-   * Signs in with a login and password: `null` once the session cookie is set, or the ticket of a required password
-   * change, which sets no session.
+   * Signs in with an identifier and password: `null` once the session cookie is set, or the ticket of a required
+   * password change, which sets no session.
    */
   signIn(
     request: SignInApiRequest,
@@ -118,7 +118,7 @@ function record(value: unknown): Readonly<Record<string, unknown>> | null {
     : null;
 }
 
-function decodeRegistered(value: unknown): Decoded<RegisteredAccountDto> {
+function decodeSignedUp(value: unknown): Decoded<SignedUpAccountDto> {
   const body = record(value);
   if (body && typeof body.userId === 'string') {
     return ResultExtensions.ok({ userId: body.userId, isConfirmationSent: body.isConfirmationSent === true });
@@ -276,10 +276,10 @@ export function createAccountClient(options: AccountClientOptions = {}): Account
         signal,
         decode: decodeSignInOptions,
       }),
-    register: (request, signal) =>
-      client.post(AccountRouteConstants.register, { body: request, signal, decode: decodeRegistered }),
+    signUp: (request, signal) =>
+      client.post(AccountRouteConstants.signUp, { body: request, signal, decode: decodeSignedUp }),
     async signIn(request, { clientId, signal } = {}) {
-      const answered = await client.post(AccountRouteConstants.login, {
+      const answered = await client.post(AccountRouteConstants.signIn, {
         query: signInQuery(clientId),
         body: request,
         response: 'text',
@@ -310,6 +310,6 @@ export function createAccountClient(options: AccountClientOptions = {}): Account
         response: 'empty',
         signal,
       }),
-    signOut: (signal) => client.post(AccountRouteConstants.logout, { response: 'empty', signal }),
+    signOut: (signal) => client.post(AccountRouteConstants.signOut, { response: 'empty', signal }),
   };
 }

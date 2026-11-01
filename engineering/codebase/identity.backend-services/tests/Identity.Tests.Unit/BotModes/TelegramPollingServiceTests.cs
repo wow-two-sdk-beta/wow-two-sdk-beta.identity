@@ -52,7 +52,7 @@ public sealed class TelegramPollingServiceTests
         host.Bot.Polls.Count.Should().BeGreaterThanOrEqualTo(4, "three refused polls, then one that goes through once the webhook is gone");
         var errors = host.Log.Entries.Where(e => e.Level == LogLevel.Error).ToList();
         errors.Should().ContainSingle("a webhook-held bot is reported once per episode, not once per retry");
-        errors[0].Message.Should().Contain("webhook is set").And.Contain("hosted instance").And.Contain("own bot").And.Contain("TestMode");
+        errors[0].Message.Should().Contain("webhook is set").And.Contain("hosted instance").And.Contain("own dev bot").And.NotContain("TestMode");
         host.Bot.Methods.Should().NotContain("deleteWebhook", "the webhook belongs to the hosted instance");
     }
 

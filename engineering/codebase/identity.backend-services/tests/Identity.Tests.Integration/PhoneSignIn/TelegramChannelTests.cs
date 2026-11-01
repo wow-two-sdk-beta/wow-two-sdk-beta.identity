@@ -1,9 +1,6 @@
 using AwesomeAssertions;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -14,7 +11,6 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.OneTimeCodes;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PhoneSignIn;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
-using WoW.Two.Sdk.Beta.Be.Identity.Core.TestMode;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp.Email;
@@ -26,7 +22,6 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.PhoneSignIn;
 /// <summary>
 /// A linked Telegram chat as a verified channel, over PostgreSQL: a password-change code or link reaches a person who has only
 /// a confirmed phone, email stays first with Telegram as the fallback, and an unlinked or unconfirmed number reaches nothing.
-/// Then test mode's simulator: a new phone sign-in completes its own link and the code lands in the sink.
 /// </summary>
 public sealed class TelegramChannelTests
 {
@@ -114,52 +109,6 @@ public sealed class TelegramChannelTests
         (await change.SendConfirmationAsync(person)).Status.Should().Be(PasswordChangeConfirmationStatus.NoVerifiedChannel, "an unconfirmed number proves nothing");
     }
 
-    [Fact]
-    public async Task TestMode_ShouldCompleteANewPhoneLinkAtOnce_AndKeepTheCodeInTheSink()
-    {
-        var bot = new FakeTelegramBotClient();
-        await using var host = CreateTestModeHost(bot, isOn: true);
-        await using var scope = host.Scope();
-        var services = scope.ServiceProvider;
-        var phoneSignIn = services.GetRequiredService<UserPhoneSignInService>();
-        var sink = services.GetRequiredService<TestMessageSink>();
-
-        var sent = await phoneSignIn.SendAsync("+998 90 123 45 67", "203.0.113.5");
-
-        sent.Status.Should().Be(PhoneSignInStatus.CodeSent, "the fake channel completed the link, so the code followed");
-        sent.TelegramLinkUrl.Should().BeNull();
-        bot.Sent.Should().BeEmpty("the real bot client is never called");
-        var chat = (await services.GetRequiredService<ITelegramLinkRepository>().FindLinkAsync("ocharo_bot", Phone))!.ChatId;
-        chat.Should().Be(998901234567, "the fake person's chat id is the digits of the number");
-        var messages = sink.Snapshot();
-        messages.Should().OnlyContain(m => m.Channel == "telegram" && m.To == "998901234567");
-        var code = System.Text.RegularExpressions.Regex.Match(messages[^1].Text, "[0-9]{6}").Value;
-        code.Should().HaveLength(6);
-
-        var verified = await phoneSignIn.VerifyAsync(Phone, code, isSignUpEnabled: true);
-        verified.Status.Should().Be(PhoneSignInStatus.Verified);
-        verified.IsUserCreated.Should().BeTrue();
-
-        host.Time.Advance(TimeSpan.FromSeconds(31));
-        (await phoneSignIn.SendAsync(Phone, "203.0.113.5")).Status.Should().Be(PhoneSignInStatus.CodeSent, "a linked number simply gets its next code");
-        sink.Snapshot().Count.Should().BeGreaterThan(messages.Count);
-    }
-
-    [Fact]
-    public async Task TestModeOff_ShouldLeaveANewPhoneLinkToThePerson()
-    {
-        var bot = new FakeTelegramBotClient();
-        await using var host = CreateTestModeHost(bot, isOn: false);
-        await using var scope = host.Scope();
-        var phoneSignIn = scope.ServiceProvider.GetRequiredService<UserPhoneSignInService>();
-
-        var sent = await phoneSignIn.SendAsync(Phone, "203.0.113.5");
-
-        sent.Status.Should().Be(PhoneSignInStatus.LinkRequired);
-        sent.TelegramLinkUrl.Should().StartWith("https://t.me/Ocharo_Bot?start=");
-        scope.ServiceProvider.GetRequiredService<TestMessageSink>().Snapshot().Should().BeEmpty();
-    }
-
     private static AccountsHost CreateHost(FakeTelegramBotClient bot, PasswordChangeConfirmationType confirmation, SwitchableBroker broker, string? linkTemplate = null) => AccountsHost.Create(
         identity => identity
             .AddArgon2Passwords()
@@ -187,24 +136,6 @@ public sealed class TelegramChannelTests
             services.AddSingleton<IEmailBroker>(broker);
             services.RemoveAll<ITelegramBotClient>();
             services.AddSingleton<ITelegramBotClient>(bot);
-        });
-
-    private static AccountsHost CreateTestModeHost(FakeTelegramBotClient bot, bool isOn) => AccountsHost.Create(
-        identity => identity
-            .AddSignIn()
-            .AddDatabaseOtpStore()
-            .AddPhoneSignIn(Telegram, phones => phones.AllowedCountries = ["UZ"])
-            .AddTestMode(o => o.IsEnabled = isOn),
-        services: services =>
-        {
-            services.AddOtpService(o =>
-            {
-                o.HashKey = HashKey;
-                o.Messages.AppName = "Ocharo";
-                o.RateLimitWindow = TimeSpan.FromSeconds(30);
-            });
-            services.AddSingleton<IHostEnvironment>(new LocalEnvironment());
-            services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         });
 
     private static void Telegram(TelegramBotOptions bot)
@@ -251,17 +182,6 @@ public sealed class TelegramChannelTests
         };
         shape(message);
         return new Update { Id = 1, Message = message };
-    }
-
-    private sealed class LocalEnvironment : IHostEnvironment
-    {
-        public string EnvironmentName { get; set; } = Environments.Development;
-
-        public string ApplicationName { get; set; } = "tests";
-
-        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
-
-        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 
     /// <summary>An email broker that keeps what it accepts and can be told to fail.</summary>

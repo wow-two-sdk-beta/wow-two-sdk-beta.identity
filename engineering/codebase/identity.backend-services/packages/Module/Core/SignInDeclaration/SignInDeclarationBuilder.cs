@@ -11,7 +11,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 internal static class SignInDeclarationBuilder
 {
     /// <summary>The sign-in request property holding the user name or email.</summary>
-    public const string LoginField = "login";
+    public const string IdentifierField = "identifier";
 
     /// <summary>The sign-in request property holding the password.</summary>
     public const string PasswordField = "password";
@@ -32,7 +32,7 @@ internal static class SignInDeclarationBuilder
 
         var methods = new List<SignInMethodDto>();
         if (input.Password is { } password)
-            methods.Add(PasswordMethod(password, input.IsEmailLoginAllowed, locale));
+            methods.Add(PasswordMethod(password, input.IsEmailIdentifierAllowed, locale));
         if (input.PhoneCountries is { } countries)
             methods.Add(PhoneCodeMethod(countries, input.PhoneCodeLength, locale));
 
@@ -111,15 +111,15 @@ internal static class SignInDeclarationBuilder
         return template;
     }
 
-    private static SignInMethodDto PasswordMethod(PasswordOptions rules, bool isEmailLoginAllowed, string locale) => new()
+    private static SignInMethodDto PasswordMethod(PasswordOptions rules, bool isEmailIdentifierAllowed, string locale) => new()
     {
         Id = SignInMethodIdConstants.Password,
         Fields =
         [
             Field(
-                LoginField,
+                IdentifierField,
                 SignInFieldKindConstants.Text,
-                Rule(Required, Text(isEmailLoginAllowed ? SignInDeclarationTextConstants.LoginRequired : SignInDeclarationTextConstants.UserNameLoginRequired, locale))),
+                Rule(Required, Text(isEmailIdentifierAllowed ? SignInDeclarationTextConstants.IdentifierRequired : SignInDeclarationTextConstants.UserNameIdentifierRequired, locale))),
             Field(PasswordField, SignInFieldKindConstants.Password, Rule(Required, Text(SignInDeclarationTextConstants.PasswordRequired, locale))),
         ],
         PasswordRules = [.. PasswordRules(rules, locale)],

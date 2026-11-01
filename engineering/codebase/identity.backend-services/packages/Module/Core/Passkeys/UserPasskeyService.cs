@@ -28,14 +28,14 @@ public sealed class UserPasskeyService(
     IOptionsMonitor<PasskeyOptions> options,
     TimeProvider time)
 {
-    private const string Registration = "register";
+    private const string Creation = "creation";
     private const string SignIn = "sign-in";
     private readonly IDataProtector _protector = protection.CreateProtector("WoW2.Identity.Passkeys.v1");
 
-    /// <summary>Starts registering a passkey for <paramref name="user"/>; the user's existing passkeys are excluded.</summary>
+    /// <summary>Starts adding a passkey for <paramref name="user"/>; the user's existing passkeys are excluded.</summary>
     /// <param name="user">The signed-in user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<PasskeyCeremonyModel> BeginRegistrationAsync(IdentityUser user, CancellationToken cancellationToken = default)
+    public async Task<PasskeyCeremonyModel> BeginCreationAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         var existing = await passkeys.ListAsync(user.Id, cancellationToken);
@@ -47,19 +47,19 @@ public sealed class UserPasskeyService(
             AttestationConveyancePreference.None,
             null);
         var json = request.ToJson();
-        return new PasskeyCeremonyModel { OptionsJson = json, State = Seal(Registration, IdOf(user), json) };
+        return new PasskeyCeremonyModel { OptionsJson = json, State = Seal(Creation, IdOf(user), json) };
     }
 
-    /// <summary>Completes a registration with the credential the browser created.</summary>
+    /// <summary>Completes adding a passkey with the credential the browser created.</summary>
     /// <param name="user">The signed-in user who started it.</param>
-    /// <param name="state">The state from <see cref="BeginRegistrationAsync"/>.</param>
+    /// <param name="state">The state from <see cref="BeginCreationAsync"/>.</param>
     /// <param name="credentialJson">The <c>PublicKeyCredential</c> JSON from <c>navigator.credentials.create</c>.</param>
     /// <param name="name">A label for the passkey, such as the device; null names it "Passkey".</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> CompleteRegistrationAsync(IdentityUser user, string state, string credentialJson, string? name = null, CancellationToken cancellationToken = default)
+    public async Task<IdentityResult> CompleteCreationAsync(IdentityUser user, string state, string credentialJson, string? name = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
-        if (Open(state, Registration) is not { } ceremony || ceremony.Subject != IdOf(user) || Parse<AuthenticatorAttestationRawResponse>(credentialJson) is not { } response)
+        if (Open(state, Creation) is not { } ceremony || ceremony.Subject != IdOf(user) || Parse<AuthenticatorAttestationRawResponse>(credentialJson) is not { } response)
             return Invalid("The passkey registration expired or does not belong to this account.");
 
         try

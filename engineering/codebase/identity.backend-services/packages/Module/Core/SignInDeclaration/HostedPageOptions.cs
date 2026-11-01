@@ -3,8 +3,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 /// <summary>Holds the instance's look on the hosted pages: the owner's brand name, the fe sdk theme and an optional background.</summary>
 /// <remarks>
 /// Set in code with <c>.AddSignInDeclaration(o => …)</c> or in the host section <c>Identity:Pages</c>, which is applied last
-/// and read live. A registered app may name its own theme and background (<c>Identity:Server:Clients:N:Theme</c>,
-/// <c>BackgroundUrl</c>); the declaration then answers them for that app. A value invalid on its own stops the start.
+/// and read live. An instance serves one product, so it has one look: no app overrides it. A value invalid on its own stops
+/// the start.
 /// </remarks>
 public sealed record HostedPageOptions
 {

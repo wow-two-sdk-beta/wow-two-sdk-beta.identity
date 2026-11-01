@@ -19,7 +19,7 @@ internal sealed record SignInDeclarationInput
     public PasswordOptions? Password { get; init; }
 
     /// <summary>Whether an email signs in where a user name is expected.</summary>
-    public bool IsEmailLoginAllowed { get; init; } = true;
+    public bool IsEmailIdentifierAllowed { get; init; } = true;
 
     /// <summary>The allowed countries while phone sign-in is on, empty for every country; null while it is off.</summary>
     public IReadOnlyList<string>? PhoneCountries { get; init; }

@@ -100,7 +100,7 @@ public sealed class OidcClientSeedingTests : IAsyncLifetime
         ClientId = "app",
         ClientSecret = secret,
         RedirectUris = [redirect],
-        PostLogoutRedirectUris = ["https://app.example.test/signed-out"],
+        PostSignOutRedirectUris = ["https://app.example.test/signed-out"],
     };
 
     private async Task SeedAsync()

@@ -30,8 +30,8 @@ internal sealed class IdentityBffOptionsValidator : IValidateOptions<IdentityBff
         if (options.EffectiveApiPathPrefixes.Any(prefix => !IsPrefix(prefix)))
             failures.Add($"{section}:{nameof(IdentityBffOptions.ApiPathPrefixes)} must hold paths such as /api: a leading slash, no trailing one.");
 
-        if (!BffReturnUrl.IsLocal(options.PostLogoutRedirectPath))
-            failures.Add($"{section}:{nameof(IdentityBffOptions.PostLogoutRedirectPath)} must be a local path such as /.");
+        if (!BffReturnUrl.IsLocal(options.PostSignOutRedirectPath))
+            failures.Add($"{section}:{nameof(IdentityBffOptions.PostSignOutRedirectPath)} must be a local path such as /.");
 
         if (options.SessionLifetime <= TimeSpan.Zero)
             failures.Add($"{section}:{nameof(IdentityBffOptions.SessionLifetime)} must be positive.");

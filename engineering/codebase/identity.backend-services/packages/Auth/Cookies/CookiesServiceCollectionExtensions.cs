@@ -26,8 +26,8 @@ public static class CookiesServiceCollectionExtensions
                 b.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 b.ExpireTimeSpan = opts.ExpireTimeSpan;
                 b.SlidingExpiration = opts.IsExpirationSliding;
-                b.LoginPath = opts.LoginPath;
-                b.LogoutPath = opts.LogoutPath;
+                b.LoginPath = opts.SignInPath;
+                b.LogoutPath = opts.SignOutPath;
 
                 if (opts.Mode == AuthChallengeMode.Api)
                 {

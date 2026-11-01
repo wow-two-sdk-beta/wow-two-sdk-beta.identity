@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OtpNet;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
-using WoW.Two.Sdk.Beta.Be.Identity.Core.Logins;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.ExternalAccounts;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
@@ -15,7 +15,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Mfa.Totp;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.Accounts;
 
-/// <summary>Roles, user claims, the principal factory, sign-in orchestration, two-factor and external logins.</summary>
+/// <summary>Roles, user claims, the principal factory, sign-in orchestration, two-factor and external accounts.</summary>
 public sealed class RolesAndSignInTests
 {
     private const string Password = "correct horse battery";
@@ -27,7 +27,7 @@ public sealed class RolesAndSignInTests
             .AddLockout()
             .AddRoles()
             .AddUserClaims()
-            .AddExternalLogins()
+            .AddExternalAccounts()
             .AddTwoFactor(o => o.Issuer = "Tests")
             .AddSignIn(),
         options);
@@ -164,24 +164,24 @@ public sealed class RolesAndSignInTests
     }
 
     [Fact]
-    public async Task ExternalLogins_ShouldLinkFindAndUnlinkAProviderAccount()
+    public async Task ExternalAccounts_ShouldLinkFindAndUnlinkAProviderAccount()
     {
         await using var host = CreateHost();
         var user = await host.CreateUserAsync("sam");
         var other = await host.CreateUserAsync("tess");
         await using var scope = host.Scope();
-        var logins = scope.ServiceProvider.GetRequiredService<UserLoginService>();
+        var externalAccounts = scope.ServiceProvider.GetRequiredService<ExternalAccountService>();
         var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
 
-        (await logins.AddLoginAsync(user, "Google", "google-sub-1", "Google")).IsSuccess.Should().BeTrue();
-        (await logins.AddLoginAsync(other, "Google", "google-sub-1")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.LoginAlreadyAssociated);
+        (await externalAccounts.LinkAsync(user, "Google", "google-sub-1", "Google")).IsSuccess.Should().BeTrue();
+        (await externalAccounts.LinkAsync(other, "Google", "google-sub-1")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.ExternalAccountAlreadyLinked);
 
-        var found = await logins.FindByLoginAsync("Google", "google-sub-1");
+        var found = await externalAccounts.FindByExternalAccountAsync("Google", "google-sub-1");
         found!.Id.Should().Be(user.Id);
         (await signIn.SignInAsync(found)).IsSuccess.Should().BeTrue();
 
-        (await logins.RemoveLoginAsync(found, "Google", "google-sub-1")).IsSuccess.Should().BeTrue();
-        (await logins.FindByLoginAsync("Google", "google-sub-1")).Should().BeNull();
+        (await externalAccounts.UnlinkAsync(found, "Google", "google-sub-1")).IsSuccess.Should().BeTrue();
+        (await externalAccounts.FindByExternalAccountAsync("Google", "google-sub-1")).Should().BeNull();
     }
 
     [Fact]
@@ -196,7 +196,7 @@ public sealed class RolesAndSignInTests
         var tracked = (await accounts.FindByIdAsync(user.Id))!;
         await services.GetRequiredService<UserRoleService>().AddToRoleAsync(tracked, "Viewer");
         await services.GetRequiredService<UserClaimService>().AddClaimsAsync(tracked, [new Claim("a", "b")]);
-        await services.GetRequiredService<UserLoginService>().AddLoginAsync(tracked, "GitHub", "gh-1");
+        await services.GetRequiredService<ExternalAccountService>().LinkAsync(tracked, "GitHub", "gh-1");
         await services.GetRequiredService<UserTwoFactorService>().ResetAuthenticatorKeyAsync(tracked);
 
         (await accounts.DeleteAsync(tracked)).IsSuccess.Should().BeTrue();
@@ -204,7 +204,7 @@ public sealed class RolesAndSignInTests
         var context = services.GetRequiredService<IdentityDbContext>();
         context.Set<IdentityUserRole>().Should().BeEmpty();
         context.Set<IdentityUserClaim>().Should().BeEmpty();
-        context.Set<IdentityUserLogin>().Should().BeEmpty();
+        context.Set<IdentityExternalAccount>().Should().BeEmpty();
         context.Set<IdentityUserToken>().Should().BeEmpty();
     }
 }

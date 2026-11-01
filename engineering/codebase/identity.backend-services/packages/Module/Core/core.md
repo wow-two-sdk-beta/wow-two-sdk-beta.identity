@@ -55,6 +55,8 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
   `identity_telegram_links` (a phone number's chat with the instance's bot, unique per bot and number) and
   `identity_telegram_link_requests` (the bot's pending start links); the bot is in `../Telegram/`. None is published to
   products.
+- `005-display-name` adds `identity_users.display_name` (nullable, 120), the name the `name` claim takes first; erasure
+  scrubs it, and it is not a readable column for products.
 - The SQL owns the schema: `../Migrations/Postgres/NNN-name/{Apply,Rollback}.sql`, embedded and run as the be sdk
   migration set `identity` (history `identity_migration_history`, its own advisory lock). EF only maps.
 - Names are pinned in the model, whatever the host's naming convention: snake_case columns, `pk_{table}`,
@@ -84,7 +86,7 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 | `AddSecurityStampValidation()` | `SecurityStampValidator` + cookie/JWT hooks | `SecurityStamps/` |
 | `AddRoles()` | `RoleService`, `UserRoleService` | `Roles/` |
 | `AddUserClaims()` | `UserClaimService` | `UserClaims/` |
-| `AddExternalLogins()` | `UserLoginService` | `Logins/` |
+| `AddExternalAccounts()` | `ExternalAccountService` | `ExternalAccounts/` |
 | `AddTwoFactor()` | `UserTwoFactorService` | `TwoFactor/` |
 | `AddPhoneNumbers(o => …)` | `UserPhoneService`, `PhoneNumberPolicy` (E.164, `Identity:Phone`) | `Phones/` |
 | `AddDatabaseOtpStore()` | `EfOtpRepository`: one-time codes in `identity_otp_codes` in place of memory | `OneTimeCodes/` |
@@ -93,13 +95,13 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 | `AddSessions(o => …)` | `UserSessionService` (one session per cookie sign-in, `sid`, list and revoke) + cookie hook | `Sessions/` |
 | `AddSignInLog(o => …)` | `SignInLogService` (every attempt, masked) + the retention cleanup job | `SignInLog/` |
 | `AddPasskeys(o => …)` | `UserPasskeyService`, `SignInService.PasskeySignInAsync` | `Passkeys/` |
-| `AddOrganizations(o => …)` | `OrganizationService` (organizations, memberships, role and permission claims) | `Organizations/` |
+| `AddOrganizations(o => …)` | `OrganizationService` (organizations, memberships, role and permission claims), `FirstOwnerService` (the host's `admin create`) | `Organizations/`, `Admin/` |
 | `AddEmailSignIn(o => …)` | `UserEmailSignInService` (single-use link or code over OTP) | `EmailSignIn/` |
 | `AddPersonalData()` | `UserPersonalDataService` (export sections, account erasure hooks) | `PersonalData/` |
 | `AddAccountEndpoints()` + `MapUserAccountEndpoints()` | account HTTP API; sign-up off unless `Identity:SignUp:IsEnabled` | `Endpoints/` |
 | `AddSignIn()` | `SignInService` | `SignIn/` |
 
-Table-backed slices (`AddRoles`, `AddUserClaims`, `AddExternalLogins`, `AddTwoFactor`, `AddRefreshTokens`, `AddPasskeys`,
+Table-backed slices (`AddRoles`, `AddUserClaims`, `AddExternalAccounts`, `AddTwoFactor`, `AddRefreshTokens`, `AddPasskeys`,
 `AddOrganizations`, `AddSessions`, `AddSignInLog`) register their repositories over `IdentityDbContext` with `TryAdd`, so
 a repository the host registered first wins.
 
@@ -124,7 +126,7 @@ a repository the host registered first wins.
 - Credential changes (password, email, role or claim removal, 2FA changes, unlinking) rotate the security stamp, which
   ends every session of the person.
 - Deleting a user is a soft delete: the row stays with `deleted_at` set, and no lookup, sign-in or token finds it again
-  (`IdentityUser` is `ISoftDeletable`, so the context filters it); its role, claim, login and token rows go in the same
+  (`IdentityUser` is `ISoftDeletable`, so the context filters it); its role, claim, external-account and token rows go in the same
   save, and its user name and email become free. Erasure (`AddPersonalData`) also scrubs the row's personal columns.
 - `IdentityDbContext` registers through the SDK context path, so the host's EF interceptors (audit stamps for
   `CreatedAt` / `UpdatedAt`) attach to it as to the host's own context.

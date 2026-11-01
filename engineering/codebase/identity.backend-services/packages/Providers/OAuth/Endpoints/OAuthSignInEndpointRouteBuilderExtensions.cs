@@ -76,7 +76,7 @@ public static class OAuthSignInEndpointRouteBuilderExtensions
 
         return Results.Ok(new OAuthSignedInUserDto
         {
-            Login = user.GetUsername() ?? user.FindFirstValue(ClaimTypes.Name) ?? "",
+            Handle = user.GetUsername() ?? user.FindFirstValue(ClaimTypes.Name) ?? "",
             Name = user.GetDisplayName() ?? user.GetUsername() ?? "",
             Avatar = user.GetAvatar(),
         });

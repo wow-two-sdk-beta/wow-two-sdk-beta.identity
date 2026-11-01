@@ -4,13 +4,13 @@ import { fakeAccountApi, noContent, problem, serviceUrl } from './FakeAccountApi
 
 describe('account client', () => {
   it('signs in for a cookie and names the client the sign-in serves', async () => {
-    const { client, fetch, received } = fakeAccountApi({ 'POST /login': noContent });
+    const { client, fetch, received } = fakeAccountApi({ 'POST /sign-in': noContent });
 
-    const result = await client.signIn({ login: 'ann@example.test', password: 'secret' }, { clientId: 'desk' });
+    const result = await client.signIn({ identifier: 'ann@example.test', password: 'secret' }, { clientId: 'desk' });
 
     expect(result).toEqual({ ok: true, value: null });
-    expect(received[0]?.url.toString()).toBe(`${serviceUrl}/api/account/login?useCookies=true&clientId=desk`);
-    expect(received[0]?.body).toEqual({ login: 'ann@example.test', password: 'secret' });
+    expect(received[0]?.url.toString()).toBe(`${serviceUrl}/api/account/sign-in?useCookies=true&clientId=desk`);
+    expect(received[0]?.body).toEqual({ identifier: 'ann@example.test', password: 'secret' });
     expect(fetch.mock.calls[0]?.[1]?.credentials).toBe('include');
   });
 
@@ -18,9 +18,9 @@ describe('account client', () => {
     ['bare', { isPasswordChangeRequired: true, confirmation: 'Code', ticket: 'tk' }],
     ['enveloped', { data: { isPasswordChangeRequired: true, confirmation: 'Code', ticket: 'tk' } }],
   ])('reads the ticket of a %s required password change from the sign-in answer', async (_shape, body) => {
-    const { client } = fakeAccountApi({ 'POST /login': () => Response.json(body) });
+    const { client } = fakeAccountApi({ 'POST /sign-in': () => Response.json(body) });
 
-    const result = await client.signIn({ login: 'ann', password: 'old' });
+    const result = await client.signIn({ identifier: 'ann', password: 'old' });
 
     expect(result).toEqual({
       ok: true,
@@ -30,22 +30,24 @@ describe('account client', () => {
 
   it('refuses a required password change without its ticket', async () => {
     const { client } = fakeAccountApi({
-      'POST /login': () => Response.json({ data: { isPasswordChangeRequired: true, confirmation: 'None' } }),
+      'POST /sign-in': () => Response.json({ data: { isPasswordChangeRequired: true, confirmation: 'None' } }),
     });
 
-    const result = await client.signIn({ login: 'ann', password: 'old' });
+    const result = await client.signIn({ identifier: 'ann', password: 'old' });
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.failure.code).toBe('protocol');
   });
 
   it('keeps the problem of a refused sign-in', async () => {
-    const { client } = fakeAccountApi({ 'POST /login': () => problem(401, 'The login or password is incorrect.') });
+    const { client } = fakeAccountApi({
+      'POST /sign-in': () => problem(401, 'The user name, email or password is incorrect.'),
+    });
 
-    const result = await client.signIn({ login: 'ann', password: 'wrong' });
+    const result = await client.signIn({ identifier: 'ann', password: 'wrong' });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.failure.problem?.detail).toBe('The login or password is incorrect.');
+    if (!result.ok) expect(result.failure.problem?.detail).toBe('The user name, email or password is incorrect.');
   });
 
   it('decodes the password change confirmation, whatever the case of its type', async () => {

@@ -4,7 +4,7 @@ import { computed } from 'vue';
 import type { SignInOptions } from '../../../domain/account';
 
 /**
- * Frames a hosted page in the app's look: its fe sdk theme by name, its background image (a same-origin path or an
+ * Frames a hosted page in the instance's look: its fe sdk theme by name, its background image (a same-origin path or an
  * HTTPS URL) or the theme's own backdrop, and one opaque card that stays readable over either.
  */
 defineOptions({ name: 'HostedLayout' });

@@ -33,7 +33,7 @@ public sealed class OidcVaultKeyTests
         });
         using var client = server.CreateClient();
 
-        await client.RegisterAndSignInAsync($"vault-{Guid.NewGuid():N}@example.test", Password);
+        await client.SignUpAndSignInAsync($"vault-{Guid.NewGuid():N}@example.test", Password);
         var tokens = await client.SignInToAppAsync();
 
         new JsonWebToken(tokens.IdentityToken).Kid.Should().Be(signing.Thumbprint);

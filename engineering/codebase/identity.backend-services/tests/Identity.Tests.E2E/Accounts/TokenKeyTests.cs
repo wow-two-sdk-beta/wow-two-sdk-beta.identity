@@ -25,7 +25,7 @@ public sealed class TokenKeyTests
             var settings = new Dictionary<string, string?> { ["Identity:Tokens:SigningKey"] = path };
             await using var first = new AccountHost(settings);
             using var client = first.CreateClient();
-            var registered = await AccountHost.DataAsync(await client.PostAsJsonAsync("/api/account/register", new { email = "kit@example.test", password = AccountHost.StrongPassword }));
+            var registered = await AccountHost.DataAsync(await client.PostAsJsonAsync("/api/account/sign-up", new { email = "kit@example.test", password = AccountHost.StrongPassword }));
             var link = first.Mail.LinkOf("Confirm your email", "kit@example.test");
             var query = HttpUtility.ParseQueryString(link.Query);
             registered.GetProperty("userId").GetString().Should().Be(query["userId"]);
@@ -47,7 +47,7 @@ public sealed class TokenKeyTests
         await using var host = new AccountHost(new Dictionary<string, string?> { ["Identity:Tokens:SigningKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) });
         using var client = host.CreateClient();
 
-        (await client.PostAsJsonAsync("/api/account/register", new { email = "ivy@example.test", password = AccountHost.StrongPassword })).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.PostAsJsonAsync("/api/account/sign-up", new { email = "ivy@example.test", password = AccountHost.StrongPassword })).StatusCode.Should().Be(HttpStatusCode.OK);
 
         host.Mail.Sent.Should().ContainSingle();
     }
@@ -69,7 +69,7 @@ public sealed class TokenKeyTests
         };
         await using var first = new AccountHost(new Dictionary<string, string?> { ["Identity:Tokens:SigningKey"] = key });
         using var client = first.CreateClient();
-        (await client.PostAsJsonAsync("/api/account/register", new { email = "ana@example.test", password = AccountHost.StrongPassword })).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.PostAsJsonAsync("/api/account/sign-up", new { email = "ana@example.test", password = AccountHost.StrongPassword })).StatusCode.Should().Be(HttpStatusCode.OK);
         var link = first.Mail.LinkOf("Confirm your email", "ana@example.test");
 
         // A second instance holding the same key in standard base64 accepts the token the first one signed.

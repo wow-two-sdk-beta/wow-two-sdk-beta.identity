@@ -3,7 +3,7 @@ import { onMounted, onScopeDispose, shallowRef } from 'vue';
 import type { SignInOptions } from '../../domain/account';
 import { signInOptionsApi } from '../../integration/account';
 
-/** Loads the sign-in declaration for `clientId` (the instance's own when `null`) for this component's lifetime. */
+/** Loads the sign-in declaration for this component's lifetime, naming `clientId` (or none) for the sign-in log. */
 export function useSignInOptions(clientId: string | null) {
   const controller = new AbortController();
   const options = shallowRef<SignInOptions | null>(null);

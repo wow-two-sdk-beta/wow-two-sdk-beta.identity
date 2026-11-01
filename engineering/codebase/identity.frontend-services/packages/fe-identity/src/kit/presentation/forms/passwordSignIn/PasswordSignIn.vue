@@ -8,7 +8,7 @@ import type { AccountClient } from '../../../account';
 import { useAccountClient, useAccountForm, useAccountText } from '../../../account/hooks';
 import { FailureAlert } from '../../feedback/failureAlert';
 
-/** Signs a person in with a login and password, by cookie session — on the hosted page or embedded in a product. */
+/** Signs a person in with an identifier and password, by cookie session — on the hosted page or embedded in a product. */
 defineOptions({ name: 'PasswordSignIn' });
 
 const props = withDefaults(
@@ -21,10 +21,10 @@ const props = withDefaults(
     clientId?: string | null;
     /** Where "Forgot your password?" leads; no link when omitted. */
     forgotPasswordHref?: string;
-    /** The login the field starts with. */
-    initialLogin?: string;
+    /** The identifier the field starts with. */
+    initialIdentifier?: string;
   }>(),
-  { client: undefined, baseUrl: undefined, clientId: null, forgotPasswordHref: undefined, initialLogin: '' },
+  { client: undefined, baseUrl: undefined, clientId: null, forgotPasswordHref: undefined, initialIdentifier: '' },
 );
 
 const emit = defineEmits<{
@@ -36,13 +36,13 @@ const emit = defineEmits<{
 
 const client = useAccountClient(props);
 const t = useAccountText();
-/** The email of an account that must confirm it before signing in, when the login was one. */
+/** The email of an account that must confirm it before signing in, when the identifier was one. */
 const unconfirmedEmail = shallowRef<string | null>(null);
 const isResent = shallowRef(false);
 const isResending = shallowRef(false);
 
 const form = useAccountForm({
-  defaultValues: { login: props.initialLogin, password: '' },
+  defaultValues: { identifier: props.initialIdentifier, password: '' },
   onSubmit: async (values, { signal }) => {
     unconfirmedEmail.value = null;
     isResent.value = false;
@@ -50,7 +50,9 @@ const form = useAccountForm({
     if (result.ok) {
       if (result.value) emit('passwordChangeRequired', result.value);
       else emit('signedIn');
-    } else if (result.failure.status === 403 && values.login.includes('@')) unconfirmedEmail.value = values.login;
+    } else if (result.failure.status === 403 && values.identifier.includes('@')) {
+      unconfirmedEmail.value = values.identifier;
+    }
     return result;
   },
 });
@@ -66,9 +68,9 @@ async function resendConfirmation() {
 
 <template>
   <form class="flex flex-col gap-4" novalidate @submit="form.handleSubmit">
-    <form.Field v-slot="field" name="login" is-required>
-      <Field :label="t('PasswordSignIn.login', 'Email or user name')">
-        <TextInput v-model="field.value" name="login" autocomplete="username" @blur="field.onBlur" />
+    <form.Field v-slot="field" name="identifier" is-required>
+      <Field :label="t('PasswordSignIn.identifier', 'Email or user name')">
+        <TextInput v-model="field.value" name="identifier" autocomplete="username" @blur="field.onBlur" />
       </Field>
     </form.Field>
     <form.Field v-slot="field" name="password" is-required>

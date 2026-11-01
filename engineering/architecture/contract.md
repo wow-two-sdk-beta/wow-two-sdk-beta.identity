@@ -22,7 +22,7 @@
 
 | Type | Holds |
 |---|---|
-| `IdentityErrorCodeConstants` | 44 stable codes the slices return as `IdentityError.Code`: user name and email, password rules and breach check, tokens, lockout, roles, logins, two-factor and recovery codes, phone codes, sign-in, refresh tokens, passkeys, email sign-in, organizations, sign-up |
+| `IdentityErrorCodeConstants` | 44 stable codes the slices return as `IdentityError.Code`: user name and email, password rules and breach check, tokens, lockout, roles, external accounts, two-factor and recovery codes, phone codes, sign-in, refresh tokens, passkeys, email sign-in, organizations, sign-up |
 | `IdentityErrorTextConstants.Messages` | culture (`ru`, `uz`) → code → template; `{Name}` placeholders fill from the error's `Params` |
 
 - Failures travel as Module's `IdentityResult` of `IdentityError { Code, Description, Params }`;
@@ -73,7 +73,7 @@
   from, a uuid in `D` form, the same in the ID and access token and kept by refreshes. Revoking that session (the
   person's session list, sign-out, end-session, a stamp rotation) ends the grant: refresh answers `invalid_grant` and
   userinfo `invalid_token`; access tokens already issued live out their 10 minutes. A relying party keys its own
-  session on `sid` to match a later back-channel logout (`flows/flows.md`).
+  session on `sid` to match a later back-channel sign-out (`flows/flows.md`).
 
 ## Seams by form, as moved
 
@@ -83,7 +83,7 @@ Namespaces are unchanged from the be sdk. Entities are not generic: one `Identit
 |---|---|---|---|
 | kernel | core | — | `ICurrentUserService` (`Id`, `Kind`), `UserKind` — read by core's Audit, SoftDelete and Idempotency |
 | edge | Auth | `AddCookieAuthentication`, `AddApiKeyAuthentication`, `AddPrincipalAllowlist`, `AddDefaultDenyAuthorization`, `AddGuestSession`, `AddCurrentUser`, `AddJwtBearerAuthentication`, `AddJwtTokenIssuance` | `IApiKeyRepository`, `IGuestSessionService`, `ITokenIssuer`; `CookieCurrentUserService` implements the kernel's `ICurrentUserService` |
-| 1 | Module | `AddUserAccounts(configure, configureDatabase)` → `IdentityBuilder`; `IdentityDbContext`; the `identity` migration set | store ports `IUserRepository`, `IRoleRepository`, `IUserRoleRepository`, `IUserClaimRepository`, `IUserLoginRepository`, `IUserTokenRepository`, `IRefreshTokenRepository`, `IUserPasskeyRepository`, `IOrganizationRepository`, `IUserSessionRepository`, `ISignInLogRepository`, `ITelegramLinkRepository` (EF defaults ship); hooks `IUserPasswordValidator`, `IUserVerifiedChannelSource`, `IAccountDeletionHandler`, `IPersonalDataExporter`, `IPwnedPasswordsClient`, `ISessionRevocationHandler`, `ITelegramLinkCompletionHandler` |
+| 1 | Module | `AddUserAccounts(configure, configureDatabase)` → `IdentityBuilder`; `IdentityDbContext`; the `identity` migration set | store ports `IUserRepository`, `IRoleRepository`, `IUserRoleRepository`, `IUserClaimRepository`, `IExternalAccountRepository`, `IUserTokenRepository`, `IRefreshTokenRepository`, `IUserPasskeyRepository`, `IOrganizationRepository`, `IUserSessionRepository`, `ISignInLogRepository`, `ITelegramLinkRepository` (EF defaults ship); hooks `IUserPasswordValidator`, `IUserVerifiedChannelSource`, `IAccountDeletionHandler`, `IPersonalDataExporter`, `IPwnedPasswordsClient`, `ISessionRevocationHandler`, `ITelegramLinkCompletionHandler` |
 | 1 | Module | OTP: `AddOtpService`, `Add{Email,Sms,Telegram,TelegramGateway,WhatsApp}OtpDelivery`; `AddTotp`; `AddFido2WebAuthn` | `IOtpService`, `IOtpRepository`, `IOtpCodeGenerator`, `IOtpMessageFormatter`, `IOtpDeliveryHandler` (keyed by `OtpChannelNameConstants`), `IOtpDeliveryHandlerFactory`, `ITotpService` |
 | 2/3 | Client | `AddIdentityBff(IdentityBffOptions)` | none: a BFF's OIDC sign-in with server-side tokens and session routes; brokers over the management API land here |
 | service | Server | `AddOidcServer(configure)` and `AddDataProtectionRing(configure)` on the Module's builder; `MapOidcServerEndpoints()`; `Identity:Server` (issuer, sign-in path, lifetimes, keys, clients); `Identity:DataProtection` (ring certificates) | `ISigningKeySource` (the settings by default: inline PEM or file paths); `SigningCertificateGenerator` and the service's `keys generate` |
@@ -103,7 +103,7 @@ Namespaces are unchanged from the be sdk. Entities are not generic: one `Identit
 | `AddSecurityStampValidation` | `SecurityStampValidator` |
 | `AddRoles` | `RoleService`, `UserRoleService` |
 | `AddUserClaims` | `UserClaimService` |
-| `AddExternalLogins` | `UserLoginService` |
+| `AddExternalAccounts` | `ExternalAccountService` |
 | `AddTwoFactor` | `UserTwoFactorService`, `UserTwoFactorMethodService` |
 | `AddPhoneNumbers` | `UserPhoneService`, `PhoneNumberPolicy` |
 | `AddDatabaseOtpStore` | `EfOtpRepository` |
@@ -125,13 +125,13 @@ registered. Sign-in by phone maps apart, with `MapPhoneSignInEndpoints`.
 
 | Slice | Routes |
 |---|---|
-| always | `POST register` · `POST login` · `POST refresh` · `POST logout` · `GET confirm-email` · `POST resend-confirmation-email` · `POST forgot-password` · `POST reset-password` · `GET manage/info` |
+| always | `POST sign-up` · `POST sign-in` · `POST refresh` · `POST sign-out` · `GET confirm-email` · `POST resend-confirmation-email` · `POST forgot-password` · `POST reset-password` · `GET manage/info` |
 | password change | `POST manage/password/confirmation` · `POST manage/password` · `POST password/change` |
 | phone sign-in | `POST phone-sign-in/send` · `POST phone-sign-in` |
-| two-factor | `GET manage/2fa` · `POST manage/2fa/{authenticator,enable,disable,recovery-codes,preferred}` · `POST manage/2fa/methods/{method}/{send,enable}` · `POST login/two-factor` |
+| two-factor | `GET manage/2fa` · `POST manage/2fa/{authenticator,enable,disable,recovery-codes,preferred}` · `POST manage/2fa/methods/{method}/{send,enable}` · `POST sign-in/two-factor` |
 | personal data | `GET manage/personal-data` · `POST manage/delete-account` |
 | email sign-in | `POST email-sign-in/send` · `POST email-sign-in` |
-| passkeys | `POST passkeys/login/options` · `POST passkeys/login` · `GET manage/passkeys` · `POST manage/passkeys/options` · `POST manage/passkeys` · `DELETE manage/passkeys/{id}` |
+| passkeys | `POST passkeys/sign-in/options` · `POST passkeys/sign-in` · `GET manage/passkeys` · `POST manage/passkeys/options` · `POST manage/passkeys` · `DELETE manage/passkeys/{id}` |
 | sessions | `GET manage/sessions` · `DELETE manage/sessions/{id}` · `DELETE manage/sessions[?keepCurrent=true]` |
 
 - Sign-in answers a bearer session (JWT through `ITokenIssuer`, plus a refresh token when registered) or, with

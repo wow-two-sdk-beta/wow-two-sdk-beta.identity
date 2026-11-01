@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using WoW.Two.Sdk.Beta.Be.Foundation.Options;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Admin;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
@@ -9,10 +10,10 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 public static class OrganizationIdentityBuilderExtensions
 {
     /// <summary>
-    /// Registers <see cref="OrganizationService"/> and the
-    /// repository over <c>identity_organizations</c> and <c>identity_memberships</c>. Roles and their permissions come
-    /// from <paramref name="configure"/>, then the host section <c>Identity:Organizations</c>. Principals then carry
-    /// organization role and permission claims.
+    /// Registers <see cref="OrganizationService"/>, the
+    /// repository over <c>identity_organizations</c> and <c>identity_memberships</c>, and <see cref="FirstOwnerService"/>
+    /// behind the host's <c>admin create</c>. Roles and their permissions come from <paramref name="configure"/>, then the
+    /// host section <c>Identity:Organizations</c>. Principals then carry organization role and permission claims.
     /// </summary>
     /// <param name="builder">The identity builder.</param>
     /// <param name="configure">The owner role and the other roles with their permissions.</param>
@@ -28,6 +29,7 @@ public static class OrganizationIdentityBuilderExtensions
         builder.Services.TryAddScoped<IOrganizationRepository, EfOrganizationRepository>();
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddScoped<OrganizationService>();
+        builder.Services.TryAddScoped<FirstOwnerService>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IPersonalDataExporter, OrganizationPersonalDataExporter>());
         return builder;
     }

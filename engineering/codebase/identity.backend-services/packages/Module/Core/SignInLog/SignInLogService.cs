@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInLog;
 
 /// <summary>
-/// Records every sign-in attempt in <c>identity_sign_in_log</c>: when, the account when known, the masked login, the step,
+/// Records every sign-in attempt in <c>identity_sign_in_log</c>: when, the account when known, the masked identifier, the step,
 /// the client, how it ended and why, the masked address, the user agent, the session and the trace. <c>SignInService</c>
 /// records each attempt it judges; a host records the ones it refuses before (an invalid email link).
 /// </summary>

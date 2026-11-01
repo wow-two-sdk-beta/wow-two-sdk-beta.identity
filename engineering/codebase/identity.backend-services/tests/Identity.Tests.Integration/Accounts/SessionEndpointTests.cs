@@ -36,7 +36,7 @@ public sealed class SessionEndpointTests
     public async Task CookieSessions_ShouldBeListedAndRevocable_OneOrAll()
     {
         await using var app = await StartAsync();
-        await app.RegisterAsync(Email);
+        await app.SignUpAsync(Email);
         using var laptop = app.CreateClient("Laptop/1.0");
         using var phone = app.CreateClient("Phone/2.0");
         await app.SignInAsync(laptop, Email);
@@ -65,18 +65,19 @@ public sealed class SessionEndpointTests
     }
 
     [Fact]
-    public async Task Logout_ShouldEndTheSession_AndAStampRotationEveryOther()
+    public async Task SignOut_ShouldEndTheSession_AndAStampRotationEveryOther()
     {
         await using var app = await StartAsync();
-        var userId = await app.RegisterAsync(Email);
+        var userId = await app.SignUpAsync(Email);
         using var first = app.CreateClient("First/1.0");
         using var second = app.CreateClient("Second/1.0");
         await app.SignInAsync(first, Email);
         await app.SignInAsync(second, Email);
 
-        (await first.PostAsJsonAsync("/account/logout", new { })).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await first.PostAsync("/account/sign-out", content: null)).StatusCode.Should().Be(HttpStatusCode.NoContent, "a browser signs out with an empty POST");
         var rows = await app.SessionsAsync(userId);
         rows.Should().ContainSingle(row => row.RevokeReason == SessionRevokeReasonConstants.SignOut && row.UserAgent == "First/1.0");
+        (await first.PostAsJsonAsync("/account/sign-out", new { })).StatusCode.Should().Be(HttpStatusCode.NoContent, "a JSON body is optional, not refused");
 
         await using (var scope = app.Services.CreateAsyncScope())
         {
@@ -92,10 +93,10 @@ public sealed class SessionEndpointTests
     public async Task SignInLog_ShouldTieEachSuccessToItsSession_AndKeepTheRequestMasked()
     {
         await using var app = await StartAsync();
-        var userId = await app.RegisterAsync(Email);
+        var userId = await app.SignUpAsync(Email);
         using var browser = app.CreateClient("Browser/3.0");
 
-        using var wrong = await browser.PostAsJsonAsync("/account/login?useCookies=true&clientId=wheelhouse", new { login = Email, password = "wrong" });
+        using var wrong = await browser.PostAsJsonAsync("/account/sign-in?useCookies=true&clientId=wheelhouse", new { identifier = Email, password = "wrong" });
         wrong.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         await app.SignInAsync(browser, Email, "?clientId=wheelhouse");
 
@@ -172,7 +173,7 @@ public sealed class SessionEndpointTests
             return client;
         }
 
-        public async Task<Guid> RegisterAsync(string email)
+        public async Task<Guid> SignUpAsync(string email)
         {
             await using var scope = web.Services.CreateAsyncScope();
             var user = new IdentityUser { UserName = email, Email = email };
@@ -180,9 +181,9 @@ public sealed class SessionEndpointTests
             return user.Id;
         }
 
-        public async Task SignInAsync(HttpClient client, string login, string query = "")
+        public async Task SignInAsync(HttpClient client, string identifier, string query = "")
         {
-            using var response = await client.PostAsJsonAsync($"/account/login?useCookies=true{query.Replace('?', '&')}", new { login, password = Password });
+            using var response = await client.PostAsJsonAsync($"/account/sign-in?useCookies=true{query.Replace('?', '&')}", new { identifier, password = Password });
             response.StatusCode.Should().Be(HttpStatusCode.NoContent);
         }
 

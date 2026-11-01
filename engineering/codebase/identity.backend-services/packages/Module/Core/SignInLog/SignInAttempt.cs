@@ -15,6 +15,6 @@ public sealed record SignInAttempt
     /// <summary>The account the attempt named, when one exists.</summary>
     public Guid? UserId { get; init; }
 
-    /// <summary>The login as typed; stored masked, never in full.</summary>
+    /// <summary>The identifier as typed (user name, email or phone); stored masked, never in full.</summary>
     public string? Subject { get; init; }
 }

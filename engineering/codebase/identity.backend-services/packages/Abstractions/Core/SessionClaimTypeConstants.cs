@@ -2,7 +2,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>
 /// Holds the session claim: the id of the sign-in session a cookie, an ID token or an access token was issued under, so a
-/// relying party can match a back-channel logout or a revocation to its own session.
+/// relying party can match a back-channel sign-out or a revocation to its own session.
 /// </summary>
 public static class SessionClaimTypeConstants
 {

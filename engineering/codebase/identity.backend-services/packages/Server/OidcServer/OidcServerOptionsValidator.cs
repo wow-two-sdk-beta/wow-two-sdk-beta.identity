@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Foundation.Configuration;
-using WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 
@@ -64,12 +63,8 @@ internal sealed class OidcServerOptionsValidator(IServiceProvider? services = nu
             yield return $"{label} has a blank Audience.";
         if (client.PermissionNamespace is { } ns && (string.IsNullOrWhiteSpace(ns) || ns.Contains(':', StringComparison.Ordinal)))
             yield return $"{label} has a PermissionNamespace that is blank or holds ':'.";
-        if (!string.IsNullOrEmpty(client.Theme) && !HostedPageLookRules.IsThemeName(client.Theme))
-            yield return $"{label} has a Theme that is no fe sdk theme id: lower-case letters and digits in hyphen-joined words, such as ocharo.";
-        if (!string.IsNullOrEmpty(client.BackgroundUrl) && !HostedPageLookRules.IsBackgroundUrl(client.BackgroundUrl))
-            yield return $"{label} has a BackgroundUrl that is neither a path on the instance's origin nor an absolute HTTPS URL.";
 
-        foreach (var uri in client.RedirectUris.Concat(client.PostLogoutRedirectUris))
+        foreach (var uri in client.RedirectUris.Concat(client.PostSignOutRedirectUris))
         {
             if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed) || !IsAllowedScheme(parsed) || !string.IsNullOrEmpty(parsed.Fragment))
                 yield return $"{label} lists '{uri}', which is not an absolute HTTPS URI (HTTP only on a loopback host) without a fragment.";

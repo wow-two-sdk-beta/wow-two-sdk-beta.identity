@@ -24,7 +24,7 @@ public sealed class OidcCodeFlowTests(OidcHostFixture fixture)
     {
         using var client = fixture.Server.CreateClient();
         var email = $"flow-{Guid.NewGuid():N}@example.test";
-        var userId = await client.RegisterAndSignInAsync(email, Password);
+        var userId = await client.SignUpAndSignInAsync(email, Password);
         var organization = await CreateOrganizationAsync(userId);
 
         var tokens = await client.SignInToAppAsync();
@@ -76,9 +76,9 @@ public sealed class OidcCodeFlowTests(OidcHostFixture fixture)
 
         // End-session ends the Identity session and the app's tokens, then returns to the registered URI.
         using var ended = await client.Http.GetAsync(
-            $"/connect/endsession?id_token_hint={renewed.IdentityToken}&post_logout_redirect_uri={Uri.EscapeDataString(OidcHost.PostLogoutRedirectUri)}&state=bye");
+            $"/connect/endsession?id_token_hint={renewed.IdentityToken}&post_logout_redirect_uri={Uri.EscapeDataString(OidcHost.PostSignOutRedirectUri)}&state=bye");
         ended.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        ended.Headers.Location!.GetLeftPart(UriPartial.Path).Should().Be(OidcHost.PostLogoutRedirectUri);
+        ended.Headers.Location!.GetLeftPart(UriPartial.Path).Should().Be(OidcHost.PostSignOutRedirectUri);
         OidcTestClient.QueryOf(ended)["state"].ToString().Should().Be("bye");
 
         using var afterSignOut = await client.AuthorizeAsync(OidcTestClient.CreatePkce().Challenge);
@@ -107,7 +107,7 @@ public sealed class OidcCodeFlowTests(OidcHostFixture fixture)
     public async Task Authorize_ShouldRequirePkceWithS256()
     {
         using var client = fixture.Server.CreateClient();
-        await client.RegisterAndSignInAsync($"pkce-{Guid.NewGuid():N}@example.test", Password);
+        await client.SignUpAndSignInAsync($"pkce-{Guid.NewGuid():N}@example.test", Password);
 
         using var missing = await client.AuthorizeAsync(challenge: null);
         missing.StatusCode.Should().NotBe(HttpStatusCode.Redirect, "no code without a challenge");
@@ -122,7 +122,7 @@ public sealed class OidcCodeFlowTests(OidcHostFixture fixture)
     public async Task Refresh_ShouldBeRefused_AfterTheStampRotates()
     {
         using var client = fixture.Server.CreateClient();
-        var userId = await client.RegisterAndSignInAsync($"stamp-{Guid.NewGuid():N}@example.test", Password);
+        var userId = await client.SignUpAndSignInAsync($"stamp-{Guid.NewGuid():N}@example.test", Password);
         var tokens = await client.SignInToAppAsync();
 
         await using (var scope = fixture.Server.Host.Services.CreateAsyncScope())

@@ -3,7 +3,7 @@
 *Last updated: 2026-10-26*
 
 > Identity's user flows: how a person signs in and out, and how an admin manages members. Technical flows (forwards,
-> form switches, logout delivery): `engineering/architecture/flows/flows.md`.
+> form switches, sign-out delivery): `engineering/architecture/flows/flows.md`.
 
 ## Sign-in
 
@@ -20,7 +20,7 @@
 
 ### Later sign-ins (P1)
 
-- phone, then the code from the bot; or one tap on Log in with Telegram.
+- phone, then the code from the bot; or one tap on Sign in with Telegram.
 - after the first link, the account is found by the Telegram user id, never by the phone the token reports.
 
 ### Other methods (P2)
@@ -39,7 +39,7 @@
 ## Sign-out
 
 - the member signs out in one app → the app clears its cookie and follows the instance's end-session URL.
-- the instance ends the session and tells every other app by back-channel logout; each app drops that session.
+- the instance ends the session and tells every other app by back-channel sign-out; each app drops that session.
 - "sign out everywhere" on the account page or in the console revokes every session and refresh token.
 
 ---
@@ -62,7 +62,7 @@
 
 1. The admin removes the member from the organization.
 2. Every session and refresh token of that membership is revoked at once.
-3. Apps sign the member out by back-channel logout and receive `MemberRemoved`.
+3. Apps sign the member out by back-channel sign-out and receive `MemberRemoved`.
 
 ### From a product (P1)
 

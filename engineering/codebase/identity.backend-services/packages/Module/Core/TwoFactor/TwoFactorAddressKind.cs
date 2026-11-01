@@ -9,6 +9,6 @@ public enum TwoFactorAddressKind
     /// <summary>The confirmed email address.</summary>
     Email,
 
-    /// <summary>The provider key of an external login, such as the Telegram user id a bot writes to.</summary>
-    ExternalLogin,
+    /// <summary>The provider key of an external account, such as the Telegram user id a bot writes to.</summary>
+    ExternalAccount,
 }

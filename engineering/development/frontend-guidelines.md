@@ -18,8 +18,8 @@ Defer to `wow-two-ws/conventions/development/frontend/`.
   (`application/account/ReadAccountRequests.ts`).
 - Every hosted page sits in `HostedLayout`, which takes the fe sdk theme by registry id (`theme-{id}` from
   `@wow-two-beta/fe/themes.css`) and a background image (same-origin or https) from `SignInOptions`; `signInOptionsApi`
-  reads the instance's methods, brand and per-app look from `GET /api/account/sign-in-options?clientId=`, the clientId
-  taken from the authorize `returnUrl`.
+  reads the instance's methods and its one look (brand, theme, background) from `GET /api/account/sign-in-options?clientId=`,
+  the clientId taken from the authorize `returnUrl`; it feeds the sign-in log and will narrow the methods, never the look.
 - The kit's UI is form-agnostic: it calls the consumer's origin (Form 1) or the service's (`baseUrl`), never both.
 - A link's one-time token stays out of the query: the change-password page reads it from the URL fragment and clears it.
 

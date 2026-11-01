@@ -9,15 +9,15 @@ public sealed class EfUserTokenRepository(IdentityDbContext context) : IUserToke
     private DbSet<IdentityUserToken> Tokens => context.Set<IdentityUserToken>();
 
     /// <inheritdoc />
-    public async Task<string?> GetAsync(Guid userId, string loginProvider, string name, CancellationToken cancellationToken = default)
-        => (await FindAsync(userId, loginProvider, name, cancellationToken))?.Value;
+    public async Task<string?> GetAsync(Guid userId, string provider, string name, CancellationToken cancellationToken = default)
+        => (await FindAsync(userId, provider, name, cancellationToken))?.Value;
 
     /// <inheritdoc />
-    public async Task SetAsync(Guid userId, string loginProvider, string name, string value, CancellationToken cancellationToken = default)
+    public async Task SetAsync(Guid userId, string provider, string name, string value, CancellationToken cancellationToken = default)
     {
-        var token = await FindAsync(userId, loginProvider, name, cancellationToken);
+        var token = await FindAsync(userId, provider, name, cancellationToken);
         if (token is null)
-            Tokens.Add(new IdentityUserToken { UserId = userId, LoginProvider = loginProvider, Name = name, Value = value });
+            Tokens.Add(new IdentityUserToken { UserId = userId, Provider = provider, Name = name, Value = value });
         else
             token.Value = value;
 
@@ -25,15 +25,15 @@ public sealed class EfUserTokenRepository(IdentityDbContext context) : IUserToke
     }
 
     /// <inheritdoc />
-    public async Task RemoveAsync(Guid userId, string loginProvider, string name, CancellationToken cancellationToken = default)
+    public async Task RemoveAsync(Guid userId, string provider, string name, CancellationToken cancellationToken = default)
     {
-        if (await FindAsync(userId, loginProvider, name, cancellationToken) is not { } token)
+        if (await FindAsync(userId, provider, name, cancellationToken) is not { } token)
             return;
 
         Tokens.Remove(token);
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<IdentityUserToken?> FindAsync(Guid userId, string loginProvider, string name, CancellationToken cancellationToken)
-        => await Tokens.FindAsync([userId, loginProvider, name], cancellationToken);
+    private async Task<IdentityUserToken?> FindAsync(Guid userId, string provider, string name, CancellationToken cancellationToken)
+        => await Tokens.FindAsync([userId, provider, name], cancellationToken);
 }

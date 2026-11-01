@@ -30,6 +30,7 @@ public sealed class UserPersonalDataService(
             {
                 Id = user.Id.ToString(),
                 user.UserName,
+                user.DisplayName,
                 user.Email,
                 user.IsEmailConfirmed,
                 user.PhoneNumber,
@@ -39,7 +40,7 @@ public sealed class UserPersonalDataService(
             },
         };
         sections["claims"] = await context.Set<IdentityUserClaim>().AsNoTracking().Where(c => c.UserId == user.Id).Select(c => new { Type = c.ClaimType, Value = c.ClaimValue }).ToListAsync(cancellationToken);
-        sections["logins"] = await context.Set<IdentityUserLogin>().AsNoTracking().Where(l => l.UserId == user.Id).Select(l => new { Provider = l.LoginProvider, DisplayName = l.ProviderDisplayName }).ToListAsync(cancellationToken);
+        sections["external_accounts"] = await context.Set<IdentityExternalAccount>().AsNoTracking().Where(a => a.UserId == user.Id).Select(a => new { a.Provider, DisplayName = a.ProviderDisplayName }).ToListAsync(cancellationToken);
         sections["passkeys"] = await context.Set<IdentityPasskey>().AsNoTracking().Where(p => p.UserId == user.Id).Select(p => new { p.Name, p.CreatedAt, p.LastUsedAt }).ToListAsync(cancellationToken);
         sections["sessions"] = await context.Set<IdentityRefreshToken>().AsNoTracking().Where(t => t.UserId == user.Id).Select(t => new { t.CreatedAt, t.ExpiresAt, t.RevokedAt }).ToListAsync(cancellationToken);
         sections["sign_in_sessions"] = await context.Set<IdentitySession>().AsNoTracking().Where(s => s.UserId == user.Id).OrderBy(s => s.CreatedAt)
@@ -57,7 +58,7 @@ public sealed class UserPersonalDataService(
     }
 
     /// <summary>
-    /// Erases the account: the product's handlers, then roles, claims, logins, stored tokens, refresh tokens, sign-in
+    /// Erases the account: the product's handlers, then roles, claims, external accounts, stored tokens, refresh tokens, sign-in
     /// sessions, passkeys and organization memberships leave, and the user row is scrubbed in place — names, email,
     /// phone and password hash cleared, flags reset, the stamps replaced and <see cref="IdentityUser.DeletedAt"/> set
     /// unless it already was. The row stays, so a product's key into <c>identity_users</c> never blocks; it resolves no
@@ -77,7 +78,7 @@ public sealed class UserPersonalDataService(
             : null;
         await DeleteRowsAsync<IdentityUserRole>(row => row.UserId == user.Id, cancellationToken);
         await DeleteRowsAsync<IdentityUserClaim>(row => row.UserId == user.Id, cancellationToken);
-        await DeleteRowsAsync<IdentityUserLogin>(row => row.UserId == user.Id, cancellationToken);
+        await DeleteRowsAsync<IdentityExternalAccount>(row => row.UserId == user.Id, cancellationToken);
         await DeleteRowsAsync<IdentityUserToken>(row => row.UserId == user.Id, cancellationToken);
         await DeleteRowsAsync<IdentityRefreshToken>(row => row.UserId == user.Id, cancellationToken);
         await DeleteRowsAsync<IdentitySession>(row => row.UserId == user.Id, cancellationToken);
@@ -105,6 +106,7 @@ public sealed class UserPersonalDataService(
                 row => row
                     .SetProperty(u => u.UserName, (string?)null)
                     .SetProperty(u => u.NormalizedUserName, (string?)null)
+                    .SetProperty(u => u.DisplayName, (string?)null)
                     .SetProperty(u => u.Email, (string?)null)
                     .SetProperty(u => u.NormalizedEmail, (string?)null)
                     .SetProperty(u => u.IsEmailConfirmed, false)

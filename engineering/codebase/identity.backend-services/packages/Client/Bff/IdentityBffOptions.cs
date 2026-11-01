@@ -9,7 +9,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff;
 /// <remarks>
 /// Bound from the host section <c>Identity:Client</c> first; the code configuration of <c>AddIdentityBff</c> runs after
 /// it, so code wins. Validated at boot. Register the client at the instance with the redirect URI
-/// <c>{origin}{RoutePrefix}/callback</c> and the post-logout URI <c>{origin}{PostLogoutRedirectPath}</c>.
+/// <c>{origin}{RoutePrefix}/callback</c> and the post-sign-out URI <c>{origin}{PostSignOutRedirectPath}</c>.
 /// </remarks>
 public sealed record IdentityBffOptions
 {
@@ -37,9 +37,11 @@ public sealed record IdentityBffOptions
     /// requests <see cref="DefaultScopes"/>: <c>openid profile email phone offline_access</c>.</summary>
     public List<string> Scopes { get; set; } = [];
 
-    /// <summary>Gets or sets where the session routes live: <c>{RoutePrefix}/session</c>, <c>/login</c>, <c>/logout</c> and
-    /// the code callback <c>/callback</c>. Default <c>/auth</c>; a path with a leading and no trailing slash.</summary>
-    public string RoutePrefix { get; set; } = "/auth";
+    /// <summary>Gets or sets where the session routes live: <c>{RoutePrefix}/session</c>, <c>/sign-in</c>,
+    /// <c>/sign-out</c> and the code callback <c>/callback</c>. Default <c>/api/identity</c>; a path with a leading and no
+    /// trailing slash. Under the default <c>/api</c> prefix the session routes stay API calls (<c>/sign-out</c> needs
+    /// <c>X-Csrf-Token</c>), while <c>/sign-in</c> and <c>/callback</c> redirect by design.</summary>
+    public string RoutePrefix { get; set; } = "/api/identity";
 
     /// <summary>Gets or sets the path prefixes of API requests: they answer 401 and 403 problems instead of a redirect,
     /// and their unsafe methods need the <c>X-Csrf-Token</c> header. Empty uses <see cref="DefaultApiPathPrefixes"/>
@@ -47,7 +49,7 @@ public sealed record IdentityBffOptions
     public List<string> ApiPathPrefixes { get; set; } = [];
 
     /// <summary>Gets or sets the local path end-session returns the browser to. Default <c>/</c>.</summary>
-    public string PostLogoutRedirectPath { get; set; } = "/";
+    public string PostSignOutRedirectPath { get; set; } = "/";
 
     /// <summary>Gets or sets the absolute session lifetime, counted from the sign-in and never extended; keep it within the
     /// instance's refresh token window (12 hours by default). Default 12 hours.</summary>

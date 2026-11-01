@@ -83,7 +83,7 @@ public sealed class OAuthSignInEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         (await response.Content.ReadAsStringAsync()).Should().Be(
-            """{"login":"octocat","name":"The Octocat","avatar":"https://avatars.example/octocat.png"}""");
+            """{"handle":"octocat","name":"The Octocat","avatar":"https://avatars.example/octocat.png"}""");
     }
 
     [Fact]
@@ -94,8 +94,8 @@ public sealed class OAuthSignInEndpointTests
         using var handleOnly = await host.Client.SendAsync(SignedIn("/api/identity/me", new Claim(NormalizedClaimTypeConstants.Username, "octocat")));
         using var nameOnly = await host.Client.SendAsync(SignedIn("/api/identity/me", new Claim(ClaimTypes.Name, "octo")));
 
-        (await handleOnly.Content.ReadAsStringAsync()).Should().Be("""{"login":"octocat","name":"octocat","avatar":null}""");
-        (await nameOnly.Content.ReadAsStringAsync()).Should().Be("""{"login":"octo","name":"","avatar":null}""");
+        (await handleOnly.Content.ReadAsStringAsync()).Should().Be("""{"handle":"octocat","name":"octocat","avatar":null}""");
+        (await nameOnly.Content.ReadAsStringAsync()).Should().Be("""{"handle":"octo","name":"","avatar":null}""");
     }
 
     [Fact]

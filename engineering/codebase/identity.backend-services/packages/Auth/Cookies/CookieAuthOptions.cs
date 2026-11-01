@@ -26,11 +26,11 @@ public sealed record CookieAuthOptions
     /// <summary>Use sliding expiration. Default <c>true</c>.</summary>
     public bool IsExpirationSliding { get; set; } = true;
 
-    /// <summary>Login path. Default <c>/auth/login</c>.</summary>
-    public PathString LoginPath { get; set; } = "/auth/login";
+    /// <summary>Sign-in path, where a challenge redirects in <see cref="AuthChallengeMode.Mvc"/>. Default <c>/api/identity/sign-in</c>.</summary>
+    public PathString SignInPath { get; set; } = "/api/identity/sign-in";
 
-    /// <summary>Logout path. Default <c>/auth/logout</c>.</summary>
-    public PathString LogoutPath { get; set; } = "/auth/logout";
+    /// <summary>Sign-out path. Default <c>/api/identity/sign-out</c>.</summary>
+    public PathString SignOutPath { get; set; } = "/api/identity/sign-out";
 
     /// <summary>Challenge style. Default <see cref="AuthChallengeMode.Mvc"/>.</summary>
     public AuthChallengeMode Mode { get; set; } = AuthChallengeMode.Mvc;

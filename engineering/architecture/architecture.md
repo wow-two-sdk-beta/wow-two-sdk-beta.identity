@@ -96,7 +96,7 @@ flowchart BT
   (OpenIddict 7.7.2, its EF Core stores on `IdentityDbContext`): code + PKCE S256, rotating refresh tokens with an
   absolute lifetime, discovery, JWKS, userinfo and end-session; no implicit, password or client-credentials grant.
 - the authorize, token, userinfo and end-session endpoints run in pass-through on the Module: the authorize endpoint
-  reads the account API's cookie session (`/api/account/login?useCookies=true`) and sends a person without one to
+  reads the account API's cookie session (`/api/account/sign-in?useCookies=true`) and sends a person without one to
   `Identity:Server:SignInPath`; one claim mapper writes every token's claims ([contract](contract.md) § Token claims).
 - clients come from `Identity:Server:Clients`, seeded idempotently at startup: confidential, first-party, exact URIs,
   their own audience, hashed secrets.

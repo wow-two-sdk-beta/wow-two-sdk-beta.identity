@@ -9,11 +9,11 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 /// </summary>
 public static class SignInDeclarationTextConstants
 {
-    /// <summary>The login field (user name or email) is empty.</summary>
-    public const string LoginRequired = "LoginRequired";
+    /// <summary>The identifier field (user name or email) is empty.</summary>
+    public const string IdentifierRequired = "IdentifierRequired";
 
-    /// <summary>The login field is empty where only a user name signs in (<c>Identity:SignIn:IsEmailLoginAllowed</c> off).</summary>
-    public const string UserNameLoginRequired = "UserNameLoginRequired";
+    /// <summary>The identifier field is empty where only a user name signs in (<c>Identity:SignIn:IsEmailIdentifierAllowed</c> off).</summary>
+    public const string UserNameIdentifierRequired = "UserNameIdentifierRequired";
 
     /// <summary>The sign-in form's password field is empty.</summary>
     public const string PasswordRequired = "PasswordRequired";
@@ -34,8 +34,8 @@ public static class SignInDeclarationTextConstants
         {
             ["en"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [LoginRequired] = "Enter your user name or email.",
-                [UserNameLoginRequired] = "Enter your user name.",
+                [IdentifierRequired] = "Enter your user name or email.",
+                [UserNameIdentifierRequired] = "Enter your user name.",
                 [PasswordRequired] = "Enter your password.",
                 [PhoneRequired] = "Enter your phone number.",
                 [CodeRequired] = "Enter the code.",

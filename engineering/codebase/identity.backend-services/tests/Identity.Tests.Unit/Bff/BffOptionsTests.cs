@@ -43,8 +43,8 @@ public sealed class BffOptionsTests
         var options = provider.GetRequiredService<IOptions<IdentityBffOptions>>().Value;
 
         options.EffectiveScopes.Should().Equal("openid", "profile", "email", "phone", "offline_access");
-        options.RoutePrefix.Should().Be("/auth");
-        options.PostLogoutRedirectPath.Should().Be("/");
+        options.RoutePrefix.Should().Be("/api/identity");
+        options.PostSignOutRedirectPath.Should().Be("/");
     }
 
     [Theory]
@@ -52,8 +52,8 @@ public sealed class BffOptionsTests
     [InlineData("Authority", "http://id.example.test", "HTTPS")]
     [InlineData("ClientId", "", "ClientId")]
     [InlineData("RoutePrefix", "auth", "RoutePrefix")]
-    [InlineData("RoutePrefix", "/auth/", "RoutePrefix")]
-    [InlineData("PostLogoutRedirectPath", "https://elsewhere.example.test/", "PostLogoutRedirectPath")]
+    [InlineData("RoutePrefix", "/api/identity/", "RoutePrefix")]
+    [InlineData("PostSignOutRedirectPath", "https://elsewhere.example.test/", "PostSignOutRedirectPath")]
     [InlineData("Scopes:0", "profile", "openid")]
     public void Validation_ShouldRefuseTheBoot(string key, string value, string expected)
     {
@@ -83,7 +83,7 @@ public sealed class BffOptionsTests
         handler.MapInboundClaims.Should().BeFalse();
         handler.CallbackPath.Value.Should().Be("/session-routes/callback");
         handler.Scope.Should().Equal("openid", "offline_access");
-        cookie.LoginPath.Value.Should().Be("/session-routes/login");
+        cookie.LoginPath.Value.Should().Be("/session-routes/sign-in");
         cookie.SlidingExpiration.Should().BeFalse("the session's end is absolute");
         cookie.Cookie.HttpOnly.Should().BeTrue();
         cookie.Cookie.Name.Should().Be(".app.session");

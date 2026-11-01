@@ -42,8 +42,7 @@ app.MapTelegramWebhook();                     // POST /api/telegram/webhook
 - Telegram never returns the `secret_token`, so a rotated `WebhookSecret` shows only as the `401` Telegram records for the
   rejected deliveries; the next start re-registers. After rotating, restart once more or call `setWebhook` by hand.
 - Polling never calls `deleteWebhook`. A bot with a webhook set belongs to a hosted instance, so Telegram answers `409`:
-  the service logs one error (once per episode) that says to give the local run its own bot or turn on test mode
-  (`Core/TestMode/`), then retries with a doubling wait, 5 s up to 1 min. Another poller on the same bot is reported the same way.
+  the service logs one error (once per episode) that says to give the local run its own dev bot, then retries with a doubling wait, 5 s up to 1 min. Another poller on the same bot is reported the same way.
 - An update whose handler throws is logged and skipped under polling, so one poisoned update cannot stop the bot; the
   webhook answers `500` and lets Telegram retry. Updates are confirmed by `getUpdates` offset, after they are handled.
 

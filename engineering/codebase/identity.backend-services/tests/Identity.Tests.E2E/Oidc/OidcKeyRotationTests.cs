@@ -45,7 +45,7 @@ public sealed class OidcKeyRotationTests : IDisposable
         using var client = server.CreateClient();
 
         var keys = await client.GetKeysAsync();
-        await client.RegisterAndSignInAsync($"jwks-{Guid.NewGuid():N}@example.test", Password);
+        await client.SignUpAndSignInAsync($"jwks-{Guid.NewGuid():N}@example.test", Password);
         var tokens = await client.SignInToAppAsync();
 
         keys.Keys.Select(key => key.Kid).Should().BeEquivalentTo([_current, _staged], "relying parties cache the next key before it signs");
@@ -59,7 +59,7 @@ public sealed class OidcKeyRotationTests : IDisposable
         await using var server = new OidcHost(_settings);
         using var client = server.CreateClient();
         var email = $"rotate-{Guid.NewGuid():N}@example.test";
-        await client.RegisterAndSignInAsync(email, Password);
+        await client.SignUpAndSignInAsync(email, Password);
         KeyIdOf((await client.SignInToAppAsync()).IdentityToken).Should().Be(_current);
 
         server.Host.Clock.Advance(StagedIn + TimeSpan.FromHours(1));
@@ -79,7 +79,7 @@ public sealed class OidcKeyRotationTests : IDisposable
         {
             using var client = server.CreateClient();
             var email = $"control-{Guid.NewGuid():N}@example.test";
-            await client.RegisterAndSignInAsync(email, Password);
+            await client.SignUpAndSignInAsync(email, Password);
 
             server.Host.Clock.Advance(StagedIn + TimeSpan.FromHours(1));
             await client.SignInAsync(email, Password);
@@ -91,7 +91,7 @@ public sealed class OidcKeyRotationTests : IDisposable
         await using var restarted = new OidcHost(_settings, WithoutDateSelection);
         restarted.Host.Clock.SetUtcNow(_now + StagedIn + TimeSpan.FromHours(1));
         using var after = restarted.CreateClient();
-        await after.RegisterAndSignInAsync($"restart-{Guid.NewGuid():N}@example.test", Password);
+        await after.SignUpAndSignInAsync($"restart-{Guid.NewGuid():N}@example.test", Password);
 
         KeyIdOf((await after.SignInToAppAsync()).IdentityToken).Should().Be(_staged);
     }

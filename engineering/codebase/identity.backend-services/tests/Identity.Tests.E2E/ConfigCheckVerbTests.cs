@@ -140,6 +140,29 @@ public sealed partial class ConfigCheckVerbTests
         run.Result.Unknown.Should().BeEquivalentTo("Identity:Telegram:BotTokn", "Identity:Email:Smtp:Hots");
     }
 
+    [Fact]
+    public async Task Check_ShouldRefuseTheRetiredKeys_OfTestModeClientLooksAndOldNames()
+    {
+        var settings = DeclaredSettings();
+        foreach (var (key, value) in OfferedSettings())
+            settings[key] = value;
+        settings["Identity:TestMode:IsEnabled"] = "false";
+        settings["Identity:Server:Clients:0:Theme"] = "platform";
+        settings["Identity:Server:Clients:0:BackgroundUrl"] = "https://img.example.test/desk.jpg";
+        settings["Identity:Server:Clients:0:PostLogoutRedirectUris:0"] = "https://desk.example.test/";
+        settings["Identity:SignIn:IsEmailLoginAllowed"] = "true";
+
+        var run = await RunAsync(settings);
+
+        run.Exit.Should().Be(1);
+        run.Result.Unknown.Should().BeEquivalentTo(
+            "Identity:TestMode:IsEnabled",
+            "Identity:Server:Clients:0:Theme",
+            "Identity:Server:Clients:0:BackgroundUrl",
+            "Identity:Server:Clients:0:PostLogoutRedirectUris:0",
+            "Identity:SignIn:IsEmailLoginAllowed");
+    }
+
     private static async Task<Run> RunAsync(Dictionary<string, string?> settings)
     {
         using var output = new StringWriter();
@@ -213,11 +236,9 @@ public sealed partial class ConfigCheckVerbTests
         ["Identity:Server:Clients:0:ClientId"] = "desk",
         ["Identity:Server:Clients:0:ClientSecret"] = "unused-client-secret-0123456789",
         ["Identity:Server:Clients:0:RedirectUris:0"] = "https://desk.example.test/callback",
-        ["Identity:Server:Clients:0:PostLogoutRedirectUris:0"] = "https://desk.example.test/",
+        ["Identity:Server:Clients:0:PostSignOutRedirectUris:0"] = "https://desk.example.test/",
         ["Identity:Server:Clients:0:Audience"] = "desk-api",
         ["Identity:Server:Clients:0:PermissionNamespace"] = "desk",
-        ["Identity:Server:Clients:0:Theme"] = "platform",
-        ["Identity:Server:Clients:0:BackgroundUrl"] = "https://img.example.test/desk.jpg",
         ["Identity:Tokens:DefaultLifetime"] = "1.00:00:00",
         ["Identity:Tokens:Lifetimes:PasswordReset"] = "02:00:00",
         ["Identity:Server:SignInPath"] = "/sign-in",
@@ -244,12 +265,11 @@ public sealed partial class ConfigCheckVerbTests
         ["Identity:Password:Change:LinkBody"] = "Open {link} within {minutes} minutes.",
         ["Identity:SignIn:IsConfirmedEmailRequired"] = "true",
         ["Identity:SignIn:IsConfirmedPhoneNumberRequired"] = "false",
-        ["Identity:SignIn:IsEmailLoginAllowed"] = "true",
+        ["Identity:SignIn:IsEmailIdentifierAllowed"] = "true",
         ["Identity:Lockout:MaxFailedAttempts"] = "5",
         ["Identity:Lockout:DefaultLockout"] = "00:05:00",
         ["Identity:Lockout:IsEnabledForNewUsers"] = "true",
         ["Identity:Telegram:WebhookUrl"] = "https://id.example.test/api/telegram/webhook",
-        ["Identity:TestMode:IsEnabled"] = "false",
     };
 
     private static string Base64Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');

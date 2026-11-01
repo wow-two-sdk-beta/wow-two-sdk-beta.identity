@@ -26,5 +26,5 @@ builder.Services
 - Failures return `OtpDeliveryResult(false, reason)` — `invalid_chat_id` for malformed addresses,
   Telegram API errors pass through as the reason message (a blocked bot is a `403`).
 - Registered keyed as the `telegram` channel and additively (`TryAddEnumerable`) beside the other channels.
-- In test mode (`Identity:TestMode`, `Core/TestMode/`) the client is a fake that keeps each message in memory.
+- The runtime always talks to the real Bot API; tests swap `ITelegramBotClient` for a fake of their own.
 - Codes to a phone number without a bot chat: the `telegram-gateway` channel (`Otp/TelegramGateway`).

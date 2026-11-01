@@ -14,7 +14,7 @@
 - **Own store.** People, organizations, memberships, sessions and the sign-in log live in one `identity` schema we own.
 - **Standard protocol.** OAuth 2.0 / OpenID Connect through [OpenIddict](https://github.com/openiddict/openiddict-core),
   checked by the OpenID Foundation conformance suite.
-- **Phone-first sign-in.** Codes through your own Telegram bot, Log in with Telegram, Telegram Gateway, SMS or email —
+- **Phone-first sign-in.** Codes through your own Telegram bot, Sign in with Telegram, Telegram Gateway, SMS or email —
   each a setting, worded in `uz`, `ru` and `en`.
 - **Hosted or embedded UI.** Hosted sign-in, account and console pages, or Vue components embedded in your app.
 
@@ -113,12 +113,12 @@ Embed the sign-in components on your own pages, or forward the flow to the insta
 
 | Area | P1 — first slice | Later |
 |---|---|---|
-| Sign-in | phone + code via your own Telegram bot; Log in with Telegram | Gateway, SMS, email, passwords, passkeys, social, enterprise SSO |
+| Sign-in | phone + code via your own Telegram bot; Sign in with Telegram | Gateway, SMS, email, passwords, passkeys, social, enterprise SSO |
 | Members | invite-only, organizations, roles, app access, disable, remove | self sign-up, account linking |
-| Sessions | code + PKCE, rotating refresh, key rotation, back-channel logout | device flow, token exchange |
+| Sessions | code + PKCE, rotating refresh, key rotation, back-channel sign-out | device flow, token exchange |
 | Security | durable hashed codes, rate limits, operator passkey or TOTP | step-up, new-device alerts, risk scoring |
 | Console | members, sessions, sign-in log, counts | policies, charts, impersonation |
-| Developers | the Client, embeddable screens, test mode, a claims hook | management API, webhooks, SCIM |
+| Developers | the Client, embeddable screens, a test kit, `admin create`, a claims hook | management API, webhooks, SCIM |
 
 ---
 

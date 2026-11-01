@@ -18,7 +18,7 @@ const signInHref = hostedHref(HostedPageRouteConstants.signIn, props.request.ret
 </script>
 
 <template>
-  <HostedLayout :options="options" title="Create an account">
+  <HostedLayout :options="options" title="Sign up">
     <SignUpForm :sign-in-href="signInHref" />
     <template #footer>
       <p class="text-muted-foreground">

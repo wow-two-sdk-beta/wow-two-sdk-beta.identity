@@ -34,7 +34,7 @@ const declaration: SignInOptionsDto = {
       channels: [],
       fields: [
         {
-          name: 'login',
+          name: 'identifier',
           kind: 'text',
           countries: null,
           rules: [{ code: 'required', params: null, message: 'Enter your user name or email.' }],
@@ -108,7 +108,7 @@ describe('sign-in declaration', () => {
       {
         brandName: 'Identity',
         theme: 'platform',
-        methods: [{ id: 'password', fields: [{ name: 'login', kind: 'text', rules: [{ code: 'required' }] }] }],
+        methods: [{ id: 'password', fields: [{ name: 'identifier', kind: 'text', rules: [{ code: 'required' }] }] }],
       },
     ],
   ])('refuses a declaration with %s', async (_case, data) => {

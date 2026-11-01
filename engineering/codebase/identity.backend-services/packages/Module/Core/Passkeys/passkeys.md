@@ -10,9 +10,9 @@ identity.AddLockout()
         .AddPasskeys(o => { o.ServerDomain = "acme.com"; o.ServerName = "Acme"; o.Origins.Add("https://acme.com"); })
         .AddSignIn();
 
-// register (signed in)
-var ceremony = await passkeys.BeginRegistrationAsync(user);            // OptionsJson → navigator.credentials.create
-await passkeys.CompleteRegistrationAsync(user, ceremony.State, credentialJson, "Laptop");
+// add a passkey (signed in)
+var ceremony = await passkeys.BeginCreationAsync(user);            // OptionsJson → navigator.credentials.create
+await passkeys.CompleteCreationAsync(user, ceremony.State, credentialJson, "Laptop");
 
 // sign in (no user name)
 var request = passkeys.BeginSignIn();                                  // OptionsJson → navigator.credentials.get

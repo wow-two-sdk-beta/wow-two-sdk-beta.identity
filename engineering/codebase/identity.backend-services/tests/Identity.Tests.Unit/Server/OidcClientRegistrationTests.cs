@@ -16,7 +16,7 @@ public sealed class OidcClientRegistrationTests
         ClientId = "wheelhouse",
         ClientSecret = "test-only-secret",
         RedirectUris = ["https://wheelhouse.example.test/signin-oidc"],
-        PostLogoutRedirectUris = ["https://wheelhouse.example.test/signed-out"],
+        PostSignOutRedirectUris = ["https://wheelhouse.example.test/signed-out"],
         Audience = "wheelhouse-api",
         PermissionNamespace = "wheelhouse",
     };
@@ -80,7 +80,7 @@ public sealed class OidcClientRegistrationTests
     [Fact]
     public void Options_ShouldAcceptLoopbackHttpForLocalApps()
     {
-        var options = new OidcServerOptions { Clients = [Wheelhouse() with { RedirectUris = ["http://localhost:5173/signin-oidc"], PostLogoutRedirectUris = ["http://127.0.0.1:5173/"] }] };
+        var options = new OidcServerOptions { Clients = [Wheelhouse() with { RedirectUris = ["http://localhost:5173/signin-oidc"], PostSignOutRedirectUris = ["http://127.0.0.1:5173/"] }] };
 
         new OidcServerOptionsValidator().Validate(null, options).Should().Be(ValidateOptionsResult.Success);
     }

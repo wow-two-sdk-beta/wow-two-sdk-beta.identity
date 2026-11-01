@@ -34,7 +34,7 @@ export const routes: RouteConfig = [
   {
     path: pages.signUp,
     id: 'sign-up',
-    handle: { title: 'Create an account' },
+    handle: { title: 'Sign up' },
     lazy: lazyPage(
       () => import('../../presentation/account/pages/SignUpPage.vue'),
       (route) => ({ request: readSignInRequest(route.query) }),

@@ -42,8 +42,8 @@ await methods.SendCodeAsync(user, "sms");                            // worded p
 await methods.EnableAsync(user, "sms", code);                        // enables two-factor, makes sms preferred
 ```
 
-- Addresses: phone for SMS, WhatsApp and Telegram Gateway; email for email; the `Telegram` login for the bot channel.
-  Override with `Address` and `LoginProvider`. A method without a registered channel or confirmed address is not offered.
+- Addresses: phone for SMS, WhatsApp and Telegram Gateway; email for email; the linked `Telegram` external account for the bot channel.
+  Override with `Address` and `ExternalProvider`. A method without a registered channel or confirmed address is not offered.
 - Codes live in `IOtpService` under `identity.two-factor.{method}` with the method's own spec; wording comes from
   `IOtpMessageFormatter` with the purpose `two-factor` (template keys such as `two-factor.sms`).
 - `SignInService`: a `RequiresTwoFactor` result names `TwoFactorMethod`; `SendTwoFactorCodeAsync(userId, ticket)` sends it

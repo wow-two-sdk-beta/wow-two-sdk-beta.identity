@@ -4,7 +4,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.OAuth.Endpoints;
 public sealed record OAuthSignedInUserDto
 {
     /// <summary>The provider handle (<c>wt:username</c>), else the name claim; empty when neither is present.</summary>
-    public required string Login { get; init; }
+    public required string Handle { get; init; }
 
     /// <summary>The display name (<c>wt:display_name</c>), else the handle; empty when neither is present.</summary>
     public required string Name { get; init; }

@@ -35,7 +35,7 @@ const instanceDeclaration = {
       id: 'password',
       channels: [],
       fields: [
-        { name: 'login', kind: 'text', countries: null, rules: [required('Enter your user name or email.')] },
+        { name: 'identifier', kind: 'text', countries: null, rules: [required('Enter your user name or email.')] },
         { name: 'password', kind: 'password', countries: null, rules: [required('Enter your password.')] },
       ],
       passwordRules: [
@@ -115,7 +115,7 @@ async function renderAt(path: string) {
 }
 
 async function signInWithPassword(wrapper: ReturnType<typeof mount>) {
-  await wrapper.get('input[name="login"]').setValue('ann@example.test');
+  await wrapper.get('input[name="identifier"]').setValue('ann@example.test');
   await wrapper.get('input[name="password"]').setValue('a-long-password');
   await wrapper.get('section[aria-label="Password"] form').trigger('submit');
   await flushPromises();
@@ -154,25 +154,25 @@ describe('sign-in route', () => {
     expect(sections).toEqual(['Password', 'Phone']);
     expect(wrapper.text()).toContain('or');
     expect(wrapper.text()).toContain('+998');
-    const signUp = wrapper.findAll('a').find((link) => link.text() === 'Create an account');
+    const signUp = wrapper.findAll('a').find((link) => link.text() === 'Sign up');
     expect(signUp?.attributes('href')).toBe(`/sign-up?returnUrl=${encodeURIComponent(authorize)}`);
   });
 
   it('continues to the local return URL once signed in, naming the client', async () => {
-    const received = stubApi({ 'POST /api/account/login': noContent });
+    const received = stubApi({ 'POST /api/account/sign-in': noContent });
     const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
     const { wrapper } = await renderAt(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
 
     await signInWithPassword(wrapper);
 
-    expect(received.find((request) => request.url.pathname === '/api/account/login')?.url.search).toBe(
+    expect(received.find((request) => request.url.pathname === '/api/account/sign-in')?.url.search).toBe(
       '?useCookies=true&clientId=desk',
     );
     expect(assign).toHaveBeenCalledWith(authorize);
   });
 
   it('continues to / when the return URL leaves the origin', async () => {
-    stubApi({ 'POST /api/account/login': noContent });
+    stubApi({ 'POST /api/account/sign-in': noContent });
     const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
     const { wrapper } = await renderAt('/sign-in?returnUrl=%2F%2Fevil.test%2Fphish');
 
@@ -187,7 +187,7 @@ describe('sign-in route', () => {
       noContent,
     ];
     const received = stubApi({
-      'POST /api/account/login': () => answers.shift()!(),
+      'POST /api/account/sign-in': () => answers.shift()!(),
       'POST /api/account/manage/password': noContent,
     });
     const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);

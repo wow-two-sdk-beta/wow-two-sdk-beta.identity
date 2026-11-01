@@ -31,39 +31,39 @@ public sealed class BffPipelineTests
     private static readonly Guid Organization = Guid.Parse("01900000-0000-7000-8000-000000000001");
 
     [Fact]
-    public async Task NoSession_ShouldAnswerProblemsToTheApi_AndRedirectPagesToTheLoginRoute()
+    public async Task NoSession_ShouldAnswerProblemsToTheApi_AndRedirectPagesToTheSignInRoute()
     {
         await using var host = await BffTestHost.StartAsync();
 
         using var api = await host.Client.GetAsync("/api/me");
         using var post = await host.Client.PostAsync("/api/desks", null);
         using var page = await host.Client.GetAsync("/desk?tab=2");
-        using var session = await host.Client.GetAsync("/auth/session");
+        using var session = await host.Client.GetAsync("/api/identity/session");
 
         api.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         api.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
         (await CodeOf(api)).Should().Be(BffErrorCodeConstants.SignInRequired);
         post.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "without a session the antiforgery check has nothing to bind to");
         page.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        page.Headers.Location!.ToString().Should().Be("https://app.example.test/auth/login?returnUrl=%2Fdesk%3Ftab%3D2");
+        page.Headers.Location!.ToString().Should().Be("https://app.example.test/api/identity/sign-in?returnUrl=%2Fdesk%3Ftab%3D2");
         session.StatusCode.Should().Be(HttpStatusCode.OK);
         session.Headers.CacheControl!.NoStore.Should().BeTrue();
         (await session.Content.ReadAsStringAsync()).Should().Be("""{"data":{"isAuthenticated":false}}""");
     }
 
     [Fact]
-    public async Task Login_ShouldRedirectToTheAuthorizeEndpoint_WithTheCodeFlowAndPkce()
+    public async Task SignIn_ShouldRedirectToTheAuthorizeEndpoint_WithTheCodeFlowAndPkce_ThoughUnderTheApiPrefix()
     {
         await using var host = await BffTestHost.StartAsync();
 
-        using var login = await host.Client.GetAsync("/auth/login?returnUrl=%2Fdesk");
+        using var signIn = await host.Client.GetAsync("/api/identity/sign-in?returnUrl=%2Fdesk");
 
-        login.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        var location = login.Headers.Location!;
+        signIn.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var location = signIn.Headers.Location!;
         location.GetLeftPart(UriPartial.Path).Should().Be(Authority + "/connect/authorize");
         var query = QueryHelpers.ParseQuery(location.Query);
         query["client_id"].ToString().Should().Be("desk");
-        query["redirect_uri"].ToString().Should().Be("https://app.example.test/auth/callback");
+        query["redirect_uri"].ToString().Should().Be("https://app.example.test/api/identity/callback");
         query["response_type"].ToString().Should().Be("code");
         query.ContainsKey("response_mode").Should().BeFalse("query is the code flow's default mode, so the handler leaves it out");
         query["code_challenge_method"].ToString().Should().Be("S256");
@@ -131,14 +131,14 @@ public sealed class BffPipelineTests
     }
 
     [Fact]
-    public async Task Logout_ShouldNeedTheCsrfHeader_EndTheSession_AndAnswerTheEndSessionUrl()
+    public async Task SignOut_ShouldNeedTheCsrfHeader_EndTheSession_AndAnswerTheEndSessionUrl()
     {
         await using var host = await BffTestHost.StartAsync();
         using var signedIn = await host.Client.PostAsync("/test/sign-in", null);
         var token = (await SessionAsync(host)).GetProperty("csrfToken").GetString()!;
 
-        using var refused = await host.Client.PostAsync("/auth/logout", null);
-        using var loggedOut = await SendAsync(host, HttpMethod.Post, "/auth/logout", token);
+        using var refused = await host.Client.PostAsync("/api/identity/sign-out", null);
+        using var loggedOut = await SendAsync(host, HttpMethod.Post, "/api/identity/sign-out", token);
         var url = new Uri(JsonDocument.Parse(await loggedOut.Content.ReadAsStringAsync()).RootElement.GetProperty("data").GetProperty("endSessionUrl").GetString()!);
 
         refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -150,13 +150,13 @@ public sealed class BffPipelineTests
         query["post_logout_redirect_uri"].ToString().Should().Be("https://app.example.test/");
         (await SessionAsync(host)).GetProperty("isAuthenticated").GetBoolean().Should().BeFalse();
         (await host.Services.GetRequiredService<IBffSessionRepository>().FindAsync("sid-1")).Should().BeNull("the server-side session is gone");
-        using var again = await host.Client.PostAsync("/auth/logout", null);
+        using var again = await host.Client.PostAsync("/api/identity/sign-out", null);
         again.StatusCode.Should().Be(HttpStatusCode.OK, "logging out without a session needs no header");
     }
 
     private static async Task<JsonElement> SessionAsync(BffTestHost host)
     {
-        using var document = JsonDocument.Parse(await host.Client.GetStringAsync("/auth/session"));
+        using var document = JsonDocument.Parse(await host.Client.GetStringAsync("/api/identity/session"));
         return document.RootElement.GetProperty("data").Clone();
     }
 

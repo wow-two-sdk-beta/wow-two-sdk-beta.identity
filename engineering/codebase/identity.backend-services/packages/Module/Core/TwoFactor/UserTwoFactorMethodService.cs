@@ -1,6 +1,6 @@
 using System.Globalization;
 using Microsoft.Extensions.Options;
-using WoW.Two.Sdk.Beta.Be.Identity.Core.Logins;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.ExternalAccounts;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp.Models;
@@ -20,7 +20,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.TwoFactor;
 /// <param name="formatter">Words each code for its channel and the recipient's culture.</param>
 /// <param name="options">The methods; <c>Identity:TwoFactor</c> reloads live.</param>
 /// <param name="otpOptions">The default code lifetime.</param>
-/// <param name="logins">The external-login slice, for methods addressed to a login; null when absent.</param>
+/// <param name="externalAccounts">The external-account slice, for methods addressed to an external account; null when absent.</param>
 public sealed class UserTwoFactorMethodService(
     IUserRepository repository,
     IUserTokenRepository tokens,
@@ -30,7 +30,7 @@ public sealed class UserTwoFactorMethodService(
     IOtpMessageFormatter formatter,
     IOptionsMonitor<TwoFactorOptions> options,
     OtpOptions otpOptions,
-    IUserLoginRepository? logins = null)
+    IExternalAccountRepository? externalAccounts = null)
 {
     /// <summary>The purpose delivered codes are worded for, as <see cref="IOtpMessageFormatter"/> templates key it.</summary>
     public const string MessagePurpose = "two-factor";
@@ -183,9 +183,9 @@ public sealed class UserTwoFactorMethodService(
                 return user.IsPhoneNumberConfirmed && !string.IsNullOrWhiteSpace(user.PhoneNumber) ? user.PhoneNumber : null;
             case TwoFactorAddressKind.Email:
                 return user.IsEmailConfirmed && !string.IsNullOrWhiteSpace(user.Email) ? user.Email : null;
-            case TwoFactorAddressKind.ExternalLogin when logins is not null:
-                var linked = await logins.GetAsync(user.Id, cancellationToken);
-                return linked.FirstOrDefault(login => string.Equals(login.LoginProvider, method.LoginProvider, StringComparison.OrdinalIgnoreCase))?.ProviderKey;
+            case TwoFactorAddressKind.ExternalAccount when externalAccounts is not null:
+                var linked = await externalAccounts.GetAsync(user.Id, cancellationToken);
+                return linked.FirstOrDefault(account => string.Equals(account.Provider, method.ExternalProvider, StringComparison.OrdinalIgnoreCase))?.ProviderKey;
             default:
                 return null;
         }

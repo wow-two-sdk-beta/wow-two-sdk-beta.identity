@@ -87,7 +87,7 @@ public sealed class LockoutAndStampTests
     public async Task CookiePrincipal_ShouldBeSignedOut_WhenTheStampRotates()
     {
         await using var app = await StartAsync(services => services.AddCookieAuthentication(o => o.Mode = AuthChallengeMode.Api), web =>
-            web.MapPost("/login/{id:guid}", async (Guid id, HttpContext http, UserAccountService accounts) =>
+            web.MapPost("/sign-in/{id:guid}", async (Guid id, HttpContext http, UserAccountService accounts) =>
             {
                 var user = await accounts.FindByIdAsync(id);
                 await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, PrincipalOf(user!));
@@ -96,8 +96,8 @@ public sealed class LockoutAndStampTests
         var user = await app.CreateUserAsync("liam");
         var client = app.Server.CreateClient();
 
-        var login = await client.PostAsync($"/login/{user.Id}", null);
-        var cookie = login.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
+        var signIn = await client.PostAsync($"/sign-in/{user.Id}", null);
+        var cookie = signIn.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
         client.DefaultRequestHeaders.Add("Cookie", cookie);
 
         (await client.GetAsync("/me")).StatusCode.Should().Be(HttpStatusCode.OK);

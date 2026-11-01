@@ -1,7 +1,7 @@
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 
-/// <summary>The account a registration created.</summary>
-public sealed record RegisteredAccountDto
+/// <summary>The account a sign-up created.</summary>
+public sealed record SignedUpAccountDto
 {
     /// <summary>The new user id.</summary>
     public required string UserId { get; init; }

@@ -72,8 +72,8 @@ public static class IdentityErrorCodeConstants
     /// <summary>The user does not hold the role.</summary>
     public const string UserNotInRole = "UserNotInRole";
 
-    /// <summary>The external login already belongs to an account.</summary>
-    public const string LoginAlreadyAssociated = "LoginAlreadyAssociated";
+    /// <summary>The external account already belongs to an account.</summary>
+    public const string ExternalAccountAlreadyLinked = "ExternalAccountAlreadyLinked";
 
     /// <summary>The authenticator code does not verify against the user's key.</summary>
     public const string InvalidAuthenticatorCode = "InvalidAuthenticatorCode";
@@ -84,7 +84,7 @@ public static class IdentityErrorCodeConstants
     /// <summary>A one-time code sent to the phone does not verify.</summary>
     public const string InvalidPhoneCode = "InvalidPhoneCode";
 
-    /// <summary>The login or password is wrong, or the account does not exist.</summary>
+    /// <summary>The identifier (user name or email) or password is wrong, or the account does not exist.</summary>
     public const string SignInFailed = "SignInFailed";
 
     /// <summary>The credentials were right but the email or phone is not confirmed yet.</summary>

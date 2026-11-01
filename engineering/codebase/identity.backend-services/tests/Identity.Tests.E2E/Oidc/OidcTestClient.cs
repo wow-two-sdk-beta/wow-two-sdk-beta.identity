@@ -35,10 +35,10 @@ public sealed class OidcTestClient : IDisposable
     /// <summary>Gets the underlying client.</summary>
     public HttpClient Http => _http;
 
-    /// <summary>Register an account through the account API and sign in with a session cookie; returns the user id.</summary>
-    public async Task<Guid> RegisterAndSignInAsync(string email, string password)
+    /// <summary>Sign up through the account API and sign in with a session cookie; returns the user id.</summary>
+    public async Task<Guid> SignUpAndSignInAsync(string email, string password)
     {
-        using var registered = await _http.PostAsJsonAsync("/api/account/register", new { email, password });
+        using var registered = await _http.PostAsJsonAsync("/api/account/sign-up", new { email, password });
         registered.StatusCode.Should().Be(HttpStatusCode.OK);
         using var body = JsonDocument.Parse(await registered.Content.ReadAsStringAsync());
         var userId = Guid.Parse(body.RootElement.GetProperty("data").GetProperty("userId").GetString()!);
@@ -47,9 +47,9 @@ public sealed class OidcTestClient : IDisposable
     }
 
     /// <summary>Sign in through the account API with a session cookie.</summary>
-    public async Task SignInAsync(string login, string password)
+    public async Task SignInAsync(string identifier, string password)
     {
-        using var signedIn = await _http.PostAsJsonAsync("/api/account/login?useCookies=true", new { login, password });
+        using var signedIn = await _http.PostAsJsonAsync("/api/account/sign-in?useCookies=true", new { identifier, password });
         signedIn.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 

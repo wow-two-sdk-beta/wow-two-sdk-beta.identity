@@ -18,13 +18,13 @@ builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IAccountDeletionHandl
 
 ## Notes
 
-- Built-in sections: `account`, `claims`, `logins`, `passkeys`, `sessions` (bearer refresh tokens),
+- Built-in sections: `account` (with the display name), `claims`, `external_accounts`, `passkeys`, `sessions` (bearer refresh tokens),
   `sign_in_sessions` and `sign_in_log` (masked, as stored), and `roles` with the roles slice.
 - Password hashes, token hashes, security stamps and passkey keys are never exported.
-- Deletion runs the product's handlers first, then removes roles, claims, logins, stored tokens, refresh tokens,
+- Deletion runs the product's handlers first, then removes roles, claims, external accounts, stored tokens, refresh tokens,
   sign-in sessions, passkeys and memberships, and scrubs the user row in place (names, email, phone and password hash
   cleared, `deleted_at` set) in one transaction. The row stays, so a product's key into it never blocks. Handlers must
   tolerate running again after a failure.
-- Sign-in log rows stay until their retention ends (`Identity:SignInLog:RetentionDays`); they hold the masked login
+- Sign-in log rows stay until their retention ends (`Identity:SignInLog:RetentionDays`); they hold the masked identifier
   and address only.
 - Issued access tokens stay valid until they expire; keep their lifetime short.

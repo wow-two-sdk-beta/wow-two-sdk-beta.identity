@@ -31,7 +31,7 @@ public sealed class SignInDeclarationBuilderTests
 
         var password = declaration.Methods[0];
         password.Channels.Should().BeEmpty();
-        password.Fields.Select(field => (field.Name, field.Kind)).Should().Equal(("login", "text"), ("password", "password"));
+        password.Fields.Select(field => (field.Name, field.Kind)).Should().Equal(("identifier", "text"), ("password", "password"));
         password.Fields[1].Rules.Select(rule => rule.Code).Should().Equal(new[] { "required" }, "a stored password the rules now refuse still signs in once, to its change");
         password.Fields[0].Rules.Single().Message.Should().Be("Enter your user name or email.");
 
@@ -56,7 +56,7 @@ public sealed class SignInDeclarationBuilderTests
     [Fact]
     public void Build_ShouldAllowEveryCountry_WhenNoneIsListed_AndAskForAUserNameOnly_WhenEmailsDoNotSignIn()
     {
-        var declaration = SignInDeclarationBuilder.Build(Input(new PasswordOptions(), []) with { IsEmailLoginAllowed = false, PhoneCodeLength = 8 }, "en");
+        var declaration = SignInDeclarationBuilder.Build(Input(new PasswordOptions(), []) with { IsEmailIdentifierAllowed = false, PhoneCodeLength = 8 }, "en");
 
         declaration.Methods[0].Fields[0].Rules.Single().Message.Should().Be("Enter your user name.");
         declaration.Methods[1].Fields[0].Countries.Should().BeEmpty();
@@ -152,7 +152,7 @@ public sealed class SignInDeclarationBuilderTests
 
         en.Keys.Should().Contain(
         [
-            SignInDeclarationTextConstants.LoginRequired, SignInDeclarationTextConstants.UserNameLoginRequired,
+            SignInDeclarationTextConstants.IdentifierRequired, SignInDeclarationTextConstants.UserNameIdentifierRequired,
             SignInDeclarationTextConstants.PasswordRequired, SignInDeclarationTextConstants.PhoneRequired,
             SignInDeclarationTextConstants.CodeRequired, SignInDeclarationTextConstants.CodeLength,
         ]);

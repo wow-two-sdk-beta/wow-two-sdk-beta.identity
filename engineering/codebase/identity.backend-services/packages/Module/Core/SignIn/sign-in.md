@@ -10,7 +10,7 @@ identity.AddArgon2Passwords().AddLockout().AddUserTokens(o => o.SigningKey = key
         .AddPasswordChange()                                       // optional: forces a change when a stored password breaks the rules
         .AddSignIn();
 
-var result = await signIn.PasswordSignInAsync(request.Login, request.Password);
+var result = await signIn.PasswordSignInAsync(request.Identifier, request.Password);
 switch (result.Status)
 {
     case SignInStatus.Succeeded:
@@ -28,16 +28,16 @@ await signIn.TwoFactorSignInAsync(userId, ticket, code);          // or Recovery
 
 ## Notes
 
-- Unknown logins spend one hash verification, so response time does not reveal which accounts exist.
+- Unknown identifiers spend one hash verification, so response time does not reveal which accounts exist.
 - Wrong passwords and wrong second factors both count toward lockout; the failure count resets only on success.
 - A user with `IsTwoFactorEnabled` always gets `RequiresTwoFactor`, even when the two-factor slice is absent.
 - The two-factor ticket is a purpose token (5 minutes by default) bound to the user and stamp.
-- `SignInAsync(user)` completes external-login and passwordless flows with the same lockout and precondition checks;
+- `SignInAsync(user)` completes external-account and passwordless flows with the same lockout and precondition checks;
   `SignInAsync(user, methods)` also records how (an emailed code passes `otp`).
 - The principal carries `amr` claims (`AuthenticationMethodConstants`): `pwd` after a password, `hwk` after a passkey,
   `otp` and `mfa` after a second factor; a renewal records none. The OIDC server copies them into tokens.
 - `PasskeySignInAsync(state, assertionJson)` verifies a passkey, then applies lockout and preconditions; no second factor.
-- Preconditions: `IdentityCoreOptions.SignIn` (`IsConfirmedEmailRequired`, `IsConfirmedPhoneNumberRequired`, `IsEmailLoginAllowed`),
+- Preconditions: `IdentityCoreOptions.SignIn` (`IsConfirmedEmailRequired`, `IsConfirmedPhoneNumberRequired`, `IsEmailIdentifierAllowed`),
   set in code or in the host section `Identity:SignIn`, which is applied last.
 - With `.AddPasswordChange()`, a password that matches its hash is then checked against the current structured rules (never
   the breach check); one that fails them ends as `PasswordChangeRequired` with `PasswordChangeTicket`, no principal, and

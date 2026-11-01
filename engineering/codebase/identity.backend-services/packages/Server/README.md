@@ -21,7 +21,7 @@ services.AddUserAccounts(configureDatabase: database => database.SchemaOwner = I
 services.AddCookieAuthentication();                      // the sign-in session the authorize endpoint reads
 
 app.UseAuthentication();
-app.MapGroup("/api/account").MapUserAccountEndpoints(); // POST login?useCookies=true starts the session
+app.MapGroup("/api/account").MapUserAccountEndpoints(); // POST sign-in?useCookies=true starts the session
 app.MapOidcServerEndpoints();                           // /connect/{authorize,token,userinfo,endsession}
 ```
 

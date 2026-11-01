@@ -1,6 +1,6 @@
 import type { SignInMethod } from './SignInMethod';
 
-/** Represents how the hosted pages look and sign people in, for the instance or the app being served. */
+/** Represents how the hosted pages look and sign people in, for the instance, one look for every client. */
 export interface SignInOptions {
   /** The name the pages show: the instance owner's brand. */
   readonly brandName: string;

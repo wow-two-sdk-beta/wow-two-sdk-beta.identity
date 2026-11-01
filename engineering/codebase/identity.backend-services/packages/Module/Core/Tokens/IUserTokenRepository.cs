@@ -5,23 +5,23 @@ public interface IUserTokenRepository
 {
     /// <summary>The stored value, or null.</summary>
     /// <param name="userId">The user id.</param>
-    /// <param name="loginProvider">The provider the value belongs to.</param>
+    /// <param name="provider">The provider the value belongs to.</param>
     /// <param name="name">The value's name.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task<string?> GetAsync(Guid userId, string loginProvider, string name, CancellationToken cancellationToken = default);
+    Task<string?> GetAsync(Guid userId, string provider, string name, CancellationToken cancellationToken = default);
 
     /// <summary>Store or overwrite a value.</summary>
     /// <param name="userId">The user id.</param>
-    /// <param name="loginProvider">The provider the value belongs to.</param>
+    /// <param name="provider">The provider the value belongs to.</param>
     /// <param name="name">The value's name.</param>
     /// <param name="value">The value.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task SetAsync(Guid userId, string loginProvider, string name, string value, CancellationToken cancellationToken = default);
+    Task SetAsync(Guid userId, string provider, string name, string value, CancellationToken cancellationToken = default);
 
     /// <summary>Remove a value when present.</summary>
     /// <param name="userId">The user id.</param>
-    /// <param name="loginProvider">The provider the value belongs to.</param>
+    /// <param name="provider">The provider the value belongs to.</param>
     /// <param name="name">The value's name.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task RemoveAsync(Guid userId, string loginProvider, string name, CancellationToken cancellationToken = default);
+    Task RemoveAsync(Guid userId, string provider, string name, CancellationToken cancellationToken = default);
 }

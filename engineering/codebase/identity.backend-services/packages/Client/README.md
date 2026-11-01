@@ -12,17 +12,19 @@ dotnet add package WoW2.Sdk.Beta.Be.Identity.Client --prerelease
 builder.Services.AddIdentityBff();                      // Identity:Client — Authority, ClientId, ClientSecret, …
 
 app.UseIdentityBff();                                   // authentication, the X-Csrf-Token check, authorization
-app.MapIdentityBffEndpoints();                          // GET /auth/session · GET /auth/login · POST /auth/logout
+app.MapIdentityBffEndpoints();                          // GET /api/identity/session · GET /api/identity/sign-in · POST /api/identity/sign-out
 app.MapGroup("/api/orgs/{organizationId:guid}/desks")
     .RequireRouteOrganization()                         // 404 for another organization
     .RequirePermission("desk:edit");                    // 403 without org_permission desk:edit
 ```
 
 - Settings: `Identity:Client` — `Authority`, `ClientId`, `ClientSecret`, `Scopes` (default `openid profile email phone
-  offline_access`), `RoutePrefix` (`/auth`), `ApiPathPrefixes` (`/api`), `PostLogoutRedirectPath` (`/`),
+  offline_access`), `RoutePrefix` (`/api/identity`), `ApiPathPrefixes` (`/api`), `PostSignOutRedirectPath` (`/`),
   `SessionLifetime` (12 h), `AccessTokenRefreshMargin` (1 min), `CookieName`, `Environment`; code configuration wins.
-- Register the client at the instance with the redirect URI `{origin}/auth/callback` and the post-logout URI
-  `{origin}/`.
+- Add the client at the instance with the redirect URI `{origin}/api/identity/callback` and the post-sign-out URI
+  `{origin}/` (`Identity:Server:Clients:N:RedirectUris` and `PostSignOutRedirectUris`).
+- The session routes sit under the API prefix: `session` and `sign-out` answer as API calls (`sign-out` needs
+  `X-Csrf-Token`), while `sign-in` and `callback` redirect, as a browser navigates to them.
 - The cookie carries only the session reference; the tokens and claims live in `IBffSessionRepository` (the
   distributed cache by default), keyed on the instance's `sid`, encrypted with Data Protection. Several instances
   share a distributed cache and a Data Protection key ring.

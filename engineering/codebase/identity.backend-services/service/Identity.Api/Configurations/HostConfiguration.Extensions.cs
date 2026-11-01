@@ -53,8 +53,8 @@ public static partial class HostConfiguration
     ///     instance boots and skips and logs every send
     ///   - the links in those emails point at the hosted pages on the origin of <c>Identity:Server:Issuer</c>
     ///   - the purpose tokens (confirmation, reset, forced-change ticket) are signed with <c>Identity:Tokens:SigningKey</c>
-    ///   - the hosted pages' brand, theme and background come from <c>Identity:Pages</c>, each client's own look from
-    ///     <c>Identity:Server:Clients:N:Theme</c> and <c>BackgroundUrl</c>; the sign-in declaration answers them
+    ///   - the hosted pages' one look, brand, theme and background, comes from <c>Identity:Pages</c>; the sign-in declaration
+    ///     answers it for every app
     /// </remarks>
     private static WebApplicationBuilder AddIdentityModule(this WebApplicationBuilder builder)
     {
@@ -75,7 +75,6 @@ public static partial class HostConfiguration
             .AddAccountEndpoints()
             .AddSignInDeclaration()
             .AddOidcServer()
-            .AddOidcClientPageLooks()
             .AddDataProtectionRing();
         builder.Services.AddEmailOtpDelivery();
         builder.AddTokenSigningKey();

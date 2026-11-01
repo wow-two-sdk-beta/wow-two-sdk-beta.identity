@@ -30,18 +30,18 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
     private static readonly JsonSerializerOptions ExportJson = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
     /// <summary>
-    /// Maps <c>register</c>, <c>login</c>, <c>refresh</c>, <c>logout</c>, <c>confirm-email</c>,
+    /// Maps <c>sign-up</c>, <c>sign-in</c>, <c>refresh</c>, <c>sign-out</c>, <c>confirm-email</c>,
     /// <c>resend-confirmation-email</c>, <c>forgot-password</c>, <c>reset-password</c>, <c>manage/info</c> and, with the
     /// two-factor slice registered, <c>manage/2fa</c> (status, authenticator, enable, disable, recovery-codes, preferred,
-    /// methods/{method}/send, methods/{method}/enable, plus <c>login/two-factor</c>); with email sign-in registered,
+    /// methods/{method}/send, methods/{method}/enable, plus <c>sign-in/two-factor</c>); with email sign-in registered,
     /// <c>email-sign-in/send</c> and <c>email-sign-in</c>; with personal data registered, <c>manage/personal-data</c> and
-    /// <c>manage/delete-account</c>; with the passkey slice registered, <c>passkeys/login/options</c>,
-    /// <c>passkeys/login</c> and <c>manage/passkeys</c> (list, options, register, remove); and, with the sessions slice
+    /// <c>manage/delete-account</c>; with the passkey slice registered, <c>passkeys/sign-in/options</c>,
+    /// <c>passkeys/sign-in</c> and <c>manage/passkeys</c> (list, options, add, remove); and, with the sessions slice
     /// registered, <c>manage/sessions</c> (list, revoke one, revoke all) under <paramref name="endpoints"/> — mount it on a
-    /// group such as <c>app.MapGroup("/account")</c>. Sign-in returns a bearer session (JWT via <see cref="ITokenIssuer"/>,
+    /// group such as <c>app.MapGroup("/api/account")</c>. Sign-in returns a bearer session (JWT via <see cref="ITokenIssuer"/>,
     /// plus a refresh token when registered) or, with <c>?useCookies=true</c>, a cookie that carries a new session's
     /// <c>sid</c> when sessions are registered. Each sign-in route takes an optional <c>?clientId=</c> the sign-in log
-    /// records. <c>register</c> answers <c>403</c> (message key <c>SignUpClosed</c>) unless <see cref="SignUpOptions.IsEnabled"/>
+    /// records. <c>sign-up</c> answers <c>403</c> (message key <c>SignUpClosed</c>) unless <see cref="SignUpOptions.IsEnabled"/>
     /// is on. A sign-in whose password matched but breaks the current password rules answers <c>200</c> with
     /// <c>isPasswordChangeRequired</c> and a ticket instead of a session. Bearer sign-in and <c>refresh</c> answer <c>400</c>
     /// (message key <c>BearerSignInUnsupported</c>) on a host without JWT issuance or refresh tokens, such as a cookie-only
@@ -53,10 +53,10 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        endpoints.MapPost("/register", RegisterAsync);
-        endpoints.MapPost("/login", SignInAsync);
+        endpoints.MapPost("/sign-up", SignUpAsync);
+        endpoints.MapPost("/sign-in", SignInAsync);
         endpoints.MapPost("/refresh", RefreshAsync);
-        endpoints.MapPost("/logout", SignOutAsync);
+        endpoints.MapPost("/sign-out", SignOutAsync);
         endpoints.MapGet("/confirm-email", ConfirmEmailAsync);
         endpoints.MapPost("/resend-confirmation-email", ResendConfirmationAsync);
         endpoints.MapPost("/forgot-password", ForgotPasswordAsync);
@@ -76,7 +76,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
             endpoints.MapPost("/manage/2fa/preferred", SetPreferredMethodAsync).RequireAuthorization();
             endpoints.MapPost("/manage/2fa/methods/{method}/send", SendMethodCodeAsync).RequireAuthorization();
             endpoints.MapPost("/manage/2fa/methods/{method}/enable", EnableMethodAsync).RequireAuthorization();
-            endpoints.MapPost("/login/two-factor", TwoFactorLoginAsync);
+            endpoints.MapPost("/sign-in/two-factor", SecondFactorSignInAsync);
         }
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserPersonalDataService)) == true)
@@ -93,11 +93,11 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserPasskeyService)) == true)
         {
-            endpoints.MapPost("/passkeys/login/options", PasskeySignInOptions);
-            endpoints.MapPost("/passkeys/login", PasskeySignInAsync);
+            endpoints.MapPost("/passkeys/sign-in/options", PasskeySignInOptions);
+            endpoints.MapPost("/passkeys/sign-in", PasskeySignInAsync);
             endpoints.MapGet("/manage/passkeys", ListPasskeysAsync).RequireAuthorization();
-            endpoints.MapPost("/manage/passkeys/options", PasskeyRegistrationOptionsAsync).RequireAuthorization();
-            endpoints.MapPost("/manage/passkeys", RegisterPasskeyAsync).RequireAuthorization();
+            endpoints.MapPost("/manage/passkeys/options", PasskeyCreationOptionsAsync).RequireAuthorization();
+            endpoints.MapPost("/manage/passkeys", AddPasskeyAsync).RequireAuthorization();
             endpoints.MapDelete("/manage/passkeys/{id:guid}", RemovePasskeyAsync).RequireAuthorization();
         }
 
@@ -111,7 +111,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         return endpoints;
     }
 
-    private static async Task<IResult> RegisterAsync(RegisterAccountApiRequest request, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> SignUpAsync(SignUpApiRequest request, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
         if (services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.IsEnabled != true)
@@ -123,7 +123,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
             throw created.ToValidationError().ToException();
 
         var isConfirmationSent = await SendConfirmationAsync(services, user, cancellationToken);
-        return Results.Ok(ApiResponse<RegisteredAccountDto>.Ok(new RegisteredAccountDto { UserId = IdOf(user), IsConfirmationSent = isConfirmationSent }));
+        return Results.Ok(ApiResponse<SignedUpAccountDto>.Ok(new SignedUpAccountDto { UserId = IdOf(user), IsConfirmationSent = isConfirmationSent }));
     }
 
     private static async Task<IResult> SignInAsync(SignInApiRequest request, bool? useCookies, string? clientId, HttpContext http, CancellationToken cancellationToken)
@@ -132,7 +132,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         NameClient(services, clientId);
         RequireSessionKind(services, useCookies);
         var signIn = services.GetRequiredService<SignInService>();
-        var firstFactor = await signIn.PasswordSignInAsync(request.Login, request.Password, cancellationToken);
+        var firstFactor = await signIn.PasswordSignInAsync(request.Identifier, request.Password, cancellationToken);
         var result = firstFactor;
         if (firstFactor is { Status: SignInStatus.RequiresTwoFactor, TwoFactorTicket: { } ticket } && TryParseKey(firstFactor.UserId, out var userId))
         {
@@ -213,7 +213,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         return await SessionAsync(result, useCookies, http, cancellationToken);
     }
 
-    private static async Task<IResult> TwoFactorLoginAsync(TwoFactorLoginApiRequest request, bool? useCookies, string? clientId, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> SecondFactorSignInAsync(TwoFactorSignInApiRequest request, bool? useCookies, string? clientId, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
         NameClient(services, clientId);
@@ -289,8 +289,13 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         return Results.Ok(ApiResponse<AccessTokenDto>.Ok(await IssueAsync(services, renewed.Principal!, redeemed.User, redeemed.Token!.Token, cancellationToken)));
     }
 
-    private static async Task<IResult> SignOutAsync(SignOutApiRequest? request, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
+    /// <summary>
+    /// Ends the caller's session. The body is optional, so a browser signs out with an empty <c>POST</c>; a bearer client
+    /// sends <c>{ refreshToken }</c> as JSON to revoke it too.
+    /// </summary>
+    private static async Task<IResult> SignOutAsync(ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
     {
+        var request = await ReadOptionalBodyAsync<SignOutApiRequest>(http, cancellationToken);
         if (!string.IsNullOrWhiteSpace(request?.RefreshToken) && http.RequestServices.GetService<RefreshTokenService>() is { } refresh)
             await refresh.RevokeAsync(request.RefreshToken, cancellationToken);
 
@@ -566,16 +571,16 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         })]));
     }
 
-    private static async Task<IResult> PasskeyRegistrationOptionsAsync(ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> PasskeyCreationOptionsAsync(ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
     {
         var (user, passkeys) = await PasskeysOfAsync(principal, http, cancellationToken);
-        return Results.Ok(ApiResponse<PasskeyCeremonyDto>.Ok(CeremonyOf(await passkeys.BeginRegistrationAsync(user, cancellationToken))));
+        return Results.Ok(ApiResponse<PasskeyCeremonyDto>.Ok(CeremonyOf(await passkeys.BeginCreationAsync(user, cancellationToken))));
     }
 
-    private static async Task<IResult> RegisterPasskeyAsync(PasskeyRegistrationApiRequest request, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> AddPasskeyAsync(PasskeyCreationApiRequest request, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
     {
         var (user, passkeys) = await PasskeysOfAsync(principal, http, cancellationToken);
-        var registered = await passkeys.CompleteRegistrationAsync(user, request.State, request.Credential.GetRawText(), request.Name, cancellationToken);
+        var registered = await passkeys.CompleteCreationAsync(user, request.State, request.Credential.GetRawText(), request.Name, cancellationToken);
         if (!registered.IsSuccess)
             throw registered.ToValidationError().ToException();
 
@@ -605,7 +610,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
     /// <summary>
     /// The 401 a second-factor step answers with: names the method asked for and the available ones, and sends a
     /// delivered method's code when the client chose it or <see cref="TwoFactorOptions.IsCodeSentAutomatically"/> is on. A first
-    /// factor that cannot be repeated (a spent link) exposes the ticket for <c>login/two-factor</c>.
+    /// factor that cannot be repeated (a spent link) exposes the ticket for <c>sign-in/two-factor</c>.
     /// </summary>
     private static async Task<AppError> TwoFactorChallengeAsync(
         IServiceProvider services,
@@ -693,7 +698,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         SignInStatus.NotAllowed => AppError.Of(AppErrorType.Forbidden, "Confirm your email or phone to sign in.", MessageKey(IdentityErrorCodeConstants.SignInNotAllowed)),
         SignInStatus.RequiresTwoFactor => Unauthorized(IdentityErrorCodeConstants.TwoFactorRequired, "Enter your two-factor code."),
         SignInStatus.PasswordChangeRequired => CodedError(AppErrorType.Forbidden, "Change your password to sign in.", PasswordChangeErrorCodeConstants.ChangeRequired),
-        _ => Unauthorized(IdentityErrorCodeConstants.SignInFailed, "The login or password is incorrect."),
+        _ => Unauthorized(IdentityErrorCodeConstants.SignInFailed, "The user name, email or password is incorrect."),
     };
 
     /// <summary>Refuses, before any credential is checked, a bearer sign-in on a host that cannot issue bearer tokens.</summary>
@@ -718,6 +723,23 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
 
     private static Dictionary<string, object?> MessageKey(string code)
         => new(StringComparer.Ordinal) { ["messageKey"] = code, ["identityCode"] = code };
+
+    /// <summary>A JSON body when the request carries one, else null; malformed JSON answers <c>400</c>.</summary>
+    private static async Task<T?> ReadOptionalBodyAsync<T>(HttpContext http, CancellationToken cancellationToken)
+        where T : class
+    {
+        if (!http.Request.HasJsonContentType() || http.Request.ContentLength == 0)
+            return null;
+
+        try
+        {
+            return await http.Request.ReadFromJsonAsync<T>(cancellationToken);
+        }
+        catch (JsonException)
+        {
+            throw AppError.Of(AppErrorType.Validation, "The request body is not valid JSON.").ToException();
+        }
+    }
 
     private static bool TryParseKey(string? value, out Guid key) => Guid.TryParse(value, out key);
 

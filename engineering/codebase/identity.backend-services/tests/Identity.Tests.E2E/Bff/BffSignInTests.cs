@@ -12,8 +12,8 @@ using Identity.Tests.E2E.Oidc;
 namespace Identity.Tests.E2E.Bff;
 
 /// <summary>
-/// A BFF on the <c>Client</c> package against the real instance: login → the instance's authorize → the callback, the
-/// session route, the API's 401, 403 and 404 problems and antiforgery, the refresh inside the window, and logout through
+/// A BFF on the <c>Client</c> package against the real instance: sign-in → the instance's authorize → the callback, the
+/// session route, the API's 401, 403 and 404 problems and antiforgery, the refresh inside the window, and sign-out through
 /// the instance's end-session.
 /// </summary>
 [Collection(BffIdentityCollection.Name)]
@@ -22,15 +22,15 @@ public sealed class BffSignInTests(BffIdentityFixture fixture)
     private const string Password = "e2e-correct-horse-battery";
 
     [Fact]
-    public async Task CodeFlow_ShouldSignInThroughTheInstance_ServeTheSessionAndTheApi_ThenLogOut()
+    public async Task CodeFlow_ShouldSignInThroughTheInstance_ServeTheSessionAndTheApi_ThenSignOut()
     {
         await using var app = await BffHost.StartAsync(fixture.Identity);
         using var browser = new BffBrowser(fixture.Identity, app);
         var email = $"bff-{Guid.NewGuid():N}@example.test";
-        var userId = await browser.RegisterAtTheInstanceAsync(email, Password);
+        var userId = await browser.SignUpAtTheInstanceAsync(email, Password);
         var organization = await CreateOrganizationAsync(userId);
 
-        // Signed out: the API answers a 401 problem, a page redirects to the login route.
+        // Signed out: the API answers a 401 problem, a page redirects to the sign-in route.
         using (var api = await browser.GetAsync("/api/me"))
         {
             api.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -38,7 +38,7 @@ public sealed class BffSignInTests(BffIdentityFixture fixture)
         }
 
         using (var page = await browser.GetAsync("/desk"))
-            page.Headers.Location!.ToString().Should().Be(BffHost.Origin + "/auth/login?returnUrl=%2Fdesk");
+            page.Headers.Location!.ToString().Should().Be(BffHost.Origin + "/api/identity/sign-in?returnUrl=%2Fdesk");
 
         // The code flow lands back on the page, and the session route shows the person, the role and the permissions.
         (await browser.SignInToTheAppAsync("/desk")).Should().Be("/desk");
@@ -88,11 +88,11 @@ public sealed class BffSignInTests(BffIdentityFixture fixture)
             (await CodeOf(foreign)).Should().Be(BffErrorCodeConstants.NotFound);
         }
 
-        // Logout ends the local session and hands the SPA the instance's end-session URL.
-        using (var refused = await browser.SendAsync(HttpMethod.Post, "/auth/logout"))
+        // Signing out ends the local session and hands the SPA the instance's end-session URL.
+        using (var refused = await browser.SendAsync(HttpMethod.Post, "/api/identity/sign-out"))
             refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         Uri endSession;
-        using (var loggedOut = await browser.SendAsync(HttpMethod.Post, "/auth/logout", csrf))
+        using (var loggedOut = await browser.SendAsync(HttpMethod.Post, "/api/identity/sign-out", csrf))
         {
             loggedOut.StatusCode.Should().Be(HttpStatusCode.OK);
             using var body = JsonDocument.Parse(await loggedOut.Content.ReadAsStringAsync());
@@ -102,18 +102,18 @@ public sealed class BffSignInTests(BffIdentityFixture fixture)
         endSession.GetLeftPart(UriPartial.Path).Should().Be(BffBrowser.IdentityOrigin + "/connect/endsession");
         QueryHelpers.ParseQuery(endSession.Query)["post_logout_redirect_uri"].ToString().Should().Be(BffHost.Origin + "/");
         (await browser.SessionAsync()).GetProperty("isAuthenticated").GetBoolean().Should().BeFalse();
-        using (var afterLogout = await browser.GetAsync("/api/me"))
-            afterLogout.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        using (var afterSignOut = await browser.GetAsync("/api/me"))
+            afterSignOut.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
-        // The instance ends its own session and returns the browser to the BFF; a new login asks to sign in again.
+        // The instance ends its own session and returns the browser to the BFF; a new sign-in asks for the credentials again.
         using (var ended = await browser.GetAsync(endSession.ToString()))
         {
             ended.StatusCode.Should().Be(HttpStatusCode.Redirect);
             ended.Headers.Location!.ToString().Should().Be(BffHost.Origin + "/");
         }
 
-        using var login = await browser.GetAsync("/auth/login?returnUrl=%2Fdesk");
-        using var authorize = await browser.GetAsync(login.Headers.Location!.ToString());
+        using var signIn = await browser.GetAsync("/api/identity/sign-in?returnUrl=%2Fdesk");
+        using var authorize = await browser.GetAsync(signIn.Headers.Location!.ToString());
         authorize.Headers.Location!.OriginalString.Should().StartWith("/sign-in?returnUrl=", "the instance's session ended too");
     }
 
@@ -123,7 +123,7 @@ public sealed class BffSignInTests(BffIdentityFixture fixture)
         // A margin past the 10 minute access token makes every request refresh.
         await using var app = await BffHost.StartAsync(fixture.Identity, options => options.AccessTokenRefreshMargin = TimeSpan.FromMinutes(11));
         using var browser = new BffBrowser(fixture.Identity, app);
-        var userId = await browser.RegisterAtTheInstanceAsync($"bff-refresh-{Guid.NewGuid():N}@example.test", Password);
+        var userId = await browser.SignUpAtTheInstanceAsync($"bff-refresh-{Guid.NewGuid():N}@example.test", Password);
         await browser.SignInToTheAppAsync();
 
         var first = await AccessTokenAsync(browser);
@@ -149,7 +149,7 @@ public sealed class BffSignInTests(BffIdentityFixture fixture)
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         await using var app = await BffHost.StartAsync(fixture.Identity, time: time);
         using var browser = new BffBrowser(fixture.Identity, app);
-        await browser.RegisterAtTheInstanceAsync($"bff-window-{Guid.NewGuid():N}@example.test", Password);
+        await browser.SignUpAtTheInstanceAsync($"bff-window-{Guid.NewGuid():N}@example.test", Password);
         await browser.SignInToTheAppAsync();
         (await browser.SessionAsync()).GetProperty("isAuthenticated").GetBoolean().Should().BeTrue();
 
@@ -184,14 +184,14 @@ public sealed class BffSignInTests(BffIdentityFixture fixture)
     }
 }
 
-/// <summary>The instance the BFF tests sign in through: the test client registered with the BFF's callback and post-logout URIs.</summary>
+/// <summary>The instance the BFF tests sign in through: the test client registered with the BFF's callback and post-sign-out URIs.</summary>
 public sealed class BffIdentityFixture : IAsyncLifetime
 {
     /// <summary>Gets the instance.</summary>
     public OidcHost Identity { get; } = new(new Dictionary<string, string?>
     {
-        ["Identity:Server:Clients:0:RedirectUris:0"] = BffHost.Origin + "/auth/callback",
-        ["Identity:Server:Clients:0:PostLogoutRedirectUris:0"] = BffHost.Origin + "/",
+        ["Identity:Server:Clients:0:RedirectUris:0"] = BffHost.Origin + "/api/identity/callback",
+        ["Identity:Server:Clients:0:PostSignOutRedirectUris:0"] = BffHost.Origin + "/",
     });
 
     Task IAsyncLifetime.InitializeAsync()

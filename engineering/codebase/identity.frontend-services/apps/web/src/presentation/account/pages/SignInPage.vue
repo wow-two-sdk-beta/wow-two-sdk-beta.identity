@@ -80,7 +80,7 @@ function passwordChanged() {
     <template v-if="options?.isSignUpEnabled && !required" #footer>
       <p class="text-muted-foreground">
         New here?
-        <a :href="signUpHref" class="font-medium text-primary underline-offset-4 hover:underline">Create an account</a>
+        <a :href="signUpHref" class="font-medium text-primary underline-offset-4 hover:underline">Sign up</a>
       </p>
     </template>
   </HostedLayout>

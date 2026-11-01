@@ -62,8 +62,8 @@ public sealed class EfUserRepository : IUserRepository
     /// <inheritdoc />
     /// <remarks>
     /// A soft delete: the row stays with <see cref="IdentityUser.DeletedAt"/> set, so keys into it hold, and leaves every
-    /// lookup; its role, claim, login, stored-token and refresh-token rows leave in the same save, freeing its external
-    /// logins. The user is detached afterwards, as a removed entity would be.
+    /// lookup; its role, claim, external-account, stored-token and refresh-token rows leave in the same save, freeing its
+    /// external accounts. The user is detached afterwards, as a removed entity would be.
     /// </remarks>
     public async Task DeleteAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
@@ -73,7 +73,7 @@ public sealed class EfUserRepository : IUserRepository
         // The schema has no foreign keys, so the user's relation rows leave in the same save.
         _context.RemoveRange(await _context.Set<IdentityUserRole>().Where(r => r.UserId == userId).ToListAsync(cancellationToken));
         _context.RemoveRange(await _context.Set<IdentityUserClaim>().Where(c => c.UserId == userId).ToListAsync(cancellationToken));
-        _context.RemoveRange(await _context.Set<IdentityUserLogin>().Where(l => l.UserId == userId).ToListAsync(cancellationToken));
+        _context.RemoveRange(await _context.Set<IdentityExternalAccount>().Where(l => l.UserId == userId).ToListAsync(cancellationToken));
         _context.RemoveRange(await _context.Set<IdentityUserToken>().Where(t => t.UserId == userId).ToListAsync(cancellationToken));
         _context.RemoveRange(await _context.Set<IdentityRefreshToken>().Where(t => t.UserId == userId).ToListAsync(cancellationToken));
 

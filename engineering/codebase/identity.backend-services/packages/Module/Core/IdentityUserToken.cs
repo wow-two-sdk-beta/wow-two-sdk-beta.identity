@@ -9,7 +9,7 @@ public sealed class IdentityUserToken : ICompositeKeyEntity
     public Guid UserId { get; set; }
 
     /// <summary>Token provider (e.g. <c>Default</c>, <c>Authenticator</c>).</summary>
-    public string LoginProvider { get; set; } = string.Empty;
+    public string Provider { get; set; } = string.Empty;
 
     /// <summary>Token name (e.g. <c>ResetPassword</c>).</summary>
     public string Name { get; set; } = string.Empty;

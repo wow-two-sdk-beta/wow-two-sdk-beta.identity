@@ -1,4 +1,5 @@
-# Local verification only. Bring up from engineering/deployment/:
+# Local verification only. Bring up from engineering/deployment/ (or from the repo root with
+# `docker compose -p identity-local -f engineering/deployment/docker-compose.yml up -d --build`):
 #
 #   docker compose up -d --build     the database and the service; the service answers on http://127.0.0.1:8389
 #
@@ -12,27 +13,30 @@
 # instead of spinning as PID 1.
 #
 # The service sends its emails (account confirmation, password reset, password-change codes and links) to Mailpit, a
-# local mail sink: nothing leaves the machine, and http://127.0.0.1:8025 shows every message. identity-keys also makes
-# the key that signs the service's confirmation and reset tokens. Sign-up is on here, so a local sign-up produces a
-# confirmation email to read; a deployed environment turns it on in its own settings.
+# local mail sink, until wow2's dev mailboxes exist: nothing leaves the machine, and http://127.0.0.1:8025 shows every
+# message. Mailpit is a separate container, not part of the service: the runtime ships no test mode, fake channel or
+# message sink. identity-keys also makes the key that signs the service's confirmation and reset tokens. Sign-up is on
+# here, so a local sign-up produces a confirmation email to read; a deployed environment turns it on in its own settings.
 #
-# The service runs as a local run (Development without DEPLOY_ENVIRONMENT), which the bot's polling and test mode need: a
-# deployed boot refuses both. Development would also switch on the throwaway OIDC keys, so the two ephemeral switches are
-# set off and the service keeps reading the certificates identity-keys made.
+# The service runs as a local run (Development without DEPLOY_ENVIRONMENT), which the bot's polling needs: a deployed boot
+# refuses it. Development would also switch on the throwaway OIDC keys, so the two ephemeral switches are set off and the
+# service keeps reading the certificates identity-keys made.
 #
-# The image's own settings check runs against this stack's settings without serving (exit 0, one config-result line last):
+# The image's own verbs run against this stack's settings without serving, each ending in one result line:
 #
 #   docker compose run --rm identity config check
+#   docker compose run --rm identity admin create --slug ocharo --name Ocharo --display-name "Lola Karimova" --phone +998901234567
 #
-# The bot is off here. To try it, put local secrets in identity.local.env beside this file (optional, gitignored). Make it
-# in your own terminal or editor, never through a chat, and keep the token out of any message or command a chat runs:
+# admin create makes the first organization and its owner (owner role, no password), and answers present on a rerun.
+#
+# The bot is off here. To sign in by phone locally, give the stack the local dev bot: put its secrets in identity.local.env
+# beside this file (optional, gitignored). Make it in your own terminal or editor, never through a chat, and keep the
+# token out of any message or command a chat runs:
 #   touch identity.local.env && chmod 600 identity.local.env
-# then add, in an editor, for a bot of its own (a hosted instance's bot answers 409 to polling; make a second bot in BotFather):
+# then add, in an editor, for the local bot (a hosted instance's bot answers 409 to polling, so it is a bot of its own):
 #   Identity__Telegram__IsEnabled=true
 #   Identity__Telegram__BotUserName=<the bot's user name>
 #   Identity__Telegram__BotToken=<the token BotFather gave>
-# or, for a fake bot with every code and email kept in memory at http://127.0.0.1:8389/api/test/messages?to=<phone or email>:
-#   Identity__TestMode__IsEnabled=true
 # Add Identity__Phone__AllowedCountries__0=UZ (one line per country) to limit the numbers; then `docker compose up -d`.
 services:
   database:

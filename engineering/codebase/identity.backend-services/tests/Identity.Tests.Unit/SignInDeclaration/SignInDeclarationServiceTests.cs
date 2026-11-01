@@ -12,9 +12,9 @@ using WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.SignInDeclaration;
 
 /// <summary>
-/// The declaration read from the live settings: the look from <c>Identity:Pages</c> under a registered client's own, the
+/// The declaration read from the live settings: the instance's one look from <c>Identity:Pages</c> for every app, the
 /// password method only with its slices, sign-up and verifications from their sections, and a refused start for a look
-/// invalid on its own, the instance's or a client's.
+/// invalid on its own.
 /// </summary>
 public sealed class SignInDeclarationServiceTests
 {
@@ -23,8 +23,6 @@ public sealed class SignInDeclarationServiceTests
         ClientId = "desk",
         ClientSecret = "test-only-secret",
         RedirectUris = ["https://desk.example.test/signin-oidc"],
-        Theme = "ocharo",
-        BackgroundUrl = "https://cdn.example.test/desk.jpg",
     };
 
     [Fact]
@@ -67,32 +65,22 @@ public sealed class SignInDeclarationServiceTests
     }
 
     [Fact]
-    public void Build_ShouldTakeARegisteredClientsLook_AndTheInstancesForAnyOther()
+    public void Build_ShouldAnswerTheInstancesLook_ForARegisteredClient_AndForAnyOther()
     {
-        using var provider = Build(new Dictionary<string, string?> { ["Identity:Pages:BackgroundUrl"] = "/backgrounds/instance.jpg" }, withClients: true);
+        using var provider = Build(new Dictionary<string, string?>
+        {
+            ["Identity:Pages:Theme"] = "ocharo",
+            ["Identity:Pages:BackgroundUrl"] = "/backgrounds/instance.jpg",
+        }, withClients: true);
 
         var desk = Declare(provider, "desk");
         var unknown = Declare(provider, "nobody");
-        var differentCase = Declare(provider, "DESK");
         var none = Declare(provider, clientId: null);
 
-        desk.Theme.Should().Be("ocharo");
-        desk.BackgroundUrl.Should().Be("https://cdn.example.test/desk.jpg");
-        unknown.Should().BeEquivalentTo(none, "an unknown client must not tell which clients exist");
-        differentCase.Should().BeEquivalentTo(none, "client ids compare exactly");
-        none.Theme.Should().Be("platform");
+        none.Theme.Should().Be("ocharo");
         none.BackgroundUrl.Should().Be("/backgrounds/instance.jpg");
-    }
-
-    [Fact]
-    public void Build_ShouldKeepTheInstancesBackground_WhenAClientNamesOnlyATheme()
-    {
-        using var provider = Build(new Dictionary<string, string?> { ["Identity:Pages:BackgroundUrl"] = "/backgrounds/instance.jpg" }, withClients: true, desk: Desk with { BackgroundUrl = null });
-
-        var desk = Declare(provider, "desk");
-
-        desk.Theme.Should().Be("ocharo");
-        desk.BackgroundUrl.Should().Be("/backgrounds/instance.jpg");
+        desk.Should().BeEquivalentTo(none, "an instance serves one product, so every app takes its one look");
+        unknown.Should().BeEquivalentTo(none, "an unknown client must not tell which clients exist");
     }
 
     [Fact]
@@ -118,26 +106,13 @@ public sealed class SignInDeclarationServiceTests
         act.Should().Throw<OptionsValidationException>().WithMessage($"*{expected}*");
     }
 
-    [Fact]
-    public void ServerOptions_ShouldRefuseAClientLook_ThatIsNoThemeIdOrSafeBackground()
-    {
-        var options = new OidcServerOptions { Clients = [Desk with { Theme = "Ocharo Dark", BackgroundUrl = "javascript:alert(1)" }] };
-
-        var result = new OidcServerOptionsValidator().Validate(null, options);
-
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().Contain(failure => failure.Contains("Client 'desk' has a Theme", StringComparison.Ordinal));
-        result.Failures.Should().Contain(failure => failure.Contains("Client 'desk' has a BackgroundUrl", StringComparison.Ordinal));
-        new OidcServerOptionsValidator().Validate(null, new OidcServerOptions { Clients = [Desk] }).Should().Be(ValidateOptionsResult.Success);
-    }
-
     private static SignInOptionsDto Declare(ServiceProvider provider, string? clientId, string? locale = null)
     {
         using var scope = provider.CreateScope();
         return scope.ServiceProvider.GetRequiredService<SignInDeclarationService>().Build(clientId, locale);
     }
 
-    private static ServiceProvider Build(Dictionary<string, string?> settings, bool withPasswords = true, bool withClients = false, OidcClientOptions? desk = null)
+    private static ServiceProvider Build(Dictionary<string, string?> settings, bool withPasswords = true, bool withClients = false)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -147,10 +122,7 @@ public sealed class SignInDeclarationServiceTests
             identity.AddArgon2Passwords().AddSignIn();
         identity.AddAccountEndpoints().AddSignInDeclaration();
         if (withClients)
-        {
-            services.AddOptions<OidcServerOptions>().Configure(options => options.Clients = [desk ?? Desk]);
-            identity.AddOidcClientPageLooks();
-        }
+            services.AddOptions<OidcServerOptions>().Configure(options => options.Clients = [Desk]);
 
         var provider = services.BuildServiceProvider();
         provider.GetService<IServiceProviderIsService>()!.IsService(typeof(SignInService)).Should().Be(withPasswords);

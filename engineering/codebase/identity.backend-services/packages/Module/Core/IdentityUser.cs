@@ -17,8 +17,11 @@ public sealed class IdentityUser : IKeyedEntity<Guid>, IAuditable, ISoftDeletabl
     /// <summary>Primary key and the person's <c>sub</c>: a uuid v7 the account service assigns from <see cref="TimeProvider"/> at creation.</summary>
     public Guid Id { get; set; }
 
-    /// <summary>Login name.</summary>
+    /// <summary>User name: a sign-in identifier, unique among live accounts.</summary>
     public string? UserName { get; set; }
+
+    /// <summary>The name the person goes by, at most 120 characters; the <c>name</c> claim takes it first. Null when none was given.</summary>
+    public string? DisplayName { get; set; }
 
     /// <summary>Upper-invariant <see cref="UserName"/> for case-insensitive unique lookup.</summary>
     public string? NormalizedUserName { get; set; }

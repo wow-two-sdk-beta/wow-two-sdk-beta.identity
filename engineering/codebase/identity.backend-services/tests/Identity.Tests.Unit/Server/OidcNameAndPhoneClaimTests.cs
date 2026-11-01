@@ -34,6 +34,16 @@ public sealed class OidcNameAndPhoneClaimTests
         identity.GetClaims(Claims.Name).Should().Equal(expected);
     }
 
+    [Theory]
+    [InlineData("alice", "alice@example.test", null)]
+    [InlineData(Phone, null, Phone)]
+    public void Name_ShouldTakeTheDisplayNameFirst_WhenThePersonHasOne(string userName, string? email, string? phone)
+    {
+        var user = new IdentityUser { Id = Guid.CreateVersion7(), UserName = userName, Email = email, PhoneNumber = phone, DisplayName = "  Lola Karimova " };
+
+        OidcClaimMapper.DisplayNameOf(user).Should().Be("Lola Karimova");
+    }
+
     [Fact]
     public void Name_ShouldFallBackToTheId_ForAPersonWithNothingElse()
     {

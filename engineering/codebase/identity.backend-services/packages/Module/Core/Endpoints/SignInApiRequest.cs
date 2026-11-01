@@ -1,10 +1,10 @@
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 
-/// <summary>Signs in with a login and password, and a second factor when the account requires one.</summary>
+/// <summary>Signs in with an identifier (user name or email) and password, and a second factor when the account requires one.</summary>
 public sealed record SignInApiRequest
 {
     /// <summary>The user name or email.</summary>
-    public required string Login { get; init; }
+    public required string Identifier { get; init; }
 
     /// <summary>The password.</summary>
     public required string Password { get; init; }

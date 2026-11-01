@@ -8,7 +8,7 @@ import type { SignInRequirementsDto } from './SignInRequirementsDto';
 export interface SignInOptionsDto {
   /** The name the pages show, the instance owner's brand. */
   readonly brandName: string;
-  /** The fe sdk theme by its registry id: the app's own, else the instance's. */
+  /** The fe sdk theme by its registry id: the instance's, the same for every client. */
   readonly theme: string;
   /** The image behind the card, a same-origin path or an HTTPS URL; `null` for the theme's own backdrop. */
   readonly backgroundUrl: string | null;

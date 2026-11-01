@@ -23,8 +23,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 ///   - the security stamp rides inside codes and refresh tokens only, so the token endpoint refuses a rotated stamp
 ///   - <c>sid</c> names the sign-in session the tokens were issued under; it is set once, at authorization, and a refresh
 ///     keeps it
-///   - <c>name</c> is always issued (<see cref="DisplayNameOf"/>): a phone-only person has no email, so it falls back to
-///     the phone, then the user name
+///   - <c>name</c> is always issued (<see cref="DisplayNameOf"/>): the display name first; a phone-only person without one
+///     has no email, so it falls back to the phone, then the user name
 /// </remarks>
 /// <param name="core">Identity options carrying the stamp claim type.</param>
 /// <param name="organizations">The organizations slice; null emits no organization claims.</param>
@@ -119,13 +119,17 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
     }
 
     /// <summary>
-    /// The person's <c>name</c>, never empty: the user name, or the email without one; a person without an email (a phone
-    /// sign-up, whose user name may be a generated placeholder) takes the phone, then the user name; the id last.
+    /// The person's <c>name</c>, never empty: the display name; without one, the user name, or the email without one; a
+    /// person without an email (a phone sign-up, whose user name may be a generated placeholder) takes the phone, then the
+    /// user name; the id last.
     /// </summary>
     /// <param name="user">The person.</param>
     internal static string DisplayNameOf(IdentityUser user)
     {
         ArgumentNullException.ThrowIfNull(user);
+        if (!string.IsNullOrWhiteSpace(user.DisplayName))
+            return user.DisplayName.Trim();
+
         string?[] candidates = string.IsNullOrEmpty(user.Email) ? [user.PhoneNumber, user.UserName] : [user.UserName, user.Email];
         return candidates.FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate))
             ?? user.Id.ToString("D", CultureInfo.InvariantCulture);

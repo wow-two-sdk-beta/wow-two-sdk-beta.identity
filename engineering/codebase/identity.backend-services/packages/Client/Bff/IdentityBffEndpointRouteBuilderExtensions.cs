@@ -18,12 +18,12 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff;
 public static class IdentityBffEndpointRouteBuilderExtensions
 {
     /// <summary>
-    /// Map the session routes under <see cref="IdentityBffOptions.RoutePrefix"/> (default <c>/auth</c>):
+    /// Map the session routes under <see cref="IdentityBffOptions.RoutePrefix"/> (default <c>/api/identity</c>):
     ///   - <c>GET /session</c>: <c>{ data: { isAuthenticated, person, organization, permissions, csrfToken, expiresAt } }</c>,
     ///     or <c>{ data: { isAuthenticated: false } }</c> without a session; never cached
-    ///   - <c>GET /login?returnUrl=</c>: 302 to the instance's authorize endpoint, back at <c>returnUrl</c> (local paths only,
+    ///   - <c>GET /sign-in?returnUrl=</c>: 302 to the instance's authorize endpoint, back at <c>returnUrl</c> (local paths only,
     ///     else <c>/</c>) once signed in
-    ///   - <c>POST /logout</c>: with a session, needs <c>X-Csrf-Token</c>, ends it here and answers
+    ///   - <c>POST /sign-out</c>: with a session, needs <c>X-Csrf-Token</c>, ends it here and answers
     ///     <c>{ data: { endSessionUrl } }</c>, the instance's end-session URL the SPA sends the browser to
     /// The code callback (<c>/callback</c>) is the OpenID Connect handler's own. Map them behind <c>UseIdentityBff</c>.
     /// </summary>
@@ -34,8 +34,8 @@ public static class IdentityBffEndpointRouteBuilderExtensions
         var options = endpoints.ServiceProvider.GetRequiredService<IOptions<IdentityBffOptions>>().Value;
         var group = endpoints.MapGroup(options.RoutePrefix).AllowAnonymous();
         group.MapGet(BffPathConstants.Session, SessionAsync);
-        group.MapGet(BffPathConstants.Login, Login);
-        group.MapPost(BffPathConstants.Logout, LogoutAsync);
+        group.MapGet(BffPathConstants.SignIn, SignIn);
+        group.MapPost(BffPathConstants.SignOut, EndSessionAsync);
         return endpoints;
     }
 
@@ -50,12 +50,12 @@ public static class IdentityBffEndpointRouteBuilderExtensions
         return Results.Ok(ApiResponse<BffSessionDto>.Ok(BffSessionMapper.ToDto(session.Principal!, csrf.Create(reference.SessionId), expiresAt)));
     }
 
-    private static IResult Login(string? returnUrl)
+    private static IResult SignIn(string? returnUrl)
         => Results.Challenge(
             new AuthenticationProperties { RedirectUri = BffReturnUrl.Normalize(returnUrl) },
             [BffAuthenticationSchemeConstants.OpenIdConnect]);
 
-    private static async Task<IResult> LogoutAsync(
+    private static async Task<IResult> EndSessionAsync(
         HttpContext http,
         BffCsrfTokenService csrf,
         BffSessionService sessions,
@@ -71,7 +71,7 @@ public static class IdentityBffEndpointRouteBuilderExtensions
             if (!csrf.IsValid(reference.SessionId, http.Request.Headers[BffHeaderConstants.CsrfToken].ToString()))
             {
                 return BffProblemWriter.Create(StatusCodes.Status400BadRequest, BffErrorCodeConstants.AntiforgeryValidationFailed,
-                    $"Logout of a session needs the {BffHeaderConstants.CsrfToken} header from the session route.");
+                    $"Signing out of a session needs the {BffHeaderConstants.CsrfToken} header from the session route.");
             }
 
             identityToken = session.Properties!.GetTokenValue("id_token");
@@ -81,18 +81,18 @@ public static class IdentityBffEndpointRouteBuilderExtensions
         }
 
         var url = await EndSessionUrlAsync(http, options.Value, handlerOptions.Get(BffAuthenticationSchemeConstants.OpenIdConnect), identityToken, cancellationToken);
-        return Results.Ok(ApiResponse<BffLogoutDto>.Ok(new BffLogoutDto { EndSessionUrl = url }));
+        return Results.Ok(ApiResponse<BffSignOutDto>.Ok(new BffSignOutDto { EndSessionUrl = url }));
     }
 
     /// <summary>
     /// The instance's end-session URL: the client, the ID token as <c>id_token_hint</c> while the session had one, and the
-    /// post-logout URI on this origin. Without discovery it is the post-logout URI itself, so the SPA still lands somewhere.
+    /// post-sign-out URI on this origin. Without discovery it is the post-sign-out URI itself, so the SPA still lands somewhere.
     /// </summary>
     private static async Task<string> EndSessionUrlAsync(
         HttpContext http, IdentityBffOptions options, OpenIdConnectOptions handler, string? identityToken, CancellationToken cancellationToken)
     {
         var request = http.Request;
-        var postLogout = UriHelper.BuildAbsolute(request.Scheme, request.Host, request.PathBase, options.PostLogoutRedirectPath);
+        var postSignOut = UriHelper.BuildAbsolute(request.Scheme, request.Host, request.PathBase, options.PostSignOutRedirectPath);
         string? endpoint;
         try
         {
@@ -104,9 +104,9 @@ public static class IdentityBffEndpointRouteBuilderExtensions
         }
 
         if (string.IsNullOrEmpty(endpoint))
-            return postLogout;
+            return postSignOut;
 
-        var query = new Dictionary<string, string?> { ["client_id"] = options.ClientId, ["post_logout_redirect_uri"] = postLogout };
+        var query = new Dictionary<string, string?> { ["client_id"] = options.ClientId, ["post_logout_redirect_uri"] = postSignOut };
         if (identityToken is not null)
             query["id_token_hint"] = identityToken;
         return QueryHelpers.AddQueryString(endpoint, query);

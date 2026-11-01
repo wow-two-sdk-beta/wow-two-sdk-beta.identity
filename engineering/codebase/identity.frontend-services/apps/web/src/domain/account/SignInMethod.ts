@@ -1,6 +1,6 @@
 /** Names a sign-in method the hosted pages can lay out. */
 export const SignInMethodId = {
-  /** Refers to a login and password. */
+  /** Refers to an identifier and password. */
   Password: 'password',
   /** Refers to a code sent to a phone, by SMS or the instance's Telegram bot. */
   PhoneCode: 'phone-code',

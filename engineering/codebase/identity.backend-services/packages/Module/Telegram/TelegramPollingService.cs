@@ -17,7 +17,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 /// </summary>
 /// <remarks>
 ///   - it never calls <c>deleteWebhook</c>: a bot with a webhook set belongs to a hosted instance, so Telegram answers
-///     <c>409</c>, which logs one error naming the cure (the local run's own bot, or test mode) and backs off
+///     <c>409</c>, which logs one error naming the cure (the local run's own dev bot) and backs off
 ///   - an update that throws is logged and skipped, so one poisoned update cannot stop the bot; the webhook, by contrast, answers
 ///     <c>500</c> and lets Telegram retry
 ///   - the bot client is resolved when polling starts, so an instance with the bot off never needs a token
@@ -130,7 +130,7 @@ internal sealed partial class TelegramPollingService(
     [LoggerMessage(
         EventId = 7301,
         Level = LogLevel.Error,
-        Message = "Telegram refused getUpdates with 409 because a webhook is set for the bot '{BotUserName}': it belongs to a hosted instance, and this local run never removes that webhook. Give this run its own bot (Identity:Telegram:BotToken and BotUserName of a second bot) or turn on Identity:TestMode:IsEnabled. Retrying in {Delay}, without logging again until a poll succeeds.")]
+        Message = "Telegram refused getUpdates with 409 because a webhook is set for the bot '{BotUserName}': it belongs to a hosted instance, and this local run never removes that webhook. Give this run its own dev bot (Identity:Telegram:BotToken and BotUserName of a second bot). Retrying in {Delay}, without logging again until a poll succeeds.")]
     private static partial void LogWebhookSet(ILogger logger, string botUserName, TimeSpan delay);
 
     [LoggerMessage(

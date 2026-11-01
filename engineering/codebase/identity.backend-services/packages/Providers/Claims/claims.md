@@ -19,7 +19,7 @@ var who  = User.GetUsername();   // handle; authorization leaf reads this
 | `NormalizedClaimTypeConstants.UserId` | `wt:user_id` | Provider-stable user id |
 | `NormalizedClaimTypeConstants.Email` | `wt:email` | Email, when supplied |
 | `NormalizedClaimTypeConstants.DisplayName` | `wt:display_name` | Human display name, when supplied |
-| `NormalizedClaimTypeConstants.Username` | `wt:username` | Provider handle / login, when supplied |
+| `NormalizedClaimTypeConstants.Username` | `wt:username` | Provider handle (the provider's own login name), when supplied |
 | `NormalizedClaimTypeConstants.Avatar` | `wt:avatar` | Avatar URL — copied or synthesized |
 
 Each field resolves from an **ordered set** of source claim types (first match wins): OAuth2 long `ClaimTypes.*` URIs and OIDC short names (`sub`, `email`, `name`, `preferred_username`, `picture`) are both accepted.

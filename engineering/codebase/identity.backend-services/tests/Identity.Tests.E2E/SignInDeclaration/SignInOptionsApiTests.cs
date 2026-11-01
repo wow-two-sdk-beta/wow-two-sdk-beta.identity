@@ -13,8 +13,8 @@ namespace Identity.Tests.E2E.SignInDeclaration;
 
 /// <summary>
 /// <c>GET /api/account/sign-in-options</c> through the real service: anonymous, cached briefly behind an <c>ETag</c>, the
-/// methods the settings turn on (phone only while the bot is on), a registered app's own theme and background, the
-/// instance's look for an unknown app, and the rule messages in the request's locale.
+/// methods the settings turn on (phone only while the bot is on), the instance's one look for every app, registered or
+/// not, and the rule messages in the request's locale.
 /// </summary>
 [Collection(IdentityApiCollection.Name)]
 public sealed class SignInOptionsApiTests(IdentityApiFixture fixture)
@@ -42,7 +42,7 @@ public sealed class SignInOptionsApiTests(IdentityApiFixture fixture)
         data.GetProperty("locale").GetString().Should().Be("en");
         Ids(data).Should().Equal("password");
         var password = data.GetProperty("methods")[0];
-        password.GetProperty("fields").EnumerateArray().Select(field => field.GetProperty("name").GetString()).Should().Equal("login", "password");
+        password.GetProperty("fields").EnumerateArray().Select(field => field.GetProperty("name").GetString()).Should().Equal("identifier", "password");
         var minimum = password.GetProperty("passwordRules")[0];
         minimum.GetProperty("code").GetString().Should().Be("min");
         minimum.GetProperty("params").GetProperty("min").GetInt32().Should().Be(15);
@@ -56,7 +56,7 @@ public sealed class SignInOptionsApiTests(IdentityApiFixture fixture)
     }
 
     [Fact]
-    public async Task Options_ShouldFollowTheSettings_AppsLook_AndLocale_WhenTheBotIsOn()
+    public async Task Options_ShouldFollowTheSettings_TheInstancesLook_AndLocale_WhenTheBotIsOn()
     {
         var connectionString = await PostgresTestServer.CreateDatabaseAsync();
         try
@@ -67,7 +67,7 @@ public sealed class SignInOptionsApiTests(IdentityApiFixture fixture)
             using var instance = await client.GetAsync(Route);
             var data = await DataAsync(instance);
             data.GetProperty("brandName").GetString().Should().Be("Ocharo");
-            data.GetProperty("theme").GetString().Should().Be("platform");
+            data.GetProperty("theme").GetString().Should().Be("ocharo");
             data.GetProperty("backgroundUrl").GetString().Should().Be("/backgrounds/instance.jpg");
             data.GetProperty("isSignUpEnabled").GetBoolean().Should().BeTrue();
             data.GetProperty("requirements").GetProperty("isConfirmedPhoneNumberRequired").GetBoolean().Should().BeTrue();
@@ -77,10 +77,8 @@ public sealed class SignInOptionsApiTests(IdentityApiFixture fixture)
             phone.GetProperty("fields")[0].GetProperty("countries").EnumerateArray().Select(country => country.GetString()).Should().Equal("UZ");
 
             using var app = await client.GetAsync($"{Route}?clientId=ocharo-web");
-            var look = await DataAsync(app);
-            look.GetProperty("theme").GetString().Should().Be("ocharo");
-            look.GetProperty("backgroundUrl").GetString().Should().Be("/backgrounds/ocharo.jpg");
-            app.Headers.ETag.Should().NotBe(instance.Headers.ETag);
+            (await app.Content.ReadAsStringAsync()).Should().Be(await instance.Content.ReadAsStringAsync(), "an instance has one look, whatever app asks");
+            app.Headers.ETag.Should().Be(instance.Headers.ETag);
 
             using var unknown = await client.GetAsync($"{Route}?clientId=not-registered");
             (await unknown.Content.ReadAsStringAsync()).Should().Be(await instance.Content.ReadAsStringAsync(), "an unknown app must not tell which apps exist");
@@ -118,12 +116,11 @@ public sealed class SignInOptionsApiTests(IdentityApiFixture fixture)
             ["Identity:SignUp:IsEnabled"] = "true",
             ["Identity:SignIn:IsConfirmedPhoneNumberRequired"] = "true",
             ["Identity:Pages:BrandName"] = "Ocharo",
+            ["Identity:Pages:Theme"] = "ocharo",
             ["Identity:Pages:BackgroundUrl"] = "/backgrounds/instance.jpg",
             ["Identity:Server:Clients:0:ClientId"] = "ocharo-web",
             ["Identity:Server:Clients:0:ClientSecret"] = "e2e-test-only-client-secret",
             ["Identity:Server:Clients:0:RedirectUris:0"] = "https://ocharo.example.test/signin-oidc",
-            ["Identity:Server:Clients:0:Theme"] = "ocharo",
-            ["Identity:Server:Clients:0:BackgroundUrl"] = "/backgrounds/ocharo.jpg",
             ["Identity:Telegram:IsEnabled"] = "true",
             ["Identity:Telegram:BotToken"] = "123456:E2E-token",
             ["Identity:Telegram:BotUserName"] = "ocharo_e2e_bot",

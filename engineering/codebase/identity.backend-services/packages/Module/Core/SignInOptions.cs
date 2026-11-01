@@ -14,5 +14,5 @@ public sealed record SignInOptions
     public bool IsConfirmedPhoneNumberRequired { get; set; }
 
     /// <summary>Accept an email address where a user name is expected. Default true.</summary>
-    public bool IsEmailLoginAllowed { get; set; } = true;
+    public bool IsEmailIdentifierAllowed { get; set; } = true;
 }

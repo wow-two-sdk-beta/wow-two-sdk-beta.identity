@@ -47,7 +47,7 @@
 | `WoW2.Sdk.Beta.Be.Identity.Abstractions` | the contract: brokers, models, events, claim constants, errors | every form; product Domain and Application layers |
 | `…Identity.Auth` | store-less auth: cookies, API keys, allowlist, guest, JWT validation, the session facade | Module, Client; API resources |
 | `…Identity.Module` | Form 1: the store, slices, SQL migrations, OTP channels, passkeys, TOTP | Form 1 products; the service |
-| `…Identity.Client` | Forms 2/3: OIDC client, HTTP brokers, logout and webhook receivers | Form 2 and 3 products |
+| `…Identity.Client` | Forms 2/3: OIDC client, HTTP brokers, sign-out and webhook receivers | Form 2 and 3 products |
 | `…Identity.Providers` | upstream social sign-in: 17 OAuth providers, Google ID token | products that need them; the service |
 | `…Identity.Server` | the OIDC server: OpenIddict, keys and JWKS, client registry, back-channel sender | the service |
 | `…Identity.Testing` | fakes, personas, code sink, the conformance base | test projects |
@@ -68,7 +68,7 @@
   token exchange; our store keeps the users.
 - where: the `Server` package, loaded by the service (Forms 2 and 3); a Form 1 product never loads it, unless it opts
   into the in-process OIDC server.
-- what it lacks: back-channel logout and signing-key rotation; slices I16–I18 build both.
+- what it lacks: back-channel sign-out and signing-key rotation; slices I16–I18 build both.
 - why not Keycloak, Zitadel, Logto or Authentik: each replaces our store, has no Form 1, and custom flows such as the
   Telegram link need Java SPIs or Go actions; Duende needs a commercial licence.
 - the risk of owning auth is protocol correctness: OpenIddict carries the protocol, and the OpenID Foundation
@@ -114,8 +114,8 @@ group in [features/](features/features.md); state per group in `engineering/plan
 - **first sign-in** — the member enters their phone; the page shows "Open Ocharo bot" with a
   `t.me/{bot}?start={one-time token}` link; the bot asks to share the contact, checks it is the sender's own and
   matches the invited phone, stores the link and sends the code.
-- **every later sign-in** — phone, then the code from the bot; or one tap on Log in with Telegram.
-- **member removed** — every session and refresh token is revoked at once; apps sign out by back-channel logout.
+- **every later sign-in** — phone, then the code from the bot; or one tap on Sign in with Telegram.
+- **member removed** — every session and refresh token is revoked at once; apps sign out by back-channel sign-out.
 - after the first link, identity keys on the Telegram user id, never on the phone claim (Q14).
 - the bot's webhook moves from Desk to Ocharo Identity; other services may still send through the Bot API (D5).
 - migration: Desk's users, organizations, memberships and Telegram links move into Ocharo's own Identity database by a

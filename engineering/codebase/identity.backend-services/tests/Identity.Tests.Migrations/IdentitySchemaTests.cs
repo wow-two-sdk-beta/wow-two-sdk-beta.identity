@@ -39,7 +39,8 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         foreach (var table in SchemaShape.AllTables)
             (await migrator.HasTableAsync(Schema, table)).Should().BeTrue($"the set creates {table}");
         (await HasColumnAsync(migrator, "identity_users", "deleted_at")).Should().BeTrue("001-accounts creates the soft-delete column");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4);
+        (await HasColumnAsync(migrator, "identity_users", "display_name")).Should().BeTrue("005-display-name adds the display name");
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
@@ -49,6 +50,10 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         await using var migrator = CreateMigrator(fixture);
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
+
+        (await runner.RollbackAsync(targetOrdinal: 4)).ValueOrThrow().Should().Equal("005-display-name");
+        (await HasColumnAsync(migrator, "identity_users", "display_name")).Should().BeFalse("rolling 005-display-name back drops the column");
+        (await HasColumnAsync(migrator, "identity_users", "user_name")).Should().BeTrue("the rest of identity_users stays");
 
         (await runner.RollbackAsync(targetOrdinal: 3)).ValueOrThrow().Should().Equal("004-phone-sign-in");
         foreach (var table in SchemaShape.PhoneSignInTables)

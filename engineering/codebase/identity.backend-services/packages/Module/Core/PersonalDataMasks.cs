@@ -7,7 +7,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>
 /// Shortens the personal data the sessions and the sign-in log keep about a request: the address to its network, the
-/// typed login to a hint, the user agent to a bounded length.
+/// typed identifier to a hint, the user agent to a bounded length.
 /// </summary>
 internal static class PersonalDataMasks
 {
@@ -39,11 +39,11 @@ internal static class PersonalDataMasks
     }
 
     /// <summary>
-    /// A hint of the login a person typed: an email keeps its first character and its domain (<c>a***@example.com</c>), a
+    /// A hint of the identifier a person typed: an email keeps its first character and its domain (<c>a***@example.com</c>), a
     /// phone number its first four and last two characters (<c>+998*******45</c>), anything else its first two
     /// characters (<c>al***</c>). Blank stays null.
     /// </summary>
-    /// <param name="subject">The login as typed.</param>
+    /// <param name="subject">The identifier as typed.</param>
     internal static string? MaskSubject(string? subject)
     {
         if (string.IsNullOrWhiteSpace(subject))

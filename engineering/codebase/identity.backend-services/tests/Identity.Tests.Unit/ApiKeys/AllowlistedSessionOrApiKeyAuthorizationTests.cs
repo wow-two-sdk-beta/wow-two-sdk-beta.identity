@@ -42,7 +42,7 @@ public sealed class AllowlistedSessionOrApiKeyAuthorizationTests
     }
 
     [Fact]
-    public async Task Key_NamedLikeAnAllowlistedLogin_IsNotASession()
+    public async Task Key_NamedLikeAnAllowlistedName_IsNotASession()
     {
         var authorization = Build(allowed: ["alice"]);
         var key = new ClaimsIdentity(
@@ -83,8 +83,8 @@ public sealed class AllowlistedSessionOrApiKeyAuthorizationTests
             services.AddPrincipalAllowlist(options =>
             {
                 options.ClaimType = UsernameClaim;
-                foreach (var login in allowed)
-                    options.Allowed.Add(login);
+                foreach (var name in allowed)
+                    options.Allowed.Add(name);
             });
         }
 
@@ -97,8 +97,8 @@ public sealed class AllowlistedSessionOrApiKeyAuthorizationTests
         return (await authorization.AuthorizeAsync(user, resource: null, policy)).Succeeded;
     }
 
-    private static ClaimsPrincipal Session(string login) =>
-        new(new ClaimsIdentity([new Claim(ClaimTypes.Name, login), new Claim(UsernameClaim, login)], SessionScheme));
+    private static ClaimsPrincipal Session(string name) =>
+        new(new ClaimsIdentity([new Claim(ClaimTypes.Name, name), new Claim(UsernameClaim, name)], SessionScheme));
 
     private static ClaimsPrincipal Key(string name, string scope) =>
         new(new ClaimsIdentity(

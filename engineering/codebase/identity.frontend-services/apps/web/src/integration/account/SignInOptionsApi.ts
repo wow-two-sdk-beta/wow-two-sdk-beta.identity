@@ -35,8 +35,8 @@ export function toSignInOptions(declaration: SignInOptionsDto): SignInOptions {
 }
 
 /**
- * Provides the sign-in declaration from `GET /api/account/sign-in-options`: the instance's look, or that of the app
- * `clientId` names, sign-up, and the enabled methods in their declared order. The browser's language picks the locale.
+ * Provides the sign-in declaration from `GET /api/account/sign-in-options`: the instance's look, sign-up, and the enabled
+ * methods in their declared order. `clientId` goes to the sign-in log, not to the look. The browser's language picks the locale.
  */
 export const signInOptionsApi = {
   async get(clientId: string | null, signal?: AbortSignal): Promise<Result<SignInOptions, ApiFailure>> {

@@ -106,10 +106,10 @@ public sealed class AccountHost : IAsyncDisposable
 
     /// <summary>Sign in with a session cookie; returns the response.</summary>
     /// <param name="client">The client that keeps the cookie.</param>
-    /// <param name="login">The login.</param>
+    /// <param name="identifier">The user name or email.</param>
     /// <param name="password">The password.</param>
-    public static Task<HttpResponseMessage> SignInAsync(HttpClient client, string login, string password)
-        => client.PostAsJsonAsync("/api/account/login?useCookies=true", new { login, password });
+    public static Task<HttpResponseMessage> SignInAsync(HttpClient client, string identifier, string password)
+        => client.PostAsJsonAsync("/api/account/sign-in?useCookies=true", new { identifier, password });
 
     /// <summary>The <c>data</c> of an enveloped success body.</summary>
     /// <param name="response">The response.</param>

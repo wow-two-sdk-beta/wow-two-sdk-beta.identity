@@ -71,6 +71,9 @@
 | 2026-11-01 | every route and member says sign in, sign up and sign out: `/api/account/{sign-in,sign-up,sign-out}`, a BFF's `/api/identity/{session,sign-in,sign-out,callback}` | developer |
 | 2026-11-01 | the host CLI creates the first admin only (`admin create`); members are managed elsewhere | developer |
 | 2026-11-01 | the flows other apps need ship and deploy first, then Ocharo goes live on them; the console comes after | developer |
+| 2026-11-01 | external logins are external accounts in every member (`IdentityExternalAccount`, `ExternalAccountService`); the forward-only set keeps `identity_user_logins` and `login_provider` as named, mapped explicitly | naming build |
+| 2026-11-01 | a person's display name lives in `identity_users.display_name` (`005-display-name`, an expand step, not readable by products); the `name` claim takes it first and erasure scrubs it; `admin create` sets it | admin create |
+| 2026-11-01 | `admin create` exits `0` created or present, `1` refused (a handle, an id, an email or a phone held by someone else, or an existing organization the person does not own), `2` failed (usage, an invalid value, the database); it marks the given phone and email confirmed and sets no password | admin create |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

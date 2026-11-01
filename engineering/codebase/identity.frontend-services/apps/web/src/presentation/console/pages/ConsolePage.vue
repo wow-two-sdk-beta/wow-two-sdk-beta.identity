@@ -10,7 +10,7 @@ const appVersion = __APP_VERSION__;
 const { status } = useSystemStatus();
 const pages = [
   { label: 'Sign in', href: HostedPageRouteConstants.signIn },
-  { label: 'Create an account', href: HostedPageRouteConstants.signUp },
+  { label: 'Sign up', href: HostedPageRouteConstants.signUp },
   { label: 'Reset a password', href: HostedPageRouteConstants.forgotPassword },
   { label: 'Account security', href: HostedPageRouteConstants.accountSecurity },
 ];

@@ -35,6 +35,12 @@ public sealed class IdentityDbContext : AppDbContextBase
     /// <summary>The partial-index predicate that scopes a user index to live accounts, as <c>001-accounts</c> builds it.</summary>
     internal const string LiveUserFilter = "deleted_at IS NULL";
 
+    /// <summary>The longest display name <c>005-display-name</c> stores.</summary>
+    public const int DisplayNameMaxLength = 120;
+
+    /// <summary>The provider column of external accounts and stored tokens, as <c>001-accounts</c> names it.</summary>
+    private const string ProviderColumn = "login_provider";
+
     /// <summary>The PostgreSQL schema this context's model qualifies its tables with.</summary>
     internal string Schema { get; }
 
@@ -53,8 +59,8 @@ public sealed class IdentityDbContext : AppDbContextBase
     /// <summary>Claims carried by roles (<c>identity_role_claims</c>).</summary>
     public DbSet<IdentityRoleClaim> RoleClaims => Set<IdentityRoleClaim>();
 
-    /// <summary>External logins (<c>identity_user_logins</c>).</summary>
-    public DbSet<IdentityUserLogin> UserLogins => Set<IdentityUserLogin>();
+    /// <summary>External accounts linked to people (<c>identity_user_logins</c>).</summary>
+    public DbSet<IdentityExternalAccount> ExternalAccounts => Set<IdentityExternalAccount>();
 
     /// <summary>Per-user stored tokens (<c>identity_user_tokens</c>).</summary>
     public DbSet<IdentityUserToken> UserTokens => Set<IdentityUserToken>();
@@ -127,7 +133,7 @@ public sealed class IdentityDbContext : AppDbContextBase
         PinNames(modelBuilder);
     }
 
-    /// <summary>Maps users, roles and their relation, claim, login and token rows.</summary>
+    /// <summary>Maps users, roles and their relation, claim, external-account and token rows.</summary>
     /// <remarks>
     /// <see cref="IdentityUser"/> is <c>ISoftDeletable</c>: the base context's conventions hide rows whose
     /// <c>deleted_at</c> is set from every query, and the user-name and email indexes cover live rows only (<c>001</c>).
@@ -143,6 +149,7 @@ public sealed class IdentityDbContext : AppDbContextBase
             user.HasIndex(u => u.NormalizedEmail).HasFilter(LiveUserFilter);
             user.HasIndex(u => u.PhoneNumber);
             user.Property(u => u.UserName).HasMaxLength(256);
+            user.Property(u => u.DisplayName).HasMaxLength(DisplayNameMaxLength);
             user.Property(u => u.NormalizedUserName).HasMaxLength(256);
             user.Property(u => u.Email).HasMaxLength(320);
             user.Property(u => u.NormalizedEmail).HasMaxLength(320);
@@ -181,20 +188,21 @@ public sealed class IdentityDbContext : AppDbContextBase
             roleClaim.HasIndex(rc => rc.RoleId);
         });
 
-        modelBuilder.Entity<IdentityUserLogin>(login =>
+        // The table and its provider column keep their 001 names; the members say external account and provider.
+        modelBuilder.Entity<IdentityExternalAccount>(account =>
         {
-            login.ToTable("identity_user_logins");
-            login.HasKey(l => new { l.LoginProvider, l.ProviderKey });
-            login.Property(l => l.LoginProvider).HasMaxLength(128);
-            login.Property(l => l.ProviderKey).HasMaxLength(128);
-            login.HasIndex(l => l.UserId);
+            account.ToTable("identity_user_logins");
+            account.HasKey(a => new { a.Provider, a.ProviderKey });
+            account.Property(a => a.Provider).HasMaxLength(128).HasColumnName(ProviderColumn);
+            account.Property(a => a.ProviderKey).HasMaxLength(128);
+            account.HasIndex(a => a.UserId);
         });
 
         modelBuilder.Entity<IdentityUserToken>(token =>
         {
             token.ToTable("identity_user_tokens");
-            token.HasKey(t => new { t.UserId, t.LoginProvider, t.Name });
-            token.Property(t => t.LoginProvider).HasMaxLength(128);
+            token.HasKey(t => new { t.UserId, t.Provider, t.Name });
+            token.Property(t => t.Provider).HasMaxLength(128).HasColumnName(ProviderColumn);
             token.Property(t => t.Name).HasMaxLength(128);
         });
     }
@@ -396,15 +404,15 @@ public sealed class IdentityDbContext : AppDbContextBase
     }
 
     /// <summary>
-    /// Pins snake_case column, key and index names, so the host's naming convention never reaches the identity tables. An
-    /// index already named in its mapping keeps that name.
+    /// Pins snake_case column, key and index names, so the host's naming convention never reaches the identity tables. A
+    /// column or index already named in its mapping keeps that name.
     /// </summary>
     private static void PinNames(ModelBuilder modelBuilder)
     {
         foreach (var entity in modelBuilder.Model.GetEntityTypes())
         {
             var table = entity.GetTableName()!;
-            foreach (var property in entity.GetProperties())
+            foreach (var property in entity.GetProperties().Where(property => property.FindAnnotation(RelationalAnnotationNames.ColumnName) is null))
                 property.SetColumnName(CaseMapper.ToSnakeCase(property.Name));
 
             entity.FindPrimaryKey()?.SetName($"pk_{table}");

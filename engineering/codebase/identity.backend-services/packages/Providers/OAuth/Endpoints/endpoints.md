@@ -18,10 +18,10 @@ app.MapGroup("/api/identity").MapOAuthSignInEndpoints("GitHub", o =>
 | Route | Access | Answers |
 |---|---|---|
 | `GET sign-in?returnUrl=` | anonymous | challenge → the provider, back to `returnUrl` when local, else `/`; 503 problem with `NotConfiguredDetail` while the scheme is not registered |
-| `GET me` | anonymous | 200 `{ login, name, avatar }` from the normalized claims; 401 problem when anonymous |
+| `GET me` | anonymous | 200 `{ handle, name, avatar }` from the normalized claims; 401 problem when anonymous |
 | `POST sign-out` | default policy | signs out of `SignOutScheme` (the cookie scheme), 204 |
 
-- `login`: `wt:username`, else the name claim; `name`: `wt:display_name`, else the login; `avatar`: `wt:avatar` or `null`.
+- `handle`: `wt:username`, else the name claim; `name`: `wt:display_name`, else the handle; `avatar`: `wt:avatar` or `null`.
 - `sign-out` takes the default policy, not the fallback: a signed-in user outside an allowlist can still sign out.
 - The provider's callback (`CallbackPath`) stays its handler's own route; point it inside the same group.
 - Needs `AddClaimNormalization()` for `me` to read the `wt:*` claims.

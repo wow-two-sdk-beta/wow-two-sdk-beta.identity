@@ -13,7 +13,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.Accounts;
 public sealed class PasskeyTests
 {
     [Fact]
-    public async Task Passkey_ShouldRegisterAndSignInWithoutAUserName()
+    public async Task Passkey_ShouldBeAddedAndSignInWithoutAUserName()
     {
         await using var host = CreateHost();
         var user = await host.CreateUserAsync("pia");
@@ -22,15 +22,15 @@ public sealed class PasskeyTests
         await using (var scope = host.Scope())
         {
             var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
-            var ceremony = await passkeys.BeginRegistrationAsync(user);
-            (await passkeys.CompleteRegistrationAsync(user, ceremony.State, authenticator.Create(ceremony.OptionsJson), "  Pia's laptop  ")).IsSuccess.Should().BeTrue();
+            var ceremony = await passkeys.BeginCreationAsync(user);
+            (await passkeys.CompleteCreationAsync(user, ceremony.State, authenticator.Create(ceremony.OptionsJson), "  Pia's laptop  ")).IsSuccess.Should().BeTrue();
 
             var listed = (await passkeys.ListAsync(user)).Should().ContainSingle().Subject;
             listed.Name.Should().Be("Pia's laptop");
             listed.CreatedAt.Should().Be(host.Time.GetUtcNow());
             listed.LastUsedAt.Should().BeNull();
 
-            var again = await passkeys.BeginRegistrationAsync(user);
+            var again = await passkeys.BeginCreationAsync(user);
             again.OptionsJson.Should().Contain(Convert.ToBase64String(authenticator.CredentialId).TrimEnd('=').Replace('+', '-').Replace('/', '_'), "registered passkeys are excluded");
         }
 
@@ -56,7 +56,7 @@ public sealed class PasskeyTests
         await using var host = CreateHost();
         var user = await host.CreateUserAsync("rex");
         using var synced = new SoftwareAuthenticator(countsSignatures: false);
-        await RegisterAsync(host, user, synced);
+        await AddPasskeyAsync(host, user, synced);
 
         await using var scope = host.Scope();
         var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
@@ -89,21 +89,21 @@ public sealed class PasskeyTests
         var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
         var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
 
-        var ceremony = await passkeys.BeginRegistrationAsync(owner);
+        var ceremony = await passkeys.BeginCreationAsync(owner);
         var credential = authenticator.Create(ceremony.OptionsJson);
-        (await passkeys.CompleteRegistrationAsync(other, ceremony.State, credential)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey);
-        (await passkeys.CompleteRegistrationAsync(owner, ceremony.State[..^4] + "AAAA", credential)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey);
-        (await passkeys.CompleteRegistrationAsync(owner, ceremony.State, "{not json")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey);
+        (await passkeys.CompleteCreationAsync(other, ceremony.State, credential)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey);
+        (await passkeys.CompleteCreationAsync(owner, ceremony.State[..^4] + "AAAA", credential)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey);
+        (await passkeys.CompleteCreationAsync(owner, ceremony.State, "{not json")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey);
 
         host.Time.Advance(TimeSpan.FromMinutes(5));
-        (await passkeys.CompleteRegistrationAsync(owner, ceremony.State, credential)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey, "the ceremony expired");
+        (await passkeys.CompleteCreationAsync(owner, ceremony.State, credential)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey, "the ceremony expired");
 
-        var fresh = await passkeys.BeginRegistrationAsync(owner);
-        (await passkeys.CompleteRegistrationAsync(owner, fresh.State, authenticator.Create(fresh.OptionsJson))).IsSuccess.Should().BeTrue();
-        var repeat = await passkeys.BeginRegistrationAsync(other);
-        (await passkeys.CompleteRegistrationAsync(other, repeat.State, authenticator.Create(repeat.OptionsJson))).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey, "a credential registers once");
+        var fresh = await passkeys.BeginCreationAsync(owner);
+        (await passkeys.CompleteCreationAsync(owner, fresh.State, authenticator.Create(fresh.OptionsJson))).IsSuccess.Should().BeTrue();
+        var repeat = await passkeys.BeginCreationAsync(other);
+        (await passkeys.CompleteCreationAsync(other, repeat.State, authenticator.Create(repeat.OptionsJson))).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey, "a credential registers once");
 
-        var registration = await passkeys.BeginRegistrationAsync(owner);
+        var registration = await passkeys.BeginCreationAsync(owner);
         (await signIn.PasskeySignInAsync(registration.State, authenticator.Get(passkeys.BeginSignIn().OptionsJson))).Status.Should().Be(SignInStatus.Failed, "a registration state cannot sign in");
     }
 
@@ -114,21 +114,21 @@ public sealed class PasskeyTests
         var user = await host.CreateUserAsync("eve");
         using var authenticator = new SoftwareAuthenticator();
         using var forger = new SoftwareAuthenticator(credentialId: authenticator.CredentialId);
-        await RegisterAsync(host, user, authenticator);
+        await AddPasskeyAsync(host, user, authenticator);
 
         await using var scope = host.Scope();
         var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
         var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
 
         var ceremony = passkeys.BeginSignIn();
-        forger.Create((await passkeys.BeginRegistrationAsync(user)).OptionsJson);
+        forger.Create((await passkeys.BeginCreationAsync(user)).OptionsJson);
         (await signIn.PasskeySignInAsync(ceremony.State, forger.Get(ceremony.OptionsJson))).Status.Should().Be(SignInStatus.Failed, "another key signed it");
 
         authenticator.Origin = "https://evil.test";
         (await signIn.PasskeySignInAsync(ceremony.State, authenticator.Get(ceremony.OptionsJson))).Status.Should().Be(SignInStatus.Failed, "a phishing origin");
 
         using var unknown = new SoftwareAuthenticator();
-        unknown.Create((await passkeys.BeginRegistrationAsync(user)).OptionsJson);
+        unknown.Create((await passkeys.BeginCreationAsync(user)).OptionsJson);
         (await signIn.PasskeySignInAsync(ceremony.State, unknown.Get(ceremony.OptionsJson))).Status.Should().Be(SignInStatus.Failed, "an unregistered credential");
 
         authenticator.Origin = "https://app.test";
@@ -142,7 +142,7 @@ public sealed class PasskeyTests
         var user = await host.CreateUserAsync("lou");
         var bystander = await host.CreateUserAsync("bea");
         using var authenticator = new SoftwareAuthenticator();
-        await RegisterAsync(host, user, authenticator);
+        await AddPasskeyAsync(host, user, authenticator);
 
         await using var scope = host.Scope();
         var services = scope.ServiceProvider;
@@ -184,12 +184,12 @@ public sealed class PasskeyTests
             .AddSignIn(),
         services: services => services.AddDataProtection().UseEphemeralDataProtectionProvider());
 
-    private static async Task RegisterAsync(AccountsHost host, IdentityUser user, SoftwareAuthenticator authenticator)
+    private static async Task AddPasskeyAsync(AccountsHost host, IdentityUser user, SoftwareAuthenticator authenticator)
     {
         await using var scope = host.Scope();
         var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
-        var ceremony = await passkeys.BeginRegistrationAsync(user);
-        (await passkeys.CompleteRegistrationAsync(user, ceremony.State, authenticator.Create(ceremony.OptionsJson))).IsSuccess.Should().BeTrue();
+        var ceremony = await passkeys.BeginCreationAsync(user);
+        (await passkeys.CompleteCreationAsync(user, ceremony.State, authenticator.Create(ceremony.OptionsJson))).IsSuccess.Should().BeTrue();
         host.Time.Advance(TimeSpan.FromSeconds(1));
     }
 }

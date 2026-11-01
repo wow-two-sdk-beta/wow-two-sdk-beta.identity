@@ -1,6 +1,6 @@
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 
-/// <summary>Provides the rules a look setting must meet, shared by <c>Identity:Pages</c> and each registered client's look.</summary>
+/// <summary>Provides the rules the look settings of <c>Identity:Pages</c> must meet.</summary>
 public static class HostedPageLookRules
 {
     /// <summary>Whether <paramref name="theme"/> is a registry id the pages turn into a <c>theme-{id}</c> class: lower-case letters and digits in hyphen-joined words.</summary>

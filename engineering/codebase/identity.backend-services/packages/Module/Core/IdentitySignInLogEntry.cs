@@ -4,7 +4,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 /// One sign-in attempt, successful or not: when, who (when known), how, from where and how it ended. Rows are written
 /// once and deleted after the retention window. Consumed by the sign-in log slice.
 /// </summary>
-/// <remarks>Personal data stays masked: the typed login (<see cref="SubjectMasked"/>) and the address (<see cref="IpMasked"/>) never land in full.</remarks>
+/// <remarks>Personal data stays masked: the typed identifier (<see cref="SubjectMasked"/>) and the address (<see cref="IpMasked"/>) never land in full.</remarks>
 public sealed class IdentitySignInLogEntry
 {
     /// <summary>Primary key, a database identity.</summary>
@@ -13,10 +13,10 @@ public sealed class IdentitySignInLogEntry
     /// <summary>When the attempt happened (UTC).</summary>
     public DateTimeOffset OccurredAt { get; set; }
 
-    /// <summary>The account the attempt named, when one exists; null for an unknown login.</summary>
+    /// <summary>The account the attempt named, when one exists; null for an unknown identifier.</summary>
     public Guid? UserId { get; set; }
 
-    /// <summary>The login the person typed, masked: an email keeps its first letter and domain, a phone its prefix and last two digits.</summary>
+    /// <summary>The identifier the person typed, masked: an email keeps its first letter and domain, a phone its prefix and last two digits.</summary>
     public string? SubjectMasked { get; set; }
 
     /// <summary>The step attempted, one of <c>SignInMethodConstants</c> or a second-factor method name.</summary>

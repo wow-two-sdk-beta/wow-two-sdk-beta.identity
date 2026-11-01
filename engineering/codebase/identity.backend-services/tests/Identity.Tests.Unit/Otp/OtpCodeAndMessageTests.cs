@@ -92,7 +92,7 @@ public sealed class OtpCodeAndMessageTests
         await using var scope = provider.CreateAsyncScope();
         var handler = scope.ServiceProvider.GetRequiredService<IOtpDeliveryHandlerFactory>().Create(OtpChannelNameConstants.Email)!;
 
-        var result = await handler.SendAsync(new OtpDeliveryEnvelopeModel { DeliveryAddress = "ana@acme.test", Code = "AB3K9Q", Scope = "login", Culture = "en" });
+        var result = await handler.SendAsync(new OtpDeliveryEnvelopeModel { DeliveryAddress = "ana@acme.test", Code = "AB3K9Q", Scope = "sign-in", Culture = "en" });
 
         result.IsSuccess.Should().BeTrue();
         var message = mail.Sent.Single();
@@ -100,7 +100,7 @@ public sealed class OtpCodeAndMessageTests
         message.From.Should().BeEquivalentTo(new EmailAddress { Address = "security@acme.test", DisplayName = "Acme" });
         message.Subject.Should().Be("Your App verification code");
         message.TextBody.Should().StartWith("AB3K9Q is your App verification code.");
-        (await handler.SendAsync(new OtpDeliveryEnvelopeModel { DeliveryAddress = "not-an-address", Code = "1", Scope = "login" })).FailureReason.Should().Be("invalid_email_address");
+        (await handler.SendAsync(new OtpDeliveryEnvelopeModel { DeliveryAddress = "not-an-address", Code = "1", Scope = "sign-in" })).FailureReason.Should().Be("invalid_email_address");
     }
 
     [Fact]

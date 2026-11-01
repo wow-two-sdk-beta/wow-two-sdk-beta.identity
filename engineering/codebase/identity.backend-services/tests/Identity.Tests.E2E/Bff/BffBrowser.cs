@@ -48,33 +48,33 @@ public sealed class BffBrowser : IDisposable
         return _http.SendAsync(request);
     }
 
-    /// <summary>Register at the instance and sign in there with its session cookie; returns the person's id.</summary>
-    public async Task<Guid> RegisterAtTheInstanceAsync(string email, string password)
+    /// <summary>Sign up at the instance and sign in there with its session cookie; returns the person's id.</summary>
+    public async Task<Guid> SignUpAtTheInstanceAsync(string email, string password)
     {
-        using var registered = await _http.PostAsJsonAsync(IdentityOrigin + "/api/account/register", new { email, password });
+        using var registered = await _http.PostAsJsonAsync(IdentityOrigin + "/api/account/sign-up", new { email, password });
         registered.StatusCode.Should().Be(HttpStatusCode.OK);
         using var body = JsonDocument.Parse(await registered.Content.ReadAsStringAsync());
-        using var signedIn = await _http.PostAsJsonAsync(IdentityOrigin + "/api/account/login?useCookies=true", new { login = email, password });
+        using var signedIn = await _http.PostAsJsonAsync(IdentityOrigin + "/api/account/sign-in?useCookies=true", new { identifier = email, password });
         signedIn.StatusCode.Should().Be(HttpStatusCode.NoContent);
         return Guid.Parse(body.RootElement.GetProperty("data").GetProperty("userId").GetString()!);
     }
 
     /// <summary>
-    /// Walk the code flow from the BFF's login route: login → the instance's authorize endpoint → the BFF's callback.
+    /// Walk the code flow from the BFF's sign-in route: sign-in → the instance's authorize endpoint → the BFF's callback.
     /// Returns where the callback sends the browser, signed in.
     /// </summary>
     /// <param name="returnUrl">Where to land once signed in.</param>
     public async Task<string> SignInToTheAppAsync(string returnUrl = "/desk")
     {
-        using var login = await _http.GetAsync("/auth/login?returnUrl=" + Uri.EscapeDataString(returnUrl));
-        login.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        var authorize = login.Headers.Location!;
+        using var signIn = await _http.GetAsync("/api/identity/sign-in?returnUrl=" + Uri.EscapeDataString(returnUrl));
+        signIn.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var authorize = signIn.Headers.Location!;
         authorize.GetLeftPart(UriPartial.Path).Should().Be(IdentityOrigin + "/connect/authorize");
 
         using var authorized = await _http.GetAsync(authorize);
         authorized.StatusCode.Should().Be(HttpStatusCode.Redirect);
         var callback = authorized.Headers.Location!;
-        callback.GetLeftPart(UriPartial.Path).Should().Be(BffHost.Origin + "/auth/callback", "a signed-in person comes straight back with a code");
+        callback.GetLeftPart(UriPartial.Path).Should().Be(BffHost.Origin + "/api/identity/callback", "a signed-in person comes straight back with a code");
 
         using var landed = await _http.GetAsync(callback);
         landed.StatusCode.Should().Be(HttpStatusCode.Redirect, await landed.Content.ReadAsStringAsync());
@@ -84,7 +84,7 @@ public sealed class BffBrowser : IDisposable
     /// <summary>The <c>data</c> of the BFF's session route.</summary>
     public async Task<JsonElement> SessionAsync()
     {
-        using var document = JsonDocument.Parse(await _http.GetStringAsync("/auth/session"));
+        using var document = JsonDocument.Parse(await _http.GetStringAsync("/api/identity/session"));
         return document.RootElement.GetProperty("data").Clone();
     }
 

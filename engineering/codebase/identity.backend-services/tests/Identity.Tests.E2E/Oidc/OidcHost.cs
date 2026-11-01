@@ -20,7 +20,7 @@ public sealed class OidcHost : IAsyncDisposable
     public const string RedirectUri = "https://app.example.test/signin-oidc";
 
     /// <summary>Where end-session returns the test client.</summary>
-    public const string PostLogoutRedirectUri = "https://app.example.test/signed-out";
+    public const string PostSignOutRedirectUri = "https://app.example.test/signed-out";
 
     /// <summary>The audience of the test client's access tokens.</summary>
     public const string Audience = "e2e-api";
@@ -40,12 +40,12 @@ public sealed class OidcHost : IAsyncDisposable
             ["DatabaseSettings:ConnectionString"] = _connectionString,
             ["AllowedHosts"] = "localhost",
             ["Logging:LogLevel:Default"] = "Warning",
-            // The flows register their people through the account API, which an instance closes by default.
+            // The flows sign their people up through the account API, which an instance closes by default.
             ["Identity:SignUp:IsEnabled"] = "true",
             ["Identity:Server:Clients:0:ClientId"] = ClientId,
             ["Identity:Server:Clients:0:ClientSecret"] = ClientSecret,
             ["Identity:Server:Clients:0:RedirectUris:0"] = RedirectUri,
-            ["Identity:Server:Clients:0:PostLogoutRedirectUris:0"] = PostLogoutRedirectUri,
+            ["Identity:Server:Clients:0:PostSignOutRedirectUris:0"] = PostSignOutRedirectUri,
             ["Identity:Server:Clients:0:Audience"] = Audience,
             ["Identity:Server:Clients:0:PermissionNamespace"] = PermissionNamespace,
             ["Identity:Organizations:Roles:owner:0"] = "e2e:deploy",

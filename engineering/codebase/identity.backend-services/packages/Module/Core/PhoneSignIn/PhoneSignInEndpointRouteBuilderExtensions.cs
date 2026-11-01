@@ -33,11 +33,11 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
     ///     follows the shared contact. Known and unknown numbers answer alike; <c>400</c> for a malformed number or one
     ///     outside the allowed countries, <c>429</c> when a code or link went out moments ago for the number or address;
     ///     failures carry their code in the problem's <c>identityCode</c>
-    ///   - <c>phone-sign-in</c> takes <c>{ phone, code }</c> and signs in as <c>login</c> does: a cookie with
+    ///   - <c>phone-sign-in</c> takes <c>{ phone, code }</c> and signs in as <c>sign-in</c> does: a cookie with
     ///     <c>?useCookies=true</c> (<c>204</c>), else a bearer token pair; <c>amr</c> <c>otp</c>, sign-in log method
     ///     <c>phone_code</c>, optional <c>?clientId=</c>. A first sign-in creates the person while
     ///     <c>Identity:SignUp:IsEnabled</c> is on, else <c>403</c> (message key <c>SignUpClosed</c>); a wrong code is
-    ///     <c>401</c> (<c>InvalidPhoneCode</c>); a second factor answers <c>401</c> with the ticket for <c>login/two-factor</c>;
+    ///     <c>401</c> (<c>InvalidPhoneCode</c>); a second factor answers <c>401</c> with the ticket for <c>sign-in/two-factor</c>;
     ///     a bearer sign-in on a cookie-only instance is <c>400</c> (<c>BearerSignInUnsupported</c>) before the code is spent
     /// </remarks>
     /// <param name="endpoints">The account API's route group.</param>
@@ -95,7 +95,7 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
         return await SessionAsync(result, verified.User!, useCookies, http, cancellationToken);
     }
 
-    /// <summary>The session of a successful sign-in, as <c>login</c> makes it: a cookie carrying a new session's <c>sid</c>, or a bearer token pair.</summary>
+    /// <summary>The session of a successful sign-in, as <c>sign-in</c> makes it: a cookie carrying a new session's <c>sid</c>, or a bearer token pair.</summary>
     private static async Task<IResult> SessionAsync(SignInResult result, IdentityUser user, bool? useCookies, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
@@ -144,7 +144,7 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
         ? CodedError(AppErrorType.Validation, "Phone numbers from this country cannot sign in here.", PhoneSignInErrorCodeConstants.PhoneCountryNotAllowed)
         : CodedError(AppErrorType.Validation, "Enter the phone number in international format, such as +998901234567.", PhoneSignInErrorCodeConstants.InvalidPhoneNumber);
 
-    /// <summary>The 401 a second factor answers with; the code cannot be repeated, so the ticket rides along for <c>login/two-factor</c>.</summary>
+    /// <summary>The 401 a second factor answers with; the code cannot be repeated, so the ticket rides along for <c>sign-in/two-factor</c>.</summary>
     private static AppError TwoFactorChallenge(string? userId, string ticket, string method)
     {
         var metadata = MessageKey(IdentityErrorCodeConstants.TwoFactorRequired);

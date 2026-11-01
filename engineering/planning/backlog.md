@@ -11,7 +11,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 |---|---|---|
 | Sign-in methods | partial: SDK flows exist, no hosted pages; P1 bot + Telegram planned | [sign-in-methods.md](../../product/features/sign-in-methods.md) |
 | Accounts and members | partial: organizations and memberships exist; invitations planned | [accounts.md](../../product/features/accounts.md) |
-| Sessions and tokens | partial: OIDC server, keys, sessions, revocation and sign-in log exist; back-channel logout planned | [sessions.md](../../product/features/sessions.md) |
+| Sessions and tokens | partial: OIDC server, keys, sessions, revocation and sign-in log exist; back-channel sign-out planned | [sessions.md](../../product/features/sessions.md) |
 | Abuse protection | partial: fixed lockout exists; durable codes and limits planned | [abuse-protection.md](../../product/features/abuse-protection.md) |
 | Admin console | planned | [admin-console.md](../../product/features/admin-console.md) |
 | Member self-service | planned | [self-service.md](../../product/features/self-service.md) |
@@ -25,12 +25,12 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 |---|---|---|
 | I14 invitations and admin-created members | feature | invite links with a role and a per-link expiry and use limit (one, a number, none); phone or email pre-registration; accepted on sign-in |
 | I15 durable OTP store | feature | hashed at rest, shared by instances, limits per phone, IP and client |
-| I18 back-channel logout | feature | member removal signs every app out at once |
+| I18 back-channel sign-out | feature | member removal signs every app out at once |
 | app access check | feature | refuse sign-in and tokens for an app missing from the member's `app_access` (Q61) |
 | `amr` after a second factor | fix | keep `pwd` beside `otp` and `mfa` once a password sign-in passes TOTP (RFC 8176) |
-| I19 OIDC client | feature | the `Client` package: cookie session, organization claims, logout receiver |
-| I20 Telegram | feature | link on first sign-in; Log in with Telegram with the `phone` scope |
-| test mode | feature | fake channels, code sink, personas, refused in production |
+| I19 OIDC client | feature | the `Client` package: cookie session, organization claims, sign-out receiver |
+| I20 Telegram | feature | link on first sign-in; Sign in with Telegram with the `phone` scope |
+| test kit | feature | fakes, personas and a test-host helper in the `Testing` package and test projects; the runtime ships no test mode (2026-11-01) |
 | hosted pages and console | feature | `apps/web` over `fe-identity` (`./kit`, `./admin`); sign-in passes `?clientId=` for the sign-in log; sign-up shows only while `Identity:SignUp:Enabled` is on, read at runtime |
 | console layout review | product | with the developer once Ocharo's capabilities are verified; the console starts on Wheelhouse's layout |
 | Ocharo's instance as Ocharo's service | product | the image pinned by tag in Ocharo's `deploy.yml`, its first `migrate:` item when `access.*` moves (Q66); Wheelhouse v0.11 generates its keys and links the client secret (`deployment.md` § Pinning the instance) |

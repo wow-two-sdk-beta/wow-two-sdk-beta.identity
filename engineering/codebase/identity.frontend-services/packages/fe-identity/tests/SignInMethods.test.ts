@@ -6,22 +6,22 @@ import { button, render } from './Mounting';
 
 describe('password sign-in', () => {
   it('signs in by cookie, naming the client', async () => {
-    const { client, received } = fakeAccountApi({ 'POST /login': noContent });
+    const { client, received } = fakeAccountApi({ 'POST /sign-in': noContent });
     const wrapper = render(PasswordSignIn, { props: { client, clientId: 'desk' } });
 
-    await wrapper.get('input[name="login"]').setValue('ann@example.test');
+    await wrapper.get('input[name="identifier"]').setValue('ann@example.test');
     await wrapper.get('input[name="password"]').setValue('old-password');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
     expect(received[0]?.url.search).toBe('?useCookies=true&clientId=desk');
-    expect(received[0]?.body).toEqual({ login: 'ann@example.test', password: 'old-password' });
+    expect(received[0]?.body).toEqual({ identifier: 'ann@example.test', password: 'old-password' });
     expect(wrapper.emitted('signedIn')).toEqual([[]]);
   });
 
   it('hands over the ticket when the password must change first', async () => {
     const required = { isPasswordChangeRequired: true, confirmation: 'None', ticket: 'tk' };
-    const { client } = fakeAccountApi({ 'POST /login': () => Response.json({ data: required }) });
+    const { client } = fakeAccountApi({ 'POST /sign-in': () => Response.json({ data: required }) });
     const wrapper = render(PasswordSignIn, { props: { client } });
 
     await wrapper.get('form').trigger('submit');
@@ -32,19 +32,21 @@ describe('password sign-in', () => {
   });
 
   it("shows the problem's detail when the sign-in is refused", async () => {
-    const { client } = fakeAccountApi({ 'POST /login': () => problem(401, 'The login or password is incorrect.') });
+    const { client } = fakeAccountApi({
+      'POST /sign-in': () => problem(401, 'The user name, email or password is incorrect.'),
+    });
     const wrapper = render(PasswordSignIn, { props: { client } });
 
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('The login or password is incorrect.');
+    expect(wrapper.text()).toContain('The user name, email or password is incorrect.');
     expect(wrapper.emitted('signedIn')).toBeUndefined();
   });
 
   it('puts a field message under its field instead of the summary', async () => {
     const { client } = fakeAccountApi({
-      'POST /login': () =>
+      'POST /sign-in': () =>
         problem(400, 'One or more validation errors occurred.', {
           errors: [{ property: 'password', message: 'Enter the password.', code: 'NotEmpty' }],
         }),
@@ -60,12 +62,12 @@ describe('password sign-in', () => {
 
   it('offers to resend the confirmation when the email is unconfirmed', async () => {
     const { client, received } = fakeAccountApi({
-      'POST /login': () => problem(403, 'Confirm your email or phone to sign in.'),
+      'POST /sign-in': () => problem(403, 'Confirm your email or phone to sign in.'),
       'POST /resend-confirmation-email': noContent,
     });
     const wrapper = render(PasswordSignIn, { props: { client, forgotPasswordHref: '/forgot-password' } });
 
-    await wrapper.get('input[name="login"]').setValue('ann@example.test');
+    await wrapper.get('input[name="identifier"]').setValue('ann@example.test');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     await button(wrapper, 'Send the confirmation email again').trigger('click');

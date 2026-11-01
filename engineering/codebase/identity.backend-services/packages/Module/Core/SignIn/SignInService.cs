@@ -52,7 +52,7 @@ public sealed class SignInService
     /// <param name="principals">The principal factory.</param>
     /// <param name="options">Identity options carrying the sign-in preconditions.</param>
     /// <param name="passwords">The password slice; null disables password sign-in.</param>
-    /// <param name="hasher">The password hasher, used to spend equal time on unknown logins.</param>
+    /// <param name="hasher">The password hasher, used to spend equal time on unknown identifiers.</param>
     /// <param name="lockout">The lockout slice; null skips lockout.</param>
     /// <param name="tokens">The purpose-token issuer; null omits two-factor tickets.</param>
     /// <param name="twoFactor">The two-factor slice; null disables the second-factor methods.</param>
@@ -90,24 +90,24 @@ public sealed class SignInService
     }
 
     /// <summary>Sign in with a user name (or email, when allowed) and password.</summary>
-    /// <param name="login">The user name or email.</param>
+    /// <param name="identifier">The user name or email.</param>
     /// <param name="password">The password.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="NotSupportedException">The password slice is not registered.</exception>
-    public async Task<SignInResult> PasswordSignInAsync(string login, string password, CancellationToken cancellationToken = default)
+    public async Task<SignInResult> PasswordSignInAsync(string identifier, string password, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(login);
+        ArgumentNullException.ThrowIfNull(identifier);
         ArgumentNullException.ThrowIfNull(password);
 
-        var user = await _accounts.FindByNameAsync(login, cancellationToken);
-        if (user is null && _options.IsEmailLoginAllowed && login.Contains('@', StringComparison.Ordinal))
-            user = await _accounts.FindByEmailAsync(login, cancellationToken);
+        var user = await _accounts.FindByNameAsync(identifier, cancellationToken);
+        if (user is null && _options.IsEmailIdentifierAllowed && identifier.Contains('@', StringComparison.Ordinal))
+            user = await _accounts.FindByEmailAsync(identifier, cancellationToken);
 
         if (user is not null)
-            return await PasswordSignInCoreAsync(user, password, login, cancellationToken);
+            return await PasswordSignInCoreAsync(user, password, identifier, cancellationToken);
 
         SpendDecoyVerification(password);
-        return await LogAsync(FailedResult, SignInMethodConstants.Password, null, login, SignInReasonConstants.UnknownAccount, cancellationToken);
+        return await LogAsync(FailedResult, SignInMethodConstants.Password, null, identifier, SignInReasonConstants.UnknownAccount, cancellationToken);
     }
 
     /// <summary>Sign in <paramref name="user"/> with a password.</summary>
@@ -176,7 +176,7 @@ public sealed class SignInService
             PasswordChangeTicket = _passwordChange!.IssueRequiredChangeTicket(user),
         };
 
-    /// <summary>Sign in a user already authenticated elsewhere (external login, passwordless code); lockout and preconditions still apply.</summary>
+    /// <summary>Sign in a user already authenticated elsewhere (external account, passwordless code); lockout and preconditions still apply.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public Task<SignInResult> SignInAsync(IdentityUser user, CancellationToken cancellationToken = default)
@@ -401,7 +401,7 @@ public sealed class SignInService
     /// <param name="result">The outcome.</param>
     /// <param name="method">The step, one of <see cref="SignInMethodConstants"/>.</param>
     /// <param name="user">The account the attempt named; null when unknown.</param>
-    /// <param name="subject">The login as typed; stored masked.</param>
+    /// <param name="subject">The identifier as typed; stored masked.</param>
     /// <param name="reason">Why it failed; null derives it from the outcome.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     private async Task<SignInResult> LogAsync(SignInResult result, string method, IdentityUser? user, string? subject, string? reason, CancellationToken cancellationToken)
@@ -430,7 +430,7 @@ public sealed class SignInService
         return entryId is null ? result : result with { SignInLogEntryId = entryId };
     }
 
-    /// <summary>Spends one hash verification on an unknown login so its timing matches a known one.</summary>
+    /// <summary>Spends one hash verification on an unknown identifier so its timing matches a known one.</summary>
     private void SpendDecoyVerification(string password)
     {
         if (_hasher is null)

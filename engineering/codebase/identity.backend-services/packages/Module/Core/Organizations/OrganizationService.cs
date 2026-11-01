@@ -228,7 +228,25 @@ public sealed partial class OrganizationService(
         return claims;
     }
 
+    /// <summary>Whether <paramref name="name"/> and <paramref name="slug"/> make a valid organization, before any lookup: the first failure, or success.</summary>
+    /// <param name="name">The display name.</param>
+    /// <param name="slug">The handle.</param>
+    internal static IdentityResult CheckShape(string? name, string? slug)
+    {
+        var check = CheckName(name);
+        if (!check.IsSuccess)
+            return check;
+
+        var normalized = NormalizeSlug(slug ?? string.Empty);
+        return normalized.Length is 0 or > SlugMaxLength || !SlugPattern().IsMatch(normalized)
+            ? InvalidSlug(slug)
+            : IdentityResult.Success;
+    }
+
     private static string NormalizeSlug(string slug) => slug.Trim().ToLowerInvariant();
+
+    private static IdentityResult InvalidSlug(string? slug)
+        => IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidOrganizationSlug, $"'{slug}' is not a valid handle: use 1–{SlugMaxLength} lowercase letters, digits and single hyphens.", IdentityUserExtensions.Param("Slug", slug));
 
     private static IdentityResult CheckName(string? name)
         => string.IsNullOrWhiteSpace(name) || name.Trim().Length > NameMaxLength
@@ -239,7 +257,7 @@ public sealed partial class OrganizationService(
     {
         var normalized = NormalizeSlug(slug ?? string.Empty);
         if (normalized.Length is 0 or > SlugMaxLength || !SlugPattern().IsMatch(normalized))
-            return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidOrganizationSlug, $"'{slug}' is not a valid handle: use 1–{SlugMaxLength} lowercase letters, digits and single hyphens.", IdentityUserExtensions.Param("Slug", slug));
+            return InvalidSlug(slug);
         if (await organizations.FindBySlugAsync(normalized, cancellationToken) is { } holder && holder.Id != organization.Id)
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.DuplicateOrganizationSlug, $"Handle '{normalized}' is already taken.", IdentityUserExtensions.Param("Slug", normalized));
 

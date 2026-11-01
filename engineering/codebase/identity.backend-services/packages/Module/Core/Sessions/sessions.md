@@ -10,7 +10,7 @@ ends the cookie at its next request, the OIDC grants issued under the session an
 identity.AddSecurityStampValidation().AddSessions().AddSignIn().AddAccountEndpoints();
 services.AddCookieAuthentication();
 
-app.MapGroup("/account").MapUserAccountEndpoints();      // login?useCookies=true starts a session; manage/sessions
+app.MapGroup("/api/account").MapUserAccountEndpoints();  // sign-in?useCookies=true starts a session; manage/sessions
 ```
 
 ```jsonc
@@ -37,7 +37,7 @@ app.MapGroup("/account").MapUserAccountEndpoints();      // login?useCookies=tru
   ends the cookie at once; a request moves `last_seen_at` at most once per `ActivityInterval`.
 - Live means unrevoked, unexpired and stamped with the person's current security stamp. A stamp rotation (password
   change, sign-out everywhere) ends every session; the row is marked `security_stamp` when next seen.
-- End: `RevokeAsync` (one, reason `revoked`; `sign_out` from the logout and end-session routes) and `RevokeAllAsync`
+- End: `RevokeAsync` (one, reason `revoked`; `sign_out` from the sign-out and end-session routes) and `RevokeAllAsync`
   (reason `revoked_all`, optionally keeping one) mark the rows, then run every `ISessionRevocationHandler`.
 
 ## Types

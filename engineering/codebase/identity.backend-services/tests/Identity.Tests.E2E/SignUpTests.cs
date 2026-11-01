@@ -12,7 +12,7 @@ namespace Identity.Tests.E2E;
 
 /// <summary>
 /// Self sign-up as a deployed instance runs it: closed unless the environment sets <c>Identity:SignUp:IsEnabled</c>, the
-/// boolean <c>deploy.yml</c> declares with the default <c>false</c>. Closed, <c>register</c> refuses anyone and creates
+/// boolean <c>deploy.yml</c> declares with the default <c>false</c>. Closed, <c>sign-up</c> refuses anyone and creates
 /// nothing, while an account an admin added still signs in.
 /// </summary>
 [Collection(IdentityApiCollection.Name)]
@@ -21,12 +21,12 @@ public sealed class SignUpTests(IdentityApiFixture fixture)
     private const string Password = "correct horse battery";
 
     [Fact]
-    public async Task Register_ShouldAnswer403AndCreateNothing_WhenTheEnvironmentLeavesSignUpOff()
+    public async Task SignUp_ShouldAnswer403AndCreateNothing_WhenTheEnvironmentLeavesSignUpOff()
     {
         var email = $"closed-{Guid.NewGuid():N}@example.test";
         using var client = fixture.Host.CreateClient();
 
-        using var response = await client.PostAsJsonAsync("/api/account/register", new { email, password = Password });
+        using var response = await client.PostAsJsonAsync("/api/account/sign-up", new { email, password = Password });
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -48,13 +48,13 @@ public sealed class SignUpTests(IdentityApiFixture fixture)
         }
 
         using var client = fixture.Host.CreateClient();
-        using var response = await client.PostAsJsonAsync("/api/account/login?useCookies=true", new { login = email, password = Password });
+        using var response = await client.PostAsJsonAsync("/api/account/sign-in?useCookies=true", new { identifier = email, password = Password });
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
     [Fact]
-    public async Task Register_ShouldCreateTheAccount_WhenTheEnvironmentTurnsSignUpOn()
+    public async Task SignUp_ShouldCreateTheAccount_WhenTheEnvironmentTurnsSignUpOn()
     {
         var connectionString = await PostgresTestServer.CreateDatabaseAsync();
         try
@@ -71,7 +71,7 @@ public sealed class SignUpTests(IdentityApiFixture fixture)
             };
             using var client = host.CreateClient();
 
-            using var response = await client.PostAsJsonAsync("/api/account/register", new { email = "open@example.test", password = Password });
+            using var response = await client.PostAsJsonAsync("/api/account/sign-up", new { email = "open@example.test", password = Password });
 
             response.StatusCode.Should().Be(HttpStatusCode.OK);
             await using var scope = host.Services.CreateAsyncScope();

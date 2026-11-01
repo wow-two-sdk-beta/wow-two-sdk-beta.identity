@@ -3,7 +3,7 @@ import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
 import { EmailInput, Field, PasswordInput } from '@wow-two-beta/fe/presentation/forms';
 import { shallowRef } from 'vue';
-import type { RegisteredAccountDto } from '../../../../contracts';
+import type { SignedUpAccountDto } from '../../../../contracts';
 import type { AccountClient } from '../../../account';
 import { useAccountClient, useAccountForm, useAccountText } from '../../../account/hooks';
 import { FailureAlert } from '../../feedback/failureAlert';
@@ -24,20 +24,20 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  /** Fires with the account a registration created. */
-  signedUp: [account: RegisteredAccountDto];
+  /** Fires with the account a sign-up created. */
+  signedUp: [account: SignedUpAccountDto];
 }>();
 
 const client = useAccountClient(props);
 const t = useAccountText();
-const registered = shallowRef<{ account: RegisteredAccountDto; email: string } | null>(null);
+const created = shallowRef<{ account: SignedUpAccountDto; email: string } | null>(null);
 
 const form = useAccountForm({
   defaultValues: { email: '', password: '' },
   onSubmit: async (values, { signal }) => {
-    const result = await client.register(values, signal);
+    const result = await client.signUp(values, signal);
     if (result.ok) {
-      registered.value = { account: result.value, email: values.email };
+      created.value = { account: result.value, email: values.email };
       emit('signedUp', result.value);
     }
     return result;
@@ -46,12 +46,12 @@ const form = useAccountForm({
 </script>
 
 <template>
-  <div v-if="registered" class="flex flex-col gap-4">
+  <div v-if="created" class="flex flex-col gap-4">
     <AlertSimple severity="success">
-      <template v-if="registered.account.isConfirmationSent">
+      <template v-if="created.account.isConfirmationSent">
         {{
           t('SignUpForm.confirmationSent', 'Check your inbox: we sent a link to {email} to confirm the address.', {
-            email: registered.email,
+            email: created.email,
           })
         }}
       </template>

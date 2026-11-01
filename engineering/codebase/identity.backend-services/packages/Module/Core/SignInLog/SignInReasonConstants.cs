@@ -3,7 +3,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInLog;
 /// <summary>Names why a logged sign-in attempt did not succeed, in <c>reason</c>.</summary>
 public static class SignInReasonConstants
 {
-    /// <summary>No account answers to the login.</summary>
+    /// <summary>No account answers to the identifier.</summary>
     public const string UnknownAccount = "unknown_account";
 
     /// <summary>The password did not match.</summary>

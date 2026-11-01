@@ -2,7 +2,7 @@
 
   <!--
     Forms 2 and 3 (layer 3): a product signs in against a running Identity instance. Today the BFF sign-in (the code flow
-    with PKCE, server-side tokens, session routes, the organization policies); the management API brokers, logout and
+    with PKCE, server-side tokens, session routes, the organization policies); the management API brokers, sign-out and
     webhook receivers and the projection land here.
   -->
   <PropertyGroup>

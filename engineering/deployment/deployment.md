@@ -43,6 +43,13 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
   The descriptor's `configCheck:` item (`[dotnet, Identity.Api.dll, config, check]`, `2m`) is written in `deploy.yml` as
   a comment: pipelines `v0.14.0` still answers `Unknown top-level key: configCheck`, so it joins the file with the first
   pipelines release that accepts the key (the runner gets the step with Wheelhouse v0.13).
+- First owner: the image answers `dotnet Identity.Api.dll admin create --slug <handle> --name <organization name>
+  --display-name <owner's name> [--phone <E.164>] [--email <address>] [--organization-id <uuid>] [--user-id <uuid>]`
+  after `migrate`: it builds the host without serving and creates the instance's first organization and its owner with
+  the `owner` role, or reports that both exist (exit `0` created or present, `1` refused when the handle, an id, the
+  email or the phone belongs to someone else, `2` failed), and prints one `admin-result` line last. It never takes a
+  password: the owner signs in by phone or sets one through the reset link. Preset ids keep a product's existing keys
+  (Desk's organization id). Members are managed elsewhere.
 - Placement: Ocharo's instance is a service of Ocharo's own `deploy.yml`, the image pinned by tag, its set in Ocharo's
   database; wow2's shared instance is a Wheelhouse product of its own. A product pinning it declares its keys as in
   [Pinning the instance](#pinning-the-instance).
@@ -59,11 +66,11 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 | `Identity:Server:Keys:Encryption:N` | `:0`, secret | an encryption certificate's PEM bundle; an old one stays until its refresh tokens expire |
 | `Identity:DataProtection:Certificates:N` | `:0`, secret | the Data Protection ring's certificate bundle; the ring itself lives in the database, wrapped by it |
 | `Identity:Server:Keys:IsEphemeral` | — | `false` by the descriptor's default; a deployed boot refuses `true` |
-| `Identity:Server:Clients:N:{ClientId,ClientSecret,RedirectUris:M,PostLogoutRedirectUris:M,Audience,PermissionNamespace}` | per app | one confidential client; the secret ends in `Secret`, so the vault keeps it |
+| `Identity:Server:Clients:N:{ClientId,ClientSecret,RedirectUris:M,PostSignOutRedirectUris:M,Audience,PermissionNamespace}` | per app | one confidential client; the secret ends in `Secret`, so the vault keeps it; a client sets no look of its own (one look per instance, `Identity:Pages`) |
 | `Identity:Server:{SignInPath,AuthorizationCodeLifetime,AccessTokenLifetime,IdentityTokenLifetime,RefreshTokenLifetime}` | — | defaults `/sign-in`, 60 s, 10 min, 5 min, 12 h |
 | `Identity:Sessions:{Lifetime,ActivityInterval}` | — | defaults 12 h absolute (the cookie's), 5 min |
 | `Identity:SignInLog:{RetentionDays,CleanupInterval}` | — | defaults 180 days, 1 h |
-| `Identity:SignUp:IsEnabled` | — | `false` by the descriptor's default: `POST /api/account/register` answers `403` and creates nothing, and an admin adds every account; an environment that takes self sign-up sets `true` in Wheelhouse's console |
+| `Identity:SignUp:IsEnabled` | — | `false` by the descriptor's default: `POST /api/account/sign-up` answers `403` and creates nothing, and the first owner comes from `admin create` (*First owner* above); an environment that takes self sign-up sets `true` in Wheelhouse's console |
 
 - Each certificate value is one PEM bundle (certificate, then its unencrypted PKCS#8 private key) from `keys generate`;
   `deploy.yml` declares the first of each `secret: true`, so the value lives in Wheelhouse's vault and its settings
@@ -101,7 +108,7 @@ file or a message.
 | `Identity:Email:Smtp:Password` | secret | the relay's password |
 | `Identity:Password:{MinLength,MaxLength,IsDigitRequired,IsLowercaseRequired,IsUppercaseRequired,IsNonAlphanumericRequired,RequiredUniqueChars,IsAccountIdentifierRejected}` | — | the password rules; defaults `15`, `128`, `false`, `false`, `false`, `false`, `1`, `true`; a stored password that breaks a rule must change at its next sign-in |
 | `Identity:Password:Change:{Confirmation,IsSignInAgainRequired,Lifetime,LinkTemplate,LinkSubject,LinkBody}` | — | the password change: `Confirmation` is a choice of `None` (default), `Code` or `Link`, declared in `deploy.yml`; `Code` and `Link` need an email the person confirmed and the relay above; `Link` needs `LinkTemplate` with `{token}`, which the service fills from the issuer's origin when unset |
-| `Identity:SignIn:{IsConfirmedEmailRequired,IsConfirmedPhoneNumberRequired,IsEmailLoginAllowed}` | — | the sign-in preconditions; defaults `false`, `false`, `true` |
+| `Identity:SignIn:{IsConfirmedEmailRequired,IsConfirmedPhoneNumberRequired,IsEmailIdentifierAllowed}` | — | the sign-in preconditions; defaults `false`, `false`, `true` (the email may stand for the user name in a sign-in's `identifier`) |
 | `Identity:Lockout:{MaxFailedAttempts,DefaultLockout,IsEnabledForNewUsers}` | — | defaults `5`, 5 minutes, `true` |
 | `Identity:Telegram:IsEnabled` | — | `false` by the descriptor's default; on, phone sign-in and the bot's webhook run and the three keys below are required |
 | `Identity:Telegram:BotToken` | with the bot, secret | the bot's API token |
@@ -114,14 +121,16 @@ file or a message.
   `secret_token`, `message` updates only) and logs a failure without stopping the start.
 - One bot has one reader: each environment needs its own bot, and a local run polls a bot of its own.
 - `Identity:Telegram:UpdateMode` is a choice of `Webhook` (the descriptor's default) and `Polling`; `Polling` is for a local run, and a deployed boot refuses it.
-- `Identity:TestMode:IsEnabled` keeps every email and Telegram message at `GET /api/test/messages?to=` and links phones
-  without a bot; a deployed boot refuses it.
+- The runtime has no test mode, fake bot or message sink: a local run uses a dev bot of its own and Mailpit (until
+  wow2's dev mailboxes exist); `Identity:TestMode:*` is a retired key that `config check` refuses.
 - The emails' links (`/confirm-email`, `/reset-password`, `/change-password`) point at the hosted pages on the origin of
   `Identity:Server:Issuer`; `UserAccounts:Emails:{ConfirmationLink,ResetLink}` and `Identity:Password:Change:LinkTemplate`
   override them.
 - Self sign-up (`Identity:SignUp:IsEnabled`) also gates the account a first phone sign-in creates.
 - `Identity:Phone:AllowedCountries:N` and the hosted pages' `Identity:Pages:{BrandName,Theme,BackgroundUrl}` are plain
   text keys in `deploy.yml`; unset, the pages fall back to `appsettings.json` (`Identity`, `platform`, no background).
+  An instance serves one product, so this is its one look: `?clientId=` never changes it, and the retired
+  `Identity:Server:Clients:N:{Theme,BackgroundUrl}` keys are refused.
 - Key encodings: `Identity:Tokens:SigningKey` and `Identity:Otp:HashKey` take standard base64 and base64url, padded or
   not, so Wheelhouse's `generate: { random: 32 }` (base64url by default) fits; each still needs 32 decoded bytes.
 - Every key `deploy.yml` declares binds to a settings record: the service declares `Identity` as its settings root, and
@@ -202,4 +211,7 @@ docker build --build-arg APP_VERSION=0.1.99 --build-arg VCS_REF=$(git rev-parse 
 - `docker compose -f engineering/deployment/docker-compose.yml up` starts the stack; a local sign-up sends its
   confirmation email to Mailpit (`http://127.0.0.1:8025`), and nothing leaves the machine.
 - The compose file runs as a local run with the bot off. A phone sign-in needs `identity.local.env` beside the compose
-  file (gitignored): test mode, or a bot of your own that polls; the compose file's header says what to put in it.
+  file (gitignored) with the local dev bot, which polls; the compose file's header says what to put in it.
+- `docker compose -p identity-local -f engineering/deployment/docker-compose.yml run --rm identity admin create --slug ocharo
+  --name Ocharo --display-name "Lola Karimova" --phone +998901234567` makes the first organization and its owner; a
+  rerun answers `present`.

@@ -31,7 +31,8 @@ public static class IdentityBffServiceCollectionExtensions
     ///   - the cookie carries only the session reference; tokens and claims stay server-side, encrypted with Data
     ///     Protection, keyed on the instance's <c>sid</c> — several instances share the store and the key ring
     ///   - API requests (<see cref="IdentityBffOptions.ApiPathPrefixes"/>) answer 401 and 403 problems; a page request
-    ///     without a session is redirected to <c>{prefix}/login</c>
+    ///     without a session is redirected to <c>{prefix}/sign-in</c>; the session routes sit under <c>/api</c> by
+    ///     default, and <c>{prefix}/sign-in</c> and <c>{prefix}/callback</c> still redirect, as a browser navigates to them
     ///   - the session refreshes its tokens inside <see cref="IdentityBffOptions.SessionLifetime"/>, then ends
     ///   - unsafe API requests of a session need <c>X-Csrf-Token</c>, bound to the session's <c>sid</c>
     /// </remarks>
@@ -91,8 +92,8 @@ public static class IdentityBffServiceCollectionExtensions
         cookie.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         cookie.ExpireTimeSpan = bff.SessionLifetime;
         cookie.SlidingExpiration = false;
-        cookie.LoginPath = bff.RoutePrefix + BffPathConstants.Login;
-        cookie.LogoutPath = bff.RoutePrefix + BffPathConstants.Logout;
+        cookie.LoginPath = bff.RoutePrefix + BffPathConstants.SignIn;
+        cookie.LogoutPath = bff.RoutePrefix + BffPathConstants.SignOut;
         cookie.ReturnUrlParameter = "returnUrl";
         cookie.TicketDataFormat = new BffTicketDataFormat(new TicketDataFormat(
             protection.CreateProtector("WoW.Two.Sdk.Beta.Be.Identity.Bff.Cookie", BffAuthenticationSchemeConstants.Cookie, "v1")));
@@ -116,7 +117,7 @@ public static class IdentityBffServiceCollectionExtensions
         handler.SignOutScheme = BffAuthenticationSchemeConstants.Cookie;
         handler.CallbackPath = bff.RoutePrefix + BffPathConstants.Callback;
         handler.SignedOutCallbackPath = bff.RoutePrefix + BffPathConstants.SignedOutCallback;
-        handler.RemoteSignOutPath = bff.RoutePrefix + BffPathConstants.FrontChannelLogout;
+        handler.RemoteSignOutPath = bff.RoutePrefix + BffPathConstants.FrontChannelSignOut;
         handler.TokenValidationParameters.NameClaimType = JwtRegisteredClaimNames.Name;
         handler.TokenValidationParameters.RoleClaimType = "role";
         handler.Scope.Clear();

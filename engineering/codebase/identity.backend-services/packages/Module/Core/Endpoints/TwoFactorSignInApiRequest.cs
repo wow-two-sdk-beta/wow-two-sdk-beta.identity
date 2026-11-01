@@ -1,7 +1,7 @@
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 
 /// <summary>Completes a sign-in whose first factor answered with a two-factor ticket, such as an emailed link.</summary>
-public sealed record TwoFactorLoginApiRequest
+public sealed record TwoFactorSignInApiRequest
 {
     /// <summary>The <c>userId</c> from the 401 challenge.</summary>
     public required string UserId { get; init; }

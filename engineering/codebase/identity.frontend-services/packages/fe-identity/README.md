@@ -33,7 +33,7 @@ sources. Messages resolve through the fe sdk `LocaleProvider` under `IdentityKit
 
 - `getSignInOptions({ clientId, locale })` reads `GET /api/account/sign-in-options`: the hosted pages' look, whether
   sign-up is open, and each enabled method in layout order with its fields and fe sdk rules, the messages in the
-  request's locale; an unknown `clientId` answers the instance's own look.
+  request's locale. The look is the instance's, one for every client; `clientId` goes to the sign-in log.
 - a cross-origin `baseUrl` sends the session cookie (`credentials: 'include'`); the service's CORS policy must allow
   the consumer's origin.
 - `PhoneCodeSignIn` shows an "Open Telegram" step when the phone has no linked chat; the bot sends the code once the

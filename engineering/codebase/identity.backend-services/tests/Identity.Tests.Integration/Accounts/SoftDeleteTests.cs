@@ -2,7 +2,7 @@ using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
-using WoW.Two.Sdk.Beta.Be.Identity.Core.Logins;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.ExternalAccounts;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.RefreshTokens;
@@ -21,7 +21,7 @@ public sealed class SoftDeleteTests
     private static AccountsHost CreateHost() => AccountsHost.Create(
         identity => identity
             .AddArgon2Passwords()
-            .AddExternalLogins()
+            .AddExternalAccounts()
             .AddRefreshTokens(o => o.Lifetime = TimeSpan.FromDays(7))
             .AddPersonalData()
             .AddSignIn(),
@@ -36,7 +36,7 @@ public sealed class SoftDeleteTests
         await using (var scope = host.Scope())
         {
             var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService>();
-            await scope.ServiceProvider.GetRequiredService<UserLoginService>().AddLoginAsync((await accounts.FindByIdAsync(user.Id))!, "GitHub", "gh-dana");
+            await scope.ServiceProvider.GetRequiredService<ExternalAccountService>().LinkAsync((await accounts.FindByIdAsync(user.Id))!, "GitHub", "gh-dana");
 
             (await accounts.DeleteAsync((await accounts.FindByIdAsync(user.Id))!)).IsSuccess.Should().BeTrue();
 
@@ -50,7 +50,7 @@ public sealed class SoftDeleteTests
         (await lookups.FindByIdAsync(user.Id)).Should().BeNull();
         (await lookups.FindByNameAsync("DANA")).Should().BeNull();
         (await lookups.FindByEmailAsync("dana@example.test")).Should().BeNull();
-        (await services.GetRequiredService<UserLoginService>().FindByLoginAsync("GitHub", "gh-dana")).Should().BeNull();
+        (await services.GetRequiredService<ExternalAccountService>().FindByExternalAccountAsync("GitHub", "gh-dana")).Should().BeNull();
         var signIn = services.GetRequiredService<SignInService>();
         (await signIn.PasswordSignInAsync("dana", Password)).Status.Should().Be(SignInStatus.Failed);
         (await signIn.PasswordSignInAsync("dana@example.test", Password)).Status.Should().Be(SignInStatus.Failed);
@@ -58,7 +58,7 @@ public sealed class SoftDeleteTests
         var row = await services.GetRequiredService<IdentityDbContext>().Users.IgnoreQueryFilters().AsNoTracking().SingleAsync(u => u.Id == user.Id);
         row.DeletedAt.Should().Be(deletedAt);
         row.UserName.Should().Be("dana", "a soft delete keeps the row as it was; erasure scrubs it");
-        (await services.GetRequiredService<IdentityDbContext>().Set<IdentityUserLogin>().CountAsync()).Should().Be(0);
+        (await services.GetRequiredService<IdentityDbContext>().Set<IdentityExternalAccount>().CountAsync()).Should().Be(0);
     }
 
     [Fact]

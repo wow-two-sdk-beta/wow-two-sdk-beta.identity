@@ -7,7 +7,7 @@
 | Method | Phase | Notes |
 |---|---|---|
 | phone + code via own Telegram bot | P1 | free; the member opens the bot once and shares their contact |
-| Log in with Telegram (OIDC) | P1 | one tap; the `phone` scope returns a Telegram-verified number; same bot |
+| Sign in with Telegram (OIDC) | P1 | one tap; the `phone` scope returns a Telegram-verified number; same bot |
 | phone + code via Telegram Gateway | P2 | no bot link; $0.01 per delivered code, paid in TON; Telegram words the text |
 | phone + code via SMS or WhatsApp | P2 | adapters exist (Eskiz for Uzbekistan, Twilio, Vonage) |
 | email + password | P2 | hosted pages over the existing SDK flow |

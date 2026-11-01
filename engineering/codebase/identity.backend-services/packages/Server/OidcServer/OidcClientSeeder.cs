@@ -91,7 +91,7 @@ internal sealed partial class OidcClientSeeder(IOpenIddictApplicationManager app
         ]);
         descriptor.Requirements.Add(Requirements.Features.ProofKeyForCodeExchange);
         descriptor.RedirectUris.UnionWith(client.RedirectUris.Select(uri => new Uri(uri, UriKind.Absolute)));
-        descriptor.PostLogoutRedirectUris.UnionWith(client.PostLogoutRedirectUris.Select(uri => new Uri(uri, UriKind.Absolute)));
+        descriptor.PostLogoutRedirectUris.UnionWith(client.PostSignOutRedirectUris.Select(uri => new Uri(uri, UriKind.Absolute)));
         descriptor.Properties[OidcClientProfile.AudienceProperty] = JsonSerializer.SerializeToElement(client.Audience ?? client.ClientId);
         descriptor.Properties[OidcClientProfile.SourceProperty] = JsonSerializer.SerializeToElement(OidcClientProfile.ConfigurationSource);
         if (client.PermissionNamespace is { } permissionNamespace)

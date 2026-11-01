@@ -37,3 +37,5 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
 - Personal-data export adds an `organizations` section; account deletion removes the user's memberships, and an
   organization whose only owner is deleted keeps its other members without an owner.
 - Existing databases need a migration for `identity_organizations` and `identity_memberships`.
+- The first organization and its owner come from the host CLI's `admin create` (`../Admin/admin.md`); members after
+  that are managed in the console.

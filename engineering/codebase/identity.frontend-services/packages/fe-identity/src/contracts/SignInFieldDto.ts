@@ -2,7 +2,7 @@ import type { SignInRuleDto } from './SignInRuleDto';
 
 /** Mirrors `SignInFieldDto` of the be contract: one field of a method's form, named as its request names it. */
 export interface SignInFieldDto {
-  /** The request property the field fills, such as `login`, `password`, `phone` or `code`. */
+  /** The request property the field fills, such as `identifier`, `password`, `phone` or `code`. */
   readonly name: string;
   /** The input the field takes: `text`, `password`, `phone` or `pin`. */
   readonly kind: string;

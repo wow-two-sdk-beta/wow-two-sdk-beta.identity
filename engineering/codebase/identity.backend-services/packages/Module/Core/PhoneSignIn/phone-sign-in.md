@@ -25,7 +25,7 @@ app.MapTelegramWebhook();                                    // POST /api/telegr
 | Route | Does |
 |---|---|
 | `POST phone-sign-in/send` | `{ phone }` → `{ isCodeSent, telegramLinkUrl }`: `isCodeSent` when the code went to the linked chat, else the link to open |
-| `POST phone-sign-in[?useCookies=true&clientId=]` | `{ phone, code }`: a cookie (`204`) or a bearer token pair, as `login` answers |
+| `POST phone-sign-in[?useCookies=true&clientId=]` | `{ phone, code }`: a cookie (`204`) or a bearer token pair, as `sign-in` answers |
 
 ## Notes
 
@@ -36,14 +36,12 @@ app.MapTelegramWebhook();                                    // POST /api/telegr
 - Codes are single-use, limited to `Identity:Otp:MaxAttempts` wrong tries, and stored only as keyed digests
   (`identity_otp_codes`); a wrong, spent or expired code is `401` `InvalidPhoneCode`.
 - A verified code signs in with `amr` `otp` and sign-in log method `phone_code`; lockout and preconditions still apply,
-  and a second factor answers `401` with the ticket for `login/two-factor`.
+  and a second factor answers `401` with the ticket for `sign-in/two-factor`.
 - A first sign-in creates the person, holding the number confirmed, only while `Identity:SignUp:IsEnabled` is on; else `403`
   (`SignUpClosed`) and the refusal is logged.
 - A bearer sign-in on a cookie-only host answers `400` (`BearerSignInUnsupported`) before the code is spent.
 - A hosted instance reads the bot by webhook and registers it with Telegram at start; a local run sets
-  `Identity:Telegram:UpdateMode` to `Polling` with a bot of its own, or turns on test mode (`../TestMode/test-mode.md`), where
-  `IPhoneSignInLinkSimulator` completes a new start link at once, so `send` answers `isCodeSent` and the code is in the
-  sink. Update modes, registration and the `409` a hosted bot answers to polling: `Module/Telegram/telegram.md`.
+  `Identity:Telegram:UpdateMode` to `Polling` with a dev bot of its own; the runtime has no fake bot. Update modes, registration and the `409` a hosted bot answers to polling: `Module/Telegram/telegram.md`.
 - The bot links a number to a chat only from the sender's own shared contact; the link lives in `identity_telegram_links`,
   unique per bot user name and number, so replacing the bot starts with no links. Bot options, wording and the webhook:
   `Module/Telegram/`.

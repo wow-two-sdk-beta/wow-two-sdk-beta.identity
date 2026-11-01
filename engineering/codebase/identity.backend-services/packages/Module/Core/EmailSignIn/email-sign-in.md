@@ -18,12 +18,12 @@ identity.AddUserTokens(o => o.SigningKey = key).AddLockout().AddEmailSignIn().Ad
 |---|---|---|
 | `POST email-sign-in/send` | `{ email, method: "link" \| "code" }` | always `204` |
 | `POST email-sign-in[?useCookies=true]` | `{ email, token }` or `{ email, code }` | a session, or `401` |
-| `POST login/two-factor[?useCookies=true]` | `{ userId, ticket, twoFactorCode \| recoveryCode }` | a session |
+| `POST sign-in/two-factor[?useCookies=true]` | `{ userId, ticket, twoFactorCode \| recoveryCode }` | a session |
 
 ## Notes
 
 - Unknown addresses get no email and the same `204`, so the endpoint reveals no accounts.
 - Links carry a 12-character token; codes are numeric. Each works once, and a new send replaces the last.
 - A used link or code confirms an unconfirmed address (`IsEmailConfirmedOnSignIn`, default on), since it proves ownership.
-- For a two-factor account the answer is a `401` naming `userId` and `twoFactorTicket`; finish on `login/two-factor`.
+- For a two-factor account the answer is a `401` naming `userId` and `twoFactorTicket`; finish on `sign-in/two-factor`.
 - Across hosts, register a shared `IOtpRepository` so a code sent by one host verifies on another.

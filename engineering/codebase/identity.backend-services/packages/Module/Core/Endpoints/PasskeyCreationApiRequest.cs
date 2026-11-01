@@ -2,8 +2,8 @@ using System.Text.Json;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 
-/// <summary>Completes a passkey registration with the credential the browser created.</summary>
-public sealed record PasskeyRegistrationApiRequest
+/// <summary>Adds a passkey with the credential the browser created.</summary>
+public sealed record PasskeyCreationApiRequest
 {
     /// <summary>The state from <c>manage/passkeys/options</c>.</summary>
     public required string State { get; init; }

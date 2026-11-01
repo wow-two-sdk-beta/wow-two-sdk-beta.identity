@@ -25,7 +25,7 @@ public sealed class OidcSessionTests(OidcHostFixture fixture)
     public async Task RevokingTheSession_ShouldEndTheCookieAndTheAppsTokens()
     {
         using var client = fixture.Server.CreateClient();
-        var userId = await client.RegisterAndSignInAsync($"sid-{Guid.NewGuid():N}@example.test", Password);
+        var userId = await client.SignUpAndSignInAsync($"sid-{Guid.NewGuid():N}@example.test", Password);
         var session = (await SessionsAsync(client)).Should().ContainSingle().Subject;
         session.GetProperty("isCurrent").GetBoolean().Should().BeTrue();
         var sid = session.GetProperty("id").GetString();
@@ -52,7 +52,7 @@ public sealed class OidcSessionTests(OidcHostFixture fixture)
     public async Task EndSession_ShouldEndTheCookiesSession()
     {
         using var client = fixture.Server.CreateClient();
-        var userId = await client.RegisterAndSignInAsync($"bye-{Guid.NewGuid():N}@example.test", Password);
+        var userId = await client.SignUpAndSignInAsync($"bye-{Guid.NewGuid():N}@example.test", Password);
         var tokens = await client.SignInToAppAsync();
 
         using var ended = await client.Http.GetAsync($"/connect/endsession?id_token_hint={tokens.IdentityToken}");
@@ -68,7 +68,7 @@ public sealed class OidcSessionTests(OidcHostFixture fixture)
     public async Task CookieRing_ShouldLiveInTheDatabase()
     {
         using var client = fixture.Server.CreateClient();
-        await client.RegisterAndSignInAsync($"ring-{Guid.NewGuid():N}@example.test", Password);
+        await client.SignUpAndSignInAsync($"ring-{Guid.NewGuid():N}@example.test", Password);
 
         await using var scope = fixture.Server.Host.Services.CreateAsyncScope();
         (await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().DataProtectionKeys.CountAsync()).Should().BePositive();

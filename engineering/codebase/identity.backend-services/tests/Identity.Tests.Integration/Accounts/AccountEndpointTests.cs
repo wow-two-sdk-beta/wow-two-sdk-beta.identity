@@ -45,7 +45,7 @@ public sealed partial class AccountEndpointTests
         await using var app = await StartAsync();
         var client = app.Server.CreateClient();
 
-        using var registered = await client.PostAsJsonAsync("/account/register", new { email = "zoe@example.test", password = Password });
+        using var registered = await client.PostAsJsonAsync("/account/sign-up", new { email = "zoe@example.test", password = Password });
         registered.StatusCode.Should().Be(HttpStatusCode.OK);
         (await Data(registered)).GetProperty("isConfirmationSent").GetBoolean().Should().BeTrue();
 
@@ -53,8 +53,8 @@ public sealed partial class AccountEndpointTests
         var link = LinkPattern().Match(confirmation.TextBody!).Value;
         (await client.GetAsync("/account/confirm-email" + new Uri(link).Query)).StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        using var login = await client.PostAsJsonAsync("/account/login", new { login = "zoe@example.test", password = Password });
-        var session = await Data(login);
+        using var signIn = await client.PostAsJsonAsync("/account/sign-in", new { identifier = "zoe@example.test", password = Password });
+        var session = await Data(signIn);
         var access = session.GetProperty("accessToken").GetString();
         var refresh = session.GetProperty("refreshToken").GetString();
 
@@ -74,7 +74,7 @@ public sealed partial class AccountEndpointTests
         var resetToken = System.Web.HttpUtility.ParseQueryString(new Uri(LinkPattern().Match(reset.TextBody!).Value).Query)["token"];
         (await client.PostAsJsonAsync("/account/reset-password", new { email = "zoe@example.test", resetToken, newPassword = "a brand new passphrase" }))
             .StatusCode.Should().Be(HttpStatusCode.NoContent);
-        (await client.PostAsJsonAsync("/account/login", new { login = "zoe@example.test", password = "a brand new passphrase" }))
+        (await client.PostAsJsonAsync("/account/sign-in", new { identifier = "zoe@example.test", password = "a brand new passphrase" }))
             .StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -83,16 +83,16 @@ public sealed partial class AccountEndpointTests
     {
         await using var app = await StartAsync();
         var client = app.Server.CreateClient();
-        await client.PostAsJsonAsync("/account/register", new { email = "yan@example.test", password = Password });
+        await client.PostAsJsonAsync("/account/sign-up", new { email = "yan@example.test", password = Password });
 
-        using var duplicate = await client.PostAsJsonAsync("/account/register", new { email = "YAN@example.test", password = Password });
+        using var duplicate = await client.PostAsJsonAsync("/account/sign-up", new { email = "YAN@example.test", password = Password });
         duplicate.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await Problem(duplicate)).GetProperty("errors")[0].GetProperty("code").GetString().Should().Be(IdentityErrorCodeConstants.DuplicateUserName);
 
-        using var weak = await client.PostAsJsonAsync("/account/register", new { email = "new@example.test", password = "short" });
+        using var weak = await client.PostAsJsonAsync("/account/sign-up", new { email = "new@example.test", password = "short" });
         (await Problem(weak)).GetProperty("errors")[0].GetProperty("property").GetString().Should().Be("password");
 
-        using var wrong = await client.PostAsJsonAsync("/account/login", new { login = "yan@example.test", password = "wrong password" });
+        using var wrong = await client.PostAsJsonAsync("/account/sign-in", new { identifier = "yan@example.test", password = "wrong password" });
         wrong.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
         (await client.PostAsJsonAsync("/account/forgot-password", new { email = "nobody@example.test" })).StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -100,12 +100,12 @@ public sealed partial class AccountEndpointTests
     }
 
     [Fact]
-    public async Task Register_IsRefused_WhenTheHostSectionClosesSignUpTheCodeOpened()
+    public async Task SignUp_IsRefused_WhenTheHostSectionClosesSignUpTheCodeOpened()
     {
         await using var app = await StartAsync(new Dictionary<string, string?> { ["Identity:SignUp:IsEnabled"] = "false" });
         var client = app.Server.CreateClient();
 
-        using var refused = await client.PostAsJsonAsync("/account/register", new { email = "ned@example.test", password = Password });
+        using var refused = await client.PostAsJsonAsync("/account/sign-up", new { email = "ned@example.test", password = Password });
 
         refused.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await Problem(refused)).GetProperty("detail").GetString().Should().StartWith("Sign-up is closed");
@@ -117,8 +117,8 @@ public sealed partial class AccountEndpointTests
     {
         await using var app = await StartAsync();
         var client = app.Server.CreateClient();
-        await client.PostAsJsonAsync("/account/register", new { email = "xia@example.test", password = Password });
-        var access = (await Data(await client.PostAsJsonAsync("/account/login", new { login = "xia@example.test", password = Password })))
+        await client.PostAsJsonAsync("/account/sign-up", new { email = "xia@example.test", password = Password });
+        var access = (await Data(await client.PostAsJsonAsync("/account/sign-in", new { identifier = "xia@example.test", password = Password })))
             .GetProperty("accessToken").GetString();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access);
 
@@ -133,18 +133,18 @@ public sealed partial class AccountEndpointTests
         status.GetProperty("isEnabled").GetBoolean().Should().BeTrue();
 
         client.DefaultRequestHeaders.Authorization = null;
-        using var withoutCode = await client.PostAsJsonAsync("/account/login", new { login = "xia@example.test", password = Password });
+        using var withoutCode = await client.PostAsJsonAsync("/account/sign-in", new { identifier = "xia@example.test", password = Password });
         withoutCode.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await Problem(withoutCode)).GetProperty("detail").GetString().Should().Be("Enter your two-factor code.");
 
-        using var withCode = await client.PostAsJsonAsync("/account/login", new { login = "xia@example.test", password = Password, twoFactorCode = totp.ComputeCode(key) });
+        using var withCode = await client.PostAsJsonAsync("/account/sign-in", new { identifier = "xia@example.test", password = Password, twoFactorCode = totp.ComputeCode(key) });
         withCode.StatusCode.Should().Be(HttpStatusCode.OK);
-        using var withRecovery = await client.PostAsJsonAsync("/account/login", new { login = "xia@example.test", password = Password, recoveryCode = enabled.GetProperty("recoveryCodes")[0].GetString() });
+        using var withRecovery = await client.PostAsJsonAsync("/account/sign-in", new { identifier = "xia@example.test", password = Password, recoveryCode = enabled.GetProperty("recoveryCodes")[0].GetString() });
         withRecovery.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
-    public async Task DeliveredTwoFactor_ConfiguredByTheHost_CompletesLoginOverEmail()
+    public async Task DeliveredTwoFactor_ConfiguredByTheHost_CompletesSignInOverEmail()
     {
         await using var app = await StartAsync(new Dictionary<string, string?>
         {
@@ -155,10 +155,10 @@ public sealed partial class AccountEndpointTests
             ["Identity:Otp:Messages:AppName"] = "Tests",
         });
         var client = app.Server.CreateClient();
-        await client.PostAsJsonAsync("/account/register", new { email = "ida@example.test", password = Password });
+        await client.PostAsJsonAsync("/account/sign-up", new { email = "ida@example.test", password = Password });
         var confirmation = app.Mail.Sent.Single(message => message.Subject == "Confirm your email");
         await client.GetAsync("/account/confirm-email" + new Uri(LinkPattern().Match(confirmation.TextBody!).Value).Query);
-        var access = (await Data(await client.PostAsJsonAsync("/account/login", new { login = "ida@example.test", password = Password })))
+        var access = (await Data(await client.PostAsJsonAsync("/account/sign-in", new { identifier = "ida@example.test", password = Password })))
             .GetProperty("accessToken").GetString();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access);
 
@@ -173,20 +173,20 @@ public sealed partial class AccountEndpointTests
         (await Data(await client.GetAsync("/account/manage/2fa"))).GetProperty("preferredMethod").GetString().Should().Be("email");
 
         client.DefaultRequestHeaders.Authorization = null;
-        using var challenge = await client.PostAsJsonAsync("/account/login", new { login = "ida@example.test", password = Password });
+        using var challenge = await client.PostAsJsonAsync("/account/sign-in", new { identifier = "ida@example.test", password = Password });
         challenge.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         var problem = await Problem(challenge);
         problem.GetProperty("twoFactorMethod").GetString().Should().Be("email");
         problem.GetProperty("isCodeSent").GetBoolean().Should().BeTrue();
         problem.GetProperty("twoFactorMethods").EnumerateArray().Select(m => m.GetString()).Should().Equal("email");
 
-        var loginCode = CodeOf(app.Mail.Sent.Last());
-        using var wrong = await client.PostAsJsonAsync("/account/login", new { login = "ida@example.test", password = Password, twoFactorCode = "WRONG123" });
+        var signInCode = CodeOf(app.Mail.Sent.Last());
+        using var wrong = await client.PostAsJsonAsync("/account/sign-in", new { identifier = "ida@example.test", password = Password, twoFactorCode = "WRONG123" });
         wrong.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        using var withCode = await client.PostAsJsonAsync("/account/login", new { login = "ida@example.test", password = Password, twoFactorCode = loginCode.ToLowerInvariant() });
+        using var withCode = await client.PostAsJsonAsync("/account/sign-in", new { identifier = "ida@example.test", password = Password, twoFactorCode = signInCode.ToLowerInvariant() });
         withCode.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        using var unknown = await client.PostAsJsonAsync("/account/login", new { login = "ida@example.test", password = Password, twoFactorMethod = "sms" });
+        using var unknown = await client.PostAsJsonAsync("/account/sign-in", new { identifier = "ida@example.test", password = Password, twoFactorMethod = "sms" });
         unknown.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await Problem(unknown)).GetProperty("detail").GetString().Should().Contain("'sms'");
     }
@@ -197,8 +197,8 @@ public sealed partial class AccountEndpointTests
         await using var app = await StartAsync();
         var client = app.Server.CreateClient();
         using var authenticator = new SoftwareAuthenticator();
-        await client.PostAsJsonAsync("/account/register", new { email = "kai@example.test", password = Password });
-        var access = (await Data(await client.PostAsJsonAsync("/account/login", new { login = "kai@example.test", password = Password })))
+        await client.PostAsJsonAsync("/account/sign-up", new { email = "kai@example.test", password = Password });
+        var access = (await Data(await client.PostAsJsonAsync("/account/sign-in", new { identifier = "kai@example.test", password = Password })))
             .GetProperty("accessToken").GetString();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access);
 
@@ -211,16 +211,16 @@ public sealed partial class AccountEndpointTests
         passkey.GetProperty("name").GetString().Should().Be("Phone");
 
         client.DefaultRequestHeaders.Authorization = null;
-        var request = await Data(await client.PostAsync("/account/passkeys/login/options", null));
+        var request = await Data(await client.PostAsync("/account/passkeys/sign-in/options", null));
         var body = new
         {
             state = request.GetProperty("state").GetString(),
             credential = JsonDocument.Parse(authenticator.Get(request.GetProperty("options").GetRawText())).RootElement,
         };
-        var session = await Data(await client.PostAsJsonAsync("/account/passkeys/login", body));
+        var session = await Data(await client.PostAsJsonAsync("/account/passkeys/sign-in", body));
         session.GetProperty("refreshToken").GetString().Should().NotBeNullOrEmpty();
 
-        using var replayed = await client.PostAsJsonAsync("/account/passkeys/login", body);
+        using var replayed = await client.PostAsJsonAsync("/account/passkeys/sign-in", body);
         replayed.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await Problem(replayed)).GetProperty("detail").GetString().Should().Be("The passkey could not be verified; try again.");
 
@@ -239,7 +239,7 @@ public sealed partial class AccountEndpointTests
             ["Identity:Otp:RateLimitWindow"] = "00:00:00",
         });
         var client = app.Server.CreateClient();
-        await client.PostAsJsonAsync("/account/register", new { email = "lea@example.test", password = Password });
+        await client.PostAsJsonAsync("/account/sign-up", new { email = "lea@example.test", password = Password });
 
         (await client.PostAsJsonAsync("/account/email-sign-in/send", new { email = "nobody@example.test" })).StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await client.PostAsJsonAsync("/account/email-sign-in/send", new { email = "LEA@example.test" })).StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -278,8 +278,8 @@ public sealed partial class AccountEndpointTests
         var ticket = problem.GetProperty("twoFactorTicket").GetString();
         var userId = problem.GetProperty("userId").GetString();
 
-        (await client.PostAsJsonAsync("/account/login/two-factor", new { userId, ticket, twoFactorCode = "000000" })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        using var completed = await client.PostAsJsonAsync("/account/login/two-factor", new { userId, ticket, twoFactorCode = totp.ComputeCode(key) });
+        (await client.PostAsJsonAsync("/account/sign-in/two-factor", new { userId, ticket, twoFactorCode = "000000" })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        using var completed = await client.PostAsJsonAsync("/account/sign-in/two-factor", new { userId, ticket, twoFactorCode = totp.ComputeCode(key) });
         (await Data(completed)).GetProperty("accessToken").GetString().Should().NotBeNullOrEmpty();
     }
 
@@ -288,7 +288,7 @@ public sealed partial class AccountEndpointTests
     {
         await using var app = await StartAsync();
         var client = app.Server.CreateClient();
-        await client.PostAsJsonAsync("/account/register", new { email = "kim@example.test", password = Password });
+        await client.PostAsJsonAsync("/account/sign-up", new { email = "kim@example.test", password = Password });
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var services = scope.ServiceProvider;
@@ -297,7 +297,7 @@ public sealed partial class AccountEndpointTests
             await services.GetRequiredService<UserRoleService>().AddToRoleAsync(kim!, "beta");
         }
 
-        var access = (await Data(await client.PostAsJsonAsync("/account/login", new { login = "kim@example.test", password = Password }))).GetProperty("accessToken").GetString();
+        var access = (await Data(await client.PostAsJsonAsync("/account/sign-in", new { identifier = "kim@example.test", password = Password }))).GetProperty("accessToken").GetString();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access);
 
         using var exported = await client.GetAsync("/account/manage/personal-data");
@@ -316,7 +316,7 @@ public sealed partial class AccountEndpointTests
 
         app.Services.GetRequiredService<DeletionLog>().Deleted.Should().Equal("kim@example.test");
         client.DefaultRequestHeaders.Authorization = null;
-        (await client.PostAsJsonAsync("/account/login", new { login = "kim@example.test", password = Password })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await client.PostAsJsonAsync("/account/sign-in", new { identifier = "kim@example.test", password = Password })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();

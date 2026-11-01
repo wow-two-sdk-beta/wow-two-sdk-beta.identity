@@ -5,7 +5,7 @@ public interface IOtpService
 {
     /// <summary>Generates and stores a new code for <c>(subject, scope)</c>, returning it for delivery; fails with <see cref="OtpFailureReason.RateLimited"/> when one was created within the configured window.</summary>
     /// <param name="subject">Consumer-defined identity key (phone, email, username).</param>
-    /// <param name="scope">Consumer-defined scope the code is valid for (e.g. <c>"crm"</c>, <c>"login"</c>).</param>
+    /// <param name="scope">Consumer-defined scope the code is valid for (e.g. <c>"crm"</c>, <c>"sign-in"</c>).</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     Task<OtpCreationResult> CreateAsync(string subject, string scope, CancellationToken cancellationToken = default);
 

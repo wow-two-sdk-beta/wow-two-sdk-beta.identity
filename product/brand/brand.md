@@ -11,7 +11,7 @@
 | Icon | none yet; icon files go beside this doc |
 | Default theme | the SDK theme `platform`, the shared look of the platform apps (proposed) |
 | Theme source | an SDK theme picked by name in the instance's configuration |
-| Per-app theme | a registered app may name its own SDK theme; Ocharo's apps use `ocharo` |
+| One look per instance | brand name, theme and an optional background from `Identity:Pages`, since an instance serves one product (Ocharo's uses `ocharo`); no app overrides it, and `?clientId=` never changes it (2026-11-01) |
 | Languages | `uz`, `ru`, `en` |
 
 - the hosted pages are built on the fe sdk, so every SDK theme ships in the image.

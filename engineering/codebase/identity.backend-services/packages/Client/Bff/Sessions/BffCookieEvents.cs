@@ -8,7 +8,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 /// <summary>
 /// Binds the session cookie to the server-side session: a sign-in stores the session and leaves the cookie its
 /// reference, each request resolves (and refreshes) the session behind it, a sign-out removes it; API requests answer
-/// 401 and 403 problems where a page request is redirected to the login route.
+/// 401 and 403 problems where a page request is redirected to the sign-in route.
 /// </summary>
 /// <param name="sessions">The session service.</param>
 /// <param name="options">The BFF options.</param>
@@ -57,7 +57,7 @@ internal sealed class BffCookieEvents(BffSessionService sessions, IOptions<Ident
         if (BffSessionService.IsEnded(http))
             return;
 
-        // A sign-out from elsewhere (the front-channel logout, the app's own SignOutAsync): end the session it names.
+        // A sign-out from elsewhere (the front-channel sign-out, the app's own SignOutAsync): end the session it names.
         var current = await http.AuthenticateAsync(BffAuthenticationSchemeConstants.Cookie);
         BffSessionService.MarkEnded(http);
         if (BffSessionReference.From(current.Properties) is { } reference)

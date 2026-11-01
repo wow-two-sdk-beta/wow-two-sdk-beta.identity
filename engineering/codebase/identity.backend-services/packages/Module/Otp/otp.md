@@ -61,4 +61,4 @@ var verified = await otp.VerifyAsync(user.Id, typedCode, "phone-confirmation", c
 - An envelope without `Text` falls back to the handler's own wording (SMS/Telegram `MessageTemplate`, else the formatter).
 - Failure reasons: `RateLimited` · `Expired` · `InvalidCode` · `MaxAttemptsReached`.
 - Two-factor sign-in over these channels: `Identity/Core/TwoFactor`.
-- Test mode (`Identity:TestMode:IsEnabled`, local runs only) swaps the `email` and `telegram` channels' senders for in-memory ones: `Core/TestMode/`.
+- The runtime ships no fake channel or sink: local runs use a real dev mailbox (or a local mail sink) and a dev bot; fakes live in the test projects.

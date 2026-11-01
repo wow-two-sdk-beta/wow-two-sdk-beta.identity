@@ -25,8 +25,8 @@ public static class SignInDeclarationEndpointRouteBuilderExtensions
     /// service): anonymous, it answers <see cref="SignInOptionsDto"/> in the success envelope.
     /// </summary>
     /// <remarks>
-    ///   - <c>?clientId=</c> names the app a sign-in serves: its own theme and background replace the instance's; an
-    ///     unknown client answers exactly what no client does
+    ///   - <c>?clientId=</c> names the app a sign-in serves; it does not change the look, which is the instance's one look
+    ///     for every app, and will narrow the methods later; an unknown client answers exactly what no client does
     ///   - <c>?locale=</c> (<c>uz</c>, <c>ru</c>, <c>en</c>) picks the messages' locale, else <c>Accept-Language</c>, else <c>en</c>
     ///   - the answer carries a strong <c>ETag</c> over its body, <c>Cache-Control: public, max-age=60</c> and
     ///     <c>Vary: Accept-Language</c>; a matching <c>If-None-Match</c> answers <c>304</c>

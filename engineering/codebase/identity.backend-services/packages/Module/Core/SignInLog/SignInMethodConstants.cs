@@ -3,7 +3,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInLog;
 /// <summary>Names the sign-in steps the log records in <c>method</c>.</summary>
 public static class SignInMethodConstants
 {
-    /// <summary>A login and password.</summary>
+    /// <summary>An identifier (user name or email) and password.</summary>
     public const string Password = "password";
 
     /// <summary>A passkey assertion.</summary>

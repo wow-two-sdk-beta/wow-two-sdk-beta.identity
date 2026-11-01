@@ -15,12 +15,12 @@ namespace Identity.Tests.E2E.Accounts;
 public sealed class AccountEmailTests
 {
     [Fact]
-    public async Task Register_ShouldBootAndSendNothing_WhenNoSmtpRelayIsConfigured()
+    public async Task SignUp_ShouldBootAndSendNothing_WhenNoSmtpRelayIsConfigured()
     {
         await using var host = new AccountHost(keepRealBroker: true);
         using var client = host.CreateClient();
 
-        using var response = await client.PostAsJsonAsync("/api/account/register", new { email = "quiet@example.test", password = AccountHost.StrongPassword });
+        using var response = await client.PostAsJsonAsync("/api/account/sign-up", new { email = "quiet@example.test", password = AccountHost.StrongPassword });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         (await AccountHost.DataAsync(response)).GetProperty("isConfirmationSent").GetBoolean().Should().BeFalse();
@@ -30,12 +30,12 @@ public sealed class AccountEmailTests
     }
 
     [Fact]
-    public async Task Register_ShouldMailAConfirmationLinkToTheHostedPage_ThatConfirmsTheEmail()
+    public async Task SignUp_ShouldMailAConfirmationLinkToTheHostedPage_ThatConfirmsTheEmail()
     {
         await using var host = new AccountHost();
         using var client = host.CreateClient();
 
-        using var registered = await client.PostAsJsonAsync("/api/account/register", new { email = "zoe@example.test", password = AccountHost.StrongPassword });
+        using var registered = await client.PostAsJsonAsync("/api/account/sign-up", new { email = "zoe@example.test", password = AccountHost.StrongPassword });
 
         var data = await AccountHost.DataAsync(registered);
         data.GetProperty("isConfirmationSent").GetBoolean().Should().BeTrue();
@@ -78,26 +78,26 @@ public sealed class AccountEmailTests
     }
 
     [Fact]
-    public async Task Register_ShouldRefuseAPasswordBelowTheDefaultMinimumOf15()
+    public async Task SignUp_ShouldRefuseAPasswordBelowTheDefaultMinimumOf15()
     {
         await using var host = new AccountHost();
         using var client = host.CreateClient();
 
-        using var response = await client.PostAsJsonAsync("/api/account/register", new { email = "tina@example.test", password = "fourteen chars" });
+        using var response = await client.PostAsJsonAsync("/api/account/sign-up", new { email = "tina@example.test", password = "fourteen chars" });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await AccountHost.ProblemAsync(response)).GetProperty("errors")[0].GetProperty("code").GetString().Should().Be("PasswordTooShort");
     }
 
     [Fact]
-    public async Task Login_ShouldAnswer400WithABearerCode_NotA500_OnACookieOnlyInstance()
+    public async Task SignIn_ShouldAnswer400WithABearerCode_NotA500_OnACookieOnlyInstance()
     {
         await using var host = new AccountHost();
         await host.CreateUserAsync("uma@example.test");
         using var client = host.CreateClient();
 
-        using var bearer = await client.PostAsJsonAsync("/api/account/login", new { login = "uma@example.test", password = AccountHost.StrongPassword });
-        using var wrong = await client.PostAsJsonAsync("/api/account/login", new { login = "uma@example.test", password = "not the password" });
+        using var bearer = await client.PostAsJsonAsync("/api/account/sign-in", new { identifier = "uma@example.test", password = AccountHost.StrongPassword });
+        using var wrong = await client.PostAsJsonAsync("/api/account/sign-in", new { identifier = "uma@example.test", password = "not the password" });
         using var refresh = await client.PostAsJsonAsync("/api/account/refresh", new { refreshToken = "anything" });
 
         foreach (var response in new[] { bearer, wrong, refresh })

@@ -32,13 +32,13 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
 
 ### Gaps
 
-- protocol — back-channel logout (I18) and the OIDC client package (I19).
+- protocol — back-channel sign-out (I18) and the OIDC client package (I19).
 - accounts — invitations, admin-managed members, an OAuth callback-to-link route.
 - passwords — expiry, history, forced reset, admin-generated temporary passwords, generator, a real strength meter.
 - sessions — a durable OTP store (memory only today, codes plaintext at rest, 5-second resend).
 - audit — security events (log lines only today), admin action trail.
 - admin — user admin API, disable, impersonation, the console itself.
-- Telegram — Log in with Telegram (OIDC), link-on-first-sign-in without a password.
+- Telegram — Sign in with Telegram (OIDC), link-on-first-sign-in without a password.
 - fe — sign-in, phone + code, Telegram link, passkey, MFA and account screens; `passwordStrength` is empty.
 
 ---
@@ -64,7 +64,7 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
 - Q2 — confirm the registration shape: `Identity:Mode = Module | Oidc`, a shared `IdentityMode` enum, options from
   configuration overridable in code.
 - Q4 — the Form 3 host.
-- Q7–Q11 — browser mode, organization scope in tokens, revocation, front-channel logout, management authorization.
+- Q7–Q11 — browser mode, organization scope in tokens, revocation, front-channel sign-out, management authorization.
 - Q13 (D5) — Identity owns the Ocharo bot's webhook.
 - Q19, Q25–Q28, Q30 — hosted-page headers, signing keys, the Data Protection ring, counsel on the telecom clause,
   conformance in CI, domain binding and backups before Ocharo's cutover.

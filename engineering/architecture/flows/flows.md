@@ -2,7 +2,7 @@
 
 *Last updated: 2026-10-26*
 
-> Identity's technical flows: the forward to a hosted page and back, a form switch, logout delivery. User flows:
+> Identity's technical flows: the forward to a hosted page and back, a form switch, sign-out delivery. User flows:
 > `product/flows/flows.md`.
 
 ## Forward to the hosted pages
@@ -31,14 +31,14 @@
 
 ---
 
-## Logout delivery
+## Sign-out delivery
 
 1. A session ends: sign-out, revoke, suspension or removal.
-2. The instance writes one back-channel logout per registered client into its outbox.
+2. The instance writes one back-channel sign-out (OIDC Back-Channel Logout) per registered client into its outbox.
 3. Each delivery POSTs a signed `logout_token` (`sub`, `sid`, `events`) to the client's registered URI, with retries.
 4. The client revokes that `sid` and republishes `SessionEnded` on its local bus.
 
-- a refresh refused at the instance also ends the app's session, so a lost logout still lands.
+- a refresh refused at the instance also ends the app's session, so a lost sign-out still lands.
 
 ---
 

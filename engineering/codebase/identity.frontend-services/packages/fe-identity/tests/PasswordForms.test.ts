@@ -7,7 +7,7 @@ import { button, render } from './Mounting';
 describe('sign-up form', () => {
   it('creates the account and asks the person to confirm the email', async () => {
     const { client, received } = fakeAccountApi({
-      'POST /register': () => Response.json({ data: { userId: 'u1', isConfirmationSent: true } }),
+      'POST /sign-up': () => Response.json({ data: { userId: 'u1', isConfirmationSent: true } }),
     });
     const wrapper = render(SignUpForm, { props: { client, signInHref: '/sign-in' } });
 
@@ -24,7 +24,7 @@ describe('sign-up form', () => {
 
   it('says so when the instance keeps sign-up closed', async () => {
     const { client } = fakeAccountApi({
-      'POST /register': () => problem(403, 'Sign-up is closed; ask an admin to add you.'),
+      'POST /sign-up': () => problem(403, 'Sign-up is closed; ask an admin to add you.'),
     });
     const wrapper = render(SignUpForm, { props: { client } });
 

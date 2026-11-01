@@ -2,10 +2,10 @@
 export const AccountRouteConstants = {
   /** The account API's mount point. */
   base: '/api/account',
-  /** `POST`: creates an account while sign-up is on. */
-  register: '/register',
-  /** `POST`: signs in with a login and password. */
-  login: '/login',
+  /** `POST`: signs an account up while sign-up is on. */
+  signUp: '/sign-up',
+  /** `POST`: signs in with an identifier and password. */
+  signIn: '/sign-in',
   /** `GET`: confirms an email with the emailed `userId` and `token`. */
   confirmEmail: '/confirm-email',
   /** `POST`: sends the confirmation email again; always `204`. */
@@ -27,12 +27,12 @@ export const AccountRouteConstants = {
   /** `POST`: signs in with a phone and the code sent to it. */
   phoneSignIn: '/phone-sign-in',
   /** `POST`: ends the cookie's session. */
-  logout: '/logout',
+  signOut: '/sign-out',
   /** `GET`, anonymous: the sign-in declaration, the look and the enabled methods with their rules; `?clientId=`, `?locale=`. */
   signInOptions: '/sign-in-options',
   /** The query parameter that asks a sign-in route for a cookie instead of a bearer session. */
   useCookiesParameter: 'useCookies',
-  /** The query parameter that names the OIDC client a sign-in serves, for the sign-in log and the app's look. */
+  /** The query parameter that names the OIDC client a sign-in serves, for the sign-in log; the look is the instance's. */
   clientIdParameter: 'clientId',
   /** The query parameter that picks the locale of the declaration's messages: `uz`, `ru` or `en`. */
   localeParameter: 'locale',

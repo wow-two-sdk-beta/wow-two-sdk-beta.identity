@@ -31,7 +31,7 @@ app.MapOidcServerEndpoints();
         "ClientId": "wheelhouse",
         "ClientSecret": "<from the vault>",
         "RedirectUris": [ "https://wheelhouse.example.com/signin-oidc" ],
-        "PostLogoutRedirectUris": [ "https://wheelhouse.example.com/signout-callback-oidc" ],
+        "PostSignOutRedirectUris": [ "https://wheelhouse.example.com/signout-callback-oidc" ],
         "Audience": "wheelhouse",                  // null uses the client id
         "PermissionNamespace": "wheelhouse"        // null carries every permission of the role
       }
@@ -81,7 +81,7 @@ session that made it:
   code, refresh and access tokens are issued under it; both tokens carry `sid`
 - the token endpoint refuses a grant whose session ended (`invalid_grant`), userinfo a token whose session ended
   (`invalid_token`)
-- revoking a session (the person's session list, the account API's logout, end-session, or a stamp rotation when next
+- revoking a session (the person's session list, the account API's sign-out, end-session, or a stamp rotation when next
   seen) runs `OidcSessionRevocationHandler`: it revokes that session's authorizations and every token under them, so
   its refresh chains end at once
 - a grant without `sid` (issued before sessions, or by a host without the slice) passes the session check
@@ -92,7 +92,7 @@ session that made it:
   alone when unchanged (a matching secret keeps its stored hash), and deleted with its grants when it leaves
   configuration. Clients registered another way are never touched.
 - Every client is confidential and first-party (no consent): code flow with PKCE required, refresh tokens, the
-  `openid`, `profile`, `email` and `offline_access` scopes, exact redirect and post-logout URIs (HTTPS, or HTTP on a
+  `openid`, `profile`, `email` and `offline_access` scopes, exact redirect and post-sign-out URIs (HTTPS, or HTTP on a
   loopback host), its own audience. Secrets are stored as OpenIddict's hash.
 - The boot refuses a client without a secret or redirect URI, a duplicate id, a loose URI, a blank audience, a
   namespace holding `:`, a non-positive lifetime or a sign-in path that is not local.
