@@ -319,6 +319,93 @@ describe('sign-in declaration', () => {
   });
 });
 
+describe('hosted layout', () => {
+  const returnUrl = encodeURIComponent(authorize);
+
+  /** Records whether the layout left a click to the browser, then cancels it so happy-dom does not navigate. */
+  function watchClicks() {
+    const clicks: { isHandled: boolean }[] = [];
+    const record = (event: Event) => {
+      clicks.push({ isHandled: event.defaultPrevented });
+      event.preventDefault();
+    };
+    document.addEventListener('click', record);
+    return { clicks, stop: () => document.removeEventListener('click', record) };
+  }
+
+  it('keeps one card, one frame and one declaration request while sign-in gives way to sign-up', async () => {
+    stubApi();
+    const { wrapper, router } = await renderAt(`/sign-in?returnUrl=${returnUrl}`);
+    const card = wrapper.get('.hosted-card').element;
+    const frame = wrapper.get('.theme-platform').element;
+    expect(wrapper.get('h1').text()).toBe('Sign in');
+
+    await router.push(`/sign-up?returnUrl=${returnUrl}`);
+    await flushPromises();
+
+    expect(wrapper.get('h1').text()).toBe('Sign up');
+    expect(wrapper.find('input[name="email"]').exists()).toBe(true);
+    expect(wrapper.find('input[name="identifier"]').exists()).toBe(false);
+    expect(wrapper.get('.hosted-card').element).toBe(card);
+    expect(wrapper.get('.theme-platform').element).toBe(frame);
+    expect(wrapper.findAll('main')).toHaveLength(1);
+    expect(declarationRequests.map((url) => url.search)).toEqual(['?clientId=desk']);
+  });
+
+  it('opens the page a plain link names in the same card, keeping the return URL', async () => {
+    stubApi();
+    const { wrapper, router } = await renderAt(`/sign-in?returnUrl=${returnUrl}`);
+    const card = wrapper.get('.hosted-card').element;
+    const { clicks, stop } = watchClicks();
+
+    await wrapper
+      .findAll('a')
+      .find((link) => link.text() === 'Forgot your password?')
+      ?.trigger('click');
+    stop();
+
+    expect(clicks).toEqual([{ isHandled: true }]);
+    // The router loads the page's chunk before it navigates.
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe(`/forgot-password?returnUrl=${returnUrl}`));
+    await flushPromises();
+    expect(wrapper.get('h1').text()).toBe('Reset your password');
+    expect(wrapper.get('.hosted-card').element).toBe(card);
+  });
+
+  it('leaves a modified click and a new-tab link to the browser', async () => {
+    stubApi();
+    const { wrapper, router } = await renderAt('/sign-in');
+    const signUp = wrapper.findAll('a').find((link) => link.text() === 'Sign up');
+    const { clicks, stop } = watchClicks();
+
+    await signUp?.trigger('click', { ctrlKey: true });
+    signUp?.element.setAttribute('target', '_blank');
+    await signUp?.trigger('click');
+    stop();
+
+    expect(clicks).toEqual([{ isHandled: false }, { isHandled: false }]);
+    expect(router.currentRoute.value.path).toBe('/sign-in');
+  });
+
+  it('shows no heading or footer of the page that left', async () => {
+    stubApi();
+    const { wrapper, router } = await renderAt('/sign-in');
+
+    await router.push('/forgot-password');
+    await flushPromises();
+
+    expect(wrapper.findAll('h1').map((heading) => heading.text())).toEqual(['Reset your password']);
+    expect(wrapper.findAll('footer')).toHaveLength(1);
+  });
+
+  it('serves the console without the card', async () => {
+    stubApi();
+    const { wrapper } = await renderAt('/');
+
+    expect(wrapper.find('.hosted-card').exists()).toBe(false);
+  });
+});
+
 describe('password pages', () => {
   it('spends a change link token from the fragment and clears the fragment', async () => {
     const received = stubApi({ 'POST /api/account/password/change': noContent });

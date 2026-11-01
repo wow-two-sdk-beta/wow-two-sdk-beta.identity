@@ -11,7 +11,10 @@ import {
 
 const pages = HostedPageRouteConstants;
 
-/** Holds the route table: the console at the root, then one route per hosted page. */
+/**
+ * Holds the route table: the console at the root, then the hosted pages as children of one layout route, which keeps
+ * the instance's background, brand and card mounted while people move between them.
+ */
 export const routes: RouteConfig = [
   {
     path: '/',
@@ -20,75 +23,87 @@ export const routes: RouteConfig = [
     lazy: lazyRoute(() => import('../../presentation/console/pages/ConsolePage.vue')),
   },
   {
-    path: pages.signIn,
-    id: 'sign-in',
-    handle: { title: 'Sign in' },
+    id: 'hosted',
     lazy: lazyPage(
-      () => import('../../presentation/account/pages/SignInPage.vue'),
-      (route) => ({
+      () => import('../../presentation/common/layout/HostedLayout.vue'),
+      (route, router) => ({
         request: readSignInRequest(route.query),
-        onContinue: (url: string) => hostedNavigation.assign(url),
+        onNavigate: (path: string) => void router.push(path),
       }),
     ),
-  },
-  {
-    path: pages.signUp,
-    id: 'sign-up',
-    handle: { title: 'Sign up' },
-    lazy: lazyPage(
-      () => import('../../presentation/account/pages/SignUpPage.vue'),
-      (route) => ({ request: readSignInRequest(route.query) }),
-    ),
-  },
-  {
-    path: pages.confirmEmail,
-    id: 'confirm-email',
-    handle: { title: 'Confirm your email' },
-    lazy: lazyPage(
-      () => import('../../presentation/account/pages/ConfirmEmailPage.vue'),
-      (route) => ({ request: readConfirmEmailRequest(route.query) }),
-    ),
-  },
-  {
-    path: pages.forgotPassword,
-    id: 'forgot-password',
-    handle: { title: 'Reset your password' },
-    lazy: lazyPage(
-      () => import('../../presentation/account/pages/ForgotPasswordPage.vue'),
-      (route) => ({ request: readSignInRequest(route.query) }),
-    ),
-  },
-  {
-    path: pages.resetPassword,
-    id: 'reset-password',
-    handle: { title: 'Choose a new password' },
-    lazy: lazyPage(
-      () => import('../../presentation/account/pages/ResetPasswordPage.vue'),
-      (route) => ({ request: readResetPasswordRequest(route.query) }),
-    ),
-  },
-  {
-    path: pages.changePassword,
-    id: 'change-password',
-    handle: { title: 'Change your password' },
-    lazy: lazyPage(
-      () => import('../../presentation/account/pages/ChangePasswordPage.vue'),
-      (route, router) => ({
-        token: readChangePasswordToken(route.hash),
-        onTokenRead: () => void router.replace({ path: route.path, query: route.query, hash: '' }),
-      }),
-    ),
-  },
-  {
-    path: pages.accountSecurity,
-    id: 'account-security',
-    handle: { title: 'Security' },
-    lazy: lazyPage(
-      () => import('../../presentation/account/pages/AccountSecurityPage.vue'),
-      (route, router) => ({
-        onSignInRequired: () => void router.replace(hostedHref(pages.signIn, route.fullPath)),
-      }),
-    ),
+    children: [
+      {
+        path: pages.signIn,
+        id: 'sign-in',
+        handle: { title: 'Sign in' },
+        lazy: lazyPage(
+          () => import('../../presentation/account/pages/SignInPage.vue'),
+          (route) => ({
+            request: readSignInRequest(route.query),
+            onContinue: (url: string) => hostedNavigation.assign(url),
+          }),
+        ),
+      },
+      {
+        path: pages.signUp,
+        id: 'sign-up',
+        handle: { title: 'Sign up' },
+        lazy: lazyPage(
+          () => import('../../presentation/account/pages/SignUpPage.vue'),
+          (route) => ({ request: readSignInRequest(route.query) }),
+        ),
+      },
+      {
+        path: pages.confirmEmail,
+        id: 'confirm-email',
+        handle: { title: 'Confirm your email' },
+        lazy: lazyPage(
+          () => import('../../presentation/account/pages/ConfirmEmailPage.vue'),
+          (route) => ({ request: readConfirmEmailRequest(route.query) }),
+        ),
+      },
+      {
+        path: pages.forgotPassword,
+        id: 'forgot-password',
+        handle: { title: 'Reset your password' },
+        lazy: lazyPage(
+          () => import('../../presentation/account/pages/ForgotPasswordPage.vue'),
+          (route) => ({ request: readSignInRequest(route.query) }),
+        ),
+      },
+      {
+        path: pages.resetPassword,
+        id: 'reset-password',
+        handle: { title: 'Choose a new password' },
+        lazy: lazyPage(
+          () => import('../../presentation/account/pages/ResetPasswordPage.vue'),
+          (route) => ({ request: readResetPasswordRequest(route.query) }),
+        ),
+      },
+      {
+        path: pages.changePassword,
+        id: 'change-password',
+        handle: { title: 'Change your password' },
+        lazy: lazyPage(
+          () => import('../../presentation/account/pages/ChangePasswordPage.vue'),
+          (route, router) => ({
+            token: readChangePasswordToken(route.hash),
+            onTokenRead: () => void router.replace({ path: route.path, query: route.query, hash: '' }),
+          }),
+        ),
+      },
+      {
+        path: pages.accountSecurity,
+        id: 'account-security',
+        handle: { title: 'Security' },
+        lazy: lazyPage(
+          () => import('../../presentation/account/pages/AccountSecurityPage.vue'),
+          (route, router) => ({
+            onSignInRequired: () => void router.replace(hostedHref(pages.signIn, route.fullPath)),
+          }),
+        ),
+      },
+    ],
   },
 ];
 

@@ -16,7 +16,9 @@ Defer to `wow-two-ws/conventions/development/frontend/`.
 - Routes live in `src/bootstrap/router/Routes.ts` on the fe sdk router (`createAppRouter`, `lazyPage`); a new hosted
   page is one route there, its path a constant in `fe-identity/contracts`, its props decoded from the route
   (`application/account/ReadAccountRequests.ts`).
-- Every hosted page sits in `HostedLayout`, which takes the fe sdk theme by registry id (`theme-{id}` from
+- `HostedLayout` is the hosted pages' parent route: it renders the background, brand and one card once, and swaps
+  the child pages inside the card through the fe sdk's `SwapTransition`; each page renders `HostedPage` with its own
+  heading. The layout takes the fe sdk theme by registry id (`theme-{id}` from
   `@wow-two-beta/fe/themes.css`) and a background image (same-origin or https) from `SignInOptions`; `signInOptionsApi`
   reads the instance's methods and its one look (brand, theme, background) from `GET /api/account/sign-in-options?clientId=`,
   the clientId taken from the authorize `returnUrl`; it feeds the sign-in log and will narrow the methods, never the look.

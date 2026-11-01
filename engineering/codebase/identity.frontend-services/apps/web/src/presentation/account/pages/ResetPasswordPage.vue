@@ -2,8 +2,8 @@
 import { HostedPageRouteConstants } from '@wow-two-beta/fe-identity/contracts';
 import { ResetPasswordForm } from '@wow-two-beta/fe-identity/kit';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
-import { useSignInOptions } from '../../../application/account';
-import HostedLayout from '../../common/layout/HostedLayout.vue';
+import { useHostedOptions } from '../../../application/account';
+import HostedPage from '../../common/layout/HostedPage.vue';
 
 /** Sets a new password from the emailed reset link. */
 defineOptions({ name: 'ResetPasswordPage' });
@@ -13,12 +13,12 @@ defineProps<{
   request: { readonly email: string; readonly token: string } | null;
 }>();
 
-const { options } = useSignInOptions(null);
+const { options } = useHostedOptions();
 const { signIn: signInHref, forgotPassword: forgotPasswordHref } = HostedPageRouteConstants;
 </script>
 
 <template>
-  <HostedLayout :options="options" title="Choose a new password">
+  <HostedPage title="Choose a new password">
     <ResetPasswordForm
       v-if="request"
       :email="request.email"
@@ -32,5 +32,5 @@ const { signIn: signInHref, forgotPassword: forgotPasswordHref } = HostedPageRou
         Send a new reset link
       </a>
     </template>
-  </HostedLayout>
+  </HostedPage>
 </template>

@@ -3,8 +3,8 @@ import { HostedPageRouteConstants, type ConfirmEmailApiRequest } from '@wow-two-
 import { ApiFailureExtensions } from '@wow-two-beta/fe/foundation/http';
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple, Spinner } from '@wow-two-beta/fe/presentation/feedback';
-import { useEmailConfirmation, useSignInOptions } from '../../../application/account';
-import HostedLayout from '../../common/layout/HostedLayout.vue';
+import { useEmailConfirmation } from '../../../application/account';
+import HostedPage from '../../common/layout/HostedPage.vue';
 
 /** Confirms the email an emailed link names, then offers the sign-in. */
 defineOptions({ name: 'ConfirmEmailPage' });
@@ -14,13 +14,12 @@ const props = defineProps<{
   request: ConfirmEmailApiRequest | null;
 }>();
 
-const { options } = useSignInOptions(null);
 const { isConfirming, isConfirmed, failure } = useEmailConfirmation(props.request);
 const signInHref = HostedPageRouteConstants.signIn;
 </script>
 
 <template>
-  <HostedLayout :options="options" title="Confirm your email">
+  <HostedPage title="Confirm your email">
     <AlertSimple v-if="!request" severity="danger">
       This link is incomplete. Open the link from the email again.
     </AlertSimple>
@@ -34,5 +33,5 @@ const signInHref = HostedPageRouteConstants.signIn;
     <AlertSimple v-else severity="danger">
       {{ ApiFailureExtensions.reason(failure, { fallback: 'This link is invalid or has expired.' }) }}
     </AlertSimple>
-  </HostedLayout>
+  </HostedPage>
 </template>

@@ -4,9 +4,9 @@ import { ChangePasswordForm, PasswordSignIn, PhoneCodeSignIn } from '@wow-two-be
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
 import { DividerLayout } from '@wow-two-beta/fe/presentation/layout';
 import { shallowRef } from 'vue';
-import { hostedHref, useSignInOptions } from '../../../application/account';
+import { hostedHref, useHostedOptions } from '../../../application/account';
 import { SignInMethodId, type SignInRequest } from '../../../domain/account';
-import HostedLayout from '../../common/layout/HostedLayout.vue';
+import HostedPage from '../../common/layout/HostedPage.vue';
 
 /**
  * Signs a person in by every enabled method, in the declared order, then continues to the return URL. A password that
@@ -21,7 +21,7 @@ const props = defineProps<{
   onContinue: (url: string) => void;
 }>();
 
-const { options, failure } = useSignInOptions(props.request.clientId);
+const { options, failure } = useHostedOptions();
 /** The required change in progress: the sign-in set no session, only this ticket. */
 const required = shallowRef<PasswordChangeRequiredDto | null>(null);
 const isPasswordChanged = shallowRef(false);
@@ -44,7 +44,7 @@ function passwordChanged() {
 </script>
 
 <template>
-  <HostedLayout :options="options" :title="required ? 'Change your password' : 'Sign in'">
+  <HostedPage :title="required ? 'Change your password' : 'Sign in'">
     <ChangePasswordForm
       v-if="required"
       :ticket="required.ticket"
@@ -84,5 +84,5 @@ function passwordChanged() {
         <a :href="signUpHref" class="font-medium text-primary underline-offset-4 hover:underline">Sign up</a>
       </p>
     </template>
-  </HostedLayout>
+  </HostedPage>
 </template>

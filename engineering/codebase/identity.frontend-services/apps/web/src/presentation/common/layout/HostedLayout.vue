@@ -1,31 +1,32 @@
 <script setup lang="ts">
+import { SwapTransition } from '@wow-two-beta/fe/foundation/primitives';
 import { Card } from '@wow-two-beta/fe/presentation/display';
 import { computed } from 'vue';
-import type { SignInOptions } from '../../../domain/account';
+import { RouterView } from 'vue-router';
+import { provideHostedOptions, readHostedPageLink, useSignInOptions } from '../../../application/account';
+import type { SignInRequest } from '../../../domain/account';
 
 /**
- * Frames a hosted page in the instance's look: its fe sdk theme by name, its background image (a same-origin path or an
- * HTTPS URL) or the theme's own backdrop, and one opaque card that stays readable over either.
+ * Frames the hosted pages in the instance's look and keeps that frame while people move between them: its fe sdk theme
+ * by name, its background image (a same-origin path or an HTTPS URL) or the theme's own backdrop, the brand and one
+ * opaque card that stays readable over either. The card's body is the routed page, swapped with a fade and a height
+ * animation. The sign-in declaration loads here once and reaches the pages below.
  */
 defineOptions({ name: 'HostedLayout' });
 
 const props = defineProps<{
-  /** The look and brand to show; the default theme while they load. */
-  options: SignInOptions | null;
-  /** The page's heading. */
-  title: string;
+  /** The app the pages serve, decoded from the route; names the client the declaration is loaded for. */
+  request: SignInRequest;
+  /** Opens a hosted page in the app, in place of the full load its link would make. */
+  onNavigate: (path: string) => void;
 }>();
 
-defineSlots<{
-  /** The page's content inside the card. */
-  default?(): unknown;
-  /** The links under the content, inside the card. */
-  footer?(): unknown;
-}>();
+const { options, failure } = useSignInOptions(() => props.request.clientId);
+provideHostedOptions({ options, failure });
 
 /** A registry theme id as a class name; anything else falls back to the document's theme. */
 const themeClass = computed(() => {
-  const theme = props.options?.theme ?? '';
+  const theme = options.value?.theme ?? '';
   return /^[a-z0-9-]+$/.test(theme) ? `theme-${theme}` : '';
 });
 
@@ -41,9 +42,26 @@ function isBackgroundUrl(url: string): boolean {
 
 /** A same-origin or HTTPS image only; anything else keeps the theme's own backdrop. */
 const backgroundImage = computed(() => {
-  const url = props.options?.backgroundImageUrl;
+  const url = options.value?.backgroundImageUrl;
   return url && isBackgroundUrl(url) ? `url("${encodeURI(url).replace(/"/g, '%22')}")` : null;
 });
+
+/**
+ * Turns a plain click on a link to another hosted page into in-app navigation, so the card persists. Links stay plain
+ * anchors in the pages and the kit, with real addresses; a modified click, a new-tab target, a download and any link
+ * that leaves the hosted pages keep the browser's own behavior.
+ */
+function followHostedLink(event: MouseEvent) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+    return;
+  const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+  if (!(link instanceof HTMLAnchorElement) || (link.target && link.target !== '_self') || link.hasAttribute('download'))
+    return;
+  const path = readHostedPageLink(link.href, window.location.origin);
+  if (!path) return;
+  event.preventDefault();
+  props.onNavigate(path);
+}
 </script>
 
 <template>
@@ -55,16 +73,14 @@ const backgroundImage = computed(() => {
     ]"
     :style="backgroundImage ? { backgroundImage } : undefined"
   >
-    <main class="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10">
-      <Card class="flex flex-col gap-6 p-6 shadow-xl sm:p-8">
-        <header class="flex flex-col gap-1">
-          <p class="text-sm font-medium text-muted-foreground">{{ options?.brandName ?? 'Identity' }}</p>
-          <h1 class="text-2xl font-semibold">{{ title }}</h1>
-        </header>
-        <slot></slot>
-        <footer v-if="$slots.footer" class="flex flex-col gap-2 border-t border-border pt-4 text-sm">
-          <slot name="footer"></slot>
-        </footer>
+    <main class="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10" @click="followHostedLink">
+      <Card class="hosted-card p-6 shadow-xl sm:p-8">
+        <p class="mb-1 text-sm font-medium text-muted-foreground">{{ options?.brandName ?? 'Identity' }}</p>
+        <RouterView v-slot="{ Component, route }">
+          <SwapTransition>
+            <component :is="Component" :key="route.path" />
+          </SwapTransition>
+        </RouterView>
       </Card>
     </main>
   </div>

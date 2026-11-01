@@ -3,6 +3,7 @@ import {
   hostedHref,
   readChangePasswordToken,
   readConfirmEmailRequest,
+  readHostedPageLink,
   readResetPasswordRequest,
   readSignInRequest,
 } from '../src/application/account';
@@ -53,5 +54,29 @@ describe('link requests', () => {
     expect(hostedHref('/sign-up', '/connect/authorize?client_id=desk')).toBe(
       '/sign-up?returnUrl=%2Fconnect%2Fauthorize%3Fclient_id%3Ddesk',
     );
+  });
+});
+
+describe('hosted page link', () => {
+  const origin = 'https://identity.test';
+
+  it('keeps the path, query and fragment of a hosted page on this origin', () => {
+    expect(readHostedPageLink('/sign-up?returnUrl=%2Faccount%2Fsecurity', origin)).toBe(
+      '/sign-up?returnUrl=%2Faccount%2Fsecurity',
+    );
+    expect(readHostedPageLink('https://identity.test/change-password#token=t1', origin)).toBe(
+      '/change-password#token=t1',
+    );
+  });
+
+  it.each([
+    '/connect/authorize?client_id=desk',
+    '/',
+    '/api/account/sign-in',
+    'https://evil.test/sign-in',
+    '//evil.test/sign-in',
+    'http://[bad',
+  ])('leaves %s to a full load', (href) => {
+    expect(readHostedPageLink(href, origin)).toBeNull();
   });
 });

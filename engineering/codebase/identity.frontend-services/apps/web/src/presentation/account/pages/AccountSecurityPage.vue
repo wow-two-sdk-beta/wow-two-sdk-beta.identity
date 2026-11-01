@@ -2,8 +2,8 @@
 import { ChangePasswordForm } from '@wow-two-beta/fe-identity/kit';
 import { ApiFailureExtensions } from '@wow-two-beta/fe/foundation/http';
 import { AlertSimple, Spinner } from '@wow-two-beta/fe/presentation/feedback';
-import { useAccountInfo, useSignInOptions } from '../../../application/account';
-import HostedLayout from '../../common/layout/HostedLayout.vue';
+import { useAccountInfo, useHostedOptions } from '../../../application/account';
+import HostedPage from '../../common/layout/HostedPage.vue';
 
 /** Shows the signed-in person's security settings: the password change, under the instance's confirmation. */
 defineOptions({ name: 'AccountSecurityPage' });
@@ -13,12 +13,12 @@ const props = defineProps<{
   onSignInRequired: () => void;
 }>();
 
-const { options } = useSignInOptions(null);
+const { options } = useHostedOptions();
 const { account, failure } = useAccountInfo(() => props.onSignInRequired());
 </script>
 
 <template>
-  <HostedLayout :options="options" title="Security">
+  <HostedPage title="Security">
     <AlertSimple v-if="failure" severity="danger">{{ ApiFailureExtensions.reason(failure) }}</AlertSimple>
     <p v-else-if="!account" class="flex items-center gap-2 text-muted-foreground"><Spinner /> Loading your account…</p>
     <template v-else>
@@ -30,5 +30,5 @@ const { account, failure } = useAccountInfo(() => props.onSignInRequired());
         <ChangePasswordForm :password-rules="options?.passwordRules" />
       </section>
     </template>
-  </HostedLayout>
+  </HostedPage>
 </template>

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { HostedPageRouteConstants } from '@wow-two-beta/fe-identity/contracts';
 import { SignUpForm } from '@wow-two-beta/fe-identity/kit';
-import { hostedHref, useSignInOptions } from '../../../application/account';
+import { hostedHref, useHostedOptions } from '../../../application/account';
 import type { SignInRequest } from '../../../domain/account';
-import HostedLayout from '../../common/layout/HostedLayout.vue';
+import HostedPage from '../../common/layout/HostedPage.vue';
 
 /** Creates an account while the instance keeps sign-up on. */
 defineOptions({ name: 'SignUpPage' });
@@ -13,12 +13,12 @@ const props = defineProps<{
   request: SignInRequest;
 }>();
 
-const { options } = useSignInOptions(props.request.clientId);
+const { options } = useHostedOptions();
 const signInHref = hostedHref(HostedPageRouteConstants.signIn, props.request.returnUrl);
 </script>
 
 <template>
-  <HostedLayout :options="options" title="Sign up">
+  <HostedPage title="Sign up">
     <SignUpForm :sign-in-href="signInHref" :password-rules="options?.passwordRules" />
     <template #footer>
       <p class="text-muted-foreground">
@@ -26,5 +26,5 @@ const signInHref = hostedHref(HostedPageRouteConstants.signIn, props.request.ret
         <a :href="signInHref" class="font-medium text-primary underline-offset-4 hover:underline">Sign in</a>
       </p>
     </template>
-  </HostedLayout>
+  </HostedPage>
 </template>

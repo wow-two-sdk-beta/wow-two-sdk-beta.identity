@@ -1,4 +1,5 @@
-export { hostedNavigation } from './HostedNavigation';
+export { hostedNavigation, readHostedPageLink } from './HostedNavigation';
+export { provideHostedOptions, useHostedOptions, type HostedOptions } from './HostedOptions';
 export {
   hostedHref,
   readChangePasswordToken,
