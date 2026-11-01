@@ -264,7 +264,7 @@ Shape, as a draft (rule codes illustrative; the fe sdk's `ValidationCodes` names
 - [x] C10 Password change confirmation → `None` by default, `Code` or `Link` over any verified channel; `IsSignInAgainRequired` off by default (developer, 2026-11-01)
 - [x] C8 Identity takes `Is` names → renamed at once, columns in place; Ocharo dev's identity data is reset (developer, 2026-11-01)
 - [x] C2 Settings stay the only source → no snapshot table and no per-password revision; Wheelhouse audits settings changes (developer, 2026-11-01)
-- [ ] C3 The role catalog of § 4, with wow2's `operator` renamed `editor` → yes
+- [x] C3 The role catalog of § 4, with wow2's `operator` renamed `editor` (developer, 2026-11-01)
 - [ ] C4 The console signs in by the instance's own cookie; Wheelhouse bootstraps and opens it through one-time links and keeps no password → yes
 - [x] C5 A declaration per method with fe sdk rule codes, and one `fe-identity` component per method; no schema renderer now (developer, 2026-11-01)
 - [x] C6 Each rule carries its message in the request's locale (developer, 2026-11-01)
