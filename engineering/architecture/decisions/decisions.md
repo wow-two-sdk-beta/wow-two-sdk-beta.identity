@@ -62,6 +62,9 @@
 | 2026-11-01 | settings stay the only source; the instance keeps no settings history, and Wheelhouse audits each change | developer, C2 |
 | 2026-11-01 | `config check` stays as the boot's own validation run without serving, stateless; it is the pattern for every wow2 service | developer, C9 |
 | 2026-11-01 | a password change takes `Identity:Password:Change:Confirmation` = `None` (default), `Code` or `Link`, sent over any verified channel and enforced by the API; `IsSignInAgainRequired` (off by default) ends the current session too | developer, C10 |
+| 2026-11-01 | the declaration lists each method's fields and rules as fe sdk rule codes with messages in the request's locale, at a public `GET /api/account/sign-in-options`; `?clientId=` returns that app's methods, theme and background; `fe-identity` builds one component per method | developer, C5–C7 |
+| 2026-11-01 | from 0.3.7 on the migration set is forward-only: Ocharo resets dev and prod once for the in-place `001-accounts`, then no applied file changes | Ocharo |
+| 2026-11-01 | only the instance reads its Telegram bot's updates: a webhook when hosted, polling on a local run | developer, Ocharo |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

@@ -212,8 +212,8 @@ Shape, as a draft (rule codes illustrative; the fe sdk's `ValidationCodes` names
 }
 ```
 
-- One public `GET /api/account/sign-in-options`: no sign-in, a short cache with an `ETag`. A later `?clientId=` lets a
-  client narrow the methods (Desk requiring a second factor).
+- One public `GET /api/account/sign-in-options`: no sign-in, a short cache with an `ETag`. `?clientId=` returns that
+  app's methods, theme and background (Desk requiring a second factor; C7).
 - Each rule is a fe sdk `ValidationCodes` code with its params and its message in the request's locale. The browser's
   check and the server's answer then use the same text.
 - `fe-identity` builds one component per method (`PhoneCodeSignIn`, `PasswordSignIn`, …), each rendering its fields
@@ -266,6 +266,6 @@ Shape, as a draft (rule codes illustrative; the fe sdk's `ValidationCodes` names
 - [x] C2 Settings stay the only source → no snapshot table and no per-password revision; Wheelhouse audits settings changes (developer, 2026-11-01)
 - [ ] C3 The role catalog of § 4, with wow2's `operator` renamed `editor` → yes
 - [ ] C4 The console signs in by the instance's own cookie; Wheelhouse bootstraps and opens it through one-time links and keeps no password → yes
-- [ ] C5 A declaration per method with fe sdk rule codes, and one `fe-identity` component per method; no schema renderer now → yes
-- [ ] C6 Each rule carries its message in the request's locale → yes
-- [ ] C7 A public `GET /api/account/sign-in-options`, with `?clientId=` narrowing later → yes
+- [x] C5 A declaration per method with fe sdk rule codes, and one `fe-identity` component per method; no schema renderer now (developer, 2026-11-01)
+- [x] C6 Each rule carries its message in the request's locale (developer, 2026-11-01)
+- [x] C7 A public `GET /api/account/sign-in-options`, with `?clientId=` now for each app's methods, theme and background (developer, 2026-11-01)
