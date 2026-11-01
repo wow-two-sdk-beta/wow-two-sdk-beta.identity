@@ -1,0 +1,35 @@
+namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
+
+/// <summary>Holds the settings a declaration is built from, read once per request by <see cref="SignInDeclarationService"/>.</summary>
+internal sealed record SignInDeclarationInput
+{
+    /// <summary>The instance owner's brand name.</summary>
+    public required string BrandName { get; init; }
+
+    /// <summary>The theme in effect: the app's, else the instance's.</summary>
+    public required string Theme { get; init; }
+
+    /// <summary>The background in effect: the app's, else the instance's; null for none.</summary>
+    public string? BackgroundUrl { get; init; }
+
+    /// <summary>Whether anyone may create an account.</summary>
+    public bool IsSignUpEnabled { get; init; }
+
+    /// <summary>The password rules while password sign-in is on; null while it is off.</summary>
+    public PasswordOptions? Password { get; init; }
+
+    /// <summary>Whether an email signs in where a user name is expected.</summary>
+    public bool IsEmailLoginAllowed { get; init; } = true;
+
+    /// <summary>The allowed countries while phone sign-in is on, empty for every country; null while it is off.</summary>
+    public IReadOnlyList<string>? PhoneCountries { get; init; }
+
+    /// <summary>The length of a phone sign-in code (<c>Identity:Otp:CodeLength</c>).</summary>
+    public int PhoneCodeLength { get; init; } = 6;
+
+    /// <summary>Whether a sign-in needs a confirmed email.</summary>
+    public bool IsConfirmedEmailRequired { get; init; }
+
+    /// <summary>Whether a sign-in needs a confirmed phone number.</summary>
+    public bool IsConfirmedPhoneNumberRequired { get; init; }
+}

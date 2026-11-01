@@ -4,8 +4,8 @@ import { computed } from 'vue';
 import type { SignInOptions } from '../../../domain/account';
 
 /**
- * Frames a hosted page in the app's look: its fe sdk theme by name, its background image or the theme's own
- * backdrop, and one opaque card that stays readable over either.
+ * Frames a hosted page in the app's look: its fe sdk theme by name, its background image (a same-origin path or an
+ * HTTPS URL) or the theme's own backdrop, and one opaque card that stays readable over either.
  */
 defineOptions({ name: 'HostedLayout' });
 
@@ -29,10 +29,20 @@ const themeClass = computed(() => {
   return /^[a-z0-9-]+$/.test(theme) ? `theme-${theme}` : '';
 });
 
-/** A same-origin image only: hosted pages load no third-party assets. */
+/** Whether `url` is a path on this origin or an absolute HTTPS URL, the two the service accepts in its settings. */
+function isBackgroundUrl(url: string): boolean {
+  if (url.startsWith('/')) return !url.startsWith('//') && !url.includes('\\');
+  try {
+    return new URL(url).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/** A same-origin or HTTPS image only; anything else keeps the theme's own backdrop. */
 const backgroundImage = computed(() => {
   const url = props.options?.backgroundImageUrl;
-  return url && url.startsWith('/') && !url.startsWith('//') ? `url("${encodeURI(url).replace(/"/g, '%22')}")` : null;
+  return url && isBackgroundUrl(url) ? `url("${encodeURI(url).replace(/"/g, '%22')}")` : null;
 });
 </script>
 

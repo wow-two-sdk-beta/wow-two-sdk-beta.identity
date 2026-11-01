@@ -9,15 +9,64 @@ import { SignInMethodId, type SignInOptions } from '../src/domain/account';
 import { signInOptionsApi } from '../src/integration/account';
 
 const wrappers: ReturnType<typeof mount>[] = [];
+/** The sign-in declaration requests the pages made, kept apart so `received` stays the page's own calls. */
+const declarationRequests: URL[] = [];
 
 afterEach(() => {
   for (const wrapper of wrappers.splice(0)) wrapper.unmount();
+  declarationRequests.splice(0);
   vi.unstubAllGlobals();
 });
 
 type Answer = (body: unknown, url: URL) => Response;
 
-/** Stubs fetch with one answer per `METHOD /path`; the system status always answers. */
+const required = (message: string) => ({ code: 'required', params: null, message });
+
+/** The service's declaration of an instance with sign-up on: password, then a phone code from Uzbekistan. */
+const instanceDeclaration = {
+  brandName: 'Identity',
+  theme: 'platform',
+  backgroundUrl: null,
+  isSignUpEnabled: true,
+  locale: 'en',
+  locales: ['uz', 'ru', 'en'],
+  methods: [
+    {
+      id: 'password',
+      channels: [],
+      fields: [
+        { name: 'login', kind: 'text', countries: null, rules: [required('Enter your user name or email.')] },
+        { name: 'password', kind: 'password', countries: null, rules: [required('Enter your password.')] },
+      ],
+      passwordRules: [
+        {
+          code: 'min',
+          params: { min: 15, unit: 'characters' },
+          message: 'Passwords must be at least 15 characters.',
+        },
+      ],
+    },
+    {
+      id: 'phone-code',
+      channels: ['telegram'],
+      fields: [
+        { name: 'phone', kind: 'phone', countries: ['UZ'], rules: [required('Enter your phone number.')] },
+        { name: 'code', kind: 'pin', countries: null, rules: [required('Enter the code.')] },
+      ],
+      passwordRules: null,
+    },
+  ],
+  requirements: {
+    isConfirmedEmailRequired: false,
+    isConfirmedPhoneNumberRequired: false,
+    isSecondFactorRequired: false,
+  },
+};
+
+/**
+ * Stubs fetch with one answer per `METHOD /path`; the system status always answers, and the sign-in declaration answers
+ * `instanceDeclaration` unless an answer replaces it.
+ */
 function stubApi(answers: Record<string, Answer> = {}) {
   const received: { method: string; url: URL; body: unknown }[] = [];
   vi.stubGlobal(
@@ -26,6 +75,11 @@ function stubApi(answers: Record<string, Answer> = {}) {
       const url = new URL(String(input), 'http://localhost');
       const method = (init?.method ?? 'GET').toUpperCase();
       const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+      if (url.pathname === '/api/account/sign-in-options') {
+        declarationRequests.push(url);
+        const declaration = answers['GET /api/account/sign-in-options'];
+        return declaration ? declaration(body, url) : Response.json({ data: instanceDeclaration });
+      }
       received.push({ method, url, body });
       if (url.pathname === '/api/system/status') {
         return Response.json({ data: { service: 'identity', status: 'ok', version: '0.1.4+abc1234' } });
@@ -176,12 +230,79 @@ describe('sign-in route', () => {
     expect(signInOptionsApi.get).toHaveBeenCalledWith('desk', expect.anything());
   });
 
-  it('refuses a background image from another origin', async () => {
+  it('shows an HTTPS background, as the settings allow', async () => {
     stubApi();
     withOptions({ backgroundImageUrl: 'https://cdn.example.test/bg.jpg' });
     const { wrapper } = await renderAt('/sign-in');
 
-    expect(wrapper.get('.theme-platform').attributes('style') ?? '').not.toContain('cdn.example.test');
+    expect(wrapper.get('.theme-platform').attributes('style')).toContain('https://cdn.example.test/bg.jpg');
+  });
+
+  it.each(['http://cdn.example.test/bg.jpg', '//cdn.example.test/bg.jpg', 'javascript:alert(1)'])(
+    'refuses the background %s, neither same-origin nor HTTPS',
+    async (backgroundImageUrl) => {
+      stubApi();
+      withOptions({ backgroundImageUrl });
+      const { wrapper } = await renderAt('/sign-in');
+
+      expect(wrapper.get('.theme-platform').attributes('style') ?? '').not.toContain('url(');
+    },
+  );
+});
+
+describe('sign-in declaration', () => {
+  it('asks the service for the app the return URL authorizes', async () => {
+    stubApi();
+    await renderAt(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
+
+    expect(declarationRequests.map((url) => url.search)).toEqual(['?clientId=desk']);
+  });
+
+  it("asks for the instance's own declaration on a page with no app", async () => {
+    stubApi();
+    await renderAt('/sign-in');
+
+    expect(declarationRequests.map((url) => url.search)).toEqual(['']);
+  });
+
+  it("lays out the app's look and methods in the declared order, skipping a method it does not know", async () => {
+    const [password, phone] = instanceDeclaration.methods;
+    stubApi({
+      'GET /api/account/sign-in-options': () =>
+        Response.json({
+          data: {
+            ...instanceDeclaration,
+            brandName: 'Ocharo',
+            theme: 'ocharo',
+            backgroundUrl: '/backgrounds/ocharo.jpg',
+            isSignUpEnabled: false,
+            methods: [{ ...phone, id: 'passkey' }, phone, password],
+          },
+        }),
+    });
+    const { wrapper } = await renderAt(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
+
+    expect(wrapper.findAll('section').map((section) => section.attributes('aria-label'))).toEqual([
+      'Phone',
+      'Password',
+    ]);
+    expect(wrapper.get('.theme-ocharo').attributes('style')).toContain('/backgrounds/ocharo.jpg');
+    expect(wrapper.text()).toContain('Ocharo');
+    expect(wrapper.text()).not.toMatch(/create an account/i);
+  });
+
+  it('says the methods could not load while the declaration fails', async () => {
+    stubApi({
+      'GET /api/account/sign-in-options': () =>
+        Response.json(
+          { status: 503, detail: 'Unavailable' },
+          { status: 503, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+    });
+    const { wrapper } = await renderAt('/sign-in');
+
+    expect(wrapper.findAll('section')).toHaveLength(0);
+    expect(wrapper.text()).toContain('We could not load the ways to sign in.');
   });
 });
 

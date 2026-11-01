@@ -28,9 +28,12 @@ sources. Messages resolve through the fe sdk `LocaleProvider` under `IdentityKit
 
 | Export | Holds |
 |---|---|
-| `./contracts` | the account API's request and answer shapes, `AccountRouteConstants`, `HostedPageRouteConstants`, `PasswordChangeConfirmationType` |
-| `./kit` | `createAccountClient`; `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm` |
+| `./contracts` | the account API's request and answer shapes, the sign-in declaration (`SignInOptionsDto`, `SignInMethodIdConstants`), `AccountRouteConstants`, `HostedPageRouteConstants`, `PasswordChangeConfirmationType` |
+| `./kit` | `createAccountClient` (with `getSignInOptions`); `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm` |
 
+- `getSignInOptions({ clientId, locale })` reads `GET /api/account/sign-in-options`: the hosted pages' look, whether
+  sign-up is open, and each enabled method in layout order with its fields and fe sdk rules, the messages in the
+  request's locale; an unknown `clientId` answers the instance's own look.
 - a cross-origin `baseUrl` sends the session cookie (`credentials: 'include'`); the service's CORS policy must allow
   the consumer's origin.
 - `PhoneCodeSignIn` shows an "Open Telegram" step when the phone has no linked chat; the bot sends the code once the

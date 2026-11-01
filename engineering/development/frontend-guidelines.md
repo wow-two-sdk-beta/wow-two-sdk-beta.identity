@@ -17,8 +17,9 @@ Defer to `wow-two-ws/conventions/development/frontend/`.
   page is one route there, its path a constant in `fe-identity/contracts`, its props decoded from the route
   (`application/account/ReadAccountRequests.ts`).
 - Every hosted page sits in `HostedLayout`, which takes the fe sdk theme by registry id (`theme-{id}` from
-  `@wow-two-beta/fe/themes.css`) and a same-origin background image from `SignInOptions`; `signInOptionsApi` is where the
-  instance's methods, brand and per-app look come from, until `GET /api/account/sign-in-options` exists.
+  `@wow-two-beta/fe/themes.css`) and a background image (same-origin or https) from `SignInOptions`; `signInOptionsApi`
+  reads the instance's methods, brand and per-app look from `GET /api/account/sign-in-options?clientId=`, the clientId
+  taken from the authorize `returnUrl`.
 - The kit's UI is form-agnostic: it calls the consumer's origin (Form 1) or the service's (`baseUrl`), never both.
 - A link's one-time token stays out of the query: the change-password page reads it from the URL fragment and clears it.
 

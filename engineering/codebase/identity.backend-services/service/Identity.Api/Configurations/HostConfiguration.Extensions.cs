@@ -11,6 +11,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SecurityStamps;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignInLog;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 using WoW.Two.Sdk.Beta.Be.Identity.DataProtection;
@@ -45,6 +46,8 @@ public static partial class HostConfiguration
     ///     instance boots and skips and logs every send
     ///   - the links in those emails point at the hosted pages on the origin of <c>Identity:Server:Issuer</c>
     ///   - the purpose tokens (confirmation, reset, forced-change ticket) are signed with <c>Identity:Tokens:SigningKey</c>
+    ///   - the hosted pages' brand, theme and background come from <c>Identity:Pages</c>, each client's own look from
+    ///     <c>Identity:Server:Clients:N:Theme</c> and <c>BackgroundUrl</c>; the sign-in declaration answers them
     /// </remarks>
     private static WebApplicationBuilder AddIdentityModule(this WebApplicationBuilder builder)
     {
@@ -62,7 +65,9 @@ public static partial class HostConfiguration
             .AddSignInLog()
             .AddOrganizations()
             .AddAccountEndpoints()
+            .AddSignInDeclaration()
             .AddOidcServer()
+            .AddOidcClientPageLooks()
             .AddDataProtectionRing();
         builder.Services.AddEmailOtpDelivery();
         builder.Services.AddTokenSigningKey();
@@ -146,10 +151,12 @@ public static partial class HostConfiguration
         return builder;
     }
 
-    /// <summary>Maps the account API (<see cref="AccountPath"/>) and the OIDC server's pass-through endpoints.</summary>
+    /// <summary>Maps the account API (<see cref="AccountPath"/>) with its sign-in declaration, and the OIDC server's pass-through endpoints.</summary>
     private static WebApplication MapIdentityEndpoints(this WebApplication app)
     {
-        app.MapGroup(AccountPath).MapUserAccountEndpoints();
+        var account = app.MapGroup(AccountPath);
+        account.MapUserAccountEndpoints();
+        account.MapSignInOptionsEndpoint();
         app.MapOidcServerEndpoints();
         return app;
     }

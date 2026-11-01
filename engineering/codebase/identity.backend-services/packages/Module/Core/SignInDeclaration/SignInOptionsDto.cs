@@ -1,0 +1,32 @@
+namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
+
+/// <summary>
+/// The sign-in declaration <c>GET sign-in-options</c> answers: how the hosted pages look, whether anyone may sign up, and
+/// each enabled method in the order the pages lay them out, with its fields and their rules in the request's locale.
+/// </summary>
+public sealed record SignInOptionsDto
+{
+    /// <summary>The name the pages show, the instance owner's brand.</summary>
+    public required string BrandName { get; init; }
+
+    /// <summary>The fe sdk theme by its registry id: the app's own, else the instance's.</summary>
+    public required string Theme { get; init; }
+
+    /// <summary>The image behind the card, a same-origin path or an HTTPS URL; null for the theme's own backdrop.</summary>
+    public string? BackgroundUrl { get; init; }
+
+    /// <summary>Whether anyone may create an account (<c>Identity:SignUp:IsEnabled</c>).</summary>
+    public bool IsSignUpEnabled { get; init; }
+
+    /// <summary>The locale the rule messages are in: <c>uz</c>, <c>ru</c> or <c>en</c>.</summary>
+    public required string Locale { get; init; }
+
+    /// <summary>The locales the pages offer, in display order.</summary>
+    public required IReadOnlyList<string> Locales { get; init; }
+
+    /// <summary>The enabled sign-in methods, in the order the pages lay them out (<see cref="SignInMethodIdConstants"/>).</summary>
+    public required IReadOnlyList<SignInMethodDto> Methods { get; init; }
+
+    /// <summary>The verifications a sign-in needs before any token.</summary>
+    public required SignInRequirementsDto Requirements { get; init; }
+}

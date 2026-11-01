@@ -6,7 +6,7 @@ export interface SignInOptions {
   readonly brandName: string;
   /** The fe sdk theme the pages take, by its registry id (`platform`, `ocharo`). */
   readonly theme: string;
-  /** A same-origin image behind the card, or none for the theme's own backdrop. */
+  /** The image behind the card, a same-origin path or an HTTPS URL, or none for the theme's own backdrop. */
   readonly backgroundImageUrl: string | null;
   /** Whether anyone may create an account. */
   readonly isSignUpEnabled: boolean;

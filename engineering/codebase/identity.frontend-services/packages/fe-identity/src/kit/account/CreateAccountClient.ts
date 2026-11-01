@@ -18,6 +18,10 @@ import {
   type RegisteredAccountDto,
   type ResetPasswordApiRequest,
   type SignInApiRequest,
+  type SignInFieldDto,
+  type SignInMethodDto,
+  type SignInOptionsDto,
+  type SignInRuleDto,
 } from '../../contracts';
 
 /** Configures where the account API is reached. */
@@ -41,8 +45,23 @@ export interface AccountSignInOptions {
   readonly signal?: AbortSignal;
 }
 
+/** Describes a sign-in declaration request. */
+export interface SignInOptionsQuery {
+  /** The OIDC client the sign-in serves: its own theme and background replace the instance's. */
+  readonly clientId?: string | null;
+  /** The locale of the rule messages (`uz`, `ru`, `en`); the browser's `Accept-Language` when omitted. */
+  readonly locale?: string | null;
+  /** Cancels the request. */
+  readonly signal?: AbortSignal;
+}
+
 /** Calls the account API over HTTP, signing in with cookie sessions. */
 export interface AccountClient {
+  /**
+   * Reads the sign-in declaration: the hosted pages' look, whether sign-up is open, and each enabled method in layout
+   * order with its fields and rules. An unknown `clientId` answers the instance's own look.
+   */
+  getSignInOptions(query?: SignInOptionsQuery): Promise<Result<SignInOptionsDto, ApiFailure>>;
   /** Creates an account while sign-up is on; `403` while it is closed. */
   register(request: RegisterAccountApiRequest, signal?: AbortSignal): Promise<Result<RegisteredAccountDto, ApiFailure>>;
   /**
@@ -145,6 +164,69 @@ function decodeCodeSent(value: unknown): Decoded<PhoneSignInSentDto> {
   return ResultExtensions.ok({ isCodeSent: body.isCodeSent === true, telegramLinkUrl: link });
 }
 
+function text(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function strings(value: unknown): ReadonlyArray<string> | null {
+  return Array.isArray(value) && value.every((item): item is string => typeof item === 'string') ? value : null;
+}
+
+/** Decodes each item of a list, or `null` when it is no list or any item fails. */
+function list<T>(value: unknown, decode: (item: unknown) => T | null): ReadonlyArray<T> | null {
+  if (!Array.isArray(value)) return null;
+  const items = value.map(decode);
+  return items.every((item): item is T => item !== null) ? items : null;
+}
+
+function decodeRule(value: unknown): SignInRuleDto | null {
+  const body = record(value);
+  const code = text(body?.code);
+  const message = text(body?.message);
+  return body && code && message !== null ? { code, params: record(body.params), message } : null;
+}
+
+function decodeField(value: unknown): SignInFieldDto | null {
+  const body = record(value);
+  const name = text(body?.name);
+  const kind = text(body?.kind);
+  const rules = list(body?.rules, decodeRule);
+  return body && name && kind && rules ? { name, kind, countries: strings(body.countries), rules } : null;
+}
+
+function decodeMethod(value: unknown): SignInMethodDto | null {
+  const body = record(value);
+  const id = text(body?.id);
+  const fields = list(body?.fields, decodeField);
+  if (!body || !id || !fields) return null;
+  const passwordRules = body.passwordRules == null ? null : list(body.passwordRules, decodeRule);
+  if (body.passwordRules != null && passwordRules === null) return null;
+  return { id, channels: strings(body.channels) ?? [], fields, passwordRules };
+}
+
+function decodeSignInOptions(value: unknown): Decoded<SignInOptionsDto> {
+  const body = record(value);
+  const brandName = text(body?.brandName);
+  const theme = text(body?.theme);
+  const methods = list(body?.methods, decodeMethod);
+  if (!body || !brandName || !theme || !methods) return protocolFailure();
+  const requirements = record(body.requirements);
+  return ResultExtensions.ok({
+    brandName,
+    theme,
+    backgroundUrl: text(body.backgroundUrl) || null,
+    isSignUpEnabled: body.isSignUpEnabled === true,
+    locale: text(body.locale) ?? 'en',
+    locales: strings(body.locales) ?? [],
+    methods,
+    requirements: {
+      isConfirmedEmailRequired: requirements?.isConfirmedEmailRequired === true,
+      isConfirmedPhoneNumberRequired: requirements?.isConfirmedPhoneNumberRequired === true,
+      isSecondFactorRequired: requirements?.isSecondFactorRequired === true,
+    },
+  });
+}
+
 /**
  * Reads a cookie sign-in's answer: `204` set the session; a body flagged `isPasswordChangeRequired`, enveloped or
  * bare, holds the change's ticket instead.
@@ -185,6 +267,15 @@ export function createAccountClient(options: AccountClientOptions = {}): Account
     client.post(path, { body, response: 'empty', signal });
 
   return {
+    getSignInOptions: ({ clientId, locale, signal } = {}) =>
+      client.get(AccountRouteConstants.signInOptions, {
+        query: {
+          ...(clientId ? { [AccountRouteConstants.clientIdParameter]: clientId } : {}),
+          ...(locale ? { [AccountRouteConstants.localeParameter]: locale } : {}),
+        },
+        signal,
+        decode: decodeSignInOptions,
+      }),
     register: (request, signal) =>
       client.post(AccountRouteConstants.register, { body: request, signal, decode: decodeRegistered }),
     async signIn(request, { clientId, signal } = {}) {

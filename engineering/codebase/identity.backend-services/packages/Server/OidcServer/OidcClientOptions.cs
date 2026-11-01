@@ -29,4 +29,16 @@ public sealed record OidcClientOptions
     /// <c>org_permission</c> values that start with <c>{namespace}:</c>. Null carries every permission of the role.
     /// </summary>
     public string? PermissionNamespace { get; set; }
+
+    /// <summary>
+    /// Gets or sets the fe sdk theme the app's hosted pages take, by its registry id, such as <c>ocharo</c>; null or empty
+    /// takes <c>Identity:Pages:Theme</c>.
+    /// </summary>
+    public string? Theme { get; set; }
+
+    /// <summary>
+    /// Gets or sets the image behind the app's hosted pages: a path on the instance's origin or an absolute HTTPS URL;
+    /// null or empty takes <c>Identity:Pages:BackgroundUrl</c>.
+    /// </summary>
+    public string? BackgroundUrl { get; set; }
 }

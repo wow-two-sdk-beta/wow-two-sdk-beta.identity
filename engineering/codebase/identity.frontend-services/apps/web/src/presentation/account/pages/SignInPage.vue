@@ -21,7 +21,7 @@ const props = defineProps<{
   onContinue: (url: string) => void;
 }>();
 
-const { options } = useSignInOptions(props.request.clientId);
+const { options, failure } = useSignInOptions(props.request.clientId);
 /** The required change in progress: the sign-in set no session, only this ticket. */
 const required = shallowRef<PasswordChangeRequiredDto | null>(null);
 const isPasswordChanged = shallowRef(false);
@@ -51,6 +51,9 @@ function passwordChanged() {
       :confirmation="required.confirmation"
       @changed="passwordChanged"
     />
+    <AlertSimple v-else-if="failure" severity="danger">
+      We could not load the ways to sign in. Reload the page to try again.
+    </AlertSimple>
     <template v-else-if="options">
       <AlertSimple v-if="isPasswordChanged" severity="success">
         Your password is changed. Sign in with the new one.

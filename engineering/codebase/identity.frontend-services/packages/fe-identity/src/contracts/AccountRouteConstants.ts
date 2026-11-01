@@ -28,8 +28,12 @@ export const AccountRouteConstants = {
   phoneSignIn: '/phone-sign-in',
   /** `POST`: ends the cookie's session. */
   logout: '/logout',
+  /** `GET`, anonymous: the sign-in declaration, the look and the enabled methods with their rules; `?clientId=`, `?locale=`. */
+  signInOptions: '/sign-in-options',
   /** The query parameter that asks a sign-in route for a cookie instead of a bearer session. */
   useCookiesParameter: 'useCookies',
-  /** The query parameter that names the OIDC client a sign-in serves, for the sign-in log. */
+  /** The query parameter that names the OIDC client a sign-in serves, for the sign-in log and the app's look. */
   clientIdParameter: 'clientId',
+  /** The query parameter that picks the locale of the declaration's messages: `uz`, `ru` or `en`. */
+  localeParameter: 'locale',
 } as const;
