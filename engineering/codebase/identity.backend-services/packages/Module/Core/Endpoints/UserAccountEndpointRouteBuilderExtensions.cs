@@ -41,7 +41,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     /// group such as <c>app.MapGroup("/account")</c>. Sign-in returns a bearer session (JWT via <see cref="ITokenIssuer"/>,
     /// plus a refresh token when registered) or, with <c>?useCookies=true</c>, a cookie that carries a new session's
     /// <c>sid</c> when sessions are registered. Each sign-in route takes an optional <c>?clientId=</c> the sign-in log
-    /// records. <c>register</c> answers <c>403</c> (message key <c>SignUpClosed</c>) unless <see cref="SignUpOptions.Enabled"/>
+    /// records. <c>register</c> answers <c>403</c> (message key <c>SignUpClosed</c>) unless <see cref="SignUpOptions.IsEnabled"/>
     /// is on. Failures surface as problem details, translated when error translation is enabled.
     /// </summary>
     /// <param name="endpoints">The route builder or group.</param>
@@ -107,16 +107,16 @@ public static class UserAccountEndpointRouteBuilderExtensions
     private static async Task<IResult> RegisterAsync(RegisterAccountApiRequest request, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
-        if (services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.Enabled != true)
+        if (services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.IsEnabled != true)
             throw AppError.Of(AppErrorType.Forbidden, "Sign-up is closed; ask an admin to add you.", MessageKey(IdentityErrorCodeConstants.SignUpClosed)).ToException();
 
         var user = new IdentityUser { UserName = string.IsNullOrWhiteSpace(request.UserName) ? request.Email : request.UserName, Email = request.Email };
         var created = await services.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(user, request.Password, cancellationToken);
-        if (!created.Succeeded)
+        if (!created.IsSuccess)
             throw created.ToValidationError().ToException();
 
-        var sent = await SendConfirmationAsync(services, user, cancellationToken);
-        return Results.Ok(ApiResponse<RegisteredAccountDto>.Ok(new RegisteredAccountDto { UserId = IdOf(user), ConfirmationSent = sent }));
+        var isConfirmationSent = await SendConfirmationAsync(services, user, cancellationToken);
+        return Results.Ok(ApiResponse<RegisteredAccountDto>.Ok(new RegisteredAccountDto { UserId = IdOf(user), IsConfirmationSent = isConfirmationSent }));
     }
 
     private static async Task<IResult> SignInAsync(SignInApiRequest request, bool? useCookies, string? clientId, HttpContext http, CancellationToken cancellationToken)
@@ -227,7 +227,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     /// </summary>
     private static async Task<IResult> SessionAsync(SignInResult result, bool? useCookies, HttpContext http, CancellationToken cancellationToken)
     {
-        if (!result.Succeeded)
+        if (!result.IsSuccess)
             throw FailureOf(result.Status).ToException();
 
         var services = http.RequestServices;
@@ -259,11 +259,11 @@ public static class UserAccountEndpointRouteBuilderExtensions
         var refresh = services.GetService<RefreshTokenService>()
             ?? throw new NotSupportedException("Refreshing needs the refresh-token slice; call .AddRefreshTokens().");
         var redeemed = await refresh.RedeemAsync(request.RefreshToken, cancellationToken);
-        if (!redeemed.Succeeded)
+        if (!redeemed.IsSuccess)
             throw Unauthorized(IdentityErrorCodeConstants.InvalidRefreshToken, "The session has expired; sign in again.").ToException();
 
         var renewed = await services.GetRequiredService<SignInService>().RenewAsync(redeemed.User!, cancellationToken);
-        if (!renewed.Succeeded)
+        if (!renewed.IsSuccess)
         {
             await refresh.RevokeAsync(redeemed.Token!.Token, cancellationToken);
             throw FailureOf(renewed.Status).ToException();
@@ -294,7 +294,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
         var confirmed = user is null
             ? IdentityResult.Failed(new IdentityError { Code = IdentityErrorCodeConstants.InvalidToken, Description = "The link is invalid or has expired." })
             : await services.GetRequiredService<UserEmailService>().ConfirmEmailAsync(user, token, cancellationToken);
-        if (!confirmed.Succeeded)
+        if (!confirmed.IsSuccess)
             throw confirmed.ToValidationError().ToException();
 
         return Results.NoContent();
@@ -304,7 +304,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     {
         var services = http.RequestServices;
         var user = await services.GetRequiredService<UserAccountService>().FindByEmailAsync(request.Email, cancellationToken);
-        if (user is { EmailConfirmed: false })
+        if (user is { IsEmailConfirmed: false })
             await SendConfirmationAsync(services, user, cancellationToken);
 
         return Results.NoContent();
@@ -330,7 +330,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
         var reset = user is null
             ? IdentityResult.Failed(new IdentityError { Code = IdentityErrorCodeConstants.InvalidToken, Description = "The reset link is invalid or has expired." })
             : await services.GetRequiredService<UserPasswordService>().ResetPasswordAsync(user, request.ResetToken, request.NewPassword, cancellationToken);
-        if (!reset.Succeeded)
+        if (!reset.IsSuccess)
             throw reset.ToValidationError().ToException();
 
         return Results.NoContent();
@@ -348,8 +348,8 @@ public static class UserAccountEndpointRouteBuilderExtensions
             UserId = IdOf(user),
             UserName = user.UserName,
             Email = user.Email,
-            EmailConfirmed = user.EmailConfirmed,
-            TwoFactorEnabled = user.TwoFactorEnabled,
+            IsEmailConfirmed = user.IsEmailConfirmed,
+            IsTwoFactorEnabled = user.IsTwoFactorEnabled,
         }));
     }
 
@@ -359,7 +359,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
         var methods = http.RequestServices.GetService<UserTwoFactorMethodService>();
         return Results.Ok(ApiResponse<TwoFactorStatusDto>.Ok(new TwoFactorStatusDto
         {
-            Enabled = user.TwoFactorEnabled,
+            IsEnabled = user.IsTwoFactorEnabled,
             HasAuthenticator = await twoFactor.GetAuthenticatorKeyAsync(user, cancellationToken) is not null,
             RecoveryCodesLeft = await twoFactor.CountRecoveryCodesAsync(user, cancellationToken),
             Methods = methods is null ? [] : await methods.GetAvailableMethodsAsync(user, cancellationToken),
@@ -379,7 +379,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     {
         var (user, twoFactor) = await TwoFactorOfAsync(principal, http, cancellationToken);
         var enabled = await twoFactor.EnableAsync(user, request.Code, cancellationToken);
-        if (!enabled.Succeeded)
+        if (!enabled.IsSuccess)
             throw enabled.ToValidationError().ToException();
 
         var codes = await twoFactor.GenerateRecoveryCodesAsync(user, cancellationToken);
@@ -396,7 +396,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     private static async Task<IResult> RegenerateRecoveryCodesAsync(ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
     {
         var (user, twoFactor) = await TwoFactorOfAsync(principal, http, cancellationToken);
-        if (!user.TwoFactorEnabled)
+        if (!user.IsTwoFactorEnabled)
             throw AppError.Of(AppErrorType.Conflict, "Enable two-factor before generating recovery codes.", MessageKey(IdentityErrorCodeConstants.AuthenticatorNotConfigured)).ToException();
 
         var codes = await twoFactor.GenerateRecoveryCodesAsync(user, cancellationToken);
@@ -407,7 +407,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     {
         var (user, _) = await TwoFactorOfAsync(principal, http, cancellationToken);
         var chosen = await http.RequestServices.GetRequiredService<UserTwoFactorMethodService>().SetPreferredMethodAsync(user, request.Method, cancellationToken);
-        if (!chosen.Succeeded)
+        if (!chosen.IsSuccess)
             throw chosen.ToValidationError().ToException();
 
         return Results.NoContent();
@@ -417,7 +417,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     {
         var (user, _) = await TwoFactorOfAsync(principal, http, cancellationToken);
         var sent = await http.RequestServices.GetRequiredService<UserTwoFactorMethodService>().SendCodeAsync(user, method, cancellationToken: cancellationToken);
-        return sent.Sent
+        return sent.IsSent
             ? Results.Ok(ApiResponse<TwoFactorCodeSentDto>.Ok(new TwoFactorCodeSentDto { Method = sent.Method, ExpiresAt = sent.ExpiresAt }))
             : throw FailureOf(sent).ToException();
     }
@@ -426,7 +426,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     {
         var (user, twoFactor) = await TwoFactorOfAsync(principal, http, cancellationToken);
         var enabled = await http.RequestServices.GetRequiredService<UserTwoFactorMethodService>().EnableAsync(user, method, request.Code, cancellationToken);
-        if (!enabled.Succeeded)
+        if (!enabled.IsSuccess)
             throw enabled.ToValidationError().ToException();
 
         var codes = await twoFactor.GenerateRecoveryCodesAsync(user, cancellationToken);
@@ -483,7 +483,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
             AuthenticationMethods = session.AuthenticationMethods,
             IpMasked = session.IpMasked,
             UserAgent = session.UserAgent,
-            Current = session.Id == current,
+            IsCurrent = session.Id == current,
         })]));
     }
 
@@ -559,7 +559,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     {
         var (user, passkeys) = await PasskeysOfAsync(principal, http, cancellationToken);
         var registered = await passkeys.CompleteRegistrationAsync(user, request.State, request.Credential.GetRawText(), request.Name, cancellationToken);
-        if (!registered.Succeeded)
+        if (!registered.IsSuccess)
             throw registered.ToValidationError().ToException();
 
         return Results.NoContent();
@@ -587,7 +587,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
 
     /// <summary>
     /// The 401 a second-factor step answers with: names the method asked for and the available ones, and sends a
-    /// delivered method's code when the client chose it or <see cref="TwoFactorOptions.AutoSendCode"/> is on. A first
+    /// delivered method's code when the client chose it or <see cref="TwoFactorOptions.IsCodeSentAutomatically"/> is on. A first
     /// factor that cannot be repeated (a spent link) exposes the ticket for <c>login/two-factor</c>.
     /// </summary>
     private static async Task<AppError> TwoFactorChallengeAsync(
@@ -611,14 +611,14 @@ public static class UserAccountEndpointRouteBuilderExtensions
             && await services.GetRequiredService<UserAccountService>().FindByIdAsync(userId, cancellationToken) is { } user)
         {
             extensions["twoFactorMethods"] = await methods.GetAvailableMethodsAsync(user, cancellationToken);
-            var autoSend = services.GetRequiredService<TwoFactorOptions>().AutoSendCode;
-            if (!string.Equals(method, TwoFactorMethodNameConstants.Authenticator, StringComparison.OrdinalIgnoreCase) && (chosen || autoSend))
+            var isCodeSentAutomatically = services.GetRequiredService<TwoFactorOptions>().IsCodeSentAutomatically;
+            if (!string.Equals(method, TwoFactorMethodNameConstants.Authenticator, StringComparison.OrdinalIgnoreCase) && (chosen || isCodeSentAutomatically))
             {
                 var sent = await signIn.SendTwoFactorCodeAsync(userId, ticket, method, cancellationToken: cancellationToken);
                 if (sent.Status is not TwoFactorCodeStatus.Sent and not TwoFactorCodeStatus.RateLimited)
                     return FailureOf(sent);
 
-                extensions["codeSent"] = sent.Sent;
+                extensions["isCodeSent"] = sent.IsSent;
                 extensions["codeExpiresAt"] = sent.ExpiresAt;
             }
         }

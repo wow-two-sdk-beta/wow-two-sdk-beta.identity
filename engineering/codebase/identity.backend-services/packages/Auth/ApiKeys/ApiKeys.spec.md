@@ -18,8 +18,8 @@
   `ApiKey` identity, so a key never passes on its name or through the open (empty) allowlist; the allowlist's own
   empty-means-open rule is unchanged. Without `AddPrincipalAllowlist` the allowlist is open to sessions.
 - The gate guards `GuardedPaths` minus `OpenPaths`. With a key it authenticates the `ApiKey` scheme and sets
-  `HttpContext.User`; without one it passes loopback callers (when `AllowLocalWithoutKey`) and callers another scheme
+  `HttpContext.User`; without one it passes loopback callers (when `IsLocalAllowedWithoutKey`) and callers another scheme
   already authenticated, and answers 401 otherwise.
 - Local means a loopback or absent remote address. Behind a reverse proxy on the same machine, restore the client
-  address with forwarded headers or turn `AllowLocalWithoutKey` off — otherwise every proxied request looks local.
+  address with forwarded headers or turn `IsLocalAllowedWithoutKey` off — otherwise every proxied request looks local.
 - Key management endpoints belong in `LocalOnlyPaths`: a key reaching one is 403, so a leaked key cannot mint more.

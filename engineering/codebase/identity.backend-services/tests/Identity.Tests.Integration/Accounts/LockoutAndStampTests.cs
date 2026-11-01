@@ -52,7 +52,7 @@ public sealed class LockoutAndStampTests
         await using var host = AccountsHost.Create(identity => identity.AddLockout(), o =>
         {
             o.Lockout.MaxFailedAttempts = 1;
-            o.Lockout.EnabledForNewUsers = false;
+            o.Lockout.IsEnabledForNewUsers = false;
         });
         var user = await host.CreateUserAsync("jane");
         await using var scope = host.Scope();

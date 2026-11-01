@@ -5,16 +5,16 @@ public sealed class IdentityResult
 {
     private static readonly IdentityResult SuccessResult = new(true, []);
 
-    private IdentityResult(bool succeeded, IReadOnlyList<IdentityError> errors)
+    private IdentityResult(bool isSuccess, IReadOnlyList<IdentityError> errors)
     {
-        Succeeded = succeeded;
+        IsSuccess = isSuccess;
         Errors = errors;
     }
 
     /// <summary>Whether the operation succeeded.</summary>
-    public bool Succeeded { get; }
+    public bool IsSuccess { get; }
 
-    /// <summary>The failures when <see cref="Succeeded"/> is false; empty otherwise.</summary>
+    /// <summary>The failures when <see cref="IsSuccess"/> is false; empty otherwise.</summary>
     public IReadOnlyList<IdentityError> Errors { get; }
 
     /// <summary>The shared success result.</summary>

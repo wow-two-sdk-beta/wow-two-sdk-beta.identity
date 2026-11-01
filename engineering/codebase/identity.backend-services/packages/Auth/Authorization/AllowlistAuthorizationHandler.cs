@@ -28,7 +28,7 @@ public sealed class AllowlistAuthorizationHandler : AuthorizationHandler<Allowli
             return Task.CompletedTask;
         }
 
-        var comparer = _options.CaseInsensitive ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var comparer = _options.IsCaseInsensitive ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
         foreach (var claim in context.User.FindAll(_options.ClaimType))
         {

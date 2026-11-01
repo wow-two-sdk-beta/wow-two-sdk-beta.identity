@@ -41,7 +41,7 @@ public sealed class OidcHost : IAsyncDisposable
             ["AllowedHosts"] = "localhost",
             ["Logging:LogLevel:Default"] = "Warning",
             // The flows register their people through the account API, which an instance closes by default.
-            ["Identity:SignUp:Enabled"] = "true",
+            ["Identity:SignUp:IsEnabled"] = "true",
             ["Identity:Server:Clients:0:ClientId"] = ClientId,
             ["Identity:Server:Clients:0:ClientSecret"] = ClientSecret,
             ["Identity:Server:Clients:0:RedirectUris:0"] = RedirectUri,

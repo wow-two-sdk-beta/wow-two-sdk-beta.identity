@@ -22,7 +22,7 @@ public sealed class RefreshTokenTests
         first.ExpiresAt.Should().Be(host.Time.GetUtcNow().AddDays(7));
 
         var rotated = await refresh.RedeemAsync(first.Token);
-        rotated.Succeeded.Should().BeTrue();
+        rotated.IsSuccess.Should().BeTrue();
         rotated.User!.Id.Should().Be(user.Id);
         rotated.Token!.Token.Should().NotBe(first.Token);
 
@@ -66,7 +66,7 @@ public sealed class RefreshTokenTests
         (await refresh.RedeemAsync(phone)).Status.Should().Be(RefreshTokenStatus.Invalid);
 
         var next = await refresh.RedeemAsync(laptop);
-        next.Succeeded.Should().BeTrue();
+        next.IsSuccess.Should().BeTrue();
         await refresh.RevokeAllAsync(user);
         (await refresh.RedeemAsync(next.Token!.Token)).Status.Should().Be(RefreshTokenStatus.Invalid);
     }

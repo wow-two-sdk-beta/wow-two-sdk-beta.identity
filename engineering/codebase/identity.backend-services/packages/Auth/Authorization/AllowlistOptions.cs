@@ -11,5 +11,5 @@ public sealed record AllowlistOptions
     public ISet<string> Allowed { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Compare claim values case-insensitively. Default <c>true</c>.</summary>
-    public bool CaseInsensitive { get; set; } = true;
+    public bool IsCaseInsensitive { get; set; } = true;
 }

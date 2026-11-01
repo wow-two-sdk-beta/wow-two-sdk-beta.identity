@@ -4,7 +4,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 public sealed record TwoFactorStatusDto
 {
     /// <summary>Whether sign-in requires a second factor.</summary>
-    public required bool Enabled { get; init; }
+    public required bool IsEnabled { get; init; }
 
     /// <summary>Whether an authenticator key is set up.</summary>
     public required bool HasAuthenticator { get; init; }

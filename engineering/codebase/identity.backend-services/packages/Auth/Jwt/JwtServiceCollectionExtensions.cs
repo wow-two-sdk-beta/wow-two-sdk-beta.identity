@@ -35,7 +35,7 @@ public static class JwtServiceCollectionExtensions
                     ValidateAudience = true,
                     ValidAudience = opts.Audience,
                     ValidateIssuerSigningKey = true,
-                    ValidateLifetime = opts.ValidateLifetime,
+                    ValidateLifetime = opts.IsLifetimeValidated,
                     ClockSkew = opts.ClockSkew,
                     ValidAlgorithms = [opts.Algorithm],
                     IssuerSigningKey = opts.SymmetricKey is { Length: > 0 }
@@ -45,7 +45,7 @@ public static class JwtServiceCollectionExtensions
                 if (opts.MetadataAddress is not null)
                 {
                     b.MetadataAddress = opts.MetadataAddress.ToString();
-                    b.RequireHttpsMetadata = !opts.AllowInsecureMetadataForDevelopment;
+                    b.RequireHttpsMetadata = !opts.IsInsecureMetadataAllowedInDevelopment;
                 }
             });
 
@@ -84,10 +84,10 @@ public static class JwtServiceCollectionExtensions
 
         if (!options.MetadataAddress!.IsAbsoluteUri)
             throw new InvalidOperationException("JwtOptions.MetadataAddress must be an absolute URI.");
-        if (options.MetadataAddress.Scheme != Uri.UriSchemeHttps && !options.AllowInsecureMetadataForDevelopment)
+        if (options.MetadataAddress.Scheme != Uri.UriSchemeHttps && !options.IsInsecureMetadataAllowedInDevelopment)
         {
             throw new InvalidOperationException(
-                "JwtOptions.MetadataAddress must use HTTPS unless AllowInsecureMetadataForDevelopment is explicitly enabled.");
+                "JwtOptions.MetadataAddress must use HTTPS unless IsInsecureMetadataAllowedInDevelopment is explicitly enabled.");
         }
         if (!IsAsymmetricAlgorithm(options.Algorithm))
         {

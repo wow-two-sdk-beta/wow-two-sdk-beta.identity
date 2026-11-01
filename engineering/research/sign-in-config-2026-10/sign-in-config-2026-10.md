@@ -229,7 +229,7 @@ Shape, as a draft (rule codes illustrative; the fe sdk's `ValidationCodes` names
 
 - [x] C1 Settings changes → settings invalid on their own stop the service; a stricter rule that invalidates stored rows fails the start with a log; `config check` lets Wheelhouse check first (developer, 2026-10-31)
 - [ ] C1b A stricter password rule deploys through `config apply`, which flags older passwords for a re-check at the next sign-in → yes
-- [ ] C8 Identity takes `Is` names in § 7 step 1, before Ocharo's first deploy keeps data → yes
+- [x] C8 Identity takes `Is` names → renamed at once, columns in place; Ocharo dev's identity data is reset (developer, 2026-11-01)
 - [ ] C2 Settings stay the only source; each boot snapshots them into `identity_settings_revisions` → yes
 - [ ] C3 The role catalog of § 4, with wow2's `operator` renamed `editor` → yes
 - [ ] C4 The console signs in by the instance's own cookie; Wheelhouse bootstraps and opens it through one-time links and keeps no password → yes

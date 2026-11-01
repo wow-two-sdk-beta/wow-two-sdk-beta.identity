@@ -33,10 +33,10 @@ public sealed partial class OrganizationService(
         ArgumentNullException.ThrowIfNull(organization);
         ArgumentNullException.ThrowIfNull(owner);
         var check = CheckName(organization.Name);
-        if (!check.Succeeded)
+        if (!check.IsSuccess)
             return check;
         check = await CheckSlugAsync(organization, organization.Slug, cancellationToken);
-        if (!check.Succeeded)
+        if (!check.IsSuccess)
             return check;
 
         var now = time.GetUtcNow();
@@ -58,7 +58,7 @@ public sealed partial class OrganizationService(
     {
         ArgumentNullException.ThrowIfNull(organization);
         var check = CheckName(name);
-        if (!check.Succeeded)
+        if (!check.IsSuccess)
             return check;
 
         organization.Name = name.Trim();
@@ -74,7 +74,7 @@ public sealed partial class OrganizationService(
     {
         ArgumentNullException.ThrowIfNull(organization);
         var check = await CheckSlugAsync(organization, slug, cancellationToken);
-        if (!check.Succeeded)
+        if (!check.IsSuccess)
             return check;
 
         organization.Slug = NormalizeSlug(slug);

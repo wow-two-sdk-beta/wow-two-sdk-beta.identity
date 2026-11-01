@@ -34,7 +34,7 @@ public static class OidcServiceCollectionExtensions
             o.ClientSecret = opts.ClientSecret;
             o.ResponseType = OpenIdConnectResponseType.Code;
             o.UsePkce = true;
-            o.SaveTokens = opts.SaveTokens;
+            o.SaveTokens = opts.IsTokenSavingEnabled;
             o.MapInboundClaims = false;
             o.GetClaimsFromUserInfoEndpoint = true;
             o.Scope.Clear();

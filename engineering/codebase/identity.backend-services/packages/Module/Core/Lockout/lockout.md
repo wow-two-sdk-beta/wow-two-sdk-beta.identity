@@ -16,6 +16,6 @@ await lockout.ResetFailedAttemptsAsync(user);
 ## Notes
 
 - The attempt that reaches the maximum sets `LockoutEnd = now + DefaultLockout` and resets the count.
-- Users created while `EnabledForNewUsers` is false are never counted or locked; `SetLockoutEnabledAsync` changes it.
+- Users created while `IsEnabledForNewUsers` is false are never counted or locked; `SetLockoutEnabledAsync` changes it.
 - `LockUntilAsync(user, end)` locks or unlocks explicitly but keeps sessions; rotate the stamp to end them.
 - Automatic lockout never rotates the stamp, so an attacker guessing passwords cannot sign the owner out.

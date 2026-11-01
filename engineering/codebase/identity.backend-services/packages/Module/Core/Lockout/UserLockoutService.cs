@@ -32,7 +32,7 @@ public sealed class UserLockoutService(
     public async Task<bool> RecordFailedAttemptAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
-        if (!user.LockoutEnabled)
+        if (!user.IsLockoutEnabled)
             return false;
 
         user.AccessFailedCount++;
@@ -69,7 +69,7 @@ public sealed class UserLockoutService(
     public async Task<IdentityResult> LockUntilAsync(IdentityUser user, DateTimeOffset? end, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
-        if (!user.LockoutEnabled)
+        if (!user.IsLockoutEnabled)
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.LockoutNotEnabled, "Lockout is disabled for this account.");
 
         user.LockoutEnd = end;
@@ -82,13 +82,13 @@ public sealed class UserLockoutService(
 
     /// <summary>Enable or disable lockout for the account; disabling also clears any window and count.</summary>
     /// <param name="user">The user.</param>
-    /// <param name="enabled">Whether lockout applies.</param>
+    /// <param name="isEnabled">Whether lockout applies.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task SetLockoutEnabledAsync(IdentityUser user, bool enabled, CancellationToken cancellationToken = default)
+    public async Task SetLockoutEnabledAsync(IdentityUser user, bool isEnabled, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
-        user.LockoutEnabled = enabled;
-        if (!enabled)
+        user.IsLockoutEnabled = isEnabled;
+        if (!isEnabled)
         {
             user.LockoutEnd = null;
             user.AccessFailedCount = 0;

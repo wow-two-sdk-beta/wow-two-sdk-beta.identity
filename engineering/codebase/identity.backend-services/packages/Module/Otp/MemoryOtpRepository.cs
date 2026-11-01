@@ -25,7 +25,7 @@ public sealed class MemoryOtpRepository : IOtpRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
 
         var cutoff = _timeProvider.GetUtcNow() - window;
-        var hasRecent = _records.Values.Any(r => !r.Consumed && r.CreatedAt >= cutoff && Matches(r, subject, scope));
+        var hasRecent = _records.Values.Any(r => !r.IsConsumed && r.CreatedAt >= cutoff && Matches(r, subject, scope));
         return Task.FromResult(hasRecent);
     }
 
@@ -45,7 +45,7 @@ public sealed class MemoryOtpRepository : IOtpRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
 
         var latest = _records.Values
-            .Where(r => !r.Consumed && Matches(r, subject, scope))
+            .Where(r => !r.IsConsumed && Matches(r, subject, scope))
             .OrderByDescending(r => r.CreatedAt)
             .FirstOrDefault();
         return Task.FromResult(latest);
@@ -61,7 +61,7 @@ public sealed class MemoryOtpRepository : IOtpRepository
     /// <inheritdoc />
     public Task MarkConsumedAsync(Guid recordId, CancellationToken cancellationToken = default)
     {
-        Mutate(recordId, r => r with { Consumed = true });
+        Mutate(recordId, r => r with { IsConsumed = true });
         return Task.CompletedTask;
     }
 

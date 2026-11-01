@@ -25,7 +25,7 @@ public sealed class SoftDeleteTests
             .AddRefreshTokens(o => o.Lifetime = TimeSpan.FromDays(7))
             .AddPersonalData()
             .AddSignIn(),
-        options => options.User.RequireUniqueEmail = true);
+        options => options.User.IsUniqueEmailRequired = true);
 
     [Fact]
     public async Task DeletingAUser_ShouldKeepTheRow_AndHideItFromLookupsAndSignIn()
@@ -38,7 +38,7 @@ public sealed class SoftDeleteTests
             var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService>();
             await scope.ServiceProvider.GetRequiredService<UserLoginService>().AddLoginAsync((await accounts.FindByIdAsync(user.Id))!, "GitHub", "gh-dana");
 
-            (await accounts.DeleteAsync((await accounts.FindByIdAsync(user.Id))!)).Succeeded.Should().BeTrue();
+            (await accounts.DeleteAsync((await accounts.FindByIdAsync(user.Id))!)).IsSuccess.Should().BeTrue();
 
             (await accounts.FindByIdAsync(user.Id)).Should().BeNull("the deleted user leaves the scope that deleted it");
         }
@@ -93,7 +93,7 @@ public sealed class SoftDeleteTests
         await using (var scope = host.Scope())
         {
             var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService>();
-            (await accounts.DeleteAsync((await accounts.FindByIdAsync(first.Id))!)).Succeeded.Should().BeTrue();
+            (await accounts.DeleteAsync((await accounts.FindByIdAsync(first.Id))!)).IsSuccess.Should().BeTrue();
         }
 
         var second = await CreateWithPasswordAsync(host, "FARAH", "Farah@Example.Test");
@@ -130,11 +130,11 @@ public sealed class SoftDeleteTests
             NormalizedUserName = (string?)null,
             Email = (string?)null,
             NormalizedEmail = (string?)null,
-            EmailConfirmed = false,
+            IsEmailConfirmed = false,
             PasswordHash = (string?)null,
             PhoneNumber = (string?)null,
-            PhoneNumberConfirmed = false,
-            TwoFactorEnabled = false,
+            IsPhoneNumberConfirmed = false,
+            IsTwoFactorEnabled = false,
             DeletedAt = (DateTimeOffset?)erasedAt,
         }, options => options.ExcludingMissingMembers());
         row.SecurityStamp.Should().NotBe(user.SecurityStamp);
@@ -177,7 +177,7 @@ public sealed class SoftDeleteTests
         await using var scope = host.Scope();
         var user = new IdentityUser { UserName = userName, Email = email ?? $"{userName}@example.test" };
         var created = await scope.ServiceProvider.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(user, Password);
-        created.Succeeded.Should().BeTrue();
+        created.IsSuccess.Should().BeTrue();
         return user;
     }
 }

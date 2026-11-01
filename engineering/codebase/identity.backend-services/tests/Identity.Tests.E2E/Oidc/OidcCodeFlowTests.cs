@@ -128,7 +128,7 @@ public sealed class OidcCodeFlowTests(OidcHostFixture fixture)
         await using (var scope = fixture.Server.Host.Services.CreateAsyncScope())
         {
             var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService>();
-            (await accounts.RotateSecurityStampAsync((await accounts.FindByIdAsync(userId))!)).Succeeded.Should().BeTrue();
+            (await accounts.RotateSecurityStampAsync((await accounts.FindByIdAsync(userId))!)).IsSuccess.Should().BeTrue();
         }
 
         using var refused = await client.RefreshAsync(tokens.RefreshToken);
@@ -158,7 +158,7 @@ public sealed class OidcCodeFlowTests(OidcHostFixture fixture)
         await using var scope = fixture.Server.Host.Services.CreateAsyncScope();
         var user = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(userId))!;
         var organization = new IdentityOrganization { Name = "E2E", Slug = $"e2e-{Guid.NewGuid():N}"[..20] };
-        (await scope.ServiceProvider.GetRequiredService<OrganizationService>().CreateAsync(organization, user)).Succeeded.Should().BeTrue();
+        (await scope.ServiceProvider.GetRequiredService<OrganizationService>().CreateAsync(organization, user)).IsSuccess.Should().BeTrue();
         return organization.Id;
     }
 

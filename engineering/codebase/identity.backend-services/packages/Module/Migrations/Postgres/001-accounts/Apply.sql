@@ -13,31 +13,31 @@
 -- ── Accounts ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS {{schema}}.identity_users (
-    id                     uuid         NOT NULL,
-    user_name              varchar(256) NULL,
-    normalized_user_name   varchar(256) NULL,
-    email                  varchar(320) NULL,
-    normalized_email       varchar(320) NULL,
-    email_confirmed        boolean      NOT NULL,
-    password_hash          text         NULL,
-    security_stamp         text         NULL,
-    concurrency_stamp      text         NULL,
-    phone_number           varchar(32)  NULL,
-    phone_number_confirmed boolean      NOT NULL,
-    two_factor_enabled     boolean      NOT NULL,
-    lockout_end            timestamptz  NULL,
-    lockout_enabled        boolean      NOT NULL,
-    access_failed_count    integer      NOT NULL,
-    created_at             timestamptz  NOT NULL,
-    updated_at             timestamptz  NOT NULL,
-    deleted_at             timestamptz  NULL,
+    id                        uuid         NOT NULL,
+    user_name                 varchar(256) NULL,
+    normalized_user_name      varchar(256) NULL,
+    email                     varchar(320) NULL,
+    normalized_email          varchar(320) NULL,
+    is_email_confirmed        boolean      NOT NULL,
+    password_hash             text         NULL,
+    security_stamp            text         NULL,
+    concurrency_stamp         text         NULL,
+    phone_number              varchar(32)  NULL,
+    is_phone_number_confirmed boolean      NOT NULL,
+    is_two_factor_enabled     boolean      NOT NULL,
+    lockout_end               timestamptz  NULL,
+    is_lockout_enabled        boolean      NOT NULL,
+    access_failed_count       integer      NOT NULL,
+    created_at                timestamptz  NOT NULL,
+    updated_at                timestamptz  NOT NULL,
+    deleted_at                timestamptz  NULL,
     CONSTRAINT pk_identity_users PRIMARY KEY (id)
 );
 
 -- Accounts are soft-deleted: deleting one sets deleted_at and keeps the row; erasing one also scrubs its personal
 -- columns in place. The row never leaves, so a product's RESTRICT key into identity_users never blocks. IdentityDbContext
 -- hides deleted rows from every query and filters both indexes as here. The user-name index is unique among live
--- accounts, so a deleted account frees its name; the email index stays non-unique, since UserOptions.RequireUniqueEmail
+-- accounts, so a deleted account frees its name; the email index stays non-unique, since UserOptions.IsUniqueEmailRequired
 -- may be off.
 CREATE UNIQUE INDEX IF NOT EXISTS ix_identity_users_normalized_user_name
     ON {{schema}}.identity_users (normalized_user_name) WHERE deleted_at IS NULL;

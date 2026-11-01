@@ -24,5 +24,5 @@ public sealed record WhatsAppOtpOptions
     public Dictionary<string, string> TemplateLanguages { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Gets or sets whether the template has a copy-code button that takes the code. Default true.</summary>
-    public bool CopyCodeButton { get; set; } = true;
+    public bool HasCopyCodeButton { get; set; } = true;
 }

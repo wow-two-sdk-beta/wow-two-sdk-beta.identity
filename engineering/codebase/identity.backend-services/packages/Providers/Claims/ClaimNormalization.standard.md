@@ -31,14 +31,14 @@ Give downstream code one canonical `wt:*` set independent of the OAuth provider:
 - `wt:email` — **provider-dependent**: present only when returned (typically absent for Twitter/X; absent by default for Reddit).
 - `wt:display_name` — **provider-dependent**: absent for providers with no display claim (Discord, Reddit); best-effort for Apple (first-consent only).
 - `wt:username` — present **only** for providers whose profile maps a handle (GitHub / GitLab / Twitch / Discord / Twitter / Reddit / Yandex / Microsoft `preferred_username`); **MUST NOT** be populated from a `ClaimTypes.Name` the profile classifies as a display name.
-- `wt:avatar` — **provider-dependent**: direct avatar claim when present; else the synthesizer result **only** when `SynthesizeAvatars` is enabled; else absent.
+- `wt:avatar` — **provider-dependent**: direct avatar claim when present; else the synthesizer result **only** when `IsAvatarSynthesisEnabled` is enabled; else absent.
 
 ## Options
 
 - All toggles **MUST** live on `ClaimNormalizationOptions` and be init-only.
 - `Profiles` **MUST** be pre-seeded with the built-in registry and key schemes case-insensitively.
 - A host **MUST** be able to add/override a `(scheme → profile)` mapping via `AddProvider`.
-- Avatar synthesis **MUST** be host-toggleable via `SynthesizeAvatars`.
+- Avatar synthesis **MUST** be host-toggleable via `IsAvatarSynthesisEnabled`.
 - Defaults **MUST** be safe with no further config (synthesis on, all built-ins registered).
 
 ## Failure modes

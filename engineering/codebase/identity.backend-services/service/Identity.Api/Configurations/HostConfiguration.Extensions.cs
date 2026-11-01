@@ -61,7 +61,7 @@ public static partial class HostConfiguration
         {
             options.CookieName = "__Host-identity";
             options.ExpireTimeSpan = TimeSpan.FromHours(12);
-            options.SlidingExpiration = false;
+            options.IsExpirationSliding = false;
             options.Mode = AuthChallengeMode.Api;
         });
         builder.Services.AddAuthorization();

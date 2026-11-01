@@ -21,9 +21,9 @@ public sealed class PasswordSliceTests
             options =>
             {
                 options.Password.MinLength = 10;
-                options.Password.RequireDigit = true;
-                options.Password.RequireUppercase = true;
-                options.Password.RequireNonAlphanumeric = true;
+                options.Password.IsDigitRequired = true;
+                options.Password.IsUppercaseRequired = true;
+                options.Password.IsNonAlphanumericRequired = true;
                 options.Password.RequiredUniqueChars = 4;
             });
         await using var scope = host.Scope();
@@ -50,7 +50,7 @@ public sealed class PasswordSliceTests
 
         var result = await passwords.CreateWithPasswordAsync(new IdentityUser { UserName = "carol", Email = "carol@example.test" }, "short");
 
-        result.Succeeded.Should().BeFalse();
+        result.IsSuccess.Should().BeFalse();
         (await accounts.FindByNameAsync("carol")).Should().BeNull();
     }
 
@@ -61,12 +61,12 @@ public sealed class PasswordSliceTests
         await using var scope = host.Scope();
         var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
         var user = new IdentityUser { UserName = "dave", Email = "dave@example.test" };
-        (await passwords.CreateWithPasswordAsync(user, "correct horse battery")).Succeeded.Should().BeTrue();
+        (await passwords.CreateWithPasswordAsync(user, "correct horse battery")).IsSuccess.Should().BeTrue();
         var stamp = user.SecurityStamp;
 
         (await passwords.ChangePasswordAsync(user, "wrong password", "another long phrase")).Errors
             .Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.PasswordMismatch);
-        (await passwords.ChangePasswordAsync(user, "correct horse battery", "another long phrase")).Succeeded.Should().BeTrue();
+        (await passwords.ChangePasswordAsync(user, "correct horse battery", "another long phrase")).IsSuccess.Should().BeTrue();
 
         var stored = await host.ReloadAsync(user.Id);
         stored.SecurityStamp.Should().NotBe(stamp);
@@ -108,16 +108,16 @@ public sealed class PasswordSliceTests
         await using var scope = host.Scope();
         var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
         var user = new IdentityUser { UserName = "frank", Email = "frank@example.test" };
-        (await passwords.CreateWithPasswordAsync(user, "original long phrase")).Succeeded.Should().BeTrue();
+        (await passwords.CreateWithPasswordAsync(user, "original long phrase")).IsSuccess.Should().BeTrue();
 
         var token = passwords.IssuePasswordResetToken(user);
-        (await passwords.ResetPasswordAsync(user, token, "replacement long phrase")).Succeeded.Should().BeTrue();
+        (await passwords.ResetPasswordAsync(user, token, "replacement long phrase")).IsSuccess.Should().BeTrue();
         (await passwords.ResetPasswordAsync(user, token, "a second replacement")).Errors
             .Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidToken);
 
         var expired = passwords.IssuePasswordResetToken(user);
         host.Time.Advance(TimeSpan.FromHours(2) + TimeSpan.FromSeconds(1));
-        (await passwords.ResetPasswordAsync(user, expired, "a third replacement")).Succeeded.Should().BeFalse();
+        (await passwords.ResetPasswordAsync(user, expired, "a third replacement")).IsSuccess.Should().BeFalse();
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class PasswordSliceTests
 
         (await passwords.ValidateAsync(user, "password1")).Errors
             .Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.PasswordBreached);
-        (await passwords.ValidateAsync(user, "an unbreached phrase")).Succeeded.Should().BeTrue();
+        (await passwords.ValidateAsync(user, "an unbreached phrase")).IsSuccess.Should().BeTrue();
         handler.Requests.Should().AllSatisfy(request =>
         {
             request.RequestUri!.AbsolutePath.Should().MatchRegex("^/range/[0-9A-F]{5}$");
@@ -155,7 +155,7 @@ public sealed class PasswordSliceTests
         });
 
         handler.Fail = true;
-        (await passwords.ValidateAsync(user, "password1")).Succeeded.Should().BeTrue();
+        (await passwords.ValidateAsync(user, "password1")).IsSuccess.Should().BeTrue();
     }
 
     private static string LegacyHash(string password)

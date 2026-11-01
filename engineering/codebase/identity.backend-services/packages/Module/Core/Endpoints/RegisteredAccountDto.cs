@@ -7,5 +7,5 @@ public sealed record RegisteredAccountDto
     public required string UserId { get; init; }
 
     /// <summary>Whether a confirmation email was sent.</summary>
-    public bool ConfirmationSent { get; init; }
+    public bool IsConfirmationSent { get; init; }
 }

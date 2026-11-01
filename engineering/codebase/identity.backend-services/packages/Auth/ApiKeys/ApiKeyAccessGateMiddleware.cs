@@ -56,7 +56,7 @@ public sealed class ApiKeyAccessGateMiddleware(
             return;
         }
 
-        if ((gate.AllowLocalWithoutKey && IsLocal(context.Connection)) || context.User.Identity?.IsAuthenticated == true)
+        if ((gate.IsLocalAllowedWithoutKey && IsLocal(context.Connection)) || context.User.Identity?.IsAuthenticated == true)
         {
             await next(context);
             return;

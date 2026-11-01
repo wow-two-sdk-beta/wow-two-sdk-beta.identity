@@ -30,7 +30,7 @@ public sealed class IdentityUser : IKeyedEntity<Guid>, IAuditable, ISoftDeletabl
     public string? NormalizedEmail { get; set; }
 
     /// <summary>Whether the email address has been confirmed.</summary>
-    public bool EmailConfirmed { get; set; }
+    public bool IsEmailConfirmed { get; set; }
 
     /// <summary>Salted + hashed password; null until a password slice sets it.</summary>
     public string? PasswordHash { get; set; }
@@ -45,16 +45,16 @@ public sealed class IdentityUser : IKeyedEntity<Guid>, IAuditable, ISoftDeletabl
     public string? PhoneNumber { get; set; }
 
     /// <summary>Whether the phone number has been confirmed.</summary>
-    public bool PhoneNumberConfirmed { get; set; }
+    public bool IsPhoneNumberConfirmed { get; set; }
 
     /// <summary>Whether two-factor authentication is enabled.</summary>
-    public bool TwoFactorEnabled { get; set; }
+    public bool IsTwoFactorEnabled { get; set; }
 
     /// <summary>UTC time the lockout ends; null or past = not locked out.</summary>
     public DateTimeOffset? LockoutEnd { get; set; }
 
     /// <summary>Whether lockout is enabled for this user.</summary>
-    public bool LockoutEnabled { get; set; }
+    public bool IsLockoutEnabled { get; set; }
 
     /// <summary>Consecutive failed access attempts (drives lockout).</summary>
     public int AccessFailedCount { get; set; }

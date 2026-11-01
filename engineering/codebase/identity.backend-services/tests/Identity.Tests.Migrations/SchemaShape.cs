@@ -11,13 +11,13 @@ namespace Identity.Tests.Migrations;
 public sealed record TableShape(string Name, IReadOnlyList<ColumnShape> Columns, KeyShape PrimaryKey, IReadOnlyList<IndexShape> Indexes);
 
 /// <summary>One column: its store type (lower case), nullability and whether the database generates it.</summary>
-public sealed record ColumnShape(string Name, string Type, bool Nullable, bool Generated);
+public sealed record ColumnShape(string Name, string Type, bool IsNullable, bool IsGenerated);
 
 /// <summary>A primary key: its constraint name and columns in key order.</summary>
 public sealed record KeyShape(string Name, string Columns);
 
 /// <summary>An index: its name, columns in index order, uniqueness and partial-index predicate (null when it covers every row).</summary>
-public sealed record IndexShape(string Name, string Columns, bool Unique, string? Filter);
+public sealed record IndexShape(string Name, string Columns, bool IsUnique, string? Filter);
 
 /// <summary>Reads the identity tables' shape from the EF model and from an applied database, so a test compares them.</summary>
 public static class SchemaShape
@@ -84,7 +84,7 @@ public static class SchemaShape
     /// <summary>The identity tables an applied database holds, read from its catalog; the migrator's own tables are left out.</summary>
     public static async Task<IReadOnlyList<TableShape>> FromDatabaseAsync(DbConnection connection, string schema)
     {
-        var columns = await connection.QueryAsync<(string Table, string Column, string Type, bool Nullable, bool Generated)>(
+        var columns = await connection.QueryAsync<(string Table, string Column, string Type, bool IsNullable, bool IsGenerated)>(
             """
             select c.relname, a.attname, format_type(a.atttypid, a.atttypmod), not a.attnotnull, a.attidentity <> ''
             from pg_attribute a
@@ -106,7 +106,7 @@ public static class SchemaShape
             where n.nspname = @schema and con.contype = 'p'
             """,
             new { schema });
-        var indexes = await connection.QueryAsync<(string Table, string Name, string Columns, bool Unique, string? Filter)>(
+        var indexes = await connection.QueryAsync<(string Table, string Name, string Columns, bool IsUnique, string? Filter)>(
             """
             select t.relname, x.relname,
                    array_to_string(array(
@@ -124,9 +124,9 @@ public static class SchemaShape
             new { schema });
 
         return Assemble(
-            columns.Select(c => (c.Table, new ColumnShape(c.Column, c.Type, c.Nullable, c.Generated))),
+            columns.Select(c => (c.Table, new ColumnShape(c.Column, c.Type, c.IsNullable, c.IsGenerated))),
             keys.ToDictionary(k => k.Table, k => new KeyShape(k.Name, k.Columns)),
-            indexes.Select(i => (i.Table, new IndexShape(i.Name, i.Columns, i.Unique, NormalizeFilter(i.Filter)))));
+            indexes.Select(i => (i.Table, new IndexShape(i.Name, i.Columns, i.IsUnique, NormalizeFilter(i.Filter)))));
     }
 
     /// <summary>Reads a predicate as PostgreSQL prints it: one pair of outer parentheses dropped, keywords upper case.</summary>

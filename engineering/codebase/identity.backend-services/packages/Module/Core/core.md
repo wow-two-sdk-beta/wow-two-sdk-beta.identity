@@ -11,7 +11,7 @@ normalizer and the `UserAccountService` facade. Entities carry ASP.NET-Identity-
 
 ```csharp
 // 1. register core: the facade, IdentityDbContext and the `identity` migration set
-services.AddUserAccounts(o => o.User.RequireUniqueEmail = true);
+services.AddUserAccounts(o => o.User.IsUniqueEmailRequired = true);
 
 // 2. apply the schema beside the host's own sets: at a local boot, or in the deploy's migrate step
 await app.Services.MigrateBespokeOnStartupAsync(app.Lifetime.ApplicationStopping);
@@ -88,7 +88,7 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 | `AddOrganizations(o => …)` | `OrganizationService` (organizations, memberships, role and permission claims) | `Organizations/` |
 | `AddEmailSignIn(o => …)` | `UserEmailSignInService` (single-use link or code over OTP) | `EmailSignIn/` |
 | `AddPersonalData()` | `UserPersonalDataService` (export sections, account erasure hooks) | `PersonalData/` |
-| `AddAccountEndpoints()` + `MapUserAccountEndpoints()` | account HTTP API; sign-up off unless `Identity:SignUp:Enabled` | `Endpoints/` |
+| `AddAccountEndpoints()` + `MapUserAccountEndpoints()` | account HTTP API; sign-up off unless `Identity:SignUp:IsEnabled` | `Endpoints/` |
 | `AddSignIn()` | `SignInService` | `SignIn/` |
 
 Table-backed slices (`AddRoles`, `AddUserClaims`, `AddExternalLogins`, `AddTwoFactor`, `AddRefreshTokens`, `AddPasskeys`,

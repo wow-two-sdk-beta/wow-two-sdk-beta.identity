@@ -46,7 +46,7 @@ public sealed class OtpCodeAndMessageTests
         (await otp.CreateAsync("user-1", "default-spec")).Code.Should().MatchRegex("^[0-9]{6}$");
 
         var typed = $" {created.Code![..3].ToLowerInvariant()}-{created.Code[3..]} ";
-        (await otp.VerifyAsync("user-1", typed, "two-factor")).Success.Should().BeTrue();
+        (await otp.VerifyAsync("user-1", typed, "two-factor")).IsSuccess.Should().BeTrue();
     }
 
     [Theory]
@@ -94,7 +94,7 @@ public sealed class OtpCodeAndMessageTests
 
         var result = await handler.SendAsync(new OtpDeliveryEnvelopeModel { DeliveryAddress = "ana@acme.test", Code = "AB3K9Q", Scope = "login", Culture = "en" });
 
-        result.Success.Should().BeTrue();
+        result.IsSuccess.Should().BeTrue();
         var message = mail.Sent.Single();
         message.To.Single().Address.Should().Be("ana@acme.test");
         message.From.Should().BeEquivalentTo(new EmailAddress { Address = "security@acme.test", DisplayName = "Acme" });
@@ -119,8 +119,8 @@ public sealed class OtpCodeAndMessageTests
         await using var scope = provider.CreateAsyncScope();
         var handler = scope.ServiceProvider.GetRequiredService<IOtpDeliveryHandlerFactory>().Create("WhatsApp")!;
 
-        (await handler.SendAsync(new OtpDeliveryEnvelopeModel { DeliveryAddress = "+998901234567", Code = "123456", Scope = "two-factor", Culture = "ru-RU" })).Success.Should().BeTrue();
-        (await handler.SendAsync(new OtpDeliveryEnvelopeModel { DeliveryAddress = "+998901234567", Code = "654321", Scope = "two-factor", Culture = "uz" })).Success.Should().BeTrue();
+        (await handler.SendAsync(new OtpDeliveryEnvelopeModel { DeliveryAddress = "+998901234567", Code = "123456", Scope = "two-factor", Culture = "ru-RU" })).IsSuccess.Should().BeTrue();
+        (await handler.SendAsync(new OtpDeliveryEnvelopeModel { DeliveryAddress = "+998901234567", Code = "654321", Scope = "two-factor", Culture = "uz" })).IsSuccess.Should().BeTrue();
 
         whatsApp.Sent[0].Template.Should().BeEquivalentTo(new WhatsAppTemplate { Name = "auth_code", LanguageCode = "ru", BodyParameters = ["123456"], ButtonParameter = "123456" });
         whatsApp.Sent[1].Template!.LanguageCode.Should().Be("en_US");
@@ -139,7 +139,7 @@ public sealed class OtpCodeAndMessageTests
 
         var sent = await handler.SendAsync(new OtpDeliveryEnvelopeModel { DeliveryAddress = "998901234567", Code = "4821", Scope = "two-factor", Lifetime = TimeSpan.FromMinutes(2) });
 
-        sent.Success.Should().BeTrue();
+        sent.IsSuccess.Should().BeTrue();
         var request = gateway.Requests.Single();
         request.Path.Should().Be("/sendVerificationMessage");
         request.Authorization.Should().Be("Bearer gw-token");

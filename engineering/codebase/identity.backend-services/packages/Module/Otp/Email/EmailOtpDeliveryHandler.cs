@@ -20,7 +20,7 @@ public sealed class EmailOtpDeliveryHandler(
     {
         ArgumentNullException.ThrowIfNull(envelope);
         if (string.IsNullOrWhiteSpace(envelope.DeliveryAddress) || !envelope.DeliveryAddress.Contains('@', StringComparison.Ordinal))
-            return new OtpDeliveryResult { Success = false, FailureReason = "invalid_email_address" };
+            return new OtpDeliveryResult { IsSuccess = false, FailureReason = "invalid_email_address" };
 
         var worded = envelope.Text is null || envelope.Subject is null
             ? formatter.Format(envelope.Scope, OtpChannelNameConstants.Email, envelope.Code, envelope.Lifetime ?? otpOptions.CodeLifetime, CultureOf(envelope.Culture))
@@ -31,7 +31,7 @@ public sealed class EmailOtpDeliveryHandler(
         };
 
         var result = await email.SendAsync(message, cancellationToken);
-        return new OtpDeliveryResult { Success = result.Success, FailureReason = result.FailureReason };
+        return new OtpDeliveryResult { IsSuccess = result.Success, FailureReason = result.FailureReason };
     }
 
     private static CultureInfo? CultureOf(string? name)

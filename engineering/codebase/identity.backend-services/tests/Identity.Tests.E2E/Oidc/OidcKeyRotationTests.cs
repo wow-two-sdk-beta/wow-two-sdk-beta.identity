@@ -31,7 +31,7 @@ public sealed class OidcKeyRotationTests : IDisposable
         Write("encryption.pem", SigningKeyRole.Encryption, _now.AddDays(-1), TimeSpan.FromDays(60), out var encryptionPath);
         _settings = new Dictionary<string, string?>
         {
-            ["Identity:Server:Keys:Ephemeral"] = "false",
+            ["Identity:Server:Keys:IsEphemeral"] = "false",
             ["Identity:Server:Keys:Signing:0"] = currentPath,
             ["Identity:Server:Keys:Signing:1"] = stagedPath,
             ["Identity:Server:Keys:Encryption:0"] = encryptionPath,

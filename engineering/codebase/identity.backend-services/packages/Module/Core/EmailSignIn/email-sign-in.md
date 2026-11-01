@@ -24,6 +24,6 @@ identity.AddUserTokens(o => o.SigningKey = key).AddLockout().AddEmailSignIn().Ad
 
 - Unknown addresses get no email and the same `204`, so the endpoint reveals no accounts.
 - Links carry a 12-character token; codes are numeric. Each works once, and a new send replaces the last.
-- A used link or code confirms an unconfirmed address (`ConfirmEmail`, default on), since it proves ownership.
+- A used link or code confirms an unconfirmed address (`IsEmailConfirmedOnSignIn`, default on), since it proves ownership.
 - For a two-factor account the answer is a `401` naming `userId` and `twoFactorTicket`; finish on `login/two-factor`.
 - Across hosts, register a shared `IOtpRepository` so a code sent by one host verifies on another.

@@ -103,7 +103,7 @@ public sealed class UserTwoFactorMethodService(
 
         var lifetime = settings.Code.Lifetime ?? otpOptions.CodeLifetime;
         var created = await otp.CreateAsync(SubjectOf(user), ScopeOf(method), settings.Code with { Lifetime = lifetime }, cancellationToken);
-        if (!created.Success)
+        if (!created.IsSuccess)
             return new TwoFactorCodeResult { Status = TwoFactorCodeStatus.RateLimited, Method = method };
 
         culture ??= CultureInfo.CurrentUICulture;
@@ -122,7 +122,7 @@ public sealed class UserTwoFactorMethodService(
             },
             cancellationToken);
 
-        return delivered.Success
+        return delivered.IsSuccess
             ? new TwoFactorCodeResult { Status = TwoFactorCodeStatus.Sent, Method = method, ExpiresAt = created.ExpiresAt }
             : new TwoFactorCodeResult { Status = TwoFactorCodeStatus.DeliveryFailed, Method = method, FailureReason = delivered.FailureReason };
     }
@@ -142,7 +142,7 @@ public sealed class UserTwoFactorMethodService(
 
         return options.CurrentValue.Methods.ContainsKey(method)
             && !string.IsNullOrWhiteSpace(code)
-            && (await otp.VerifyAsync(SubjectOf(user), code, ScopeOf(method), cancellationToken)).Success;
+            && (await otp.VerifyAsync(SubjectOf(user), code, ScopeOf(method), cancellationToken)).IsSuccess;
     }
 
     /// <summary>
@@ -161,7 +161,7 @@ public sealed class UserTwoFactorMethodService(
         if (string.Equals(method, TwoFactorMethodNameConstants.Authenticator, StringComparison.OrdinalIgnoreCase))
         {
             var enabled = await authenticator.EnableAsync(user, code, cancellationToken);
-            return enabled.Succeeded ? await SetPreferredMethodAsync(user, TwoFactorMethodNameConstants.Authenticator, cancellationToken) : enabled;
+            return enabled.IsSuccess ? await SetPreferredMethodAsync(user, TwoFactorMethodNameConstants.Authenticator, cancellationToken) : enabled;
         }
 
         if (!(await GetAvailableMethodsAsync(user, cancellationToken)).Contains(method, StringComparer.OrdinalIgnoreCase))
@@ -169,7 +169,7 @@ public sealed class UserTwoFactorMethodService(
         if (!await VerifyCodeAsync(user, method, code, cancellationToken))
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidTwoFactorCode, "The code is invalid or has expired.");
 
-        user.TwoFactorEnabled = true;
+        user.IsTwoFactorEnabled = true;
         user.RotateSecurityStamp();
         await repository.UpdateAsync(user, cancellationToken);
         return await SetPreferredMethodAsync(user, method, cancellationToken);
@@ -180,9 +180,9 @@ public sealed class UserTwoFactorMethodService(
         switch (method.AddressKind)
         {
             case TwoFactorAddressKind.PhoneNumber:
-                return user.PhoneNumberConfirmed && !string.IsNullOrWhiteSpace(user.PhoneNumber) ? user.PhoneNumber : null;
+                return user.IsPhoneNumberConfirmed && !string.IsNullOrWhiteSpace(user.PhoneNumber) ? user.PhoneNumber : null;
             case TwoFactorAddressKind.Email:
-                return user.EmailConfirmed && !string.IsNullOrWhiteSpace(user.Email) ? user.Email : null;
+                return user.IsEmailConfirmed && !string.IsNullOrWhiteSpace(user.Email) ? user.Email : null;
             case TwoFactorAddressKind.ExternalLogin when logins is not null:
                 var linked = await logins.GetAsync(user.Id, cancellationToken);
                 return linked.FirstOrDefault(login => string.Equals(login.LoginProvider, method.LoginProvider, StringComparison.OrdinalIgnoreCase))?.ProviderKey;

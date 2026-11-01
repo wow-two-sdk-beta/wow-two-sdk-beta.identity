@@ -19,7 +19,7 @@ public sealed class ServerKeyConfigurationTests : IDisposable
     [Fact]
     public void Ephemeral_ShouldMakeThrowawayRsaKeys_OnALocalRun()
     {
-        var server = Configure(new ServerKeyOptions { Ephemeral = true }, deployEnvironment: null);
+        var server = Configure(new ServerKeyOptions { IsEphemeral = true }, deployEnvironment: null);
 
         server.SigningCredentials.Should().ContainSingle().Which.Key.Should().BeOfType<RsaSecurityKey>().Which.KeyId.Should().NotBeNullOrEmpty();
         server.EncryptionCredentials.Should().ContainSingle().Which.Key.Should().BeOfType<RsaSecurityKey>();
@@ -30,15 +30,15 @@ public sealed class ServerKeyConfigurationTests : IDisposable
     [InlineData("Production", null)]
     public void Ephemeral_ShouldRefuseADeployedBoot(string environment, string? deployEnvironment)
     {
-        var configure = () => Configure(new ServerKeyOptions { Ephemeral = true }, deployEnvironment, environment);
+        var configure = () => Configure(new ServerKeyOptions { IsEphemeral = true }, deployEnvironment, environment);
 
-        configure.Should().Throw<InvalidOperationException>().WithMessage("*Ephemeral is allowed only on a local run*");
+        configure.Should().Throw<InvalidOperationException>().WithMessage("*IsEphemeral is allowed only on a local run*");
     }
 
     [Fact]
     public void Ephemeral_ShouldRefuseCertificateFilesBesideIt()
     {
-        var configure = () => Configure(new ServerKeyOptions { Ephemeral = true, Signing = [_files.Write("s.pem", SigningKeyRole.Signing, Now)] }, deployEnvironment: null);
+        var configure = () => Configure(new ServerKeyOptions { IsEphemeral = true, Signing = [_files.Write("s.pem", SigningKeyRole.Signing, Now)] }, deployEnvironment: null);
 
         configure.Should().Throw<InvalidOperationException>().WithMessage("*choose one*");
     }

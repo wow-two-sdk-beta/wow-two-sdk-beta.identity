@@ -25,5 +25,5 @@ public sealed record SessionDto
     public string? UserAgent { get; init; }
 
     /// <summary>Whether this is the session of the request asking.</summary>
-    public required bool Current { get; init; }
+    public required bool IsCurrent { get; init; }
 }

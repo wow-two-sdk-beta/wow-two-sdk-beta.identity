@@ -28,7 +28,7 @@ public sealed class OidcClaimMapperTests
     [Fact]
     public void PersonClaims_ShouldCarryTheUserIdNameEmailAndStamp_ReplacingOlderValues()
     {
-        var user = new IdentityUser { Id = Guid.CreateVersion7(), UserName = "alice", Email = "alice@example.test", EmailConfirmed = true, SecurityStamp = "stamp-2" };
+        var user = new IdentityUser { Id = Guid.CreateVersion7(), UserName = "alice", Email = "alice@example.test", IsEmailConfirmed = true, SecurityStamp = "stamp-2" };
         var identity = OidcClaimMapper.CreateIdentity(Client, [Scopes.OpenId], [AuthenticationMethodConstants.Password], DateTimeOffset.UnixEpoch);
         identity.AddClaim(new Claim(Claims.Name, "old-name"));
         identity.AddClaim(new Claim(StampType, "stamp-1"));

@@ -57,7 +57,7 @@ internal sealed class AccountsHost : IAsyncDisposable
         await using var scope = Scope();
         var user = new IdentityUser { UserName = userName, Email = email ?? $"{userName}@example.test" };
         var result = await scope.ServiceProvider.GetRequiredService<UserAccountService>().CreateAsync(user);
-        if (!result.Succeeded)
+        if (!result.IsSuccess)
             throw new InvalidOperationException(result.Errors[0].Description);
 
         return user;

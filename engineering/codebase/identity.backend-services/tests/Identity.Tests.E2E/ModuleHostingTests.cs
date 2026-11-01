@@ -17,7 +17,7 @@ public sealed class ModuleHostingTests(IdentityApiFixture fixture)
             var created = await scope.ServiceProvider.GetRequiredService<UserAccountService>()
                 .CreateAsync(new IdentityUser { UserName = userName, Email = $"{userName}@example.test" });
 
-            created.Succeeded.Should().BeTrue();
+            created.IsSuccess.Should().BeTrue();
         }
 
         await using var next = fixture.Host.Services.CreateAsyncScope();

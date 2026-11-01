@@ -55,7 +55,7 @@ describe('hosted greeting route', () => {
 });
 
 describe('sign-up', () => {
-  // An instance keeps self sign-up off (Identity:SignUp:Enabled) and refuses register, so no page may offer it.
+  // An instance keeps self sign-up off (Identity:SignUp:IsEnabled) and refuses register, so no page may offer it.
   it('is offered by no route and no link while the instance keeps it closed', async () => {
     const paths = routes.flatMap((route) => [
       route.path ?? '',

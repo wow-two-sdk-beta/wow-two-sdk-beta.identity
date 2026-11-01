@@ -14,7 +14,7 @@ public sealed record TwoFactorOptions
     public int RecoveryCodeCount { get; set; } = 10;
 
     /// <summary>Gets or sets whether a password sign-in that needs the second factor sends the preferred method's code. Default true.</summary>
-    public bool AutoSendCode { get; set; } = true;
+    public bool IsCodeSentAutomatically { get; set; } = true;
 
     /// <summary>Gets the delivered-code methods by the name a user picks, such as <c>sms</c> or <c>email</c>.</summary>
     public Dictionary<string, TwoFactorMethodOptions> Methods { get; } = new(StringComparer.OrdinalIgnoreCase);

@@ -13,7 +13,7 @@ var refresh = await refreshTokens.IssueAsync(user);
 
 // refresh endpoint
 var redeemed = await refreshTokens.RedeemAsync(request.RefreshToken);
-if (!redeemed.Succeeded) return Unauthorized();
+if (!redeemed.IsSuccess) return Unauthorized();
 var signIn = await signInService.SignInAsync(redeemed.User!);          // lockout + preconditions still apply
 return new { access = issuer.Issue(signIn.Principal!.Claims), refresh = redeemed.Token!.Token };
 ```

@@ -33,7 +33,7 @@ public sealed class UserEmailService(
         if (!tokens.Verify(user, Scope(UserTokenPurposeConstants.EmailConfirmation, user.NormalizedEmail), token))
             return InvalidToken();
 
-        user.EmailConfirmed = true;
+        user.IsEmailConfirmed = true;
         await repository.UpdateAsync(user, cancellationToken);
         return IdentityResult.Success;
     }
@@ -66,7 +66,7 @@ public sealed class UserEmailService(
 
         user.Email = newEmail;
         user.NormalizedEmail = normalized;
-        user.EmailConfirmed = true;
+        user.IsEmailConfirmed = true;
         user.RotateSecurityStamp();
         await repository.UpdateAsync(user, cancellationToken);
         return IdentityResult.Success;
@@ -86,7 +86,7 @@ public sealed class UserEmailService(
 
         user.Email = email;
         user.NormalizedEmail = normalized;
-        user.EmailConfirmed = false;
+        user.IsEmailConfirmed = false;
         user.RotateSecurityStamp();
         await repository.UpdateAsync(user, cancellationToken);
         return IdentityResult.Success;

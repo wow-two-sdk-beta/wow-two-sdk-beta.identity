@@ -57,11 +57,11 @@ public sealed class EmailSliceTests
         var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id))!;
         var token = emails.IssueConfirmationToken(tracked);
 
-        (await emails.SetEmailAsync(tracked, "dina.new@example.test")).Succeeded.Should().BeTrue();
+        (await emails.SetEmailAsync(tracked, "dina.new@example.test")).IsSuccess.Should().BeTrue();
         (await emails.ConfirmEmailAsync(tracked, token)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidToken);
 
-        (await emails.ConfirmEmailAsync(tracked, emails.IssueConfirmationToken(tracked))).Succeeded.Should().BeTrue();
-        (await host.ReloadAsync(user.Id)).EmailConfirmed.Should().BeTrue();
+        (await emails.ConfirmEmailAsync(tracked, emails.IssueConfirmationToken(tracked))).IsSuccess.Should().BeTrue();
+        (await host.ReloadAsync(user.Id)).IsEmailConfirmed.Should().BeTrue();
     }
 
     [Fact]
@@ -82,11 +82,11 @@ public sealed class EmailSliceTests
         var token = emails.IssueChangeEmailToken(tracked, "ella.moved@example.test");
         (await emails.ChangeEmailAsync(tracked, "other@example.test", token)).Errors
             .Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidToken);
-        (await emails.ChangeEmailAsync(tracked, "Ella.Moved@example.test", token)).Succeeded.Should().BeTrue();
+        (await emails.ChangeEmailAsync(tracked, "Ella.Moved@example.test", token)).IsSuccess.Should().BeTrue();
 
         var stored = await host.ReloadAsync(user.Id);
         stored.NormalizedEmail.Should().Be("ELLA.MOVED@EXAMPLE.TEST");
-        stored.EmailConfirmed.Should().BeTrue();
+        stored.IsEmailConfirmed.Should().BeTrue();
         stored.SecurityStamp.Should().NotBe(stamp);
     }
 

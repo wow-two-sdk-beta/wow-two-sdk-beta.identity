@@ -17,5 +17,5 @@ public sealed record EmailSignInOptions
     public int CodeLength { get; set; } = 6;
 
     /// <summary>Gets or sets whether a used link or code confirms the address, which it proves. Default true.</summary>
-    public bool ConfirmEmail { get; set; } = true;
+    public bool IsEmailConfirmedOnSignIn { get; set; } = true;
 }

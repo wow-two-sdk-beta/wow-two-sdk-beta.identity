@@ -23,7 +23,7 @@ configuration alone can add, reroute or reshape one:
 "Identity": {
   "TwoFactor": {
     "Issuer": "Acme",
-    "AutoSendCode": true,
+    "IsCodeSentAutomatically": true,
     "Methods": {
       "sms":      { "Channel": "sms", "Broker": "eskiz" },
       "whatsapp": { "Channel": "whatsapp", "Broker": "meta" },

@@ -12,7 +12,7 @@ public sealed class UserAccountServiceTests
         var services = new ServiceCollection();
         services.AddLogging();
         database.Register(services);
-        services.AddUserAccounts(o => o.User.RequireUniqueEmail = true);
+        services.AddUserAccounts(o => o.User.IsUniqueEmailRequired = true);
 
         var provider = services.BuildServiceProvider();
         await IdentityTestDatabase.MigrateAsync(provider);
@@ -28,7 +28,7 @@ public sealed class UserAccountServiceTests
         var service = scope.ServiceProvider.GetRequiredService<UserAccountService>();
 
         var user = new IdentityUser { UserName = "alice", Email = "alice@example.test" };
-        (await service.CreateAsync(user)).Succeeded.Should().BeTrue();
+        (await service.CreateAsync(user)).IsSuccess.Should().BeTrue();
         user.Id.Version.Should().Be(7);                // a uuid v7, assigned at creation
         user.NormalizedUserName.Should().Be("ALICE");
         user.SecurityStamp.Should().NotBeNullOrEmpty();
@@ -37,7 +37,7 @@ public sealed class UserAccountServiceTests
         (await service.FindByNameAsync("ALICE")).Should().NotBeNull();               // case-insensitive
         (await service.FindByEmailAsync("ALICE@EXAMPLE.TEST")).Should().NotBeNull();
 
-        (await service.DeleteAsync(user)).Succeeded.Should().BeTrue();
+        (await service.DeleteAsync(user)).IsSuccess.Should().BeTrue();
         (await service.FindByIdAsync(user.Id)).Should().BeNull();
     }
 
@@ -49,10 +49,10 @@ public sealed class UserAccountServiceTests
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<UserAccountService>();
 
-        (await service.CreateAsync(new IdentityUser { UserName = "bob", Email = "bob@x.test" })).Succeeded.Should().BeTrue();
+        (await service.CreateAsync(new IdentityUser { UserName = "bob", Email = "bob@x.test" })).IsSuccess.Should().BeTrue();
         var duplicate = await service.CreateAsync(new IdentityUser { UserName = "BOB", Email = "bob2@x.test" });
 
-        duplicate.Succeeded.Should().BeFalse();
+        duplicate.IsSuccess.Should().BeFalse();
         duplicate.Errors.Should().Contain(e => e.Code == "DuplicateUserName");
     }
 
@@ -65,7 +65,7 @@ public sealed class UserAccountServiceTests
         var service = scope.ServiceProvider.GetRequiredService<UserAccountService>();
         var repository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
         var original = new IdentityUser { UserName = "tracked", Email = "tracked@example.test" };
-        (await service.CreateAsync(original)).Succeeded.Should().BeTrue();
+        (await service.CreateAsync(original)).IsSuccess.Should().BeTrue();
         var replacement = new IdentityUser
         {
             Id = original.Id,

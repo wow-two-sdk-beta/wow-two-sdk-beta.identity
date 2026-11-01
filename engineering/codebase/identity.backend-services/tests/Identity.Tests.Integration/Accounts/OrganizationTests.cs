@@ -30,7 +30,7 @@ public sealed class OrganizationTests
         var organizations = Organizations(scope);
 
         var ocharo = new IdentityOrganization { Name = "  Ocharo ", Slug = "Ocharo" };
-        (await organizations.CreateAsync(ocharo, founder)).Succeeded.Should().BeTrue();
+        (await organizations.CreateAsync(ocharo, founder)).IsSuccess.Should().BeTrue();
 
         ocharo.Id.Should().NotBeEmpty();
         ocharo.Name.Should().Be("Ocharo");
@@ -57,7 +57,7 @@ public sealed class OrganizationTests
 
         var result = await Organizations(scope).CreateAsync(new IdentityOrganization { Name = name, Slug = slug }, founder);
 
-        result.Succeeded.Should().BeFalse();
+        result.IsSuccess.Should().BeFalse();
         result.Errors.Should().ContainSingle(e => e.Code == (name.Length == 0
             ? IdentityErrorCodeConstants.OrganizationNameRequired
             : IdentityErrorCodeConstants.InvalidOrganizationSlug));
@@ -74,18 +74,18 @@ public sealed class OrganizationTests
         var ocharo = new IdentityOrganization { Name = "Ocharo", Slug = "ocharo" };
         await organizations.CreateAsync(ocharo, founder);
 
-        (await organizations.AddMemberAsync(ocharo, member, "Editor")).Succeeded.Should().BeTrue();
+        (await organizations.AddMemberAsync(ocharo, member, "Editor")).IsSuccess.Should().BeTrue();
         (await organizations.GetRoleAsync(ocharo, member)).Should().Be("editor");
         (await organizations.AddMemberAsync(ocharo, member, "viewer")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.UserAlreadyMember);
         (await organizations.AddMemberAsync(ocharo, await host.CreateUserAsync("aziz"), "admin")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.UnknownOrganizationRole);
 
         var stamp = (await host.ReloadAsync(member.Id)).SecurityStamp;
-        (await organizations.ChangeRoleAsync(ocharo, member, "viewer")).Succeeded.Should().BeTrue();
+        (await organizations.ChangeRoleAsync(ocharo, member, "viewer")).IsSuccess.Should().BeTrue();
         (await organizations.GetRoleAsync(ocharo, member)).Should().Be("viewer");
         var changed = (await host.ReloadAsync(member.Id)).SecurityStamp;
         changed.Should().NotBe(stamp);
 
-        (await organizations.RemoveMemberAsync(ocharo, member)).Succeeded.Should().BeTrue();
+        (await organizations.RemoveMemberAsync(ocharo, member)).IsSuccess.Should().BeTrue();
         (await organizations.GetRoleAsync(ocharo, member)).Should().BeNull();
         (await host.ReloadAsync(member.Id)).SecurityStamp.Should().NotBe(changed);
         (await organizations.RemoveMemberAsync(ocharo, member)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.UserNotMember);
@@ -107,7 +107,7 @@ public sealed class OrganizationTests
         (await organizations.ChangeRoleAsync(ocharo, founder, "editor")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.LastOrganizationOwner);
 
         await organizations.AddMemberAsync(ocharo, partner, "owner");
-        (await organizations.ChangeRoleAsync(ocharo, founder, "editor")).Succeeded.Should().BeTrue();
+        (await organizations.ChangeRoleAsync(ocharo, founder, "editor")).IsSuccess.Should().BeTrue();
         (await organizations.RemoveMemberAsync(ocharo, partner)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.LastOrganizationOwner);
     }
 
@@ -149,7 +149,7 @@ public sealed class OrganizationTests
         await organizations.AddMemberAsync(ocharo, member, "viewer");
         var stamp = (await host.ReloadAsync(member.Id)).SecurityStamp;
 
-        (await organizations.DeleteAsync(ocharo)).Succeeded.Should().BeTrue();
+        (await organizations.DeleteAsync(ocharo)).IsSuccess.Should().BeTrue();
 
         (await organizations.FindByIdAsync(ocharo.Id)).Should().BeNull();
         (await organizations.ListForUserAsync(member)).Should().BeEmpty();

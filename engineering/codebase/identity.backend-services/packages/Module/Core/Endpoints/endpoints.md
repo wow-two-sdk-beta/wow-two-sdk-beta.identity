@@ -8,7 +8,7 @@ The account HTTP API over the identity slices — the SDK's `MapIdentityApi`, bu
 services.AddUserAccounts()
         .AddArgon2Passwords().AddUserTokens(o => o.SigningKey = key).AddEmailConfirmation()
         .AddLockout().AddRefreshTokens().AddSignIn()
-        .AddAccountEndpoints(o => o.Enabled = true);         // email links + texts from configuration; sign-up on
+        .AddAccountEndpoints(o => o.IsEnabled = true);       // email links + texts from configuration; sign-up on
 services.AddJwtTokenIssuance(…).AddJwtBearerAuthentication(…);
 
 app.MapGroup("/account").MapUserAccountEndpoints();
@@ -19,7 +19,7 @@ app.MapGroup("/account").MapUserAccountEndpoints();
   "ConfirmationLink": "https://app.example/confirm-email?userId={userId}&token={token}",
   "ResetLink": "https://app.example/reset-password?email={email}&token={token}"
 } },
-"Identity": { "SignUp": { "Enabled": true } }   // wins over code; read live
+"Identity": { "SignUp": { "IsEnabled": true } }  // wins over code; read live
 ```
 
 | Route | Does |
@@ -47,15 +47,15 @@ app.MapGroup("/account").MapUserAccountEndpoints();
   records with each attempt (`.AddSignInLog()`, `../SignInLog/sign-in-log.md`).
 - Lockout answers `429`, an unconfirmed account `403`, wrong credentials and a missing second factor `401`.
 - Sign-up is off by default: `register` answers `403` (message key `SignUpClosed`) and creates nothing until
-  `SignUpOptions.Enabled` turns it on, in code or in the host section `Identity:SignUp`; an admin's code path
+  `SignUpOptions.IsEnabled` turns it on, in code or in the host section `Identity:SignUp`; an admin's code path
   (`UserAccountService`) still creates accounts, and sign-in is unaffected.
 - Refresh renews without a second factor but re-checks lockout and confirmation; a refused renewal revokes the token.
-- Without an `IEmailBroker` or a link template, emails are skipped and `confirmationSent` is false.
+- Without an `IEmailBroker` or a link template, emails are skipped and `isConfirmationSent` is false.
 
 ## Two-factor login
 
 - A login that needs the second factor answers `401` with `twoFactorMethod`, `twoFactorMethods` and, for a delivered
-  method, `codeSent` / `codeExpiresAt` as problem extensions; `AutoSendCode` sends the preferred method's code then.
+  method, `isCodeSent` / `codeExpiresAt` as problem extensions; `IsCodeSentAutomatically` sends the preferred method's code then.
 - Resend or switch: repeat the login with `twoFactorMethod` and no code. Complete: repeat it with `twoFactorCode`.
 
 ## Passkeys

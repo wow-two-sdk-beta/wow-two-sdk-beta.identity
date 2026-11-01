@@ -53,7 +53,7 @@ app.Run();
 |---|---|---|---|
 | `ClaimType` | `string` | `"wt:username"` | Seam: `Identity/Claims` `NormalizedClaimTypeConstants.Username` |
 | `Allowed` | `ISet<string>` | empty (`OrdinalIgnoreCase`) | **Empty ⇒ OPEN** (any authenticated principal) |
-| `CaseInsensitive` | `bool` | `true` | Claim-value comparison casing |
+| `IsCaseInsensitive` | `bool` | `true` | Claim-value comparison casing |
 
 ### Other public types
 
@@ -69,7 +69,7 @@ app.Run();
 | non-empty | claim value ∈ `Allowed` | ✅ pass |
 | non-empty | claim value ∉ `Allowed` / claim absent | ❌ fail |
 
-`CaseInsensitive = true` ⇒ `OrdinalIgnoreCase`; `false` ⇒ `Ordinal`. Multiple `ClaimType` claims: any match succeeds.
+`IsCaseInsensitive = true` ⇒ `OrdinalIgnoreCase`; `false` ⇒ `Ordinal`. Multiple `ClaimType` claims: any match succeeds.
 
 ## Usage examples
 
@@ -89,7 +89,7 @@ services.AddPrincipalAllowlist(o =>
 services.AddPrincipalAllowlist(o =>
 {
     o.ClaimType = "email";
-    o.CaseInsensitive = false;
+    o.IsCaseInsensitive = false;
     o.Allowed.Add("admin@example.com");
 });
 ```

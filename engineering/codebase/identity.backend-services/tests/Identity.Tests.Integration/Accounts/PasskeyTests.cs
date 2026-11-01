@@ -23,7 +23,7 @@ public sealed class PasskeyTests
         {
             var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
             var ceremony = await passkeys.BeginRegistrationAsync(user);
-            (await passkeys.CompleteRegistrationAsync(user, ceremony.State, authenticator.Create(ceremony.OptionsJson), "  Pia's laptop  ")).Succeeded.Should().BeTrue();
+            (await passkeys.CompleteRegistrationAsync(user, ceremony.State, authenticator.Create(ceremony.OptionsJson), "  Pia's laptop  ")).IsSuccess.Should().BeTrue();
 
             var listed = (await passkeys.ListAsync(user)).Should().ContainSingle().Subject;
             listed.Name.Should().Be("Pia's laptop");
@@ -43,7 +43,7 @@ public sealed class PasskeyTests
             ceremony.OptionsJson.Should().NotContain("allowCredentials\":[{", "a usernameless request names no credentials");
 
             var result = await signIn.PasskeySignInAsync(ceremony.State, authenticator.Get(ceremony.OptionsJson));
-            result.Succeeded.Should().BeTrue();
+            result.IsSuccess.Should().BeTrue();
             result.UserId.Should().Be(user.Id.ToString());
             result.Principal.Should().NotBeNull();
             (await passkeys.ListAsync(user)).Single().LastUsedAt.Should().Be(host.Time.GetUtcNow());
@@ -66,7 +66,7 @@ public sealed class PasskeyTests
         host.Time.Advance(TimeSpan.FromSeconds(5));
         var ceremony = passkeys.BeginSignIn();
         var assertion = synced.Get(ceremony.OptionsJson);
-        (await signIn.PasskeySignInAsync(ceremony.State, assertion)).Succeeded.Should().BeTrue();
+        (await signIn.PasskeySignInAsync(ceremony.State, assertion)).IsSuccess.Should().BeTrue();
         synced.SignCount.Should().Be(0);
 
         (await signIn.PasskeySignInAsync(ceremony.State, assertion)).Status.Should().Be(SignInStatus.Failed, "the same ceremony replayed");
@@ -74,7 +74,7 @@ public sealed class PasskeyTests
 
         host.Time.Advance(TimeSpan.FromSeconds(5));
         var next = passkeys.BeginSignIn();
-        (await signIn.PasskeySignInAsync(next.State, synced.Get(next.OptionsJson))).Succeeded.Should().BeTrue();
+        (await signIn.PasskeySignInAsync(next.State, synced.Get(next.OptionsJson))).IsSuccess.Should().BeTrue();
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class PasskeyTests
         (await passkeys.CompleteRegistrationAsync(owner, ceremony.State, credential)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey, "the ceremony expired");
 
         var fresh = await passkeys.BeginRegistrationAsync(owner);
-        (await passkeys.CompleteRegistrationAsync(owner, fresh.State, authenticator.Create(fresh.OptionsJson))).Succeeded.Should().BeTrue();
+        (await passkeys.CompleteRegistrationAsync(owner, fresh.State, authenticator.Create(fresh.OptionsJson))).IsSuccess.Should().BeTrue();
         var repeat = await passkeys.BeginRegistrationAsync(other);
         (await passkeys.CompleteRegistrationAsync(other, repeat.State, authenticator.Create(repeat.OptionsJson))).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPasskey, "a credential registers once");
 
@@ -132,7 +132,7 @@ public sealed class PasskeyTests
         (await signIn.PasskeySignInAsync(ceremony.State, unknown.Get(ceremony.OptionsJson))).Status.Should().Be(SignInStatus.Failed, "an unregistered credential");
 
         authenticator.Origin = "https://app.test";
-        (await signIn.PasskeySignInAsync(ceremony.State, authenticator.Get(ceremony.OptionsJson))).Succeeded.Should().BeTrue();
+        (await signIn.PasskeySignInAsync(ceremony.State, authenticator.Get(ceremony.OptionsJson))).IsSuccess.Should().BeTrue();
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class PasskeyTests
         var signIn = services.GetRequiredService<SignInService>();
         var current = await services.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id);
 
-        (await services.GetRequiredService<UserLockoutService>().LockUntilAsync(current!, host.Time.GetUtcNow().AddHours(1))).Succeeded.Should().BeTrue();
+        (await services.GetRequiredService<UserLockoutService>().LockUntilAsync(current!, host.Time.GetUtcNow().AddHours(1))).IsSuccess.Should().BeTrue();
         var ceremony = passkeys.BeginSignIn();
         (await signIn.PasskeySignInAsync(ceremony.State, authenticator.Get(ceremony.OptionsJson))).Status.Should().Be(SignInStatus.LockedOut);
 
@@ -189,7 +189,7 @@ public sealed class PasskeyTests
         await using var scope = host.Scope();
         var passkeys = scope.ServiceProvider.GetRequiredService<UserPasskeyService>();
         var ceremony = await passkeys.BeginRegistrationAsync(user);
-        (await passkeys.CompleteRegistrationAsync(user, ceremony.State, authenticator.Create(ceremony.OptionsJson))).Succeeded.Should().BeTrue();
+        (await passkeys.CompleteRegistrationAsync(user, ceremony.State, authenticator.Create(ceremony.OptionsJson))).IsSuccess.Should().BeTrue();
         host.Time.Advance(TimeSpan.FromSeconds(1));
     }
 }

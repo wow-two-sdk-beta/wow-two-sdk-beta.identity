@@ -50,7 +50,7 @@ public sealed class UserPasswordService(
     public async Task<IdentityResult> CreateWithPasswordAsync(IdentityUser user, string password, CancellationToken cancellationToken = default)
     {
         var validation = await ValidateAsync(user, password, cancellationToken);
-        if (!validation.Succeeded)
+        if (!validation.IsSuccess)
             return validation;
 
         user.PasswordHash = hasher.HashPassword(user, password);
@@ -135,7 +135,7 @@ public sealed class UserPasswordService(
     private async Task<IdentityResult> StoreAsync(IdentityUser user, string password, CancellationToken cancellationToken)
     {
         var validation = await ValidateAsync(user, password, cancellationToken);
-        if (!validation.Succeeded)
+        if (!validation.IsSuccess)
             return validation;
 
         user.PasswordHash = hasher.HashPassword(user, password);

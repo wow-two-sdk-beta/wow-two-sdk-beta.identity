@@ -45,7 +45,7 @@ public sealed class SessionEndpointTests
         var listed = await ListAsync(laptop);
         listed.Should().HaveCount(2);
         var phoneSession = listed.Single(session => session.GetProperty("userAgent").GetString() == "Phone/2.0");
-        var laptopSession = listed.Single(session => session.GetProperty("current").GetBoolean());
+        var laptopSession = listed.Single(session => session.GetProperty("isCurrent").GetBoolean());
         laptopSession.GetProperty("userAgent").GetString().Should().Be("Laptop/1.0");
         laptopSession.GetProperty("ipMasked").GetString().Should().Be("203.0.113.0");
         laptopSession.GetProperty("authenticationMethods").EnumerateArray().Select(v => v.GetString()).Should().Equal("pwd");
@@ -58,7 +58,7 @@ public sealed class SessionEndpointTests
         await app.SignInAsync(phone, Email);
         (await laptop.DeleteAsync("/account/manage/sessions?keepCurrent=true")).StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await phone.GetAsync("/account/manage/info")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        (await ListAsync(laptop)).Should().ContainSingle().Which.GetProperty("current").GetBoolean().Should().BeTrue();
+        (await ListAsync(laptop)).Should().ContainSingle().Which.GetProperty("isCurrent").GetBoolean().Should().BeTrue();
 
         (await laptop.DeleteAsync("/account/manage/sessions")).StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await laptop.GetAsync("/account/manage/info")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -138,7 +138,7 @@ public sealed class SessionEndpointTests
             .AddSessions()
             .AddSignInLog()
             .AddSignIn()
-            .AddAccountEndpoints(o => o.Enabled = true);
+            .AddAccountEndpoints(o => o.IsEnabled = true);
         builder.Services.AddCookieAuthentication(o => o.Mode = AuthChallengeMode.Api);
         builder.Services.AddAuthorization();
 
@@ -176,7 +176,7 @@ public sealed class SessionEndpointTests
         {
             await using var scope = web.Services.CreateAsyncScope();
             var user = new IdentityUser { UserName = email, Email = email };
-            (await scope.ServiceProvider.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(user, Password)).Succeeded.Should().BeTrue();
+            (await scope.ServiceProvider.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(user, Password)).IsSuccess.Should().BeTrue();
             return user.Id;
         }
 

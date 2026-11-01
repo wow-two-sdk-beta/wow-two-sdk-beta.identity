@@ -18,15 +18,15 @@ public sealed class SmsOtpDeliveryHandler(ISmsBrokerFactory brokers, SmsOtpOptio
     {
         ArgumentNullException.ThrowIfNull(envelope);
         if (string.IsNullOrWhiteSpace(envelope.DeliveryAddress))
-            return new OtpDeliveryResult { Success = false, FailureReason = "invalid_phone_number" };
+            return new OtpDeliveryResult { IsSuccess = false, FailureReason = "invalid_phone_number" };
 
         var brokerName = envelope.Broker ?? smsOtpOptions.Broker;
         if (brokers.Create(brokerName) is not { } sms)
-            return new OtpDeliveryResult { Success = false, FailureReason = $"sms_broker_not_registered: {brokerName}" };
+            return new OtpDeliveryResult { IsSuccess = false, FailureReason = $"sms_broker_not_registered: {brokerName}" };
 
         var body = envelope.Text ?? FallbackText(envelope);
         var result = await sms.SendAsync(new SmsMessage { To = envelope.DeliveryAddress, Body = body }, cancellationToken);
-        return new OtpDeliveryResult { Success = result.Success, FailureReason = result.FailureReason };
+        return new OtpDeliveryResult { IsSuccess = result.Success, FailureReason = result.FailureReason };
     }
 
     private string FallbackText(OtpDeliveryEnvelopeModel envelope)

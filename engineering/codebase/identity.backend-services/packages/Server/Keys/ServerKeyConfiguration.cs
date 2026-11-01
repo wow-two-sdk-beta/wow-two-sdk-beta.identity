@@ -14,7 +14,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Keys;
 /// <summary>
 /// Hands the server its keys when its options are built at boot, failing closed: certificates from
 /// <see cref="ISigningKeySource"/> that pass <see cref="SigningKeyValidator"/>, or throwaway RSA keys when
-/// <see cref="ServerKeyOptions.Ephemeral"/> is set on a local run.
+/// <see cref="ServerKeyOptions.IsEphemeral"/> is set on a local run.
 /// </summary>
 /// <param name="services">The root provider.</param>
 internal sealed partial class ServerKeyConfiguration(IServiceProvider services) : IConfigureOptions<OpenIddictServerOptions>
@@ -25,12 +25,12 @@ internal sealed partial class ServerKeyConfiguration(IServiceProvider services) 
     {
         ArgumentNullException.ThrowIfNull(options);
         var keys = services.GetRequiredService<OidcServerOptions>().Keys;
-        if (keys.Ephemeral)
+        if (keys.IsEphemeral)
         {
             if (!IsLocalRun())
-                throw new InvalidOperationException("Identity:Server:Keys:Ephemeral is allowed only on a local run (Development without DEPLOY_ENVIRONMENT); a deployed boot reads its certificates from Identity:Server:Keys:Signing and :Encryption.");
+                throw new InvalidOperationException("Identity:Server:Keys:IsEphemeral is allowed only on a local run (Development without DEPLOY_ENVIRONMENT); a deployed boot reads its certificates from Identity:Server:Keys:Signing and :Encryption.");
             if (keys.Signing.Count > 0 || keys.Encryption.Count > 0)
-                throw new InvalidOperationException("Identity:Server:Keys sets Ephemeral beside listed certificates; choose one.");
+                throw new InvalidOperationException("Identity:Server:Keys sets IsEphemeral beside listed certificates; choose one.");
 
             options.SigningCredentials.Add(new SigningCredentials(CreateEphemeralKey(), SecurityAlgorithms.RsaSha256));
             options.EncryptionCredentials.Add(new EncryptingCredentials(CreateEphemeralKey(), SecurityAlgorithms.RsaOAEP, SecurityAlgorithms.Aes256CbcHmacSha512));

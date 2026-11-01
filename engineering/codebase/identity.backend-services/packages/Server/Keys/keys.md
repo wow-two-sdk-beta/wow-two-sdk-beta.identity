@@ -12,7 +12,7 @@ check that fails closed, the pick of the active one by date, and the owner's gen
     "Keys": {
       "Signing":    [ "-----BEGIN CERTIFICATE-----\n…", "-----BEGIN CERTIFICATE-----\n…" ],  // several during a rotation
       "Encryption": [ "/run/keys/encryption-2026-10.pem" ],   // or a file path
-      "Ephemeral": false                 // true only on a local run: throwaway keys, every restart voids each token
+      "IsEphemeral": false               // true only on a local run: throwaway keys, every restart voids each token
     }
   }
 }
@@ -22,7 +22,7 @@ check that fails closed, the pick of the active one by date, and the owner's gen
   inline (a vault secret; `deploy.yml` declares `Signing:0` and `Encryption:0` `secret: true`, so Wheelhouse's settings
   render carries them) or the path of a file holding one. A value holding `-----BEGIN` is inline; anything else is a
   path, which resolves against the host's content root when relative. CRLF line ends and surrounding blank lines parse.
-- `appsettings.Development.json` turns `Ephemeral` on for a local run (`Development` without `DEPLOY_ENVIRONMENT`); a
+- `appsettings.Development.json` turns `IsEphemeral` on for a local run (`Development` without `DEPLOY_ENVIRONMENT`); a
   deployed target sets it to `false` (the descriptor's default) and lists its certificates.
 - The Data Protection ring's certificates (`Identity:DataProtection:Certificates`) take the same values, through the
   same reader (`../DataProtection/data-protection.md`).
@@ -49,7 +49,7 @@ A boot refuses to start, naming each problem, when:
   nor a path (the message then names only the setting)
 - a role lists no certificate, or none of its certificates is valid now
 - a certificate is not RSA, is under 2048 bits, or lacks its role's key usage
-- `Ephemeral` is on outside a local run, or beside listed certificates
+- `IsEphemeral` is on outside a local run, or beside listed certificates
 
 An expired or staged certificate beside a valid one passes: the old one still verifies or decrypts what it sealed,
 the staged one takes over on its date.

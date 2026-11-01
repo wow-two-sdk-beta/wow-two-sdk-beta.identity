@@ -10,5 +10,5 @@ public sealed record LockoutOptions
     public TimeSpan DefaultLockout { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>Whether a newly created account starts with lockout enabled. Default true.</summary>
-    public bool EnabledForNewUsers { get; set; } = true;
+    public bool IsEnabledForNewUsers { get; set; } = true;
 }

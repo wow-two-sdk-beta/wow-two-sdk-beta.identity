@@ -11,7 +11,7 @@ using WoW.Two.Sdk.Beta.Be.Testing;
 namespace Identity.Tests.E2E;
 
 /// <summary>
-/// Self sign-up as a deployed instance runs it: closed unless the environment sets <c>Identity:SignUp:Enabled</c>, the
+/// Self sign-up as a deployed instance runs it: closed unless the environment sets <c>Identity:SignUp:IsEnabled</c>, the
 /// boolean <c>deploy.yml</c> declares with the default <c>false</c>. Closed, <c>register</c> refuses anyone and creates
 /// nothing, while an account an admin added still signs in.
 /// </summary>
@@ -44,7 +44,7 @@ public sealed class SignUpTests(IdentityApiFixture fixture)
         {
             var created = await scope.ServiceProvider.GetRequiredService<UserPasswordService>()
                 .CreateWithPasswordAsync(new IdentityUser { UserName = email, Email = email }, Password);
-            created.Succeeded.Should().BeTrue();
+            created.IsSuccess.Should().BeTrue();
         }
 
         using var client = fixture.Host.CreateClient();
@@ -66,7 +66,7 @@ public sealed class SignUpTests(IdentityApiFixture fixture)
                     ["DatabaseSettings:ConnectionString"] = connectionString,
                     ["AllowedHosts"] = "localhost",
                     ["Logging:LogLevel:Default"] = "Warning",
-                    ["Identity:SignUp:Enabled"] = "true",
+                    ["Identity:SignUp:IsEnabled"] = "true",
                 }),
             };
             using var client = host.CreateClient();

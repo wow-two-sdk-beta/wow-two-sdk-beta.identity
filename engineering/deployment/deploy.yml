@@ -67,8 +67,8 @@ services:
       keys:
         DatabaseSettings:ConnectionString: { required: true }
         Identity:Server:Issuer: { type: url, required: true }
-        Identity:Server:Keys:Ephemeral: { type: boolean, default: false }
-        Identity:SignUp:Enabled: { type: boolean, default: false }
+        Identity:Server:Keys:IsEphemeral: { type: boolean, default: false }
+        Identity:SignUp:IsEnabled: { type: boolean, default: false }
         Identity:Server:Keys:Signing:0: { secret: true, required: true }
         Identity:Server:Keys:Encryption:0: { secret: true, required: true }
         Identity:DataProtection:Certificates:0: { secret: true, required: true }

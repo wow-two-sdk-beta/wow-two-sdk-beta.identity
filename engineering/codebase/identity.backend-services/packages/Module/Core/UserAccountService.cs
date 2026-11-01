@@ -29,7 +29,7 @@ public sealed class UserAccountService(IUserRepository repository, IdentityCoreO
         ApplyNormalization(user);
         user.SecurityStamp ??= NewStamp();
         user.ConcurrencyStamp ??= NewStamp();
-        user.LockoutEnabled = options.Lockout.EnabledForNewUsers;
+        user.IsLockoutEnabled = options.Lockout.IsEnabledForNewUsers;
 
         if (await repository.FindByNormalizedUserNameAsync(user.NormalizedUserName!, cancellationToken) is not null)
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.DuplicateUserName, $"User name '{user.UserName}' is already taken.", IdentityUserExtensions.Param("UserName", user.UserName));
@@ -69,7 +69,7 @@ public sealed class UserAccountService(IUserRepository repository, IdentityCoreO
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<bool> IsEmailTakenAsync(string? normalizedEmail, IdentityUser? owner = null, CancellationToken cancellationToken = default)
     {
-        if (!options.User.RequireUniqueEmail || string.IsNullOrEmpty(normalizedEmail))
+        if (!options.User.IsUniqueEmailRequired || string.IsNullOrEmpty(normalizedEmail))
             return false;
 
         var holder = await repository.FindByNormalizedEmailAsync(normalizedEmail, cancellationToken);

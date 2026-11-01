@@ -35,7 +35,7 @@ public sealed class SecurityStampValidator(
 
         var presented = principal.FindFirst(identity.Claims.SecurityStampClaimType)?.Value;
         if (presented is null)
-            return !options.RejectPrincipalsWithoutStamp;
+            return !options.IsStamplessPrincipalRejected;
 
         var stored = await ReadStampAsync(userId, cancellationToken);
         var valid = stored is not null

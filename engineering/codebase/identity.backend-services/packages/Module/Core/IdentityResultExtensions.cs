@@ -14,7 +14,7 @@ public static class IdentityResultExtensions
     public static ValidationError ToValidationError(this IdentityResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        if (result.Succeeded)
+        if (result.IsSuccess)
             throw new InvalidOperationException("A successful identity result carries no validation error.");
 
         return ValidationError.From([.. result.Errors.Select(error => new FieldError

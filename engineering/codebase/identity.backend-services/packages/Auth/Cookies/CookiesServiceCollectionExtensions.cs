@@ -25,7 +25,7 @@ public static class CookiesServiceCollectionExtensions
                 b.Cookie.SameSite = SameSiteMode.Lax;
                 b.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 b.ExpireTimeSpan = opts.ExpireTimeSpan;
-                b.SlidingExpiration = opts.SlidingExpiration;
+                b.SlidingExpiration = opts.IsExpirationSliding;
                 b.LoginPath = opts.LoginPath;
                 b.LogoutPath = opts.LogoutPath;
 

@@ -33,7 +33,7 @@ public sealed class SmsOtpDeliveryTests
 
         var result = await handler.SendAsync(new OtpDeliveryEnvelopeModel { DeliveryAddress = "+998901234567", Code = "123456", Scope = "login" });
 
-        result.Success.Should().BeTrue();
+        result.IsSuccess.Should().BeTrue();
         provider.Requests.Single().Body.Should().Contain(Uri.EscapeDataString("123456 is your Acme code. It expires in 5 minutes.").Replace("%20", "+", StringComparison.Ordinal));
     }
 
@@ -71,8 +71,8 @@ public sealed class SmsOtpDeliveryTests
         await using var scope = serviceProvider.CreateAsyncScope();
         var handler = scope.ServiceProvider.GetRequiredKeyedService<IOtpDeliveryHandler>(OtpChannelNameConstants.Sms);
         var envelope = new OtpDeliveryEnvelopeModel { DeliveryAddress = "+998901234567", Code = "123456", Scope = "login", Text = "Code 123456" };
-        (await handler.SendAsync(envelope)).Success.Should().BeTrue();
-        (await handler.SendAsync(envelope with { Broker = "eskiz" })).Success.Should().BeTrue();
+        (await handler.SendAsync(envelope)).IsSuccess.Should().BeTrue();
+        (await handler.SendAsync(envelope with { Broker = "eskiz" })).IsSuccess.Should().BeTrue();
         (await handler.SendAsync(envelope with { Broker = "vonage" })).FailureReason.Should().Be("sms_broker_not_registered: vonage");
 
         provider.Requests.Should().HaveCount(3);

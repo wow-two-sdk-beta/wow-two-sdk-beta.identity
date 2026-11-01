@@ -70,7 +70,7 @@ app.MapIdentitySession(); // /api/identity/me, sign-in, sign-out, …
 ```
 
 ```json
-{ "Identity": { "Mode": "Module", "Phones": { "Enabled": true } } }
+{ "Identity": { "Mode": "Module", "Phones": { "IsEnabled": true } } }
 ```
 
 The Module ships its SQL migrations; your deploy runs them before the new version serves.

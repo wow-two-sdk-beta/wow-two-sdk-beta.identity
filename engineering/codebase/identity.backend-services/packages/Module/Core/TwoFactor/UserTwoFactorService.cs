@@ -86,7 +86,7 @@ public sealed class UserTwoFactorService(
         if (!await VerifyAuthenticatorCodeAsync(user, code, cancellationToken))
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidAuthenticatorCode, "The authenticator code is invalid.");
 
-        user.TwoFactorEnabled = true;
+        user.IsTwoFactorEnabled = true;
         user.RotateSecurityStamp();
         await repository.UpdateAsync(user, cancellationToken);
         return IdentityResult.Success;
@@ -101,7 +101,7 @@ public sealed class UserTwoFactorService(
         await tokens.RemoveAsync(user.Id, TokenProvider, AuthenticatorKeyName, cancellationToken);
         await tokens.RemoveAsync(user.Id, TokenProvider, RecoveryCodesName, cancellationToken);
         await tokens.RemoveAsync(user.Id, TokenProvider, PreferredMethodName, cancellationToken);
-        user.TwoFactorEnabled = false;
+        user.IsTwoFactorEnabled = false;
         user.RotateSecurityStamp();
         await repository.UpdateAsync(user, cancellationToken);
         return IdentityResult.Success;

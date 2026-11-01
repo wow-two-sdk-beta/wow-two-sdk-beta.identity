@@ -100,5 +100,5 @@ public sealed class EfUserRepository : IUserRepository
 
     /// <inheritdoc />
     public Task<IdentityUser?> FindByConfirmedPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default)
-        => Users.FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber && u.PhoneNumberConfirmed, cancellationToken);
+        => Users.FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber && u.IsPhoneNumberConfirmed, cancellationToken);
 }

@@ -24,8 +24,8 @@ public sealed class BreachedPasswordValidator(
         catch (Exception exception) when (exception is HttpRequestException
             || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            logger.BreachCheckUnavailable(exception, options.FailOpen ? "passed" : "failed");
-            return options.FailOpen
+            logger.BreachCheckUnavailable(exception, options.IsFailOpen ? "passed" : "failed");
+            return options.IsFailOpen
                 ? []
                 : [new IdentityError { Code = IdentityErrorCodeConstants.PasswordBreachCheckUnavailable, Description = "The password could not be checked; try again." }];
         }

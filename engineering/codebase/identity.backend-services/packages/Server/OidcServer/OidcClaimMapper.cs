@@ -104,7 +104,7 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
         if (!string.IsNullOrEmpty(user.Email))
         {
             identity.SetClaim(Claims.Email, user.Email);
-            identity.SetClaim(Claims.EmailVerified, user.EmailConfirmed);
+            identity.SetClaim(Claims.EmailVerified, user.IsEmailConfirmed);
         }
 
         if (!string.IsNullOrEmpty(user.SecurityStamp))

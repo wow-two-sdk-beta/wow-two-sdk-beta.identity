@@ -17,5 +17,5 @@ public sealed record ServerKeyOptions
 
     /// <summary>Gets or sets whether the server makes throwaway keys at boot instead of reading its settings; only a local run may.</summary>
     /// <remarks>Every restart voids each issued token. A deployed boot (<c>DEPLOY_ENVIRONMENT</c> set, or not <c>Development</c>) refuses it.</remarks>
-    public bool Ephemeral { get; set; }
+    public bool IsEphemeral { get; set; }
 }

@@ -13,8 +13,8 @@ public sealed record AccountInfoDto
     public string? Email { get; init; }
 
     /// <summary>Whether the email is confirmed.</summary>
-    public bool EmailConfirmed { get; init; }
+    public bool IsEmailConfirmed { get; init; }
 
     /// <summary>Whether two-factor authentication is enabled.</summary>
-    public bool TwoFactorEnabled { get; init; }
+    public bool IsTwoFactorEnabled { get; init; }
 }

@@ -47,7 +47,7 @@ public sealed partial class AccountEndpointTests
 
         using var registered = await client.PostAsJsonAsync("/account/register", new { email = "zoe@example.test", password = Password });
         registered.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await Data(registered)).GetProperty("confirmationSent").GetBoolean().Should().BeTrue();
+        (await Data(registered)).GetProperty("isConfirmationSent").GetBoolean().Should().BeTrue();
 
         var confirmation = app.Mail.Sent.Single(message => message.Subject == "Confirm your email");
         var link = LinkPattern().Match(confirmation.TextBody!).Value;
@@ -62,7 +62,7 @@ public sealed partial class AccountEndpointTests
         info.Headers.Authorization = new AuthenticationHeaderValue("Bearer", access);
         var account = await Data(await client.SendAsync(info));
         account.GetProperty("email").GetString().Should().Be("zoe@example.test");
-        account.GetProperty("emailConfirmed").GetBoolean().Should().BeTrue();
+        account.GetProperty("isEmailConfirmed").GetBoolean().Should().BeTrue();
 
         using var renewed = await client.PostAsJsonAsync("/account/refresh", new { refreshToken = refresh });
         (await Data(renewed)).GetProperty("refreshToken").GetString().Should().NotBe(refresh);
@@ -102,7 +102,7 @@ public sealed partial class AccountEndpointTests
     [Fact]
     public async Task Register_IsRefused_WhenTheHostSectionClosesSignUpTheCodeOpened()
     {
-        await using var app = await StartAsync(new Dictionary<string, string?> { ["Identity:SignUp:Enabled"] = "false" });
+        await using var app = await StartAsync(new Dictionary<string, string?> { ["Identity:SignUp:IsEnabled"] = "false" });
         var client = app.Server.CreateClient();
 
         using var refused = await client.PostAsJsonAsync("/account/register", new { email = "ned@example.test", password = Password });
@@ -130,7 +130,7 @@ public sealed partial class AccountEndpointTests
         var enabled = await Data(await client.PostAsJsonAsync("/account/manage/2fa/enable", new { code = totp.ComputeCode(key) }));
         enabled.GetProperty("recoveryCodes").GetArrayLength().Should().Be(10);
         var status = await Data(await client.GetAsync("/account/manage/2fa"));
-        status.GetProperty("enabled").GetBoolean().Should().BeTrue();
+        status.GetProperty("isEnabled").GetBoolean().Should().BeTrue();
 
         client.DefaultRequestHeaders.Authorization = null;
         using var withoutCode = await client.PostAsJsonAsync("/account/login", new { login = "xia@example.test", password = Password });
@@ -177,7 +177,7 @@ public sealed partial class AccountEndpointTests
         challenge.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         var problem = await Problem(challenge);
         problem.GetProperty("twoFactorMethod").GetString().Should().Be("email");
-        problem.GetProperty("codeSent").GetBoolean().Should().BeTrue();
+        problem.GetProperty("isCodeSent").GetBoolean().Should().BeTrue();
         problem.GetProperty("twoFactorMethods").EnumerateArray().Select(m => m.GetString()).Should().Equal("email");
 
         var loginCode = CodeOf(app.Mail.Sent.Last());
@@ -250,7 +250,7 @@ public sealed partial class AccountEndpointTests
         var access = (await Data(linked)).GetProperty("accessToken").GetString();
         using var info = new HttpRequestMessage(HttpMethod.Get, "/account/manage/info");
         info.Headers.Authorization = new AuthenticationHeaderValue("Bearer", access);
-        (await Data(await client.SendAsync(info))).GetProperty("emailConfirmed").GetBoolean().Should().BeTrue("the link proved the address");
+        (await Data(await client.SendAsync(info))).GetProperty("isEmailConfirmed").GetBoolean().Should().BeTrue("the link proved the address");
 
         using var replayed = await client.PostAsJsonAsync("/account/email-sign-in", new { email = "lea@example.test", token });
         replayed.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -387,7 +387,7 @@ public sealed partial class AccountEndpointTests
                 o.Origins.Add("https://app.test");
             })
             .AddSignIn()
-            .AddAccountEndpoints(o => o.Enabled = true);
+            .AddAccountEndpoints(o => o.IsEnabled = true);
         builder.Services.AddJwtBearerAuthentication(o => { o.Issuer = "tests"; o.Audience = "tests"; o.SymmetricKey = JwtKey; });
         builder.Services.AddJwtTokenIssuance(o => { o.Issuer = "tests"; o.Audience = "tests"; o.SigningKey = JwtKey; });
         builder.Services.AddAuthorization();

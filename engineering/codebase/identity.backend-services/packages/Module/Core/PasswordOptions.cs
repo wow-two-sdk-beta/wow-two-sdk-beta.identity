@@ -10,20 +10,20 @@ public sealed record PasswordOptions
     public int MaxLength { get; set; } = 128;
 
     /// <summary>Require an ASCII digit. Default false.</summary>
-    public bool RequireDigit { get; set; }
+    public bool IsDigitRequired { get; set; }
 
     /// <summary>Require a lowercase letter. Default false.</summary>
-    public bool RequireLowercase { get; set; }
+    public bool IsLowercaseRequired { get; set; }
 
     /// <summary>Require an uppercase letter. Default false.</summary>
-    public bool RequireUppercase { get; set; }
+    public bool IsUppercaseRequired { get; set; }
 
     /// <summary>Require a character that is neither a letter nor a digit. Default false.</summary>
-    public bool RequireNonAlphanumeric { get; set; }
+    public bool IsNonAlphanumericRequired { get; set; }
 
     /// <summary>Minimum number of distinct characters. Default 1.</summary>
     public int RequiredUniqueChars { get; set; } = 1;
 
     /// <summary>Reject a password equal to the account's user name or email, ignoring case. Default true.</summary>
-    public bool RejectAccountIdentifiers { get; set; } = true;
+    public bool IsAccountIdentifierRejected { get; set; } = true;
 }

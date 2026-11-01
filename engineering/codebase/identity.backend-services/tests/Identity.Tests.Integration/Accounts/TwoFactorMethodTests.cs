@@ -26,7 +26,7 @@ public sealed class TwoFactorMethodTests
         var services = scope.ServiceProvider;
         var methods = services.GetRequiredService<UserTwoFactorMethodService>();
         var signIn = services.GetRequiredService<SignInService>();
-        var user = await CreateUserAsync(services, "sami", phoneConfirmed: true);
+        var user = await CreateUserAsync(services, "sami", isPhoneConfirmed: true);
 
         (await methods.GetAvailableMethodsAsync(user)).Should().Equal("sms");
         (await methods.SendCodeAsync(user, "email")).Status.Should().Be(TwoFactorCodeStatus.Unavailable);
@@ -42,8 +42,8 @@ public sealed class TwoFactorMethodTests
         (await methods.SendCodeAsync(user, "sms")).Status.Should().Be(TwoFactorCodeStatus.RateLimited);
 
         (await methods.EnableAsync(user, "sms", Wrong(envelope.Code))).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidTwoFactorCode);
-        (await methods.EnableAsync(user, "sms", envelope.Code)).Succeeded.Should().BeTrue();
-        user.TwoFactorEnabled.Should().BeTrue();
+        (await methods.EnableAsync(user, "sms", envelope.Code)).IsSuccess.Should().BeTrue();
+        user.IsTwoFactorEnabled.Should().BeTrue();
         (await methods.GetPreferredMethodAsync(user)).Should().Be("sms");
 
         var challenge = await signIn.PasswordSignInAsync("sami", Password);
@@ -54,7 +54,7 @@ public sealed class TwoFactorMethodTests
 
         var code = channels.Last("sms").Code;
         (await signIn.TwoFactorSignInAsync(user.Id, challenge.TwoFactorTicket!, "sms", Wrong(code))).Status.Should().Be(SignInStatus.Failed);
-        (await signIn.TwoFactorSignInAsync(user.Id, challenge.TwoFactorTicket!, "sms", code)).Succeeded.Should().BeTrue();
+        (await signIn.TwoFactorSignInAsync(user.Id, challenge.TwoFactorTicket!, "sms", code)).IsSuccess.Should().BeTrue();
         (await signIn.TwoFactorSignInAsync(user.Id, challenge.TwoFactorTicket!, "sms", code)).Status.Should().Be(SignInStatus.Failed);
     }
 
@@ -66,7 +66,7 @@ public sealed class TwoFactorMethodTests
         await using var scope = host.Scope();
         var services = scope.ServiceProvider;
         var methods = services.GetRequiredService<UserTwoFactorMethodService>();
-        var user = await CreateUserAsync(services, "emil", phoneConfirmed: true, emailConfirmed: true);
+        var user = await CreateUserAsync(services, "emil", isPhoneConfirmed: true, isEmailConfirmed: true);
 
         (await methods.GetAvailableMethodsAsync(user)).Should().BeEquivalentTo("sms", "email");
         (await methods.SendCodeAsync(user, "EMAIL")).Status.Should().Be(TwoFactorCodeStatus.Sent);
@@ -78,15 +78,15 @@ public sealed class TwoFactorMethodTests
         envelope.Lifetime.Should().Be(TimeSpan.FromMinutes(10));
 
         var typed = $"{envelope.Code[..4].ToLowerInvariant()}-{envelope.Code[4..]}";
-        (await methods.EnableAsync(user, "email", typed)).Succeeded.Should().BeTrue();
+        (await methods.EnableAsync(user, "email", typed)).IsSuccess.Should().BeTrue();
         (await methods.GetPreferredMethodAsync(user)).Should().Be("email");
 
         (await methods.SetPreferredMethodAsync(user, "whatsapp")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.TwoFactorMethodUnavailable);
-        (await methods.SetPreferredMethodAsync(user, "sms")).Succeeded.Should().BeTrue();
+        (await methods.SetPreferredMethodAsync(user, "sms")).IsSuccess.Should().BeTrue();
         (await methods.GetPreferredMethodAsync(user)).Should().Be("sms");
 
         await services.GetRequiredService<UserTwoFactorService>().DisableAsync(user);
-        user.TwoFactorEnabled.Should().BeFalse();
+        user.IsTwoFactorEnabled.Should().BeFalse();
         (await methods.GetPreferredMethodAsync(user)).Should().Be("sms", "the stored choice is gone, so the first available method leads");
     }
 
@@ -100,7 +100,7 @@ public sealed class TwoFactorMethodTests
             .AddSignIn());
         await using var scope = host.Scope();
         var methods = scope.ServiceProvider.GetRequiredService<UserTwoFactorMethodService>();
-        var user = await CreateUserAsync(scope.ServiceProvider, "wale", phoneConfirmed: true);
+        var user = await CreateUserAsync(scope.ServiceProvider, "wale", isPhoneConfirmed: true);
 
         (await methods.GetAvailableMethodsAsync(user)).Should().BeEmpty();
         (await methods.SendCodeAsync(user, "whatsapp")).Status.Should().Be(TwoFactorCodeStatus.Unavailable);
@@ -130,10 +130,10 @@ public sealed class TwoFactorMethodTests
             services.AddKeyedSingleton<IOtpDeliveryHandler>(OtpChannelNameConstants.Email, channels.For("email"));
         });
 
-    private static async Task<IdentityUser> CreateUserAsync(IServiceProvider services, string name, bool phoneConfirmed = false, bool emailConfirmed = false)
+    private static async Task<IdentityUser> CreateUserAsync(IServiceProvider services, string name, bool isPhoneConfirmed = false, bool isEmailConfirmed = false)
     {
-        var user = new IdentityUser { UserName = name, Email = $"{name}@example.test", PhoneNumber = Phone, PhoneNumberConfirmed = phoneConfirmed, EmailConfirmed = emailConfirmed };
-        (await services.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(user, Password)).Succeeded.Should().BeTrue();
+        var user = new IdentityUser { UserName = name, Email = $"{name}@example.test", PhoneNumber = Phone, IsPhoneNumberConfirmed = isPhoneConfirmed, IsEmailConfirmed = isEmailConfirmed };
+        (await services.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(user, Password)).IsSuccess.Should().BeTrue();
         return user;
     }
 
@@ -153,7 +153,7 @@ public sealed class TwoFactorMethodTests
             public Task<OtpDeliveryResult> SendAsync(OtpDeliveryEnvelopeModel envelope, CancellationToken cancellationToken = default)
             {
                 owner._sent.Add((channel, envelope));
-                return Task.FromResult(new OtpDeliveryResult { Success = true });
+                return Task.FromResult(new OtpDeliveryResult { IsSuccess = true });
             }
         }
     }

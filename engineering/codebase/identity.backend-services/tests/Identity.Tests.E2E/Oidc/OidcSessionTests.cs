@@ -27,7 +27,7 @@ public sealed class OidcSessionTests(OidcHostFixture fixture)
         using var client = fixture.Server.CreateClient();
         var userId = await client.RegisterAndSignInAsync($"sid-{Guid.NewGuid():N}@example.test", Password);
         var session = (await SessionsAsync(client)).Should().ContainSingle().Subject;
-        session.GetProperty("current").GetBoolean().Should().BeTrue();
+        session.GetProperty("isCurrent").GetBoolean().Should().BeTrue();
         var sid = session.GetProperty("id").GetString();
 
         var tokens = await client.SignInToAppAsync();

@@ -5,7 +5,7 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 
 | File | Role |
 |---|---|
-| `deploy.yml` | descriptor 2: the product's `name` and `description`; one service, `identity` (`/health`, 256 MB, `needs: [postgres]`, typed keys: `DatabaseSettings:ConnectionString` filled from the target's database, the OIDC issuer, the first signing and encryption certificates and the first ring certificate required as vault secrets, `Ephemeral` and `Identity:SignUp:Enabled` defaulting to `false`; no volume); sites `app` (public, primary) and `console` (private), both at `/` and `/api`; `dotnetEnvironment: true`, the `verify` dev check and one `migrate:` item |
+| `deploy.yml` | descriptor 2: the product's `name` and `description`; one service, `identity` (`/health`, 256 MB, `needs: [postgres]`, typed keys: `DatabaseSettings:ConnectionString` filled from the target's database, the OIDC issuer, the first signing and encryption certificates and the first ring certificate required as vault secrets, `Identity:Server:Keys:IsEphemeral` and `Identity:SignUp:IsEnabled` defaulting to `false`; no volume); sites `app` (public, primary) and `console` (private), both at `/` and `/api`; `dotnetEnvironment: true`, the `verify` dev check and one `migrate:` item |
 | `Dockerfile` | three stages: build the frontend workspace (`fe-identity`, then `apps/web`), publish `service/Identity.Api` with its packages and the pages in `wwwroot`, run on `aspnet` with `curl` |
 | `docker-compose.yml` | local verification: a PostgreSQL 18 service (its volume at `/var/lib/postgresql`, as 18 refuses the old `data` mount), `identity-keys` makes throwaway OIDC and ring certificates with the image's `keys generate` once, `identity-migrate` runs its `migrate` command, then the image serves on `http://127.0.0.1:8389`; every image runs under an init process |
 
@@ -51,12 +51,12 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 | `Identity:Server:Keys:Signing:N` | `:0`, secret | a signing certificate's PEM bundle; a rotation adds `:1` |
 | `Identity:Server:Keys:Encryption:N` | `:0`, secret | an encryption certificate's PEM bundle; an old one stays until its refresh tokens expire |
 | `Identity:DataProtection:Certificates:N` | `:0`, secret | the Data Protection ring's certificate bundle; the ring itself lives in the database, wrapped by it |
-| `Identity:Server:Keys:Ephemeral` | — | `false` by the descriptor's default; a deployed boot refuses `true` |
+| `Identity:Server:Keys:IsEphemeral` | — | `false` by the descriptor's default; a deployed boot refuses `true` |
 | `Identity:Server:Clients:N:{ClientId,ClientSecret,RedirectUris:M,PostLogoutRedirectUris:M,Audience,PermissionNamespace}` | per app | one confidential client; the secret ends in `Secret`, so the vault keeps it |
 | `Identity:Server:{SignInPath,AuthorizationCodeLifetime,AccessTokenLifetime,IdentityTokenLifetime,RefreshTokenLifetime}` | — | defaults `/sign-in`, 60 s, 10 min, 5 min, 12 h |
 | `Identity:Sessions:{Lifetime,ActivityInterval}` | — | defaults 12 h absolute (the cookie's), 5 min |
 | `Identity:SignInLog:{RetentionDays,CleanupInterval}` | — | defaults 180 days, 1 h |
-| `Identity:SignUp:Enabled` | — | `false` by the descriptor's default: `POST /api/account/register` answers `403` and creates nothing, and an admin adds every account; an environment that takes self sign-up sets `true` in Wheelhouse's console |
+| `Identity:SignUp:IsEnabled` | — | `false` by the descriptor's default: `POST /api/account/register` answers `403` and creates nothing, and an admin adds every account; an environment that takes self sign-up sets `true` in Wheelhouse's console |
 
 - Each certificate value is one PEM bundle (certificate, then its unencrypted PKCS#8 private key) from `keys generate`;
   `deploy.yml` declares the first of each `secret: true`, so the value lives in Wheelhouse's vault and its settings

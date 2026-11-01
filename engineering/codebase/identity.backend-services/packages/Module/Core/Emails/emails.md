@@ -19,4 +19,4 @@ await emails.ChangeEmailAsync(user, "new@x.io", change);            // confirms 
 
 - A confirmation token dies when the address changes; a change token only moves to the address it names.
 - `SetEmailAsync` sets an unconfirmed address directly for administration or sign-up corrections.
-- Uniqueness follows `IdentityCoreOptions.User.RequireUniqueEmail`; the account's own address never counts as taken.
+- Uniqueness follows `IdentityCoreOptions.User.IsUniqueEmailRequired`; the account's own address never counts as taken.

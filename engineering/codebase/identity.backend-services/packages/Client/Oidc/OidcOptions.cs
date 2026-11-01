@@ -21,5 +21,5 @@ public sealed record OidcOptions
     public string[] Scopes { get; set; } = ["openid", "profile", "email"];
 
     /// <summary>Save tokens in the auth ticket. Default <c>true</c>.</summary>
-    public bool SaveTokens { get; set; } = true;
+    public bool IsTokenSavingEnabled { get; set; } = true;
 }

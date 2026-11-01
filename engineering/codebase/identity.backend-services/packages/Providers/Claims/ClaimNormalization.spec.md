@@ -42,7 +42,7 @@ public IActionResult Me() => Ok(new
 
 | Member | Type | Default | Notes |
 |---|---|---|---|
-| `SynthesizeAvatars` | `bool` | `true` | Honor a spec's avatar synthesizer when no avatar claim is present. |
+| `IsAvatarSynthesisEnabled` | `bool` | `true` | Honor a spec's avatar synthesizer when no avatar claim is present. |
 | `Specs` | `IDictionary<string, ClaimProviderSpec>` | built-ins | Case-insensitive scheme → spec map, pre-seeded. |
 | `AddProvider(string scheme, ClaimProviderSpec spec)` | `ClaimNormalizationOptions` | — | Add/override a spec; chainable. |
 

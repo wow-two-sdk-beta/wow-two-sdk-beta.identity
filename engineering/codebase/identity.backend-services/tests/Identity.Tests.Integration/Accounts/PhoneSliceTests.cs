@@ -20,14 +20,14 @@ public sealed class PhoneSliceTests
         var phones = scope.ServiceProvider.GetRequiredService<UserPhoneService>();
         var tracked = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id))!;
 
-        (await phones.SetPhoneNumberAsync(tracked, Phone)).Succeeded.Should().BeTrue();
+        (await phones.SetPhoneNumberAsync(tracked, Phone)).IsSuccess.Should().BeTrue();
         (await phones.CreateSignInCodeAsync(Phone)).Should().BeNull();
 
         var confirmation = await phones.CreateConfirmationCodeAsync(tracked);
         (await phones.ConfirmPhoneNumberAsync(tracked, "000000" == confirmation.Code ? "111111" : "000000")).Errors
             .Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidPhoneCode);
-        (await phones.ConfirmPhoneNumberAsync(tracked, confirmation.Code!)).Succeeded.Should().BeTrue();
-        (await host.ReloadAsync(user.Id)).PhoneNumberConfirmed.Should().BeTrue();
+        (await phones.ConfirmPhoneNumberAsync(tracked, confirmation.Code!)).IsSuccess.Should().BeTrue();
+        (await host.ReloadAsync(user.Id)).IsPhoneNumberConfirmed.Should().BeTrue();
 
         var signInCode = await phones.CreateSignInCodeAsync(Phone);
         signInCode!.Code.Should().NotBeNullOrEmpty();

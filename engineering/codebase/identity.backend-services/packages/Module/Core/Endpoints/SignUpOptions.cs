@@ -12,5 +12,5 @@ public sealed record SignUpOptions
     public const string SectionName = "Identity:SignUp";
 
     /// <summary>Gets or sets whether <c>POST register</c> creates accounts for anyone who asks. Default <c>false</c>.</summary>
-    public bool Enabled { get; set; }
+    public bool IsEnabled { get; set; }
 }

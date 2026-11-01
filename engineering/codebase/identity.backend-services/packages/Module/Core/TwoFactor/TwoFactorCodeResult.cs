@@ -16,5 +16,5 @@ public sealed record TwoFactorCodeResult
     public string? FailureReason { get; init; }
 
     /// <summary>Whether the code went out.</summary>
-    public bool Sent => Status == TwoFactorCodeStatus.Sent;
+    public bool IsSent => Status == TwoFactorCodeStatus.Sent;
 }

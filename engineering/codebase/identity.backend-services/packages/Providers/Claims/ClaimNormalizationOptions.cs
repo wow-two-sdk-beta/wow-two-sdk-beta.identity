@@ -4,7 +4,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Claims;
 public sealed record ClaimNormalizationOptions
 {
     /// <summary>Honor a spec's avatar synthesizer when no ready avatar claim is present. Default <c>true</c>.</summary>
-    public bool SynthesizeAvatars { get; set; } = true;
+    public bool IsAvatarSynthesisEnabled { get; set; } = true;
 
     /// <summary>Scheme → spec map (case-insensitive), pre-populated with every built-in provider.</summary>
     public IDictionary<string, ClaimProviderSpec> Specs { get; } = ClaimProviderSpecFactory.CreateDefault();

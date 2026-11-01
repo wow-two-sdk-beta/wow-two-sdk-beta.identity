@@ -26,9 +26,9 @@ public sealed class TelegramGatewayOtpDeliveryHandler(
     {
         ArgumentNullException.ThrowIfNull(envelope);
         if (string.IsNullOrWhiteSpace(envelope.DeliveryAddress))
-            return new OtpDeliveryResult { Success = false, FailureReason = "invalid_phone_number" };
+            return new OtpDeliveryResult { IsSuccess = false, FailureReason = "invalid_phone_number" };
         if (envelope.Code.Length is < 4 or > 8 || !envelope.Code.All(char.IsAsciiDigit))
-            return new OtpDeliveryResult { Success = false, FailureReason = "telegram_gateway_needs_4_to_8_digits" };
+            return new OtpDeliveryResult { IsSuccess = false, FailureReason = "telegram_gateway_needs_4_to_8_digits" };
 
         var ttl = Math.Clamp((int)(envelope.Lifetime ?? otpOptions.CodeLifetime).TotalSeconds, 30, 3600);
         var payload = new JsonObject
@@ -50,20 +50,20 @@ public sealed class TelegramGatewayOtpDeliveryHandler(
 
             using var response = await http.SendAsync(request, cancellationToken);
             var body = await response.Content.ReadFromJsonAsync<GatewayResponse>(cancellationToken);
-            return body is { Ok: true }
-                ? new OtpDeliveryResult { Success = true }
-                : new OtpDeliveryResult { Success = false, FailureReason = $"telegram_gateway: {body?.Error ?? ((int)response.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture)}" };
+            return body is { IsOk: true }
+                ? new OtpDeliveryResult { IsSuccess = true }
+                : new OtpDeliveryResult { IsSuccess = false, FailureReason = $"telegram_gateway: {body?.Error ?? ((int)response.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture)}" };
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            return new OtpDeliveryResult { Success = false, FailureReason = exception.Message };
+            return new OtpDeliveryResult { IsSuccess = false, FailureReason = exception.Message };
         }
     }
 
     private sealed record GatewayResponse
     {
         [JsonPropertyName("ok")]
-        public bool Ok { get; init; }
+        public bool IsOk { get; init; }
 
         [JsonPropertyName("error")]
         public string? Error { get; init; }

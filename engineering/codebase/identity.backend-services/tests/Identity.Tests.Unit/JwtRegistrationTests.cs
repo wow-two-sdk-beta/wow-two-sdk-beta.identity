@@ -73,7 +73,7 @@ public sealed class JwtRegistrationTests
         {
             options.Algorithm = SecurityAlgorithms.RsaSha256;
             options.MetadataAddress = new Uri("http://localhost:8080/.well-known/openid-configuration");
-            options.AllowInsecureMetadataForDevelopment = true;
+            options.IsInsecureMetadataAllowedInDevelopment = true;
         });
         var bearer = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
             .Get(JwtBearerDefaults.AuthenticationScheme);

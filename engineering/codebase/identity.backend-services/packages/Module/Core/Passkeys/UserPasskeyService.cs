@@ -163,7 +163,7 @@ public sealed class UserPasskeyService(
     }
 
     private UserVerificationRequirement Verification
-        => options.CurrentValue.RequireUserVerification ? UserVerificationRequirement.Required : UserVerificationRequirement.Preferred;
+        => options.CurrentValue.IsUserVerificationRequired ? UserVerificationRequirement.Required : UserVerificationRequirement.Preferred;
 
     private Fido2 Fido()
     {

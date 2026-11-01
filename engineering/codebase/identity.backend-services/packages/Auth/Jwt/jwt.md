@@ -38,4 +38,4 @@ builder.Services.AddJwtBearerAuthentication(o =>
 });
 ```
 
-Configure exactly one of `SymmetricKey` and `MetadataAddress`. Remote metadata requires HTTPS. A local HTTP identity provider requires the explicit `AllowInsecureMetadataForDevelopment` escape.
+Configure exactly one of `SymmetricKey` and `MetadataAddress`. Remote metadata requires HTTPS. A local HTTP identity provider requires the explicit `IsInsecureMetadataAllowedInDevelopment` escape.

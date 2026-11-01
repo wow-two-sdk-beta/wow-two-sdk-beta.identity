@@ -20,4 +20,4 @@ services.AddJwtBearerAuthentication(o => …);     // OnTokenValidated → Fail
 - The stored stamp is cached per host for `ValidationInterval`; revocation reaches other hosts within that interval.
   Zero reads the user on every request.
 - A principal without a user id (API key, guest) passes; one with an id but no stamp passes unless
-  `RejectPrincipalsWithoutStamp` is set.
+  `IsStamplessPrincipalRejected` is set.

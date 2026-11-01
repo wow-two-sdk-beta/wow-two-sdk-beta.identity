@@ -13,5 +13,5 @@ public sealed record RefreshTokenResult
     public RefreshTokenModel? Token { get; init; }
 
     /// <summary>Whether the redemption succeeded.</summary>
-    public bool Succeeded => Status == RefreshTokenStatus.Succeeded;
+    public bool IsSuccess => Status == RefreshTokenStatus.Succeeded;
 }

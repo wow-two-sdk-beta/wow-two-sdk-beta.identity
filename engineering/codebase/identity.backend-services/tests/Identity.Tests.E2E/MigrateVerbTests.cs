@@ -40,7 +40,7 @@ public sealed class MigrateVerbTests : IAsyncLifetime
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["DatabaseSettings:ConnectionString"] = _connectionString,
-            ["Identity:Server:Keys:Ephemeral"] = "true",
+            ["Identity:Server:Keys:IsEphemeral"] = "true",
             ["Logging:LogLevel:Default"] = "Warning",
         });
         builder.Configure();

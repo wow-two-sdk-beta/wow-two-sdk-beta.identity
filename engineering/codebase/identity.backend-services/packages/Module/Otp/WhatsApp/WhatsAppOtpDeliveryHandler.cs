@@ -23,11 +23,11 @@ public sealed class WhatsAppOtpDeliveryHandler(
     {
         ArgumentNullException.ThrowIfNull(envelope);
         if (string.IsNullOrWhiteSpace(envelope.DeliveryAddress))
-            return new OtpDeliveryResult { Success = false, FailureReason = "invalid_phone_number" };
+            return new OtpDeliveryResult { IsSuccess = false, FailureReason = "invalid_phone_number" };
 
         var brokerName = envelope.Broker ?? whatsAppOptions.Broker;
         if (brokers.Create(brokerName) is not { } whatsApp)
-            return new OtpDeliveryResult { Success = false, FailureReason = $"whatsapp_broker_not_registered: {brokerName}" };
+            return new OtpDeliveryResult { IsSuccess = false, FailureReason = $"whatsapp_broker_not_registered: {brokerName}" };
 
         var message = whatsAppOptions.TemplateName is { Length: > 0 } template
             ? new WhatsAppMessage
@@ -38,13 +38,13 @@ public sealed class WhatsAppOtpDeliveryHandler(
                     Name = template,
                     LanguageCode = LanguageOf(envelope.Culture),
                     BodyParameters = [envelope.Code],
-                    ButtonParameter = whatsAppOptions.CopyCodeButton ? envelope.Code : null,
+                    ButtonParameter = whatsAppOptions.HasCopyCodeButton ? envelope.Code : null,
                 },
             }
             : new WhatsAppMessage { To = envelope.DeliveryAddress, Text = envelope.Text ?? FallbackText(envelope) };
 
         var result = await whatsApp.SendAsync(message, cancellationToken);
-        return new OtpDeliveryResult { Success = result.Success, FailureReason = result.FailureReason };
+        return new OtpDeliveryResult { IsSuccess = result.Success, FailureReason = result.FailureReason };
     }
 
     private string LanguageOf(string? culture)

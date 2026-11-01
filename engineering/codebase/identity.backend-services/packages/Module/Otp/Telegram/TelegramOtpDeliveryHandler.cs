@@ -37,7 +37,7 @@ public sealed class TelegramOtpDeliveryHandler : IOtpDeliveryHandler
 
         if (!long.TryParse(envelope.DeliveryAddress, NumberStyles.Integer, CultureInfo.InvariantCulture, out var chatId))
         {
-            return new OtpDeliveryResult { Success = false, FailureReason = "invalid_chat_id" };
+            return new OtpDeliveryResult { IsSuccess = false, FailureReason = "invalid_chat_id" };
         }
 
         var text = envelope.Text ?? FallbackText(envelope);
@@ -45,11 +45,11 @@ public sealed class TelegramOtpDeliveryHandler : IOtpDeliveryHandler
         try
         {
             await _botClient.SendMessage(chatId, text, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return new OtpDeliveryResult { Success = true };
+            return new OtpDeliveryResult { IsSuccess = true };
         }
         catch (RequestException exception)
         {
-            return new OtpDeliveryResult { Success = false, FailureReason = exception.Message };
+            return new OtpDeliveryResult { IsSuccess = false, FailureReason = exception.Message };
         }
     }
 

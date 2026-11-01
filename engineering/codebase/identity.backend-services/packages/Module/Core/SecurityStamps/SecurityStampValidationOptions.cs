@@ -7,5 +7,5 @@ public sealed record SecurityStampValidationOptions
     public TimeSpan ValidationInterval { get; set; } = TimeSpan.FromMinutes(1);
 
     /// <summary>Reject a principal that carries a user id but no stamp claim. Default false, for principals issued elsewhere.</summary>
-    public bool RejectPrincipalsWithoutStamp { get; set; }
+    public bool IsStamplessPrincipalRejected { get; set; }
 }

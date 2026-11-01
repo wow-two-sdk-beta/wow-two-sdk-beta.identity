@@ -93,7 +93,7 @@ public sealed class SignInService
         ArgumentNullException.ThrowIfNull(password);
 
         var user = await _accounts.FindByNameAsync(login, cancellationToken);
-        if (user is null && _options.AllowEmailLogin && login.Contains('@', StringComparison.Ordinal))
+        if (user is null && _options.IsEmailLoginAllowed && login.Contains('@', StringComparison.Ordinal))
             user = await _accounts.FindByEmailAsync(login, cancellationToken);
 
         if (user is not null)
@@ -200,8 +200,8 @@ public sealed class SignInService
         ArgumentNullException.ThrowIfNull(user);
         if (_lockout?.IsLockedOut(user) == true)
             return LockedOutResult;
-        if ((_options.RequireConfirmedEmail && !user.EmailConfirmed)
-            || (_options.RequireConfirmedPhoneNumber && !user.PhoneNumberConfirmed))
+        if ((_options.IsConfirmedEmailRequired && !user.IsEmailConfirmed)
+            || (_options.IsConfirmedPhoneNumberRequired && !user.IsPhoneNumberConfirmed))
             return new SignInResult { Status = SignInStatus.NotAllowed, UserId = IdOf(user) };
 
         return new SignInResult
@@ -282,7 +282,7 @@ public sealed class SignInService
             userId,
             ticket,
             SignInMethodConstants.RecoveryCode,
-            async (factor, user) => (await factor.RedeemRecoveryCodeAsync(user, recoveryCode, cancellationToken)).Succeeded,
+            async (factor, user) => (await factor.RedeemRecoveryCodeAsync(user, recoveryCode, cancellationToken)).IsSuccess,
             cancellationToken);
 
     private async Task<SignInResult> SecondFactorSignInAsync(
@@ -316,7 +316,7 @@ public sealed class SignInService
         if (UnmetPrecondition(user) is not null)
             return new SignInResult { Status = SignInStatus.NotAllowed, UserId = IdOf(user) };
 
-        if (user.TwoFactorEnabled)
+        if (user.IsTwoFactorEnabled)
         {
             return new SignInResult
             {
@@ -349,8 +349,8 @@ public sealed class SignInService
 
     /// <summary>The sign-in precondition <paramref name="user"/> misses, as a log reason; null when every one is met.</summary>
     private string? UnmetPrecondition(IdentityUser user)
-        => _options.RequireConfirmedEmail && !user.EmailConfirmed ? SignInReasonConstants.UnconfirmedEmail
-            : _options.RequireConfirmedPhoneNumber && !user.PhoneNumberConfirmed ? SignInReasonConstants.UnconfirmedPhone
+        => _options.IsConfirmedEmailRequired && !user.IsEmailConfirmed ? SignInReasonConstants.UnconfirmedEmail
+            : _options.IsConfirmedPhoneNumberRequired && !user.IsPhoneNumberConfirmed ? SignInReasonConstants.UnconfirmedPhone
             : null;
 
     /// <summary>Records the attempt in the sign-in log, when registered, and returns the result carrying the row's id.</summary>

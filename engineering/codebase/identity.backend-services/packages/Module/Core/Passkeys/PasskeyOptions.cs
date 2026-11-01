@@ -20,5 +20,5 @@ public sealed record PasskeyOptions
     public TimeSpan CeremonyLifetime { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>Gets or sets whether the authenticator must verify the user (PIN, biometrics); off prefers it. Default false.</summary>
-    public bool RequireUserVerification { get; set; }
+    public bool IsUserVerificationRequired { get; set; }
 }

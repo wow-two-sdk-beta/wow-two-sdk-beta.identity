@@ -13,5 +13,5 @@ public sealed record BreachedPasswordOptions
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(3);
 
     /// <summary>Accept the password when the corpus is unreachable, logging a warning. Default true.</summary>
-    public bool FailOpen { get; set; } = true;
+    public bool IsFailOpen { get; set; } = true;
 }

@@ -19,5 +19,5 @@ public sealed class ApiKeyAccessGateOptions
     /// Turn it off behind a reverse proxy on the same machine unless forwarded headers restore the client address —
     /// otherwise every proxied request looks local.
     /// </remarks>
-    public bool AllowLocalWithoutKey { get; set; } = true;
+    public bool IsLocalAllowedWithoutKey { get; set; } = true;
 }

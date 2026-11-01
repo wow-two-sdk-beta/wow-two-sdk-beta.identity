@@ -76,7 +76,7 @@ public sealed class ClaimMapper : IClaimsTransformation
             return direct;
         }
 
-        if (_options.SynthesizeAvatars && spec.AvatarSynthesizer is not null)
+        if (_options.IsAvatarSynthesisEnabled && spec.AvatarSynthesizer is not null)
         {
             return spec.AvatarSynthesizer(new AvatarSynthesisContext { Principal = principal, UserId = userId, Username = username });
         }

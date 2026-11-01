@@ -63,21 +63,21 @@ public sealed class UserEmailSignInService(
             return null;
 
         var created = await otp.CreateAsync(Subject(user), scope, spec, cancellationToken);
-        return created.Success ? (user, created) : null;
+        return created.IsSuccess ? (user, created) : null;
     }
 
     private async Task<IdentityUser?> VerifyAsync(string email, string secret, string scope, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(secret)
             || await accounts.FindByEmailAsync(email.Trim(), cancellationToken) is not { } user
-            || !(await otp.VerifyAsync(Subject(user), secret.Trim(), scope, cancellationToken)).Success)
+            || !(await otp.VerifyAsync(Subject(user), secret.Trim(), scope, cancellationToken)).IsSuccess)
         {
             return null;
         }
 
-        if (options.CurrentValue.ConfirmEmail && !user.EmailConfirmed)
+        if (options.CurrentValue.IsEmailConfirmedOnSignIn && !user.IsEmailConfirmed)
         {
-            user.EmailConfirmed = true;
+            user.IsEmailConfirmed = true;
             await users.UpdateAsync(user, cancellationToken);
         }
 

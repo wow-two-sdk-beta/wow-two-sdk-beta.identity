@@ -15,7 +15,7 @@ public sealed class RoleService(IRoleRepository repository, TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(role);
         var check = await CheckNameAsync(role, role.Name, cancellationToken);
-        if (!check.Succeeded)
+        if (!check.IsSuccess)
             return check;
 
         if (role.Id == Guid.Empty)
@@ -33,7 +33,7 @@ public sealed class RoleService(IRoleRepository repository, TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(role);
         var check = await CheckNameAsync(role, name, cancellationToken);
-        if (!check.Succeeded)
+        if (!check.IsSuccess)
             return check;
 
         role.Name = name;

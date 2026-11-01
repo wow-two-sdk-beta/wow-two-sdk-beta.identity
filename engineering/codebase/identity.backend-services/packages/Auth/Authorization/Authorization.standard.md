@@ -15,7 +15,7 @@ Provider-agnostic authorization primitives for self-hosted APIs: a claim-keyed *
 - `AddPrincipalAllowlist` **MUST** bind `AllowlistOptions` and register `AllowlistAuthorizationHandler` as an `IAuthorizationHandler`.
 - The handler **MUST** succeed when `Allowed` is empty (OPEN — any authenticated principal passes; single-admin default).
 - When `Allowed` is non-empty, the handler **MUST** succeed only if the principal carries a `ClaimType` claim whose value is in `Allowed`, and **MUST NOT** succeed otherwise.
-- The handler **MUST** respect `CaseInsensitive`: `true` ⇒ `OrdinalIgnoreCase`; `false` ⇒ ordinal.
+- The handler **MUST** respect `IsCaseInsensitive`: `true` ⇒ `OrdinalIgnoreCase`; `false` ⇒ ordinal.
 - The handler **MUST NOT** assert authentication itself — that is the composing policy's `RequireAuthenticatedUser`.
 - The allowlist **SHOULD** key on the normalized username claim (`wt:username`), independent of the provider's raw claim shape.
 

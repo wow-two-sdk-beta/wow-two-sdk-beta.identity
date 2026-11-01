@@ -43,10 +43,10 @@ public sealed class RolesAndSignInTests
         var claims = scope.ServiceProvider.GetRequiredService<UserClaimService>();
 
         var admin = new IdentityRole { Name = "Admin" };
-        (await roles.CreateAsync(admin)).Succeeded.Should().BeTrue();
+        (await roles.CreateAsync(admin)).IsSuccess.Should().BeTrue();
         (await roles.CreateAsync(new IdentityRole { Name = "ADMIN" })).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.DuplicateRoleName);
         await roles.AddClaimAsync(admin, new Claim("permission", "users.write"));
-        (await memberships.AddToRoleAsync(user, "admin")).Succeeded.Should().BeTrue();
+        (await memberships.AddToRoleAsync(user, "admin")).IsSuccess.Should().BeTrue();
         (await memberships.AddToRoleAsync(user, "Admin")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.UserAlreadyInRole);
         (await memberships.AddToRoleAsync(user, "Missing")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.RoleNotFound);
         await claims.AddClaimsAsync(user, [new Claim("tier", "gold")]);
@@ -77,12 +77,12 @@ public sealed class RolesAndSignInTests
         await claims.AddClaimsAsync(tracked, [new Claim("beta", "yes")]);
 
         var stamp = tracked.SecurityStamp;
-        (await memberships.RemoveFromRoleAsync(tracked, "Editor")).Succeeded.Should().BeTrue();
+        (await memberships.RemoveFromRoleAsync(tracked, "Editor")).IsSuccess.Should().BeTrue();
         tracked.SecurityStamp.Should().NotBe(stamp);
         (await memberships.GetRolesAsync(tracked)).Should().BeEmpty();
 
         stamp = tracked.SecurityStamp;
-        (await claims.RemoveClaimAsync(tracked, new Claim("beta", "yes"))).Succeeded.Should().BeTrue();
+        (await claims.RemoveClaimAsync(tracked, new Claim("beta", "yes"))).IsSuccess.Should().BeTrue();
         tracked.SecurityStamp.Should().NotBe(stamp);
         (await claims.GetClaimsAsync(tracked)).Should().BeEmpty();
     }
@@ -94,12 +94,12 @@ public sealed class RolesAndSignInTests
         await using var scope = host.Scope();
         var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
         var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
-        (await passwords.CreateWithPasswordAsync(new IdentityUser { UserName = "pete", Email = "pete@example.test" }, Password)).Succeeded.Should().BeTrue();
+        (await passwords.CreateWithPasswordAsync(new IdentityUser { UserName = "pete", Email = "pete@example.test" }, Password)).IsSuccess.Should().BeTrue();
 
         var byName = await signIn.PasswordSignInAsync("PETE", Password);
-        byName.Succeeded.Should().BeTrue();
+        byName.IsSuccess.Should().BeTrue();
         byName.Principal!.Identity!.Name.Should().Be("pete");
-        (await signIn.PasswordSignInAsync("pete@example.test", Password)).Succeeded.Should().BeTrue();
+        (await signIn.PasswordSignInAsync("pete@example.test", Password)).IsSuccess.Should().BeTrue();
         (await signIn.PasswordSignInAsync("nobody", Password)).Status.Should().Be(SignInStatus.Failed);
 
         (await signIn.PasswordSignInAsync("pete", "wrong")).Status.Should().Be(SignInStatus.Failed);
@@ -107,13 +107,13 @@ public sealed class RolesAndSignInTests
         (await signIn.PasswordSignInAsync("pete", Password)).Status.Should().Be(SignInStatus.LockedOut);
 
         host.Time.Advance(TimeSpan.FromMinutes(5));
-        (await signIn.PasswordSignInAsync("pete", Password)).Succeeded.Should().BeTrue();
+        (await signIn.PasswordSignInAsync("pete", Password)).IsSuccess.Should().BeTrue();
     }
 
     [Fact]
     public async Task PasswordSignIn_ShouldRefuseAnUnconfirmedEmail_WhenConfirmationIsRequired()
     {
-        await using var host = CreateHost(o => o.SignIn.RequireConfirmedEmail = true);
+        await using var host = CreateHost(o => o.SignIn.IsConfirmedEmailRequired = true);
         await using var scope = host.Scope();
         var passwords = scope.ServiceProvider.GetRequiredService<UserPasswordService>();
         var user = new IdentityUser { UserName = "quinn", Email = "quinn@example.test" };
@@ -141,7 +141,7 @@ public sealed class RolesAndSignInTests
         (await twoFactor.EnableAsync(user, "000000")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.AuthenticatorNotConfigured);
         var key = await twoFactor.ResetAuthenticatorKeyAsync(user);
         (await twoFactor.GetAuthenticatorUriAsync(user))!.ToString().Should().StartWith("otpauth://totp/").And.Contain("Tests");
-        (await twoFactor.EnableAsync(user, totp.ComputeCode(Base32Encoding.ToBytes(key)))).Succeeded.Should().BeTrue();
+        (await twoFactor.EnableAsync(user, totp.ComputeCode(Base32Encoding.ToBytes(key)))).IsSuccess.Should().BeTrue();
         var recovery = await twoFactor.GenerateRecoveryCodesAsync(user);
         recovery.Should().HaveCount(10).And.OnlyContain(code => code.Length == 11 && code[5] == '-');
 
@@ -152,10 +152,10 @@ public sealed class RolesAndSignInTests
 
         (await signIn.TwoFactorSignInAsync(user.Id, "forged-ticket", totp.ComputeCode(Base32Encoding.ToBytes(key)))).Status.Should().Be(SignInStatus.Failed);
         (await signIn.TwoFactorSignInAsync(user.Id, first.TwoFactorTicket!, "000000")).Status.Should().Be(SignInStatus.Failed);
-        (await signIn.TwoFactorSignInAsync(user.Id, first.TwoFactorTicket!, totp.ComputeCode(Base32Encoding.ToBytes(key)))).Succeeded.Should().BeTrue();
+        (await signIn.TwoFactorSignInAsync(user.Id, first.TwoFactorTicket!, totp.ComputeCode(Base32Encoding.ToBytes(key)))).IsSuccess.Should().BeTrue();
 
         var second = await signIn.PasswordSignInAsync("rita", Password);
-        (await signIn.RecoveryCodeSignInAsync(user.Id, second.TwoFactorTicket!, recovery[0].ToLowerInvariant())).Succeeded.Should().BeTrue();
+        (await signIn.RecoveryCodeSignInAsync(user.Id, second.TwoFactorTicket!, recovery[0].ToLowerInvariant())).IsSuccess.Should().BeTrue();
         (await signIn.RecoveryCodeSignInAsync(user.Id, second.TwoFactorTicket!, recovery[0])).Status.Should().Be(SignInStatus.Failed);
         (await twoFactor.CountRecoveryCodesAsync(user)).Should().Be(9);
 
@@ -173,14 +173,14 @@ public sealed class RolesAndSignInTests
         var logins = scope.ServiceProvider.GetRequiredService<UserLoginService>();
         var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
 
-        (await logins.AddLoginAsync(user, "Google", "google-sub-1", "Google")).Succeeded.Should().BeTrue();
+        (await logins.AddLoginAsync(user, "Google", "google-sub-1", "Google")).IsSuccess.Should().BeTrue();
         (await logins.AddLoginAsync(other, "Google", "google-sub-1")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.LoginAlreadyAssociated);
 
         var found = await logins.FindByLoginAsync("Google", "google-sub-1");
         found!.Id.Should().Be(user.Id);
-        (await signIn.SignInAsync(found)).Succeeded.Should().BeTrue();
+        (await signIn.SignInAsync(found)).IsSuccess.Should().BeTrue();
 
-        (await logins.RemoveLoginAsync(found, "Google", "google-sub-1")).Succeeded.Should().BeTrue();
+        (await logins.RemoveLoginAsync(found, "Google", "google-sub-1")).IsSuccess.Should().BeTrue();
         (await logins.FindByLoginAsync("Google", "google-sub-1")).Should().BeNull();
     }
 
@@ -199,7 +199,7 @@ public sealed class RolesAndSignInTests
         await services.GetRequiredService<UserLoginService>().AddLoginAsync(tracked, "GitHub", "gh-1");
         await services.GetRequiredService<UserTwoFactorService>().ResetAuthenticatorKeyAsync(tracked);
 
-        (await accounts.DeleteAsync(tracked)).Succeeded.Should().BeTrue();
+        (await accounts.DeleteAsync(tracked)).IsSuccess.Should().BeTrue();
 
         var context = services.GetRequiredService<IdentityDbContext>();
         context.Set<IdentityUserRole>().Should().BeEmpty();

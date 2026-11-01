@@ -63,7 +63,7 @@ public sealed class OtpService : IOtpService
             CreatedAt = now,
             ExpiresAt = now + (spec.Lifetime ?? _options.CodeLifetime),
             Attempts = 0,
-            Consumed = false,
+            IsConsumed = false,
         };
 
         await _store.SaveAsync(record, cancellationToken).ConfigureAwait(false);

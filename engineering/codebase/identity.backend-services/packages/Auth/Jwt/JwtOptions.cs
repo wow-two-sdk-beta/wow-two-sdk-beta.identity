@@ -21,10 +21,10 @@ public sealed record JwtOptions
     public string Algorithm { get; set; } = SecurityAlgorithms.HmacSha256;
 
     /// <summary>Gets or sets whether HTTP metadata is allowed for an explicit local-development setup. Default <c>false</c>.</summary>
-    public bool AllowInsecureMetadataForDevelopment { get; set; }
+    public bool IsInsecureMetadataAllowedInDevelopment { get; set; }
 
     /// <summary>Validate token expiration. Default <c>true</c>.</summary>
-    public bool ValidateLifetime { get; set; } = true;
+    public bool IsLifetimeValidated { get; set; } = true;
 
     /// <summary>Clock skew. Default 30 seconds.</summary>
     public TimeSpan ClockSkew { get; set; } = TimeSpan.FromSeconds(30);

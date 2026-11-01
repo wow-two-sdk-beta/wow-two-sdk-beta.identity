@@ -17,17 +17,17 @@ public sealed class PasswordRulesValidator(IdentityCoreOptions options) : IUserP
             Add(errors, IdentityErrorCodeConstants.PasswordTooShort, $"Passwords must be at least {rules.MinLength} characters.", ("MinLength", rules.MinLength));
         if (password.Length > rules.MaxLength)
             Add(errors, IdentityErrorCodeConstants.PasswordTooLong, $"Passwords must be at most {rules.MaxLength} characters.", ("MaxLength", rules.MaxLength));
-        if (rules.RequireDigit && !password.Any(char.IsAsciiDigit))
+        if (rules.IsDigitRequired && !password.Any(char.IsAsciiDigit))
             Add(errors, IdentityErrorCodeConstants.PasswordRequiresDigit, "Passwords must contain a digit.");
-        if (rules.RequireLowercase && !password.Any(char.IsLower))
+        if (rules.IsLowercaseRequired && !password.Any(char.IsLower))
             Add(errors, IdentityErrorCodeConstants.PasswordRequiresLower, "Passwords must contain a lowercase letter.");
-        if (rules.RequireUppercase && !password.Any(char.IsUpper))
+        if (rules.IsUppercaseRequired && !password.Any(char.IsUpper))
             Add(errors, IdentityErrorCodeConstants.PasswordRequiresUpper, "Passwords must contain an uppercase letter.");
-        if (rules.RequireNonAlphanumeric && password.All(char.IsLetterOrDigit))
+        if (rules.IsNonAlphanumericRequired && password.All(char.IsLetterOrDigit))
             Add(errors, IdentityErrorCodeConstants.PasswordRequiresNonAlphanumeric, "Passwords must contain a symbol.");
         if (password.Distinct().Count() < rules.RequiredUniqueChars)
             Add(errors, IdentityErrorCodeConstants.PasswordRequiresUniqueChars, $"Passwords must use at least {rules.RequiredUniqueChars} different characters.", ("RequiredUniqueChars", rules.RequiredUniqueChars));
-        if (rules.RejectAccountIdentifiers && (MatchesIdentifier(password, user.UserName) || MatchesIdentifier(password, user.Email)))
+        if (rules.IsAccountIdentifierRejected && (MatchesIdentifier(password, user.UserName) || MatchesIdentifier(password, user.Email)))
             Add(errors, IdentityErrorCodeConstants.PasswordMatchesAccount, "Passwords must differ from the user name and email.");
 
         return Task.FromResult<IReadOnlyList<IdentityError>>(errors);

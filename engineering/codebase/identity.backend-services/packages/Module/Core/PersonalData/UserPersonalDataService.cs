@@ -31,10 +31,10 @@ public sealed class UserPersonalDataService(
                 Id = user.Id.ToString(),
                 user.UserName,
                 user.Email,
-                user.EmailConfirmed,
+                user.IsEmailConfirmed,
                 user.PhoneNumber,
-                user.PhoneNumberConfirmed,
-                user.TwoFactorEnabled,
+                user.IsPhoneNumberConfirmed,
+                user.IsTwoFactorEnabled,
                 user.LockoutEnd,
             },
         };
@@ -107,13 +107,13 @@ public sealed class UserPersonalDataService(
                     .SetProperty(u => u.NormalizedUserName, (string?)null)
                     .SetProperty(u => u.Email, (string?)null)
                     .SetProperty(u => u.NormalizedEmail, (string?)null)
-                    .SetProperty(u => u.EmailConfirmed, false)
+                    .SetProperty(u => u.IsEmailConfirmed, false)
                     .SetProperty(u => u.PasswordHash, (string?)null)
                     .SetProperty(u => u.SecurityStamp, securityStamp)
                     .SetProperty(u => u.ConcurrencyStamp, concurrencyStamp)
                     .SetProperty(u => u.PhoneNumber, (string?)null)
-                    .SetProperty(u => u.PhoneNumberConfirmed, false)
-                    .SetProperty(u => u.TwoFactorEnabled, false)
+                    .SetProperty(u => u.IsPhoneNumberConfirmed, false)
+                    .SetProperty(u => u.IsTwoFactorEnabled, false)
                     .SetProperty(u => u.LockoutEnd, (DateTimeOffset?)null)
                     .SetProperty(u => u.AccessFailedCount, 0)
                     .SetProperty(u => u.UpdatedAt, now)

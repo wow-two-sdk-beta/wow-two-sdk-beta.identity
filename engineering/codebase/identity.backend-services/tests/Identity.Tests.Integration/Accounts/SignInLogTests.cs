@@ -78,7 +78,7 @@ public sealed class SignInLogTests
         await signIn.TwoFactorSignInAsync(user.Id, "forged-ticket", totp.ComputeCode(key));
         await signIn.TwoFactorSignInAsync(user.Id, first.TwoFactorTicket!, "000000");
         var second = await signIn.PasswordSignInAsync("wade", Password);
-        (await signIn.RecoveryCodeSignInAsync(user.Id, second.TwoFactorTicket!, recovery[0])).Succeeded.Should().BeTrue();
+        (await signIn.RecoveryCodeSignInAsync(user.Id, second.TwoFactorTicket!, recovery[0])).IsSuccess.Should().BeTrue();
 
         (await RowsAsync(host)).Select(row => (row.Method, row.Result, row.Reason)).Should().Equal(
             (SignInMethodConstants.Password, SignInResultConstants.TwoFactorRequired, null),

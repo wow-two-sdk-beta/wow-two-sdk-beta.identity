@@ -24,7 +24,7 @@ public sealed record CookieAuthOptions
     public TimeSpan ExpireTimeSpan { get; set; } = TimeSpan.FromHours(8);
 
     /// <summary>Use sliding expiration. Default <c>true</c>.</summary>
-    public bool SlidingExpiration { get; set; } = true;
+    public bool IsExpirationSliding { get; set; } = true;
 
     /// <summary>Login path. Default <c>/auth/login</c>.</summary>
     public PathString LoginPath { get; set; } = "/auth/login";

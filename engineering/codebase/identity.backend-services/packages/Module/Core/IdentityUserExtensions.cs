@@ -12,7 +12,7 @@ internal static class IdentityUserExtensions
     /// <param name="user">The user to inspect.</param>
     /// <param name="now">The current instant.</param>
     internal static bool IsLockedOutAt(this IdentityUser user, DateTimeOffset now)
-        => user.LockoutEnabled && user.LockoutEnd is { } end && end > now;
+        => user.IsLockoutEnabled && user.LockoutEnd is { } end && end > now;
 
     /// <summary>Creates a failed result carrying one error.</summary>
     /// <param name="code">The stable error code.</param>

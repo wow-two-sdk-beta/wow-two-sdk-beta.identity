@@ -4,11 +4,11 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 public sealed record SignInOptions
 {
     /// <summary>Refuse sign-in until the email is confirmed. Default false.</summary>
-    public bool RequireConfirmedEmail { get; set; }
+    public bool IsConfirmedEmailRequired { get; set; }
 
     /// <summary>Refuse sign-in until the phone number is confirmed. Default false.</summary>
-    public bool RequireConfirmedPhoneNumber { get; set; }
+    public bool IsConfirmedPhoneNumberRequired { get; set; }
 
     /// <summary>Accept an email address where a user name is expected. Default true.</summary>
-    public bool AllowEmailLogin { get; set; } = true;
+    public bool IsEmailLoginAllowed { get; set; } = true;
 }

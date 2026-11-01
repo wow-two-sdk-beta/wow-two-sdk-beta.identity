@@ -26,7 +26,7 @@ public sealed class OidcVaultKeyTests
         using var ring = SigningCertificateGenerator.CreateDataProtection(now.AddDays(-1), TimeSpan.FromDays(730));
         await using var server = new OidcHost(new Dictionary<string, string?>
         {
-            ["Identity:Server:Keys:Ephemeral"] = "false",
+            ["Identity:Server:Keys:IsEphemeral"] = "false",
             ["Identity:Server:Keys:Signing:0"] = SigningCertificateGenerator.ExportPem(signing),
             ["Identity:Server:Keys:Encryption:0"] = SigningCertificateGenerator.ExportPem(encryption),
             ["Identity:DataProtection:Certificates:0"] = SigningCertificateGenerator.ExportPem(ring),

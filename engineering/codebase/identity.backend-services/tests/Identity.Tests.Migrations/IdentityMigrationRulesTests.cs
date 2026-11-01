@@ -98,8 +98,8 @@ public sealed class IdentityMigrationRulesTests(MigratorPostgresFixture fixture)
     private static Task InsertUserAsync(System.Data.Common.DbConnection connection, Guid id, string normalizedUserName, DateTimeOffset? deletedAt) =>
         connection.ExecuteAsync(
             """
-            insert into identity.identity_users (id, user_name, normalized_user_name, email_confirmed, phone_number_confirmed,
-                two_factor_enabled, lockout_enabled, access_failed_count, created_at, updated_at, deleted_at)
+            insert into identity.identity_users (id, user_name, normalized_user_name, is_email_confirmed, is_phone_number_confirmed,
+                is_two_factor_enabled, is_lockout_enabled, access_failed_count, created_at, updated_at, deleted_at)
             values (@id, @userName, @normalizedUserName, false, false, false, false, 0, @at, @at, @deletedAt)
             """,
             new { id, userName = normalizedUserName.ToLowerInvariant(), normalizedUserName, at = DateTimeOffset.UnixEpoch, deletedAt });

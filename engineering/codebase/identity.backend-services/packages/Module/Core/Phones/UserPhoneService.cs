@@ -24,7 +24,7 @@ public sealed class UserPhoneService(IUserRepository repository, IOtpService otp
     {
         ArgumentNullException.ThrowIfNull(user);
         user.PhoneNumber = string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber.Trim();
-        user.PhoneNumberConfirmed = false;
+        user.IsPhoneNumberConfirmed = false;
         user.RotateSecurityStamp();
         await repository.UpdateAsync(user, cancellationToken);
         return IdentityResult.Success;
@@ -44,10 +44,10 @@ public sealed class UserPhoneService(IUserRepository repository, IOtpService otp
     public async Task<IdentityResult> ConfirmPhoneNumberAsync(IdentityUser user, string code, CancellationToken cancellationToken = default)
     {
         var verification = await otp.VerifyAsync(ConfirmationSubject(user), code, ConfirmationScope, cancellationToken);
-        if (!verification.Success)
+        if (!verification.IsSuccess)
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidPhoneCode, "The code is invalid or has expired.");
 
-        user.PhoneNumberConfirmed = true;
+        user.IsPhoneNumberConfirmed = true;
         await repository.UpdateAsync(user, cancellationToken);
         return IdentityResult.Success;
     }
@@ -74,7 +74,7 @@ public sealed class UserPhoneService(IUserRepository repository, IOtpService otp
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(phoneNumber);
         var verification = await otp.VerifyAsync(phoneNumber.Trim(), code, SignInScope, cancellationToken);
-        return verification.Success
+        return verification.IsSuccess
             ? await repository.FindByConfirmedPhoneNumberAsync(phoneNumber.Trim(), cancellationToken)
             : null;
     }

@@ -102,7 +102,7 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
 
         var user = new IdentityUser { UserName = "alice", Email = "alice@example.test" };
         await using (var scope = provider.CreateAsyncScope())
-            (await scope.ServiceProvider.GetRequiredService<UserAccountService>().CreateAsync(user)).Succeeded.Should().BeTrue();
+            (await scope.ServiceProvider.GetRequiredService<UserAccountService>().CreateAsync(user)).IsSuccess.Should().BeTrue();
 
         await using var next = provider.CreateAsyncScope();
         var found = await next.ServiceProvider.GetRequiredService<UserAccountService>().FindByNameAsync("ALICE");

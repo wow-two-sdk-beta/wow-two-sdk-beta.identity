@@ -44,7 +44,7 @@ public sealed class AllowlistedSessionOrApiKeyAuthorizationHandler : Authorizati
 
     private bool IsAllowlistedSession(ClaimsPrincipal user)
     {
-        var comparer = _allowlist.CaseInsensitive ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var comparer = _allowlist.IsCaseInsensitive ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         return user.Identities.Any(identity =>
             identity.IsAuthenticated
             && !string.Equals(identity.AuthenticationType, ApiKeyAuthenticationDefaults.Scheme, StringComparison.Ordinal)

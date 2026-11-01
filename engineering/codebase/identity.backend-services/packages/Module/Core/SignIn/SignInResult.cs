@@ -25,5 +25,5 @@ public sealed record SignInResult
     public long? SignInLogEntryId { get; init; }
 
     /// <summary>Whether the user is signed in.</summary>
-    public bool Succeeded => Status == SignInStatus.Succeeded;
+    public bool IsSuccess => Status == SignInStatus.Succeeded;
 }

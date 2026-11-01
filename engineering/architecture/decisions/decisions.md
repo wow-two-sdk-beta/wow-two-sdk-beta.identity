@@ -57,6 +57,7 @@
 | 2026-10-31 | Ocharo signs in by phone through its own Telegram bot | developer |
 | 2026-10-31 | the phone settings name the allowed countries; the fe sdk's `PhoneInput` takes the list | developer |
 | 2026-10-31 | settings invalid on their own stop the service; a deployed boot refuses settings that conflict with stored rows, logging `Critical`; `config check` runs after `migrate` and before the restart; a removed method revokes its sessions | developer, C1 |
+| 2026-11-01 | every boolean takes an `Is` or `Has` name: members, settings keys, JSON fields and columns; `001-accounts` is rewritten in place and Ocharo dev's identity data is reset | developer, C8 |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

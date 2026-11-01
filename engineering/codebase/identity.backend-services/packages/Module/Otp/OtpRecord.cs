@@ -25,5 +25,5 @@ public sealed record OtpRecord
     public required int Attempts { get; init; }
 
     /// <summary>Whether the code was successfully used.</summary>
-    public required bool Consumed { get; init; }
+    public required bool IsConsumed { get; init; }
 }

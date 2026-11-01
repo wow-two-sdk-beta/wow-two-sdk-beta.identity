@@ -10,6 +10,6 @@
 - must keep vendor types out of `packages/Abstractions`; the contract references the kernel only.
 - must add a table to the one `identity` migration set, never a set per feature; a feature that is off leaves its
   tables empty.
-- must switch features by configuration (`Identity:{Feature}:Enabled`); code options carry only callbacks and seams.
+- must switch features by configuration (`Identity:{Feature}:IsEnabled`); code options carry only callbacks and seams.
 - must not let a product read or write identity tables; products key their data on `sub`.
 - must record a confirmed decision in `architecture/decisions/decisions.md` and `product/context.md` together.
