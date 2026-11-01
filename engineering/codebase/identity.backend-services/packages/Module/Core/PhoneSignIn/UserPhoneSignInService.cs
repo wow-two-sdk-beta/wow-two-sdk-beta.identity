@@ -12,7 +12,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.PhoneSignIn;
 /// once; any other gets a start link, and the bot sends the code once the person shares that number as their own
 /// contact. Both answer the same for known and unknown numbers. A verified code signs in the person holding the number
 /// confirmed, or creates them while sign-up is on. Numbers outside <c>Identity:Phone:AllowedCountries</c> are refused,
-/// and sending is rate-limited per number and per origin by <c>Identity:Otp:RateLimitWindow</c>.
+/// and sending is rate-limited per number and per origin by <c>Identity:Otp:RateLimitWindow</c>. In test mode a new start
+/// link is completed at once by <see cref="IPhoneSignInLinkSimulator"/>, so the code follows without a real bot.
 /// </summary>
 /// <param name="users">Finds the person holding a confirmed number.</param>
 /// <param name="accounts">Creates a person on the first sign-in.</param>
@@ -22,6 +23,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.PhoneSignIn;
 /// <param name="otpOptions">The code's shape and lifetime.</param>
 /// <param name="phones">The number rules and the allowed countries.</param>
 /// <param name="telegram">The number's chat and start links.</param>
+/// <param name="simulator">Completes a new start link without a real bot; null or inactive leaves it to the person.</param>
 public sealed class UserPhoneSignInService(
     IUserRepository users,
     UserAccountService accounts,
@@ -30,7 +32,8 @@ public sealed class UserPhoneSignInService(
     IOtpMessageFormatter formatter,
     OtpOptions otpOptions,
     PhoneNumberPolicy phones,
-    TelegramLinkService telegram)
+    TelegramLinkService telegram,
+    IPhoneSignInLinkSimulator? simulator = null)
 {
     /// <summary>The OTP scope of phone sign-in codes.</summary>
     public const string CodeScope = UserPhoneService.SignInScope;
@@ -70,6 +73,9 @@ public sealed class UserPhoneSignInService(
         }
 
         var url = await telegram.CreateStartLinkAsync(phone, TelegramLinkPurposeConstants.PhoneSignIn, origin, cancellationToken);
+        if (simulator is not null && await simulator.TryCompleteAsync(phone, url, culture ?? CultureInfo.CurrentUICulture, cancellationToken))
+            return PhoneSignInResult.Of(PhoneSignInStatus.CodeSent, phone);
+
         return new PhoneSignInResult { Status = PhoneSignInStatus.LinkRequired, PhoneNumber = phone, TelegramLinkUrl = url };
     }
 

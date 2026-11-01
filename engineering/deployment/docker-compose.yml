@@ -15,6 +15,21 @@
 # local mail sink: nothing leaves the machine, and http://127.0.0.1:8025 shows every message. identity-keys also makes
 # the key that signs the service's confirmation and reset tokens. Sign-up is on here, so a local sign-up produces a
 # confirmation email to read; a deployed environment turns it on in its own settings.
+#
+# The service runs as a local run (Development without DEPLOY_ENVIRONMENT), which the bot's polling and test mode need: a
+# deployed boot refuses both. Development would also switch on the throwaway OIDC keys, so the two ephemeral switches are
+# set off and the service keeps reading the certificates identity-keys made.
+#
+# The bot is off here. To try it, put local secrets in identity.local.env beside this file (optional, gitignored). Make it
+# in your own terminal or editor, never through a chat, and keep the token out of any message or command a chat runs:
+#   touch identity.local.env && chmod 600 identity.local.env
+# then add, in an editor, for a bot of its own (a hosted instance's bot answers 409 to polling; make a second bot in BotFather):
+#   Identity__Telegram__IsEnabled=true
+#   Identity__Telegram__BotUserName=<the bot's user name>
+#   Identity__Telegram__BotToken=<the token BotFather gave>
+# or, for a fake bot with every code and email kept in memory at http://127.0.0.1:8389/api/test/messages?to=<phone or email>:
+#   Identity__TestMode__IsEnabled=true
+# Add Identity__Phone__AllowedCountries__0=UZ (one line per country) to limit the numbers; then `docker compose up -d`.
 services:
   database:
     image: postgres:18-alpine
@@ -83,9 +98,16 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8389:8080"
+    env_file:
+      - path: identity.local.env
+        required: false
     environment:
+      ASPNETCORE_ENVIRONMENT: Development
       DB_CONNECTION: "Host=database;Database=identity;Username=identity;Password=identity"
       Identity__Server__Issuer: http://127.0.0.1:8389/
+      Identity__Server__Keys__IsEphemeral: "false"
+      Identity__Tokens__IsKeyEphemeral: "false"
+      Identity__Telegram__UpdateMode: Polling
       Identity__Server__Keys__Signing__0: /data/keys/signing.pem
       Identity__Server__Keys__Encryption__0: /data/keys/encryption.pem
       Identity__DataProtection__Certificates__0: /data/keys/data-protection.pem

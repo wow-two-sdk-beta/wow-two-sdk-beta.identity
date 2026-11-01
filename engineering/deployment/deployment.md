@@ -101,8 +101,12 @@ one as an owner key; a secret goes to the vault, never into a settings file or a
 | `Identity:Otp:HashKey` | with the bot, secret | base64 of at least 32 bytes; keys every stored one-time code; a deployed boot refuses the bot without it, and every instance on one database needs the same value |
 | `Identity:Phone:AllowedCountries:N` | — | ISO 3166-1 alpha-2 codes such as `UZ`; empty allows every known country; an unknown code refuses the start |
 
-- Telegram needs one manual step per environment: register the webhook (`https://<public host>/api/telegram/webhook`
-  and the `WebhookSecret` as `secret_token`) with Telegram's `setWebhook`; the `/api` path already routes to the service.
+- A deployed boot registers the webhook itself (`{issuer origin}/api/telegram/webhook`, the `WebhookSecret` as
+  `secret_token`, `message` updates only) and logs a failure without stopping the start.
+- One bot has one reader: each environment needs its own bot, and a local run polls a bot of its own.
+- `Identity:Telegram:UpdateMode` is `Webhook` by default; `Polling` is for a local run, and a deployed boot refuses it.
+- `Identity:TestMode:IsEnabled` keeps every email and Telegram message at `GET /api/test/messages?to=` and links phones
+  without a bot; a deployed boot refuses it.
 - The emails' links (`/confirm-email`, `/reset-password`, `/change-password`) point at the hosted pages on the origin of
   `Identity:Server:Issuer`; `UserAccounts:Emails:{ConfirmationLink,ResetLink}` and `Identity:Password:Change:LinkTemplate`
   override them.
@@ -196,5 +200,5 @@ docker build --build-arg APP_VERSION=0.1.99 --build-arg VCS_REF=$(git rev-parse 
 
 - `docker compose -f engineering/deployment/docker-compose.yml up` starts the stack; a local sign-up sends its
   confirmation email to Mailpit (`http://127.0.0.1:8025`), and nothing leaves the machine.
-- The compose file leaves the Telegram bot off; a local phone sign-in needs a bot of your own with its token, user name
-  and webhook secret in `appsettings.Local.json`, and a webhook Telegram can reach.
+- The compose file runs as a local run with the bot off. A phone sign-in needs `identity.local.env` beside the compose
+  file (gitignored): test mode, or a bot of your own that polls; the compose file's header says what to put in it.

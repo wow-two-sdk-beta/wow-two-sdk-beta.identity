@@ -17,11 +17,13 @@ seam swaps through DI; every option set comes from code, then the host section, 
 |---|---|---|
 | `sms` | `AddSmsOtpDelivery()` + an SMS broker | E.164 · envelope or `Identity:Otp:Sms:Broker` names the broker (`eskiz`, `twilio`, …) |
 | `whatsapp` | `AddWhatsAppOtpDelivery()` + a WhatsApp broker | E.164 · approved authentication template, language per culture |
-| `telegram` | `AddTelegramOtpDelivery()` + `ITelegramBotClient` | chat id of a user who started the bot |
+| `telegram` | `AddTelegramOtpDelivery()` + `ITelegramBotClient` (`AddTelegramLinks()` brings both and the link flow) | chat id of a user who started the bot; the instance's bot links a phone to it (`Module/Telegram/`) |
 | `telegram-gateway` | `AddTelegramGatewayOtpDelivery()` | E.164 · Telegram Gateway API; numeric codes of 4–8 digits |
 | `email` | `AddEmailOtpDelivery()` + an email broker | email address · subject and text from the formatter |
 
-Each registers keyed by its channel name and stays enumerable as `IOtpDeliveryHandler`.
+Each registers keyed by its channel name and stays enumerable as `IOtpDeliveryHandler`. A flow that must reach a person names no
+channel: it takes the first `VerifiedChannel` that an `IUserVerifiedChannelSource` lists (`Core/Channels`): a confirmed email
+first, then the Telegram chat a confirmed phone is linked to.
 
 ## Configure
 
@@ -59,3 +61,4 @@ var verified = await otp.VerifyAsync(user.Id, typedCode, "phone-confirmation", c
 - An envelope without `Text` falls back to the handler's own wording (SMS/Telegram `MessageTemplate`, else the formatter).
 - Failure reasons: `RateLimited` · `Expired` · `InvalidCode` · `MaxAttemptsReached`.
 - Two-factor sign-in over these channels: `Identity/Core/TwoFactor`.
+- Test mode (`Identity:TestMode:IsEnabled`, local runs only) swaps the `email` and `telegram` channels' senders for in-memory ones: `Core/TestMode/`.

@@ -16,7 +16,7 @@ app.MapTelegramWebhook();                                    // POST /api/telegr
 
 ```jsonc
 "Identity": {
-  "Telegram": { "IsEnabled": true, "BotToken": "…", "BotUserName": "…", "WebhookSecret": "…" },   // vault secrets
+  "Telegram": { "IsEnabled": true, "BotToken": "…", "BotUserName": "…", "WebhookSecret": "…", "UpdateMode": "Webhook" },   // vault secrets; Polling on a local run
   "Phone": { "AllowedCountries": ["UZ"] },
   "Otp": { "HashKey": "…" }                    // base64, 32+ bytes, a vault secret; required on a deployed boot while the bot is on
 }
@@ -40,6 +40,10 @@ app.MapTelegramWebhook();                                    // POST /api/telegr
 - A first sign-in creates the person, holding the number confirmed, only while `Identity:SignUp:IsEnabled` is on; else `403`
   (`SignUpClosed`) and the refusal is logged.
 - A bearer sign-in on a cookie-only host answers `400` (`BearerSignInUnsupported`) before the code is spent.
+- A hosted instance reads the bot by webhook and registers it with Telegram at start; a local run sets
+  `Identity:Telegram:UpdateMode` to `Polling` with a bot of its own, or turns on test mode (`../TestMode/test-mode.md`), where
+  `IPhoneSignInLinkSimulator` completes a new start link at once, so `send` answers `isCodeSent` and the code is in the
+  sink. Update modes, registration and the `409` a hosted bot answers to polling: `Module/Telegram/telegram.md`.
 - The bot links a number to a chat only from the sender's own shared contact; the link lives in `identity_telegram_links`,
   unique per bot user name and number, so replacing the bot starts with no links. Bot options, wording and the webhook:
   `Module/Telegram/`.

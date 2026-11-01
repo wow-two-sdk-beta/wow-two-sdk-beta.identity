@@ -21,10 +21,10 @@ public static class TelegramWebhookEndpointRouteBuilderExtensions
     public const string DefaultPattern = "/api/telegram/webhook";
 
     /// <summary>
-    /// Maps <c>POST {pattern}</c> for the bot's updates: <c>404</c> while <see cref="TelegramBotOptions.IsEnabled"/> is off,
-    /// <c>401</c> unless <see cref="SecretHeaderName"/> equals <see cref="TelegramBotOptions.WebhookSecret"/>, <c>400</c> for
-    /// a body that is no update, else <c>200</c> once <see cref="TelegramUpdateHandler"/> acted on it. Register the URL and the
-    /// secret with Telegram's <c>setWebhook</c>.
+    /// Maps <c>POST {pattern}</c> for the bot's updates: <c>404</c> while <see cref="TelegramBotOptions.IsEnabled"/> is off or
+    /// <see cref="TelegramBotOptions.UpdateMode"/> is <see cref="TelegramUpdateMode.Polling"/>, <c>401</c> unless <see cref="SecretHeaderName"/> equals <see cref="TelegramBotOptions.WebhookSecret"/>, <c>400</c> for
+    /// a body that is no update, else <c>200</c> once <see cref="TelegramUpdateHandler"/> acted on it. A deployed boot registers
+    /// the URL and the secret with Telegram's <c>setWebhook</c> itself (<see cref="TelegramWebhookRegistrationService"/>).
     /// </summary>
     /// <param name="endpoints">The route builder.</param>
     /// <param name="pattern">The route; default <see cref="DefaultPattern"/>.</param>
@@ -39,7 +39,7 @@ public static class TelegramWebhookEndpointRouteBuilderExtensions
     {
         var services = http.RequestServices;
         var options = services.GetRequiredService<IOptionsMonitor<TelegramBotOptions>>().CurrentValue;
-        if (!options.IsEnabled)
+        if (!options.IsEnabled || options.UpdateMode == TelegramUpdateMode.Polling)
             return Results.NotFound();
         if (!IsSecret(http.Request.Headers[SecretHeaderName].ToString(), options.WebhookSecret))
             return Results.Unauthorized();
