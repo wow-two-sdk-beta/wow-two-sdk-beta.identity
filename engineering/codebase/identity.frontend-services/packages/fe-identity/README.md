@@ -1,22 +1,26 @@
 # @wow-two-beta/fe-identity
 
-The Identity domain's UI, in two modes:
-
-- **Embed** — `GreetingWidget` greets through the Identity contract. It calls the consumer's own backend (Form 1, the
-  default same-origin client) or the running Identity service (Forms 2 and 3, `createGreetingsClient({ baseUrl })`).
-- **Forward** — `forwardToHostedGreeting` sends the user to the service's hosted greeting page, which links back to
-  `returnUrl` when done.
+The Identity domain's UI: one component per sign-in method and password step, the same ones the service's hosted
+pages render. Each calls the consumer's own backend (Form 1, the default same-origin client) or the running Identity
+service (Forms 2 and 3, `baseUrl`), and signs in by cookie session.
 
 ```bash
 pnpm add @wow-two-beta/fe-identity @wow-two-beta/fe vue
 ```
 
-```ts
-import { GreetingWidget, createGreetingsClient, forwardToHostedGreeting } from '@wow-two-beta/fe-identity/kit';
-import { GreetingRouteConstants, type GreetingModel } from '@wow-two-beta/fe-identity/contracts';
+```vue
+<script setup lang="ts">
+import { PasswordSignIn, PhoneCodeSignIn } from '@wow-two-beta/fe-identity/kit';
+</script>
+
+<template>
+  <PasswordSignIn base-url="https://id.example.com" @signed-in="onSignedIn" />
+  <PhoneCodeSignIn base-url="https://id.example.com" :countries="['UZ']" @signed-in="onSignedIn" />
+</template>
 ```
 
-The widget is styled with Tailwind utilities on the fe sdk theme; add the package to the consumer's Tailwind sources:
+The components are styled with Tailwind utilities on the fe sdk theme; add the package to the consumer's Tailwind
+sources. Messages resolve through the fe sdk `LocaleProvider` under `IdentityKit.*`, with English fallbacks.
 
 ```css
 @source '../../node_modules/@wow-two-beta/fe-identity/dist';
@@ -24,5 +28,14 @@ The widget is styled with Tailwind utilities on the fe sdk theme; add the packag
 
 | Export | Holds |
 |---|---|
-| `./contracts` | `GreetingModel`, `GreetingConstants`, `GreetingRouteConstants` — the TypeScript mirror of the be contract |
-| `./kit` | `GreetingWidget`, `createGreetingsClient`, `hostedGreetingUrl`, `forwardToHostedGreeting` |
+| `./contracts` | the account API's request and answer shapes, `AccountRouteConstants`, `HostedPageRouteConstants`, `PasswordChangeConfirmationType` |
+| `./kit` | `createAccountClient`; `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm` |
+
+- a cross-origin `baseUrl` sends the session cookie (`credentials: 'include'`); the service's CORS policy must allow
+  the consumer's origin.
+- `PhoneCodeSignIn` shows an "Open Telegram" step when the phone has no linked chat; the bot sends the code once the
+  person shares the contact.
+- `ChangePasswordForm` follows the instance's confirmation: the form at once (`None`), the form with a sent code
+  (`Code`), or a sent link (`Link`) whose page passes the link's `token`. A sign-in whose password breaks the current
+  rules emits `passwordChangeRequired` with a `ticket` and sets no session: pass `ticket` and `confirmation` to the
+  form, then sign in again with the new password.

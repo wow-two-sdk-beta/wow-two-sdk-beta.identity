@@ -1,8 +1,17 @@
 import { createAppRouter, lazyPage, lazyRoute, RouterHistoryMode, type RouteConfig } from '@wow-two-beta/fe/router';
-import { GreetingRouteConstants } from '@wow-two-beta/fe-identity/contracts';
-import { readHostedGreetingRequest } from '../../application/greetings/ReadHostedGreetingRequest';
+import { HostedPageRouteConstants } from '@wow-two-beta/fe-identity/contracts';
+import {
+  hostedHref,
+  hostedNavigation,
+  readChangePasswordToken,
+  readConfirmEmailRequest,
+  readResetPasswordRequest,
+  readSignInRequest,
+} from '../../application/account';
 
-/** Holds the route table: the console at the root, then one route per hosted page a consumer forwards to. */
+const pages = HostedPageRouteConstants;
+
+/** Holds the route table: the console at the root, then one route per hosted page. */
 export const routes: RouteConfig = [
   {
     path: '/',
@@ -11,12 +20,74 @@ export const routes: RouteConfig = [
     lazy: lazyRoute(() => import('../../presentation/console/pages/ConsolePage.vue')),
   },
   {
-    path: GreetingRouteConstants.hostedPage,
-    id: 'hosted-greeting',
-    handle: { title: 'Greetings' },
+    path: pages.signIn,
+    id: 'sign-in',
+    handle: { title: 'Sign in' },
     lazy: lazyPage(
-      () => import('../../presentation/greetings/pages/HostedGreetingPage.vue'),
-      (route) => ({ request: readHostedGreetingRequest(route.query) }),
+      () => import('../../presentation/account/pages/SignInPage.vue'),
+      (route) => ({
+        request: readSignInRequest(route.query),
+        onContinue: (url: string) => hostedNavigation.assign(url),
+      }),
+    ),
+  },
+  {
+    path: pages.signUp,
+    id: 'sign-up',
+    handle: { title: 'Create an account' },
+    lazy: lazyPage(
+      () => import('../../presentation/account/pages/SignUpPage.vue'),
+      (route) => ({ request: readSignInRequest(route.query) }),
+    ),
+  },
+  {
+    path: pages.confirmEmail,
+    id: 'confirm-email',
+    handle: { title: 'Confirm your email' },
+    lazy: lazyPage(
+      () => import('../../presentation/account/pages/ConfirmEmailPage.vue'),
+      (route) => ({ request: readConfirmEmailRequest(route.query) }),
+    ),
+  },
+  {
+    path: pages.forgotPassword,
+    id: 'forgot-password',
+    handle: { title: 'Reset your password' },
+    lazy: lazyPage(
+      () => import('../../presentation/account/pages/ForgotPasswordPage.vue'),
+      (route) => ({ request: readSignInRequest(route.query) }),
+    ),
+  },
+  {
+    path: pages.resetPassword,
+    id: 'reset-password',
+    handle: { title: 'Choose a new password' },
+    lazy: lazyPage(
+      () => import('../../presentation/account/pages/ResetPasswordPage.vue'),
+      (route) => ({ request: readResetPasswordRequest(route.query) }),
+    ),
+  },
+  {
+    path: pages.changePassword,
+    id: 'change-password',
+    handle: { title: 'Change your password' },
+    lazy: lazyPage(
+      () => import('../../presentation/account/pages/ChangePasswordPage.vue'),
+      (route, router) => ({
+        token: readChangePasswordToken(route.hash),
+        onTokenRead: () => void router.replace({ path: route.path, query: route.query, hash: '' }),
+      }),
+    ),
+  },
+  {
+    path: pages.accountSecurity,
+    id: 'account-security',
+    handle: { title: 'Security' },
+    lazy: lazyPage(
+      () => import('../../presentation/account/pages/AccountSecurityPage.vue'),
+      (route, router) => ({
+        onSignInRequired: () => void router.replace(hostedHref(pages.signIn, route.fullPath)),
+      }),
     ),
   },
 ];

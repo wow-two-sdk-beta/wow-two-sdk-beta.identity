@@ -1,22 +1,19 @@
 <script setup lang="ts">
-import { Button } from '@wow-two-beta/fe/presentation/actions';
+import { HostedPageRouteConstants } from '@wow-two-beta/fe-identity/contracts';
 import { Badge, Card } from '@wow-two-beta/fe/presentation/display';
-import { GreetingWidget, forwardToHostedGreeting } from '@wow-two-beta/fe-identity/kit';
 import { useSystemStatus } from '../../../application/system/UseSystemStatus';
 
-/** Renders the console: the running versions and both modes of the fe-identity package, consumed through its exports. */
+/** Renders the console: the running versions and the hosted pages this instance serves. */
 defineOptions({ name: 'ConsolePage' });
 
 const appVersion = __APP_VERSION__;
 const { status } = useSystemStatus();
-
-function forward() {
-  forwardToHostedGreeting({
-    serviceUrl: window.location.origin,
-    name: 'Ann',
-    returnUrl: window.location.href,
-  });
-}
+const pages = [
+  { label: 'Sign in', href: HostedPageRouteConstants.signIn },
+  { label: 'Create an account', href: HostedPageRouteConstants.signUp },
+  { label: 'Reset a password', href: HostedPageRouteConstants.forgotPassword },
+  { label: 'Account security', href: HostedPageRouteConstants.accountSecurity },
+];
 </script>
 
 <template>
@@ -31,15 +28,14 @@ function forward() {
       </div>
     </header>
 
-    <section class="mt-8" aria-labelledby="embed-heading">
-      <h2 id="embed-heading" class="mb-3 text-sm font-medium text-muted-foreground">Embedded widget</h2>
-      <GreetingWidget />
-    </section>
-
-    <section class="mt-8" aria-labelledby="forward-heading">
+    <section class="mt-8" aria-labelledby="hosted-heading">
       <Card class="p-6">
-        <h2 id="forward-heading" class="text-sm font-medium text-muted-foreground">Forward to the hosted page</h2>
-        <Button class="mt-3" @click="forward">Open the hosted greeting</Button>
+        <h2 id="hosted-heading" class="text-sm font-medium text-muted-foreground">Hosted pages</h2>
+        <ul class="mt-3 flex flex-col gap-2">
+          <li v-for="page in pages" :key="page.href">
+            <a :href="page.href" class="text-primary underline-offset-4 hover:underline">{{ page.label }}</a>
+          </li>
+        </ul>
       </Card>
     </section>
   </main>
