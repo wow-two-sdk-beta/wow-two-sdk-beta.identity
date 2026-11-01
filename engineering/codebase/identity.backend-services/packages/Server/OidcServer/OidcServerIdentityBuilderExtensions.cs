@@ -65,9 +65,10 @@ public static class OidcServerIdentityBuilderExtensions
                     .DisableAccessTokenEncryption()
                     .DisableSlidingRefreshTokenExpiration();
 
-                server.RegisterScopes(Scopes.OpenId, Scopes.Profile, Scopes.Email, Scopes.OfflineAccess);
+                server.RegisterScopes(Scopes.OpenId, Scopes.Profile, Scopes.Email, Scopes.Phone, Scopes.OfflineAccess);
                 server.RegisterClaims(
-                    Claims.Subject, SessionClaimTypeConstants.SessionId, Claims.Name, Claims.Email, Claims.EmailVerified, Claims.AuthenticationMethodReference,
+                    Claims.Subject, SessionClaimTypeConstants.SessionId, Claims.Name, Claims.Email, Claims.EmailVerified, Claims.PhoneNumber,
+                    Claims.PhoneNumberVerified, Claims.AuthenticationMethodReference,
                     Claims.AuthenticationTime, OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Role,
                     OrganizationClaimTypeConstants.Permission);
 

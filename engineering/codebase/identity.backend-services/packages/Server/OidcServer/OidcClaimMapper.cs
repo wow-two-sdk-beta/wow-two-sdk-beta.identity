@@ -12,8 +12,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 
 /// <summary>
 /// The one place that turns a person into token claims and sends each claim to its tokens: <c>sub</c>, <c>sid</c>,
-/// <c>name</c>, <c>email</c>, <c>email_verified</c>, <c>amr</c>, <c>auth_time</c>, and <c>org_id</c>, <c>org_role</c>,
-/// <c>org_permission</c> for one active organization.
+/// <c>name</c>, <c>email</c>, <c>email_verified</c>, <c>phone_number</c>, <c>phone_number_verified</c>, <c>amr</c>,
+/// <c>auth_time</c>, and <c>org_id</c>, <c>org_role</c>, <c>org_permission</c> for one active organization.
 /// </summary>
 /// <remarks>
 ///   - the active organization is the one the token already carries while the person still belongs to it, else the
@@ -23,6 +23,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 ///   - the security stamp rides inside codes and refresh tokens only, so the token endpoint refuses a rotated stamp
 ///   - <c>sid</c> names the sign-in session the tokens were issued under; it is set once, at authorization, and a refresh
 ///     keeps it
+///   - <c>name</c> is always issued (<see cref="DisplayNameOf"/>): a phone-only person has no email, so it falls back to
+///     the phone, then the user name
 /// </remarks>
 /// <param name="core">Identity options carrying the stamp claim type.</param>
 /// <param name="organizations">The organizations slice; null emits no organization claims.</param>
@@ -31,7 +33,7 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
     /// <summary>The claim types this mapper owns; a refresh replaces every one of them.</summary>
     private static readonly string[] PersonClaimTypes =
     [
-        Claims.Subject, Claims.Name, Claims.Email, Claims.EmailVerified,
+        Claims.Subject, Claims.Name, Claims.Email, Claims.EmailVerified, Claims.PhoneNumber, Claims.PhoneNumberVerified,
         OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Role, OrganizationClaimTypeConstants.Permission,
     ];
 
@@ -89,7 +91,7 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
         return new ClaimsPrincipal(identity);
     }
 
-    /// <summary>Write the person's own claims: id, name, email and its verification, and the security stamp.</summary>
+    /// <summary>Write the person's own claims: id, name, email and phone with their verification, and the security stamp.</summary>
     /// <param name="identity">The identity.</param>
     /// <param name="user">The person.</param>
     /// <param name="securityStampClaimType">The claim type the stamp travels under.</param>
@@ -99,16 +101,34 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
             identity.RemoveClaims(type);
 
         identity.SetClaim(Claims.Subject, user.Id.ToString("D", CultureInfo.InvariantCulture));
-        if (!string.IsNullOrEmpty(user.UserName))
-            identity.SetClaim(Claims.Name, user.UserName);
+        identity.SetClaim(Claims.Name, DisplayNameOf(user));
         if (!string.IsNullOrEmpty(user.Email))
         {
             identity.SetClaim(Claims.Email, user.Email);
             identity.SetClaim(Claims.EmailVerified, user.IsEmailConfirmed);
         }
 
+        if (!string.IsNullOrEmpty(user.PhoneNumber))
+        {
+            identity.SetClaim(Claims.PhoneNumber, user.PhoneNumber);
+            identity.SetClaim(Claims.PhoneNumberVerified, user.IsPhoneNumberConfirmed);
+        }
+
         if (!string.IsNullOrEmpty(user.SecurityStamp))
             identity.SetClaim(securityStampClaimType, user.SecurityStamp);
+    }
+
+    /// <summary>
+    /// The person's <c>name</c>, never empty: the user name, or the email without one; a person without an email (a phone
+    /// sign-up, whose user name may be a generated placeholder) takes the phone, then the user name; the id last.
+    /// </summary>
+    /// <param name="user">The person.</param>
+    internal static string DisplayNameOf(IdentityUser user)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        string?[] candidates = string.IsNullOrEmpty(user.Email) ? [user.PhoneNumber, user.UserName] : [user.UserName, user.Email];
+        return candidates.FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate))
+            ?? user.Id.ToString("D", CultureInfo.InvariantCulture);
     }
 
     /// <summary>
@@ -176,8 +196,8 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
 
     /// <summary>
     /// Where a claim goes. <c>sub</c>, <c>sid</c>, <c>amr</c> and the organization claims reach both tokens; <c>name</c> follows the
-    /// <c>profile</c> scope and <c>email</c> with <c>email_verified</c> the <c>email</c> scope; <c>auth_time</c> reaches the
-    /// ID token only. Everything else, the security stamp included, stays inside codes and refresh tokens.
+    /// <c>profile</c> scope, <c>email</c> with <c>email_verified</c> the <c>email</c> scope and <c>phone_number</c> with
+    /// <c>phone_number_verified</c> the <c>phone</c> scope; <c>auth_time</c> reaches the ID token only. Everything else, the security stamp included, stays inside codes and refresh tokens.
     /// </summary>
     /// <param name="claim">The claim, whose identity carries the granted scopes.</param>
     public static IEnumerable<string> GetDestinations(Claim claim)
@@ -190,6 +210,7 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
             OrganizationClaimTypeConstants.Id or OrganizationClaimTypeConstants.Role or OrganizationClaimTypeConstants.Permission => both,
             Claims.Name => claim.Subject?.HasScope(Scopes.Profile) == true ? both : [],
             Claims.Email or Claims.EmailVerified => claim.Subject?.HasScope(Scopes.Email) == true ? both : [],
+            Claims.PhoneNumber or Claims.PhoneNumberVerified => claim.Subject?.HasScope(Scopes.Phone) == true ? both : [],
             Claims.AuthenticationTime => [Destinations.IdentityToken],
             _ => [],
         };
@@ -197,7 +218,7 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
 
     /// <summary>
     /// The userinfo response for <paramref name="principal"/>: the profile and organization claims the ID token may carry,
-    /// <c>email_verified</c> as a boolean and <c>org_permission</c> always as an array; <c>amr</c>, <c>auth_time</c> and <c>sid</c> stay out.
+    /// <c>email_verified</c> and <c>phone_number_verified</c> as booleans and <c>org_permission</c> always as an array; <c>amr</c>, <c>auth_time</c> and <c>sid</c> stay out.
     /// </summary>
     /// <param name="principal">A principal built by <see cref="ApplyAsync"/>.</param>
     public static Dictionary<string, object> ToUserInfo(ClaimsPrincipal principal)
@@ -214,7 +235,7 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
             var values = ReadValues(identity, type);
             response[type] = type switch
             {
-                Claims.EmailVerified => bool.Parse(values[0]),
+                Claims.EmailVerified or Claims.PhoneNumberVerified => bool.Parse(values[0]),
                 OrganizationClaimTypeConstants.Permission => values,
                 _ when values.Count > 1 => values,
                 _ => values[0],

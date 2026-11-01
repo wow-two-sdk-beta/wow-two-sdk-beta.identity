@@ -1,12 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Forms 2 and 3 (layer 3): a product signs in against a running Identity instance. Today the OIDC client
-    (Authorization Code + PKCE); the management API brokers, logout and webhook receivers and the projection land here.
+    Forms 2 and 3 (layer 3): a product signs in against a running Identity instance. Today the BFF sign-in (the code flow
+    with PKCE, server-side tokens, session routes, the organization policies); the management API brokers, logout and
+    webhook receivers and the projection land here.
   -->
   <PropertyGroup>
     <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
-    <Description>Identity Forms 2 and 3: the OIDC client (Authorization Code + PKCE) a product signs in through against a running Identity instance.</Description>
+    <Description>Identity Forms 2 and 3: the BFF sign-in against a running Identity instance — the OpenID Connect code flow with PKCE, server-side tokens, session routes and organization policies.</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -86,6 +86,7 @@ internal sealed partial class OidcClientSeeder(IOpenIddictApplicationManager app
             Permissions.GrantTypes.RefreshToken,
             Permissions.ResponseTypes.Code,
             Permissions.Scopes.Email,
+            Permissions.Scopes.Phone,
             Permissions.Scopes.Profile,
         ]);
         descriptor.Requirements.Add(Requirements.Features.ProofKeyForCodeExchange);

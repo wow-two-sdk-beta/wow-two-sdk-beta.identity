@@ -31,7 +31,7 @@ public sealed class OidcClientRegistrationTests
         descriptor.Permissions.Should().BeEquivalentTo(
             Permissions.Endpoints.Authorization, Permissions.Endpoints.Token, Permissions.Endpoints.EndSession,
             Permissions.GrantTypes.AuthorizationCode, Permissions.GrantTypes.RefreshToken, Permissions.ResponseTypes.Code,
-            Permissions.Scopes.Email, Permissions.Scopes.Profile);
+            Permissions.Scopes.Email, Permissions.Scopes.Phone, Permissions.Scopes.Profile);
         descriptor.Requirements.Should().Equal(Requirements.Features.ProofKeyForCodeExchange);
         descriptor.RedirectUris.Should().Equal(new Uri("https://wheelhouse.example.test/signin-oidc"));
         descriptor.PostLogoutRedirectUris.Should().Equal(new Uri("https://wheelhouse.example.test/signed-out"));
