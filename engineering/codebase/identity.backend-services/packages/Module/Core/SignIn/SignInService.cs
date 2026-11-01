@@ -16,6 +16,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
 /// steps apply when their slices are registered; a user with two-factor enabled always needs the second factor.
 /// </summary>
 /// <remarks>
+///   - a password that matches its hash is then checked against the current password rules, once the password change slice
+///     is registered; one that fails them ends as <see cref="SignInStatus.PasswordChangeRequired"/> with a ticket for the
+///     change routes, and no principal: the old hash stays until the person changes it
 ///   - the principal records how the person signed in as <see cref="AuthenticationMethodConstants.ClaimType"/> claims:
 ///     <c>pwd</c> for a password, <c>hwk</c> for a passkey, <c>otp</c> and <c>mfa</c> after a second factor, and whatever
 ///     the caller names for a sign-in completed elsewhere; a renewal records none
@@ -41,6 +44,7 @@ public sealed class SignInService
     private readonly UserTwoFactorMethodService? _twoFactorMethods;
     private readonly UserPasskeyService? _passkeys;
     private readonly SignInLogService? _signInLog;
+    private readonly UserPasswordChangeService? _passwordChange;
     private static string? s_decoyHash;
 
     /// <summary>Create the service over the registered slices.</summary>
@@ -55,6 +59,7 @@ public sealed class SignInService
     /// <param name="twoFactorMethods">The delivered-code methods of the two-factor slice; null leaves only the authenticator.</param>
     /// <param name="passkeys">The passkey slice; null disables passkey sign-in.</param>
     /// <param name="signInLog">The sign-in log; null records nothing.</param>
+    /// <param name="passwordChange">The password change slice; null skips the check of a matched password against the current rules.</param>
     public SignInService(
         UserAccountService accounts,
         UserClaimsPrincipalFactory principals,
@@ -66,7 +71,8 @@ public sealed class SignInService
         UserTwoFactorService? twoFactor = null,
         UserTwoFactorMethodService? twoFactorMethods = null,
         UserPasskeyService? passkeys = null,
-        SignInLogService? signInLog = null)
+        SignInLogService? signInLog = null,
+        UserPasswordChangeService? passwordChange = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         _accounts = accounts;
@@ -80,6 +86,7 @@ public sealed class SignInService
         _twoFactorMethods = twoFactorMethods;
         _passkeys = passkeys;
         _signInLog = signInLog;
+        _passwordChange = passwordChange;
     }
 
     /// <summary>Sign in with a user name (or email, when allowed) and password.</summary>
@@ -129,8 +136,45 @@ public sealed class SignInService
                 : await LogAsync(FailedResult, method, user, subject, SignInReasonConstants.WrongPassword, cancellationToken);
         }
 
-        return await LogAsync(await CompleteFirstFactorAsync(user, PasswordMethods, cancellationToken), method, user, subject, null, cancellationToken);
+        // The hash matched, so the typed password is known; this is the only moment it can be checked against the current rules.
+        var first = await CompleteFirstFactorAsync(user, PasswordMethods, cancellationToken);
+        var isChangeRequired = _passwordChange is not null
+            && (first.Status is SignInStatus.Succeeded or SignInStatus.RequiresTwoFactor)
+            && await _passwordChange.IsChangeRequiredAsync(user, password, cancellationToken);
+        if (isChangeRequired && first.Status == SignInStatus.RequiresTwoFactor)
+            return await LogAsync(first with { IsPasswordChangeRequired = true }, method, user, subject, null, cancellationToken);
+        if (isChangeRequired)
+            return await LogAsync(RequiredChange(user), method, user, subject, SignInReasonConstants.PasswordBreaksRules, cancellationToken);
+
+        return await LogAsync(first, method, user, subject, null, cancellationToken);
     }
+
+    /// <summary>
+    /// Finish a password sign-in whose second factor was completed in the same request: when the password matched but breaks
+    /// the current rules (<see cref="SignInResult.IsPasswordChangeRequired"/> on <paramref name="firstFactor"/>), the success
+    /// becomes <see cref="SignInStatus.PasswordChangeRequired"/> and no session or token follows.
+    /// </summary>
+    /// <param name="firstFactor">The result of <see cref="PasswordSignInAsync(string, string, CancellationToken)"/>, which asked for the second factor.</param>
+    /// <param name="completed">The result of the second-factor step that followed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<SignInResult> FinishPasswordSignInAsync(SignInResult firstFactor, SignInResult completed, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(firstFactor);
+        ArgumentNullException.ThrowIfNull(completed);
+        if (!firstFactor.IsPasswordChangeRequired || !completed.IsSuccess || _passwordChange is null
+            || !Guid.TryParse(completed.UserId, out var userId) || await _accounts.FindByIdAsync(userId, cancellationToken) is not { } user)
+            return completed;
+
+        return await LogAsync(RequiredChange(user), SignInMethodConstants.Password, user, user.Email ?? user.UserName, SignInReasonConstants.PasswordBreaksRules, cancellationToken);
+    }
+
+    private SignInResult RequiredChange(IdentityUser user)
+        => new()
+        {
+            Status = SignInStatus.PasswordChangeRequired,
+            UserId = IdOf(user),
+            PasswordChangeTicket = _passwordChange!.IssueRequiredChangeTicket(user),
+        };
 
     /// <summary>Sign in a user already authenticated elsewhere (external login, passwordless code); lockout and preconditions still apply.</summary>
     /// <param name="user">The user.</param>
@@ -375,6 +419,7 @@ public sealed class SignInService
                     SignInStatus.LockedOut => SignInResultConstants.LockedOut,
                     SignInStatus.NotAllowed => SignInResultConstants.NotAllowed,
                     SignInStatus.RequiresTwoFactor => SignInResultConstants.TwoFactorRequired,
+                    SignInStatus.PasswordChangeRequired => SignInResultConstants.PasswordChangeRequired,
                     _ => SignInResultConstants.Failed,
                 },
                 Reason = reason ?? (result.Status == SignInStatus.NotAllowed && user is not null ? UnmetPrecondition(user) : null),

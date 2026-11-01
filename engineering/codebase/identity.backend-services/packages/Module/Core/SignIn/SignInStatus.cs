@@ -17,4 +17,7 @@ public enum SignInStatus
 
     /// <summary>The password was right; a second factor must complete the sign-in.</summary>
     RequiresTwoFactor,
+
+    /// <summary>The password was right but breaks the current rules; no session or token is granted until the person changes it.</summary>
+    PasswordChangeRequired,
 }

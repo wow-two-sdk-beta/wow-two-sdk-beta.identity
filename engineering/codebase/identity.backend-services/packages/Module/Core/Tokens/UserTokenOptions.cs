@@ -11,7 +11,7 @@ public sealed record UserTokenOptions
 
     /// <summary>
     /// Lifetimes by bare purpose; a scoped purpose uses the part before its separator. Defaults: confirmation 3 days,
-    /// reset 2 hours, email change 1 day, two-factor sign-in ticket 5 minutes.
+    /// reset 2 hours, email change 1 day, two-factor sign-in ticket 5 minutes, required password change 15 minutes.
     /// </summary>
     public Dictionary<string, TimeSpan> Lifetimes { get; } = new(StringComparer.Ordinal)
     {
@@ -19,5 +19,6 @@ public sealed record UserTokenOptions
         [UserTokenPurposeConstants.PasswordReset] = TimeSpan.FromHours(2),
         [UserTokenPurposeConstants.ChangeEmail] = TimeSpan.FromDays(1),
         [UserTokenPurposeConstants.TwoFactorSignIn] = TimeSpan.FromMinutes(5),
+        [UserTokenPurposeConstants.PasswordChangeRequired] = TimeSpan.FromMinutes(15),
     };
 }

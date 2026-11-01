@@ -33,6 +33,10 @@ public sealed class EfUserSessionRepository(IdentityDbContext context) : IUserSe
         => Sessions.Where(s => s.Id == id && s.LastSeenAt < at).ExecuteUpdateAsync(setters => setters.SetProperty(s => s.LastSeenAt, at), cancellationToken);
 
     /// <inheritdoc />
+    public Task SetSecurityStampAsync(Guid id, string? securityStamp, CancellationToken cancellationToken = default)
+        => Sessions.Where(s => s.Id == id && s.RevokedAt == null).ExecuteUpdateAsync(setters => setters.SetProperty(s => s.SecurityStamp, securityStamp), cancellationToken);
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<IdentitySession>> RevokeAsync(IReadOnlyCollection<Guid> ids, DateTimeOffset at, string reason, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ids);

@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using WoW.Two.Sdk.Beta.Be.Foundation.Options;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 using WoW.Two.Sdk.Beta.Be.Web.ErrorTranslation;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
@@ -15,6 +17,8 @@ public static class IdentityCoreServiceCollectionExtensions
     /// <see cref="IdentityDatabaseOptions.MigrationSetName"/>. Chain further slices on the returned builder.
     /// </summary>
     /// <remarks>
+    ///   - the rules come from <paramref name="configure"/>, then the host sections <c>Identity:Password</c>,
+    ///     <c>Identity:SignIn</c> and <c>Identity:Lockout</c>, which are applied last; a value invalid on its own fails the start
     ///   - the database comes from <paramref name="configureDatabase"/>, then the host section <c>Identity:Database</c>
     ///   - the host applies the set with the be sdk's boot or deploy helpers (<c>MigrateBespokeOnStartupAsync</c>,
     ///     <c>MigrateBespokeForDeployAsync</c>) beside its own sets
@@ -40,7 +44,24 @@ public static class IdentityCoreServiceCollectionExtensions
                     options => options.Password.RequiredUniqueChars >= 0 && options.Password.RequiredUniqueChars <= options.Password.MaxLength,
                     "IdentityCoreOptions.Password.RequiredUniqueChars must lie between 0 and MaxLength.")
                 .Validate(options => options.Lockout.MaxFailedAttempts > 0, "IdentityCoreOptions.Lockout.MaxFailedAttempts must be positive.")
-                .Validate(options => options.Lockout.DefaultLockout > TimeSpan.Zero, "IdentityCoreOptions.Lockout.DefaultLockout must be positive."));
+                .Validate(options => options.Lockout.DefaultLockout > TimeSpan.Zero, "IdentityCoreOptions.Lockout.DefaultLockout must be positive.")
+                .Validate(
+                    options => Enum.IsDefined(options.Password.Change.Confirmation),
+                    "Identity:Password:Change:Confirmation must be None, Code or Link.")
+                .Validate(options => options.Password.Change.Lifetime > TimeSpan.Zero, "Identity:Password:Change:Lifetime must be positive.")
+                .Validate(
+                    options => options.Password.Change.Confirmation != PasswordChangeConfirmationType.Link || options.Password.Change.IsLinkTemplateValid,
+                    "Identity:Password:Change:LinkTemplate must hold {token} when Confirmation is Link."));
+        services.AddOptions<IdentityCoreOptions>().PostConfigure<IServiceProvider>((options, provider) =>
+        {
+            // Host configuration comes last, so an environment changes the rules without a rebuild.
+            if (provider.GetService<IConfiguration>() is not { } configuration)
+                return;
+
+            configuration.GetSection(PasswordOptions.SectionName).Bind(options.Password);
+            configuration.GetSection(SignInOptions.SectionName).Bind(options.SignIn);
+            configuration.GetSection(LockoutOptions.SectionName).Bind(options.Lockout);
+        });
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddScoped<UserAccountService>();
         services.TryAddScoped<UserClaimsPrincipalFactory>();

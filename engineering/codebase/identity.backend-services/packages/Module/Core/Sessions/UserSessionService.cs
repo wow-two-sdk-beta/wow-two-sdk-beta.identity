@@ -59,6 +59,21 @@ public sealed class UserSessionService(
         return session;
     }
 
+    /// <summary>
+    /// Keep a live session through a stamp rotation the person caused themselves (a password change): the session takes the
+    /// person's current stamp, so it stays valid while every other session ends. The cookie must be reissued with the new stamp.
+    /// </summary>
+    /// <param name="user">The person, with the rotated stamp.</param>
+    /// <param name="sessionId">The session to keep.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task RebindAsync(IdentityUser user, Guid sessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        var session = await sessions.FindAsync(sessionId, cancellationToken);
+        if (session is not null && session.UserId == user.Id)
+            await sessions.SetSecurityStampAsync(sessionId, user.SecurityStamp, cancellationToken);
+    }
+
     /// <summary>Whether <paramref name="sessionId"/> is a live session of <paramref name="userId"/>, recording the use; a stamp-stale one ends on the way.</summary>
     /// <param name="sessionId">The <c>sid</c> presented.</param>
     /// <param name="userId">The person the cookie or token names.</param>

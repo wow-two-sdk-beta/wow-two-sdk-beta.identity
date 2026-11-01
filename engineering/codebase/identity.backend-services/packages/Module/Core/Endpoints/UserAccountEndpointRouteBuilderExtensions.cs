@@ -25,7 +25,7 @@ using WoW.Two.Sdk.Beta.Be.Web.ExceptionHandling.Factories;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 
 /// <summary>Maps the account HTTP API over the registered identity slices.</summary>
-public static class UserAccountEndpointRouteBuilderExtensions
+public static partial class UserAccountEndpointRouteBuilderExtensions
 {
     private static readonly JsonSerializerOptions ExportJson = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
@@ -42,7 +42,11 @@ public static class UserAccountEndpointRouteBuilderExtensions
     /// plus a refresh token when registered) or, with <c>?useCookies=true</c>, a cookie that carries a new session's
     /// <c>sid</c> when sessions are registered. Each sign-in route takes an optional <c>?clientId=</c> the sign-in log
     /// records. <c>register</c> answers <c>403</c> (message key <c>SignUpClosed</c>) unless <see cref="SignUpOptions.IsEnabled"/>
-    /// is on. Failures surface as problem details, translated when error translation is enabled.
+    /// is on. A sign-in whose password matched but breaks the current password rules answers <c>200</c> with
+    /// <c>isPasswordChangeRequired</c> and a ticket instead of a session. Bearer sign-in and <c>refresh</c> answer <c>400</c>
+    /// (message key <c>BearerSignInUnsupported</c>) on a host without JWT issuance or refresh tokens, such as a cookie-only
+    /// instance. With the password change slice registered, <c>manage/password/confirmation</c>, <c>manage/password</c> and
+    /// <c>password/change</c> map too. Failures surface as problem details, translated when error translation is enabled.
     /// </summary>
     /// <param name="endpoints">The route builder or group.</param>
     public static IEndpointRouteBuilder MapUserAccountEndpoints(this IEndpointRouteBuilder endpoints)
@@ -58,6 +62,9 @@ public static class UserAccountEndpointRouteBuilderExtensions
         endpoints.MapPost("/forgot-password", ForgotPasswordAsync);
         endpoints.MapPost("/reset-password", ResetPasswordAsync);
         endpoints.MapGet("/manage/info", InfoAsync).RequireAuthorization();
+
+        if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserPasswordChangeService)) == true)
+            MapPasswordChangeEndpoints(endpoints);
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserTwoFactorService)) == true)
         {
@@ -123,20 +130,26 @@ public static class UserAccountEndpointRouteBuilderExtensions
     {
         var services = http.RequestServices;
         NameClient(services, clientId);
+        RequireSessionKind(services, useCookies);
         var signIn = services.GetRequiredService<SignInService>();
-        var result = await signIn.PasswordSignInAsync(request.Login, request.Password, cancellationToken);
-        if (result is { Status: SignInStatus.RequiresTwoFactor, TwoFactorTicket: { } ticket } && TryParseKey(result.UserId, out var userId))
+        var firstFactor = await signIn.PasswordSignInAsync(request.Login, request.Password, cancellationToken);
+        var result = firstFactor;
+        if (firstFactor is { Status: SignInStatus.RequiresTwoFactor, TwoFactorTicket: { } ticket } && TryParseKey(firstFactor.UserId, out var userId))
         {
-            var method = request.TwoFactorMethod ?? result.TwoFactorMethod ?? TwoFactorMethodNameConstants.Authenticator;
+            var method = request.TwoFactorMethod ?? firstFactor.TwoFactorMethod ?? TwoFactorMethodNameConstants.Authenticator;
             if (!string.IsNullOrWhiteSpace(request.TwoFactorCode))
                 result = await signIn.TwoFactorSignInAsync(userId, ticket, method, request.TwoFactorCode, cancellationToken);
             else if (!string.IsNullOrWhiteSpace(request.RecoveryCode))
                 result = await signIn.RecoveryCodeSignInAsync(userId, ticket, request.RecoveryCode, cancellationToken);
             else
                 throw (await TwoFactorChallengeAsync(services, signIn, userId, ticket, method, request.TwoFactorMethod is not null, cancellationToken)).ToException();
+
+            result = await signIn.FinishPasswordSignInAsync(firstFactor, result, cancellationToken);
         }
 
-        return await SessionAsync(result, useCookies, http, cancellationToken);
+        return result.Status == SignInStatus.PasswordChangeRequired
+            ? PasswordChangeRequired(result, http)
+            : await SessionAsync(result, useCookies, http, cancellationToken);
     }
 
     private static IResult PasskeySignInOptions(HttpContext http)
@@ -146,6 +159,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     {
         var services = http.RequestServices;
         NameClient(services, clientId);
+        RequireSessionKind(services, useCookies);
         var result = await services.GetRequiredService<SignInService>().PasskeySignInAsync(request.State, request.Credential.GetRawText(), cancellationToken);
         if (result.Status == SignInStatus.Failed)
             throw Unauthorized(IdentityErrorCodeConstants.InvalidPasskey, "The passkey could not be verified; try again.").ToException();
@@ -175,6 +189,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     {
         var services = http.RequestServices;
         NameClient(services, clientId);
+        RequireSessionKind(services, useCookies);
         var emailSignIn = services.GetRequiredService<UserEmailSignInService>();
         var byLink = !string.IsNullOrWhiteSpace(request.Token);
         var logMethod = byLink ? SignInMethodConstants.EmailLink : SignInMethodConstants.EmailCode;
@@ -202,6 +217,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     {
         var services = http.RequestServices;
         NameClient(services, clientId);
+        RequireSessionKind(services, useCookies);
         var method = request.TwoFactorMethod ?? TwoFactorMethodNameConstants.Authenticator;
         if (!TryParseKey(request.UserId, out var userId))
         {
@@ -256,8 +272,9 @@ public static class UserAccountEndpointRouteBuilderExtensions
     private static async Task<IResult> RefreshAsync(RefreshAccessApiRequest request, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
-        var refresh = services.GetService<RefreshTokenService>()
-            ?? throw new NotSupportedException("Refreshing needs the refresh-token slice; call .AddRefreshTokens().");
+        var refresh = services.GetService<RefreshTokenService>() is { } registered && services.GetService<ITokenIssuer>() is not null
+            ? registered
+            : throw BearerUnsupported("Refreshing is not enabled on this instance; sign in with ?useCookies=true.").ToException();
         var redeemed = await refresh.RedeemAsync(request.RefreshToken, cancellationToken);
         if (!redeemed.IsSuccess)
             throw Unauthorized(IdentityErrorCodeConstants.InvalidRefreshToken, "The session has expired; sign in again.").ToException();
@@ -647,7 +664,7 @@ public static class UserAccountEndpointRouteBuilderExtensions
     private static async Task<AccessTokenDto> IssueAsync(IServiceProvider services, ClaimsPrincipal principal, IdentityUser? user, string? refreshToken, CancellationToken cancellationToken)
     {
         var issuer = services.GetService<ITokenIssuer>()
-            ?? throw new NotSupportedException("Bearer sign-in needs JWT issuance; call AddJwtTokenIssuance(...) or sign in with ?useCookies=true.");
+            ?? throw BearerUnsupported("Bearer sign-in is not enabled on this instance; sign in with ?useCookies=true.").ToException();
         var lifetime = services.GetService<JwtTokenIssuerOptions>()?.Lifetime ?? TimeSpan.FromHours(1);
         if (refreshToken is null && user is not null && services.GetService<RefreshTokenService>() is { } refresh)
             refreshToken = (await refresh.IssueAsync(user, cancellationToken)).Token;
@@ -675,8 +692,27 @@ public static class UserAccountEndpointRouteBuilderExtensions
         SignInStatus.LockedOut => AppError.Of(AppErrorType.TooManyRequests, "The account is temporarily locked out.", MessageKey(IdentityErrorCodeConstants.LockedOut)),
         SignInStatus.NotAllowed => AppError.Of(AppErrorType.Forbidden, "Confirm your email or phone to sign in.", MessageKey(IdentityErrorCodeConstants.SignInNotAllowed)),
         SignInStatus.RequiresTwoFactor => Unauthorized(IdentityErrorCodeConstants.TwoFactorRequired, "Enter your two-factor code."),
+        SignInStatus.PasswordChangeRequired => CodedError(AppErrorType.Forbidden, "Change your password to sign in.", PasswordChangeErrorCodeConstants.ChangeRequired),
         _ => Unauthorized(IdentityErrorCodeConstants.SignInFailed, "The login or password is incorrect."),
     };
+
+    /// <summary>Refuses, before any credential is checked, a bearer sign-in on a host that cannot issue bearer tokens.</summary>
+    private static void RequireSessionKind(IServiceProvider services, bool? useCookies)
+    {
+        if (useCookies != true && services.GetService<ITokenIssuer>() is null)
+            throw BearerUnsupported("Bearer sign-in is not enabled on this instance; sign in with ?useCookies=true.").ToException();
+    }
+
+    private static AppError BearerUnsupported(string message)
+        => CodedError(AppErrorType.Validation, message, AccountApiErrorCodeConstants.BearerSignInUnsupported);
+
+    /// <summary>An error whose identity code a client can read from the problem's <c>identityCode</c> extension, beside the message key translation uses.</summary>
+    private static AppError CodedError(AppErrorType type, string message, string code)
+    {
+        var metadata = MessageKey(code);
+        metadata[AppErrorProblemDetailsFactory.ExtensionsMetadataKey] = new Dictionary<string, object?>(StringComparer.Ordinal) { ["identityCode"] = code };
+        return AppError.Of(type, message, metadata);
+    }
 
     private static AppError Unauthorized(string code, string message) => AppError.Of(AppErrorType.Unauthorized, message, MessageKey(code));
 

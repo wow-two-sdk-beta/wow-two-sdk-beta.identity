@@ -46,9 +46,18 @@ public sealed class SecurityStampValidator(
         return valid;
     }
 
+    /// <summary>
+    /// Drops the cached stamp of <paramref name="userId"/>, so a rotation shows on this host at once; other hosts see it
+    /// within <see cref="SecurityStampValidationOptions.ValidationInterval"/>.
+    /// </summary>
+    /// <param name="userId">The person whose stamp rotated.</param>
+    public void Forget(Guid userId) => cache.Remove(CacheKey(userId.ToString()));
+
+    private static string CacheKey(string userId) => $"identity:security-stamp:{userId}";
+
     private async Task<string?> ReadStampAsync(string userId, CancellationToken cancellationToken)
     {
-        var cacheKey = $"identity:security-stamp:{userId}";
+        var cacheKey = CacheKey(userId);
         if (options.ValidationInterval > TimeSpan.Zero && cache.TryGetValue(cacheKey, out string? cached))
             return cached;
 

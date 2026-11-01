@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using WoW.Two.Sdk.Beta.Be.Foundation.Options;
+using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 using WoW.Two.Sdk.Beta.Be.Identity.PasswordHashing.Argon2;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
@@ -21,6 +22,23 @@ public static class PasswordIdentityBuilderExtensions
         builder.Services.TryAddSingleton<IPasswordHasher<IdentityUser>, Argon2PasswordHasher<IdentityUser>>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IUserPasswordValidator, PasswordRulesValidator>());
         builder.Services.TryAddScoped<UserPasswordService>();
+        return builder;
+    }
+
+    /// <summary>
+    /// Register <see cref="UserPasswordChangeService"/>: the password change <c>Identity:Password:Change</c> asks for (none, a
+    /// code or a link over a verified channel), the change a sign-in forces when a stored password breaks the current rules,
+    /// and the account API's change routes. Needs <c>.AddArgon2Passwords()</c> and <c>.AddUserTokens(...)</c>; a code or link
+    /// goes out through an OTP delivery channel (<c>AddEmailOtpDelivery</c>, …) to a channel a
+    /// <see cref="Channels.IUserVerifiedChannelSource"/> lists (<c>.AddEmailConfirmation()</c> lists a confirmed email).
+    /// </summary>
+    /// <param name="builder">The identity builder.</param>
+    public static IdentityBuilder AddPasswordChange(this IdentityBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddOtpService();
+        builder.Services.TryAddScoped<UserPasswordChangeService>();
         return builder;
     }
 

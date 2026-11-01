@@ -138,6 +138,7 @@ public sealed class PasswordSliceTests
         var handler = new RangeHandler("password1");
         await using var host = AccountsHost.Create(
             identity => identity.AddArgon2Passwords().AddBreachedPasswordCheck(),
+            options => options.Password.MinLength = 8,
             services: services => services
                 .AddHttpClient<IPwnedPasswordsClient, PwnedPasswordsClient>()
                 .ConfigurePrimaryHttpMessageHandler(() => handler));

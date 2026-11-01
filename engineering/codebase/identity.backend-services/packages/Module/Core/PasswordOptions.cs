@@ -1,10 +1,16 @@
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
+
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>Holds password rules (consumed by the password slice). Defaults follow NIST SP 800-63B: length over composition.</summary>
+/// <remarks>Set in code with <c>AddUserAccounts(o =&gt; o.Password…)</c> or in the host section <c>Identity:Password</c>, which is applied last.</remarks>
 public sealed record PasswordOptions
 {
-    /// <summary>Minimum password length. Default 8.</summary>
-    public int MinLength { get; set; } = 8;
+    /// <summary>The host configuration section.</summary>
+    public const string SectionName = "Identity:Password";
+
+    /// <summary>Minimum password length. Default 15.</summary>
+    public int MinLength { get; set; } = 15;
 
     /// <summary>Maximum password length; bounds the hashing cost a caller can force. Default 128.</summary>
     public int MaxLength { get; set; } = 128;
@@ -26,4 +32,7 @@ public sealed record PasswordOptions
 
     /// <summary>Reject a password equal to the account's user name or email, ignoring case. Default true.</summary>
     public bool IsAccountIdentifierRejected { get; set; } = true;
+
+    /// <summary>How a signed-in person's password change is confirmed (<c>Identity:Password:Change</c>).</summary>
+    public PasswordChangeOptions Change { get; } = new();
 }

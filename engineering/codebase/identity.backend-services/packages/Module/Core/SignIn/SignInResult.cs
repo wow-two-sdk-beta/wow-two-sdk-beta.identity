@@ -20,6 +20,12 @@ public sealed record SignInResult
     /// <summary>The method the second factor asks for first — <c>authenticator</c> or a delivered method such as <c>sms</c>; set for <see cref="SignInStatus.RequiresTwoFactor"/>.</summary>
     public string? TwoFactorMethod { get; init; }
 
+    /// <summary>The ticket that opens the password-change routes and nothing else; set for <see cref="SignInStatus.PasswordChangeRequired"/>.</summary>
+    public string? PasswordChangeTicket { get; init; }
+
+    /// <summary>Whether the typed password matched its hash but breaks the current rules; set on a <see cref="SignInStatus.RequiresTwoFactor"/> result, so the sign-in finishes as <see cref="SignInStatus.PasswordChangeRequired"/> after the second factor.</summary>
+    public bool IsPasswordChangeRequired { get; init; }
+
     /// <summary>The sign-in log row this attempt wrote; null without the sign-in log slice, or when the write failed.</summary>
     /// <remarks>A cookie sign-in passes it to <c>UserSessionService.StartAsync</c>, so the row names the session it started.</remarks>
     public long? SignInLogEntryId { get; init; }

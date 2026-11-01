@@ -1,8 +1,12 @@
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>Holds lockout rules (consumed by the lockout slice).</summary>
+/// <remarks>Set in code with <c>AddUserAccounts(o =&gt; o.Lockout…)</c> or in the host section <c>Identity:Lockout</c>, which is applied last.</remarks>
 public sealed record LockoutOptions
 {
+    /// <summary>The host configuration section.</summary>
+    public const string SectionName = "Identity:Lockout";
+
     /// <summary>Failed attempts before lockout. Default 5.</summary>
     public int MaxFailedAttempts { get; set; } = 5;
 

@@ -1,4 +1,5 @@
 using WoW.Two.Sdk.Beta.Be.Foundation.Validation;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
@@ -30,11 +31,13 @@ public static class IdentityResultExtensions
     /// <param name="code">The identity error code.</param>
     public static string FieldOf(string code) => code switch
     {
+        IdentityErrorCodeConstants.PasswordMismatch => "currentPassword",
         _ when code.StartsWith("Password", StringComparison.Ordinal) => "password",
         IdentityErrorCodeConstants.UserAlreadyHasPassword => "password",
         IdentityErrorCodeConstants.DuplicateEmail => "email",
         IdentityErrorCodeConstants.UserNameRequired or IdentityErrorCodeConstants.DuplicateUserName => "userName",
-        IdentityErrorCodeConstants.InvalidToken => "token",
+        IdentityErrorCodeConstants.InvalidToken or PasswordChangeErrorCodeConstants.InvalidLink => "token",
+        PasswordChangeErrorCodeConstants.InvalidCode => "code",
         IdentityErrorCodeConstants.InvalidAuthenticatorCode
             or IdentityErrorCodeConstants.InvalidRecoveryCode
             or IdentityErrorCodeConstants.InvalidPhoneCode => "code",

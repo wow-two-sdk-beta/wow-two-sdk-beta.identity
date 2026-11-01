@@ -25,6 +25,12 @@ public interface IUserSessionRepository
     /// <param name="cancellationToken">Cancellation token.</param>
     Task TouchAsync(Guid id, DateTimeOffset at, CancellationToken cancellationToken = default);
 
+    /// <summary>Bind a still-unrevoked session to a new security stamp, so it outlives the rotation that made the stamp.</summary>
+    /// <param name="id">The session id.</param>
+    /// <param name="securityStamp">The person's current stamp.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task SetSecurityStampAsync(Guid id, string? securityStamp, CancellationToken cancellationToken = default);
+
     /// <summary>Mark the still-unrevoked sessions among <paramref name="ids"/> revoked; returns the ones this call revoked.</summary>
     /// <param name="ids">The session ids.</param>
     /// <param name="at">The revocation instant.</param>

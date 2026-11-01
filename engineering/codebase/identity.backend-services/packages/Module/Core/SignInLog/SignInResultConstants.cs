@@ -17,4 +17,7 @@ public static class SignInResultConstants
 
     /// <summary>The first factor was right; a second factor must follow.</summary>
     public const string TwoFactorRequired = "two_factor_required";
+
+    /// <summary>The password was right but breaks the current rules; the person must change it before any session starts.</summary>
+    public const string PasswordChangeRequired = "password_change_required";
 }

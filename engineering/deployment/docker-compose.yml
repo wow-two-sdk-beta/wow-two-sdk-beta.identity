@@ -10,6 +10,11 @@
 # service reads them as file paths; a deployed target pastes the owner's bundles into vault secrets instead. Remove the
 # identity-keys volume to make new ones. Each image runs under an init process, as on a target, so a refused boot exits
 # instead of spinning as PID 1.
+#
+# The service sends its emails (account confirmation, password reset, password-change codes and links) to Mailpit, a
+# local mail sink: nothing leaves the machine, and http://127.0.0.1:8025 shows every message. identity-keys also makes
+# the key that signs the service's confirmation and reset tokens. Sign-up is on here, so a local sign-up produces a
+# confirmation email to read; a deployed environment turns it on in its own settings.
 services:
   database:
     image: postgres:18-alpine
@@ -25,6 +30,19 @@ services:
       timeout: 3s
       retries: 20
 
+  mailpit:
+    image: axllent/mailpit:v1.32.0
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 128m
+
   identity-keys:
     image: identity:local
     init: true
@@ -38,6 +56,7 @@ services:
         && { [ -s signing.pem ] || dotnet /app/Identity.Api.dll keys generate --role signing > signing.pem; }
         && { [ -s encryption.pem ] || dotnet /app/Identity.Api.dll keys generate --role encryption > encryption.pem; }
         && { [ -s data-protection.pem ] || dotnet /app/Identity.Api.dll keys generate --role data-protection > data-protection.pem; }
+        && { [ -s token.key ] || head -c 32 /dev/urandom | base64 > token.key; }
     volumes:
       - identity-keys:/data
 
@@ -59,6 +78,8 @@ services:
         condition: service_completed_successfully
       identity-migrate:
         condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
     restart: unless-stopped
     ports:
       - "127.0.0.1:8389:8080"
@@ -68,6 +89,13 @@ services:
       Identity__Server__Keys__Signing__0: /data/keys/signing.pem
       Identity__Server__Keys__Encryption__0: /data/keys/encryption.pem
       Identity__DataProtection__Certificates__0: /data/keys/data-protection.pem
+      Identity__Tokens__SigningKey: /data/keys/token.key
+      Identity__SignUp__IsEnabled: "true"
+      Identity__Email__From: identity@identity.local
+      Identity__Email__FromName: Identity (local)
+      Identity__Email__Smtp__Host: mailpit
+      Identity__Email__Smtp__Port: "1025"
+      Identity__Email__Smtp__SecureSocket: None
     volumes:
       - identity-keys:/data
     mem_limit: 256m

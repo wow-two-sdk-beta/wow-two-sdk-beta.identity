@@ -43,6 +43,25 @@ public sealed class UserPasswordService(
         return errors.Count == 0 ? IdentityResult.Success : IdentityResult.Failed([.. errors]);
     }
 
+    /// <summary>
+    /// Run only the structured rules (<see cref="PasswordRulesValidator"/>) against <paramref name="password"/>: the checks
+    /// that need a network, such as the breach corpus, are skipped. Sign-in uses it on a password that already matched its hash.
+    /// </summary>
+    /// <param name="user">The account the password belongs to.</param>
+    /// <param name="password">The password as typed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<IdentityResult> ValidateRulesAsync(IdentityUser user, string password, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        ArgumentNullException.ThrowIfNull(password);
+
+        var errors = new List<IdentityError>();
+        foreach (var validator in validators.OfType<PasswordRulesValidator>())
+            errors.AddRange(await validator.ValidateAsync(user, password, cancellationToken));
+
+        return errors.Count == 0 ? IdentityResult.Success : IdentityResult.Failed([.. errors]);
+    }
+
     /// <summary>Validate the password, then create the user with it; nothing persists when the password fails.</summary>
     /// <param name="user">The new user.</param>
     /// <param name="password">The initial password.</param>
@@ -121,6 +140,21 @@ public sealed class UserPasswordService(
         => RequireTokens().Verify(user, UserTokenPurposeConstants.PasswordReset, token)
             ? StoreAsync(user, newPassword, cancellationToken)
             : Task.FromResult(IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidToken, "The reset link is invalid or has expired."));
+
+    /// <summary>
+    /// Replace the password with one the caller already ran through <see cref="ValidateAsync"/> and authorized by other proof
+    /// (a spent code or link, a forced-change ticket); rotates the security stamp.
+    /// </summary>
+    /// <param name="user">The user.</param>
+    /// <param name="newPassword">The replacement password, already validated.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    internal async Task<IdentityResult> ReplaceValidatedAsync(IdentityUser user, string newPassword, CancellationToken cancellationToken)
+    {
+        user.PasswordHash = hasher.HashPassword(user, newPassword);
+        user.RotateSecurityStamp();
+        await repository.UpdateAsync(user, cancellationToken);
+        return IdentityResult.Success;
+    }
 
     private PasswordVerificationResult Verify(IdentityUser user, string password)
     {

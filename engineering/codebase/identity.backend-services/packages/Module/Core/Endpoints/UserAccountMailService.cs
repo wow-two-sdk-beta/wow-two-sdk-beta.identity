@@ -55,7 +55,7 @@ public sealed class UserAccountMailService(
         ArgumentNullException.ThrowIfNull(user);
         if (email is null || string.IsNullOrWhiteSpace(user.Email))
         {
-            logger.AccountEmailSkipped();
+            logger.AccountEmailSkipped(email is null ? "no email broker is registered" : "the account has no email address");
             return false;
         }
 
@@ -72,7 +72,10 @@ public sealed class UserAccountMailService(
         ArgumentNullException.ThrowIfNull(user);
         if (email is null || string.IsNullOrWhiteSpace(linkTemplate) || string.IsNullOrWhiteSpace(user.Email))
         {
-            logger.AccountEmailSkipped();
+            logger.AccountEmailSkipped(
+                email is null ? "no email broker is registered"
+                : string.IsNullOrWhiteSpace(linkTemplate) ? "no link template is configured (UserAccounts:Emails)"
+                : "the account has no email address");
             return false;
         }
 

@@ -27,6 +27,9 @@ public static class SignInReasonConstants
     /// <summary>This failure reached the limit and started a lockout.</summary>
     public const string LockoutStarted = "lockout_started";
 
+    /// <summary>The password matched its hash but no longer meets the current password rules.</summary>
+    public const string PasswordBreaksRules = "password_breaks_rules";
+
     /// <summary>The account's email is unconfirmed while sign-in requires it.</summary>
     public const string UnconfirmedEmail = "unconfirmed_email";
 
