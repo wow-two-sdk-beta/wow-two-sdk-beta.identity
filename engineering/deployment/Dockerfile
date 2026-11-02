@@ -41,7 +41,8 @@ RUN case "$TARGETARCH" in amd64) rid=linux-x64 ;; arm64) rid=linux-arm64 ;; *) e
 
 # ---- Stage 3: runtime ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+# libfontconfig1 (with libfreetype6) is what SkiaSharp's Linux native library loads; profile pictures decode through it.
+RUN apt-get update && apt-get install -y --no-install-recommends curl libfontconfig1 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app ./
