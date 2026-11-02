@@ -1,18 +1,25 @@
+using WoW.Two.Sdk.Beta.Be.Identity.Core.SecurityStamps;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
+
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 
 /// <summary>
-/// Provides role membership: add, remove and query a user's roles by name. Removal rotates the security stamp, so
-/// principals still carrying the role end; an added role appears from the next sign-in.
+/// Provides role membership: add, remove and query a user's roles by name. Adding or removing a role signs the person out
+/// everywhere (<see cref="RoleChangeSignOut"/>), so they sign in again carrying the new roles.
 /// </summary>
 /// <param name="roles">The role service, for name lookup.</param>
 /// <param name="memberships">The membership repository.</param>
 /// <param name="accounts">The core account service, for stamp rotation.</param>
+/// <param name="sessions">The sign-in sessions a role change ends; null without the sessions slice.</param>
+/// <param name="stamps">The stamp check, whose cached stamp a role change drops; null without stamp validation.</param>
 public sealed class UserRoleService(
     RoleService roles,
     IUserRoleRepository memberships,
-    UserAccountService accounts)
+    UserAccountService accounts,
+    UserSessionService? sessions = null,
+    SecurityStampValidator? stamps = null)
 {
-    /// <summary>Add <paramref name="user"/> to the named role.</summary>
+    /// <summary>Add <paramref name="user"/> to the named role and sign them out everywhere (<see cref="RoleChangeSignOut"/>).</summary>
     /// <param name="user">The user.</param>
     /// <param name="roleName">The role name (case-insensitive).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -25,10 +32,10 @@ public sealed class UserRoleService(
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.UserAlreadyInRole, $"The user already holds role '{roleName}'.", IdentityUserExtensions.Param("RoleName", roleName));
 
         await memberships.AddAsync(user.Id, role.Id, cancellationToken);
-        return IdentityResult.Success;
+        return await RoleChangeSignOut.ApplyAsync(user, accounts, sessions, stamps, cancellationToken);
     }
 
-    /// <summary>Remove <paramref name="user"/> from the named role and rotate the security stamp.</summary>
+    /// <summary>Remove <paramref name="user"/> from the named role and sign them out everywhere (<see cref="RoleChangeSignOut"/>).</summary>
     /// <param name="user">The user.</param>
     /// <param name="roleName">The role name (case-insensitive).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -41,7 +48,7 @@ public sealed class UserRoleService(
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.UserNotInRole, $"The user does not hold role '{roleName}'.", IdentityUserExtensions.Param("RoleName", roleName));
 
         await memberships.RemoveAsync(user.Id, role.Id, cancellationToken);
-        return await accounts.RotateSecurityStampAsync(user, cancellationToken);
+        return await RoleChangeSignOut.ApplyAsync(user, accounts, sessions, stamps, cancellationToken);
     }
 
     /// <summary>Whether <paramref name="user"/> holds the named role.</summary>

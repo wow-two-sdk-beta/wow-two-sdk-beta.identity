@@ -30,7 +30,11 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
 
 - Role names compare case-insensitively and are stored as configured; an unconfigured role fails `UnknownOrganizationRole`.
 - An organization may have no owner: removing or demoting the last one succeeds, and an admin may promote one later.
-- Removing a member, changing a role or deleting the organization rotates the member's stamp; joining appears at next sign-in.
+- Joining (a member added, an invitation redeemed), changing a role, removing a member and deleting the organization
+  sign each member concerned out everywhere (`RoleChangeSignOut`, `../Roles/roles.md` § Role changes): every session
+  ends as `roles_changed`, and they sign in again carrying the new `org_role` and `org_permission`. Re-roling to the same
+  role changes nothing; creating an organization leaves its creator signed in, the new membership showing from their
+  next sign-in.
 - Claims are `org_role` = `{organizationId}:{role}` and `org_permission` = `{organizationId}:{permission}`; the
   types follow `IdentityClaimOptions` and the principal extensions take the type when a host changes it.
 - Handles are unique, 1–64 lowercase letters, digits and single hyphens; names are 1–120 characters.
@@ -63,7 +67,7 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
 
 - A person outside the organization gets `404` `OrganizationNotFound`, a member who is neither owner nor admin `403`
   `OrganizationManagerRequired`.
-- A role change or removal rotates the member's stamp, ending their sessions; failures carry `identityCode`.
+- A role change or removal signs the member out everywhere, their own included; failures carry `identityCode`.
 - The Telegram change routes map only with the bot registered (`AddTelegramLinks`, part of `AddPhoneSignIn`). A change
   waits when another Telegram account shares a member's confirmed, already linked number, as a recycled number's new
   holder would (`../../Telegram/telegram.md`); `hasPendingTelegramChange` flags it for a day. Approving rotates nothing

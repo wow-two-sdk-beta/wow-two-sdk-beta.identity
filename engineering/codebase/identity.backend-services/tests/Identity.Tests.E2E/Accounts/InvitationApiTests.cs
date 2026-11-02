@@ -135,7 +135,9 @@ public sealed class InvitationApiTests
         (await host.CreateClient().PostAsync($"/api/account/invitations/{join.GetProperty("token").GetString()}/accept", null)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await guest.PostAsync($"/api/account/invitations/{join.GetProperty("token").GetString()}/accept", null)).StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await RoleAsync(host, organizationId, guestId)).Should().Be("editor");
-        (await guest.GetAsync("/api/account/manage/info")).StatusCode.Should().Be(HttpStatusCode.OK, "the reissued cookie still signs in");
+        (await guest.GetAsync("/api/account/manage/info")).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "joining signs the person out everywhere");
+        (await AccountHost.SignInAsync(guest, "guest-c@example.test", AccountHost.StrongPassword)).StatusCode.Should().Be(HttpStatusCode.NoContent, "they sign in again, carrying the role");
+        (await guest.GetAsync("/api/account/manage/info")).StatusCode.Should().Be(HttpStatusCode.OK, "the new sign-in holds at once");
 
         var withdrawn = await AccountHost.DataAsync(await owner.PostAsJsonAsync($"/api/organizations/{organizationId}/invitations", new { role = "editor" }));
         var withdrawnId = withdrawn.GetProperty("invitation").GetProperty("id").GetString();

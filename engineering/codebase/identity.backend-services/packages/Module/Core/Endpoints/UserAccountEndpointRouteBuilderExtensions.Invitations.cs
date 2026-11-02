@@ -15,8 +15,8 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
 {
     /// <summary>
     /// Maps <c>GET invitations/{token}</c>, the public preview of an invitation link (<c>404</c> when it names none), and
-    /// <c>POST invitations/{token}/accept</c>, which adds the signed-in person to its organization with its role and reissues
-    /// their cookie carrying it.
+    /// <c>POST invitations/{token}/accept</c>, which adds the signed-in person to its organization with its role; joining
+    /// ends their sessions, so the browser's cookie is cleared and they sign in again with the new role.
     /// </summary>
     private static void MapInvitationEndpoints(IEndpointRouteBuilder endpoints)
     {
@@ -52,13 +52,9 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         if (!redeemed.IsSuccess)
             throw InvitationErrors.Of(redeemed).ToException();
 
-        // The cookie carries organization claims from its sign-in: reissue it, same session, so the new role holds at once.
-        if (SessionOf(services, principal) is { } session && await HasCookieSchemeAsync(services))
-        {
-            var cookie = await http.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            if (cookie.Succeeded)
-                await ReissueCookieAsync(services, user, principal, session.SessionId, cookie, http, cancellationToken);
-        }
+        // Joining is a role change, which ended the person's sessions: clear this browser's cookie so it signs in again.
+        if (await HasCookieSchemeAsync(services))
+            await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
         return Results.NoContent();
     }

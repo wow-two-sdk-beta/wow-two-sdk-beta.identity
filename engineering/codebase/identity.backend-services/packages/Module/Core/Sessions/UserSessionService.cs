@@ -153,18 +153,27 @@ public sealed class UserSessionService(
         return session is not null && session.UserId == userId && (await EndAsync([sessionId], reason, cancellationToken)).Count == 1;
     }
 
-    /// <summary>Revoke every unrevoked session of the person, but <paramref name="keep"/>; returns how many ended.</summary>
+    /// <summary>Revoke every unrevoked session of the person, but <paramref name="keep"/>, marked <see cref="SessionRevokeReasonConstants.RevokedAll"/>; returns how many ended.</summary>
     /// <param name="user">The person.</param>
     /// <param name="keep">A session to leave live, such as the caller's own; null ends all.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<int> RevokeAllAsync(IdentityUser user, Guid? keep = null, CancellationToken cancellationToken = default)
+    public Task<int> RevokeAllAsync(IdentityUser user, Guid? keep = null, CancellationToken cancellationToken = default)
+        => RevokeAllAsync(user, keep, SessionRevokeReasonConstants.RevokedAll, cancellationToken);
+
+    /// <summary>Revoke every unrevoked session of the person, but <paramref name="keep"/>, marked <paramref name="reason"/>; returns how many ended.</summary>
+    /// <param name="user">The person.</param>
+    /// <param name="keep">A session to leave live, such as the caller's own; null ends all.</param>
+    /// <param name="reason">Why, one of <see cref="SessionRevokeReasonConstants"/>.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<int> RevokeAllAsync(IdentityUser user, Guid? keep, string reason, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         var ids = (await sessions.ListUnrevokedAsync(user.Id, time.GetUtcNow(), cancellationToken))
             .Select(session => session.Id)
             .Where(id => id != keep)
             .ToList();
-        return (await EndAsync(ids, SessionRevokeReasonConstants.RevokedAll, cancellationToken)).Count;
+        return (await EndAsync(ids, reason, cancellationToken)).Count;
     }
 
     private static bool IsCurrent(IdentitySession session, IdentityUser user)

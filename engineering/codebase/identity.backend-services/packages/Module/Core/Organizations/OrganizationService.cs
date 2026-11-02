@@ -2,24 +2,32 @@ using System.Globalization;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.SecurityStamps;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 
 /// <summary>
 /// Provides organizations and memberships: create, rename and delete an organization, and add, re-role and remove
 /// its members. The creator becomes owner; an organization may later have none, since removing or demoting its last owner
-/// succeeds. Removing a member or changing a role rotates the member's security stamp, so principals carrying the old role
-/// end; a new membership appears from the next sign-in.
+/// succeeds. Adding a member, changing a role, removing a member and deleting the organization sign the members concerned
+/// out everywhere (<see cref="RoleChangeSignOut"/>), so they sign in again carrying the new roles; creating one leaves the
+/// creator signed in.
 /// </summary>
 /// <param name="organizations">The organization store.</param>
 /// <param name="accounts">The core account service, for stamp rotation.</param>
 /// <param name="options">The roles and their permissions; <c>Identity:Organizations</c> reloads live.</param>
 /// <param name="time">The clock creations and memberships are stamped with.</param>
+/// <param name="sessions">The sign-in sessions a role change ends; null without the sessions slice.</param>
+/// <param name="stamps">The stamp check, whose cached stamp a role change drops; null without stamp validation.</param>
 public sealed partial class OrganizationService(
     IOrganizationRepository organizations,
     UserAccountService accounts,
     IOptionsMonitor<OrganizationOptions> options,
-    TimeProvider time)
+    TimeProvider time,
+    UserSessionService? sessions = null,
+    SecurityStampValidator? stamps = null)
 {
     private const int NameMaxLength = 120;
     private const int SlugMaxLength = 64;
@@ -82,7 +90,7 @@ public sealed partial class OrganizationService(
         return IdentityResult.Success;
     }
 
-    /// <summary>Delete <paramref name="organization"/> and its memberships, rotating every member's stamp.</summary>
+    /// <summary>Delete <paramref name="organization"/> and its memberships, signing every member out everywhere (<see cref="RoleChangeSignOut"/>).</summary>
     /// <param name="organization">The organization.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<IdentityResult> DeleteAsync(IdentityOrganization organization, CancellationToken cancellationToken = default)
@@ -93,7 +101,7 @@ public sealed partial class OrganizationService(
         foreach (var member in members)
         {
             if (await accounts.FindByIdAsync(member.UserId, cancellationToken) is { } user)
-                await accounts.RotateSecurityStampAsync(user, cancellationToken);
+                await RoleChangeSignOut.ApplyAsync(user, accounts, sessions, stamps, cancellationToken);
         }
 
         return IdentityResult.Success;
@@ -114,7 +122,7 @@ public sealed partial class OrganizationService(
         return organizations.FindBySlugAsync(NormalizeSlug(slug), cancellationToken);
     }
 
-    /// <summary>Add <paramref name="user"/> to <paramref name="organization"/> with <paramref name="role"/>.</summary>
+    /// <summary>Add <paramref name="user"/> to <paramref name="organization"/> with <paramref name="role"/> and sign them out everywhere (<see cref="RoleChangeSignOut"/>).</summary>
     /// <param name="organization">The organization.</param>
     /// <param name="user">The user.</param>
     /// <param name="role">A configured role name (case-insensitive).</param>
@@ -129,10 +137,10 @@ public sealed partial class OrganizationService(
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.UserAlreadyMember, $"The user is already a member of '{organization.Name}'.", IdentityUserExtensions.Param("OrganizationName", organization.Name));
 
         await organizations.AddMembershipAsync(new IdentityMembership { OrganizationId = organization.Id, UserId = user.Id, Role = resolved, CreatedAt = time.GetUtcNow() }, cancellationToken);
-        return IdentityResult.Success;
+        return await RoleChangeSignOut.ApplyAsync(user, accounts, sessions, stamps, cancellationToken);
     }
 
-    /// <summary>Give the member <paramref name="role"/> and rotate their stamp; demoting the last owner leaves the organization without one.</summary>
+    /// <summary>Give the member <paramref name="role"/> and sign them out everywhere (<see cref="RoleChangeSignOut"/>); the same role changes nothing; demoting the last owner leaves the organization without one.</summary>
     /// <param name="organization">The organization.</param>
     /// <param name="user">The member.</param>
     /// <param name="role">A configured role name (case-insensitive).</param>
@@ -149,10 +157,10 @@ public sealed partial class OrganizationService(
             return IdentityResult.Success;
 
         await organizations.ChangeRoleAsync(organization.Id, user.Id, resolved, cancellationToken);
-        return await accounts.RotateSecurityStampAsync(user, cancellationToken);
+        return await RoleChangeSignOut.ApplyAsync(user, accounts, sessions, stamps, cancellationToken);
     }
 
-    /// <summary>Remove the member and rotate their stamp; removing the last owner leaves the organization without one.</summary>
+    /// <summary>Remove the member and sign them out everywhere (<see cref="RoleChangeSignOut"/>); removing the last owner leaves the organization without one.</summary>
     /// <param name="organization">The organization.</param>
     /// <param name="user">The member.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -164,7 +172,7 @@ public sealed partial class OrganizationService(
             return NotMember(organization);
 
         await organizations.RemoveMembershipAsync(organization.Id, user.Id, cancellationToken);
-        return await accounts.RotateSecurityStampAsync(user, cancellationToken);
+        return await RoleChangeSignOut.ApplyAsync(user, accounts, sessions, stamps, cancellationToken);
     }
 
     /// <summary>The user's role in <paramref name="organization"/>, or null when not a member.</summary>

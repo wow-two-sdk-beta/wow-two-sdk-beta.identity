@@ -18,6 +18,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 ///   - the token is 32 random bytes, base64url, shown once; only its SHA-256 is stored
 ///   - redemption is a conditional update, so one invitation joins one person; a person already in the organization keeps
 ///     their role and spends the invitation
+///   - joining signs the person out everywhere (<see cref="OrganizationService.AddMemberAsync"/>): a signed-in person
+///     accepting one signs in again; a sign-up that redeems one signs in after the join, under the new stamp
 ///   - a named phone number must be the person's confirmed number; a named email must be the person's email, which the
 ///     instance's sign-in rules may still ask them to confirm
 /// </remarks>
