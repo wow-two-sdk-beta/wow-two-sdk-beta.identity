@@ -1,6 +1,6 @@
 # features/
 
-*Last updated: 2026-10-26*
+*Last updated: 2026-11-03*
 
 > Identity's feature groups, one spec each. Phases: P1 the Ocharo slice, P2 the whole vector, P3 on a named consumer.
 > State per group: `engineering/planning/backlog.md` § Features.
@@ -15,4 +15,5 @@
 | Abuse protection | [abuse-protection.md](abuse-protection.md) | code rules, rate limits, the bot's contact check |
 | Admin console | [admin-console.md](admin-console.md) | members, sessions, sign-in log, counts |
 | Member self-service | [self-service.md](self-service.md) | sessions and recent sign-ins |
+| Trusted contacts | [trusted-contacts.md](trusted-contacts.md) | the inviter receives an invitee's codes; one-click revoke; bot message cleanup |
 | Developer surface | [developer-surface.md](developer-surface.md) | the OIDC client, phone + code screens, test kit, `admin create`, claims hook |
