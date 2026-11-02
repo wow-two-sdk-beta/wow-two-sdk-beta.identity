@@ -1,7 +1,7 @@
 {
   "name": "@wow-two-beta/fe-identity",
   "version": "0.0.0",
-  "description": "Identity domain UI: the account API contract, an account client and one embeddable component per sign-in and password step.",
+  "description": "Identity domain UI: the account and organization API contracts, an account client with one embeddable component per sign-in and password step, and the organization members and invitations panels.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -25,6 +25,11 @@
       "types": "./dist/kit/index.d.ts",
       "import": "./dist/kit/index.js",
       "default": "./dist/kit/index.js"
+    },
+    "./admin": {
+      "types": "./dist/admin/index.d.ts",
+      "import": "./dist/admin/index.js",
+      "default": "./dist/admin/index.js"
     }
   },
   "scripts": {

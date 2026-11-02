@@ -20,7 +20,11 @@ export default defineConfig({
     sourcemap: true,
     minify: false,
     lib: {
-      entry: { 'contracts/index': 'src/contracts/index.ts', 'kit/index': 'src/kit/index.ts' },
+      entry: {
+        'contracts/index': 'src/contracts/index.ts',
+        'kit/index': 'src/kit/index.ts',
+        'admin/index': 'src/admin/index.ts',
+      },
       formats: ['es'],
     },
     rollupOptions: {

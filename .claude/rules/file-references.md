@@ -49,5 +49,5 @@
 ### `codebase/identity.frontend-services/`
 | Project | What it is |
 |---|---|
-| `packages/fe-identity` | `@wow-two-beta/fe-identity`: `./contracts` (the account API's shapes and routes) · `./kit` (the account client, sign-in and password components); no `./admin` yet |
+| `packages/fe-identity` | `@wow-two-beta/fe-identity`: `./contracts` (the account and organization APIs' shapes and routes) · `./kit` (the account client, sign-in and password components) · `./admin` (the organization client, members and invitations panels) |
 | `apps/web` | the hosted pages (sign-in, sign-up, email and password pages, account security) and the console, served by `Identity.Api` |

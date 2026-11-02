@@ -6,9 +6,10 @@ Defer to `wow-two-ws/conventions/development/frontend/`.
 
 - Frontend root: `engineering/codebase/identity.frontend-services/`; Node `24.11.0` from `.nvmrc`, `pnpm@10.33.2`.
 - `packages/fe-identity` is `@wow-two-beta/fe-identity`, published to npm: `./contracts` (the TypeScript mirror of the
-  account API: shapes, `AccountRouteConstants`, `HostedPageRouteConstants`) and `./kit` (`createAccountClient` and the
-  components `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`,
-  `ChangePasswordForm`). It peers `@wow-two-beta/fe` at `>=0.0.n <0.1.0`, `n` the pinned version; `check:package` enforces it.
+  account and organization APIs: shapes, `AccountRouteConstants`, `HostedPageRouteConstants`,
+  `OrganizationRouteConstants`), `./kit` (`createAccountClient` and the components `PasswordSignIn`, `PhoneCodeSignIn`,
+  `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm`) and `./admin` (`createOrganizationClient`
+  and the embeddable `MembersPanel` and `InvitationsPanel` for an organization's owners and admins). It peers `@wow-two-beta/fe` at `>=0.0.n <0.1.0`, `n` the pinned version; `check:package` enforces it.
 - `apps/web` is `@identity/web`, private: the hosted pages (`/sign-in`, `/sign-up`, `/confirm-email`, `/forgot-password`,
   `/reset-password`, `/change-password`, `/account/security`) and the console (`/`). It takes `fe-identity` by
   `workspace:*`, through its `exports` only — the way a product would; the package never imports `apps/`.
