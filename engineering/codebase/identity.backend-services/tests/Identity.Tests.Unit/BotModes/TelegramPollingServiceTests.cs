@@ -122,7 +122,9 @@ public sealed class TelegramPollingServiceTests
         await Task.Delay(50);
         await polling.StopAsync(CancellationToken.None);
 
-        polling.ExecuteTask!.Status.Should().Be(TaskStatus.RanToCompletion, "an instance with the bot off needs no token to start");
+        // A stop before the loop started cancels the task, so the check is that it never faulted or logged a failure.
+        polling.ExecuteTask!.IsFaulted.Should().BeFalse("an instance with the bot off needs no token to start");
+        host.Log.Entries.Should().NotContain(e => e.Level >= LogLevel.Warning, "resolving the bot without a token would log a failed poll");
         host.Bot.Polls.Should().BeEmpty();
     }
 
