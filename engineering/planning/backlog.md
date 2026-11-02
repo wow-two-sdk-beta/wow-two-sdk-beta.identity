@@ -10,12 +10,12 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | Feature | State | Spec |
 |---|---|---|
 | Sign-in methods | partial: password with email confirmation, phone by Telegram, hosted pages and the declaration ship; open sign-up's email-first form planned | [sign-in-methods.md](../../product/features/sign-in-methods.md) |
-| Accounts and members | partial: organizations, the fixed role catalog, invitation links and member routes ship; the members panel planned | [accounts.md](../../product/features/accounts.md) |
+| Accounts and members | partial: organizations, the fixed role catalog, invitation links, member routes, the members panel and the invite sign-up with name, picture and a bot-verified phone ship | [accounts.md](../../product/features/accounts.md) |
 | Sessions and tokens | partial: OIDC server, keys, sessions with fixed, extended or sliding lifetimes, revocation, the BFF and sign-in log ship; back-channel sign-out planned | [sessions.md](../../product/features/sessions.md) |
 | Abuse protection | partial: lockout, durable hashed codes, a per-number failure budget and per-address rate limits ship | [abuse-protection.md](../../product/features/abuse-protection.md) |
 | Admin console | planned | [admin-console.md](../../product/features/admin-console.md) |
 | Member self-service | planned | [self-service.md](../../product/features/self-service.md) |
-| Developer surface | partial: the `Client` BFF and `fe-identity` `./kit` ship; `./admin` planned | [developer-surface.md](../../product/features/developer-surface.md) |
+| Developer surface | partial: the `Client` BFF and `fe-identity` `./kit` and `./admin` ship | [developer-surface.md](../../product/features/developer-surface.md) |
 | Second factors and step-up | partial: TOTP, passkeys, recovery codes exist | [second-factors.md](../../product/features/second-factors.md) |
 | Passwords | partial: Argon2id and breached check exist; policies planned | [passwords.md](../../product/features/passwords.md) |
 
@@ -23,7 +23,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 
 | Item | Type | Notes |
 |---|---|---|
-| members panel | feature | `fe-identity` `./admin`: invite by phone or email, re-role, remove, over `/api/organizations/{id}`; embeddable in Desk and the console |
+| trusted devices and contacts | feature | sign in by sending the code to someone else: a person names trusted contacts (or devices) who may receive their code, for when their own phone is out of reach (developer, 2026-11-02) |
 | open sign-up | feature | C13: the person joins as a guest (no organization role) through an email-first form that turns into sign-in or sign-up |
 | hosted pages layout | product | C14: what the developer names; with the console layout review below |
 | invitation use limits | feature | a link for a number of people or none, beside today's single use; accept after signing in from the invitation page |
@@ -47,6 +47,10 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | Item | Type | Notes |
 |---|---|---|
 | I21 admin API | feature | members, sessions, sign-in log, registered apps |
+| custom sign-up fields | feature | after G3: any profile field with its type, rules and labels in `Identity:SignUp:Profile`, beyond today's name and picture (developer, 2026-11-02) |
+| profile self-service | feature | after G3: a person edits their name and picture from the account page |
+| pictures on File Storage | feature | after G3: an `IProfilePictureStore` adapter over File Storage, with image variants; the database store stays the default |
+| Telegram photo prefill | feature | after G3: the bot offers the person's Telegram profile photo as the sign-up picture |
 | I22 password lifecycle | feature | policies as settings, forced reset, temporary passwords, generator |
 | more channels and methods | feature | Gateway, SMS, email, passwords, passkeys, social providers |
 | management API and webhooks | feature | scoped keys; `member.added`, `signed_in` |
