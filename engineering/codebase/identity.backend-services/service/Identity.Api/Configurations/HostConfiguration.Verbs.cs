@@ -8,8 +8,8 @@ public static partial class HostConfiguration
 {
     /// <summary>
     /// Adds the service's own verbs beside the be sdk's <c>migrate</c> and <c>config check</c>: <c>keys generate</c>, which
-    /// prints one PEM bundle before any host boots, and <c>admin create</c>, which makes the instance's first organization
-    /// and its owner on the built host without serving.
+    /// prints one PEM bundle before any host boots, and <c>admin create</c>, which makes the instance's first admin (the
+    /// instance role <c>admin</c>, once) on the built host without serving.
     /// </summary>
     /// <param name="verbs">The service host's verbs.</param>
     public static ServiceVerbs AddIdentityVerbs(this ServiceVerbs verbs)

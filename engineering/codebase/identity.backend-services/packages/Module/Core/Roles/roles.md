@@ -21,6 +21,9 @@ await memberships.AddToRoleAsync(user, "admin");          // names are case-inse
 - Authorization stays with ASP.NET policies over the role claims.
 - Instance roles: `InstanceRoleConstants` (`admin`, `support`, `auditor`) is the fixed catalog over the instance itself,
   held beside a person's organization role. `InstanceRoleService.GrantAsync` seeds a role's row on first use and is
-  idempotent; `GetAsync` lists what a person holds. Organization roles live in memberships, never in `identity_roles`.
-- Instance roles open the service's console (policy `identity-console`) and never enter an app's tokens: the OIDC server
-  writes token claims from scratch and gives role claims no destination.
+  idempotent; `GetAsync` lists what a person holds, `GetHoldersAsync` who holds a role. Organization roles live in
+  memberships, never in `identity_roles`.
+- Instance roles open the service's console (policy `identity-console`; creating an organization there takes `admin`,
+  policy `identity-console-admin`) and never enter an app's tokens: the OIDC server writes token claims from scratch and
+  gives role claims no destination.
+- The first `admin` comes from the host CLI's `admin create` (`Core/Admin`), once per instance.

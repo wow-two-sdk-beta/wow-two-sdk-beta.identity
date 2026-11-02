@@ -1,6 +1,6 @@
 namespace Identity.Api.Console.Models;
 
-/// <summary>Represents the person signed in to the console.</summary>
+/// <summary>Represents the person signed in to the console: one holding an instance role, or owning or administering an organization.</summary>
 public sealed record ConsoleSessionDto
 {
     /// <summary>Gets the person's id.</summary>
@@ -9,7 +9,7 @@ public sealed record ConsoleSessionDto
     /// <summary>Gets the name the console shows: the display name, else the phone, else the user name.</summary>
     public required string Name { get; init; }
 
-    /// <summary>Gets the instance roles the person holds, in catalog order.</summary>
+    /// <summary>Gets the instance roles the person's sign-in carries, in catalog order; empty for an organization's owner or admin without one.</summary>
     public required IReadOnlyList<string> Roles { get; init; }
 
     /// <summary>Gets the organizations the person manages as an owner or admin, where the console makes invitations and manages members.</summary>

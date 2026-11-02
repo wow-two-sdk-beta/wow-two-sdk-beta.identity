@@ -52,6 +52,12 @@ public sealed class InstanceRoleService(RoleService roles, UserRoleService membe
         return [.. InstanceRoleConstants.All.Where(name => held.Contains(name, StringComparer.OrdinalIgnoreCase))];
     }
 
+    /// <summary>The ids of the people holding the instance role <paramref name="role"/>; empty when nobody holds it or the role is outside the catalog.</summary>
+    /// <param name="role">One of <see cref="InstanceRoleConstants"/>, any case.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<IReadOnlyList<Guid>> GetHoldersAsync(string? role, CancellationToken cancellationToken = default)
+        => InstanceRoleConstants.Find(role) is { } name ? await memberships.GetUserIdsInRoleAsync(name, cancellationToken) : [];
+
     /// <summary>Creates the catalog row of <paramref name="name"/> unless it exists.</summary>
     private async Task<IdentityResult> SeedAsync(string name, CancellationToken cancellationToken)
     {

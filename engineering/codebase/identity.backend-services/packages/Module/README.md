@@ -10,7 +10,7 @@ Form 1 of Identity: user accounts in the consumer's process, over the consumer's
   PostgreSQL SQL that runs as the be sdk migration set `identity`; uuid v7 keys, no generic entities
 - OTP with email, SMS, Telegram, Telegram Gateway and WhatsApp channels; TOTP; WebAuthn; Argon2 hashing
 - the ru/uz texts of the identity error codes, contributed to error translation by `AddUserAccounts`
-- `AdminCommand`, the host verb `admin create`: the first organization and its owner, idempotent, one `admin-result`
+- `AdminCommand`, the host verb `admin create`: the instance admin, once per instance, idempotent, one `admin-result`
   line (`Core/Admin/admin.md`)
 
 ```bash

@@ -129,19 +129,19 @@ public sealed class InviteSignUpApiTests
     private static HttpClient Client(WebApiTestHost<Program> host)
         => host.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
 
-    /// <summary>Makes Ocharo with its owner, who makes an editor invitation as the console does; the organization and the token.</summary>
+    /// <summary>
+    /// Makes the instance admin as <c>admin create</c> does, who makes Ocharo and then an editor invitation as the console
+    /// does; the organization and the token.
+    /// </summary>
     private static async Task<(Guid OrganizationId, string Token)> InviteAsync(WebApiTestHost<Program> host)
     {
         await using var scope = host.Services.CreateAsyncScope();
-        var created = await scope.ServiceProvider.GetRequiredService<FirstOwnerService>().CreateAsync(new FirstOwnerRequest
-        {
-            Slug = "ocharo",
-            OrganizationName = "Ocharo",
-            DisplayName = "Sultonbek",
-            PhoneNumber = "+998907777777",
-        });
+        var created = await ActivatorUtilities.CreateInstance<InstanceAdminService>(scope.ServiceProvider)
+            .CreateAsync(new InstanceAdminRequest { DisplayName = "Sultonbek", PhoneNumber = "+998907777777" });
+        created.Status.Should().Be(InstanceAdminStatus.Created, created.Error);
         var owner = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(created.UserId!.Value))!;
-        var organization = (await scope.ServiceProvider.GetRequiredService<OrganizationService>().FindByIdAsync(created.OrganizationId!.Value))!;
+        var organization = new IdentityOrganization { Name = "Ocharo", Slug = "ocharo" };
+        (await scope.ServiceProvider.GetRequiredService<OrganizationService>().CreateAsync(organization, owner)).IsSuccess.Should().BeTrue();
         var invited = await scope.ServiceProvider.GetRequiredService<InvitationService>().CreateAsync(organization, owner, "editor", phoneNumber: null, email: null);
         invited.IsSuccess.Should().BeTrue();
         return (organization.Id, invited.Token!);

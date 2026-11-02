@@ -36,8 +36,8 @@ public static partial class HostConfiguration
     /// <summary>The organization management API's mount point: members and invitations, for each organization's owners and admins.</summary>
     internal const string OrganizationsPath = "/api/organizations";
 
-    /// <summary>The console's authorization policy: a signed-in person holding an instance role.</summary>
-    internal const string ConsolePolicy = "identity-console";
+    /// <summary>The console's narrower policy for instance-wide changes, such as creating an organization: a signed-in person holding the instance role <c>admin</c>.</summary>
+    internal const string ConsoleAdminPolicy = "identity-console-admin";
 
     /// <summary>The service's root settings section: <c>config check</c> refuses every key under it that no settings record binds.</summary>
     internal const string RootSection = "Identity";
@@ -68,7 +68,8 @@ public static partial class HostConfiguration
     ///     <c>Identity:Invitations:Lifetime</c> and lead to the hosted sign-up page
     ///   - password sign-in and email come from <c>Identity:Methods:Password</c> and <c>Identity:Methods:Email</c>, both on by
     ///     default; a phone-only instance turns both off
-    ///   - the instance roles (<c>admin</c>, <c>support</c>, <c>auditor</c>) gate the console and never enter an app's tokens
+    ///   - the instance roles (<c>admin</c>, <c>support</c>, <c>auditor</c>) gate the console and never enter an app's tokens;
+    ///     the first <c>admin</c> comes from <c>admin create</c>, and creates the organizations in the console
     /// </remarks>
     private static WebApplicationBuilder AddIdentityModule(this WebApplicationBuilder builder)
     {
@@ -172,8 +173,9 @@ public static partial class HostConfiguration
     /// <summary>
     /// The sign-in session the authorization endpoint reads: the account API's cookie, ending with the session row
     /// (<c>Identity:Sessions</c>; reissued as a sliding session moves) and answering a raw 401 to API callers, sealed by the
-    /// database ring <c>AddDataProtectionRing</c> registers; and the console's gate, <see cref="ConsolePolicy"/>: any instance
-    /// role (<c>admin</c>, <c>support</c>, <c>auditor</c>), which the cookie carries as role claims from the sign-in on.
+    /// database ring <c>AddDataProtectionRing</c> registers; and <see cref="ConsoleAdminPolicy"/> for the console's
+    /// instance-wide changes: the instance role <c>admin</c>, which the cookie carries as a role claim from the sign-in on.
+    /// The console's session opens to anyone holding an instance role or owning or administering an organization.
     /// </summary>
     private static WebApplicationBuilder AddSignInSession(this WebApplicationBuilder builder)
     {
@@ -185,7 +187,7 @@ public static partial class HostConfiguration
             options.Mode = AuthChallengeMode.Api;
         });
         builder.Services.AddAuthorizationBuilder()
-            .AddPolicy(ConsolePolicy, policy => policy.RequireAuthenticatedUser().RequireRole(InstanceRoleConstants.All));
+            .AddPolicy(ConsoleAdminPolicy, policy => policy.RequireAuthenticatedUser().RequireRole(InstanceRoleConstants.Admin));
         return builder;
     }
 

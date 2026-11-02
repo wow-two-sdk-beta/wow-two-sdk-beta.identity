@@ -1,6 +1,6 @@
 import { ApiFailureFactory, createApiClient } from '@wow-two-beta/fe/foundation/http';
 import { ResultExtensions } from '@wow-two-beta/fe/foundation/results';
-import type { ConsoleOrganization, ConsoleSession } from '../../domain/console/ConsoleSession';
+import type { ConsoleOrganization, ConsoleSession, NewConsoleOrganization } from '../../domain/console/ConsoleSession';
 
 const client = createApiClient();
 
@@ -18,7 +18,11 @@ function decodeOrganization(value: unknown): ConsoleOrganization | null {
   return id && name && slug && role ? { id, name, slug, role } : null;
 }
 
-/** Provides the console's same-origin session request and wire validation: `401` signed out, `403` without an instance role. */
+/**
+ * Provides the console's same-origin requests and wire validation: the session (`401` signed out, `403` for a person
+ * with neither an instance role nor an organization they own or administer) and an instance admin's organization
+ * creation (`403` without `admin`; `400` or `409` coded in the problem's `identityCode`).
+ */
 export const consoleApi = {
   getSession(signal: AbortSignal) {
     return client.get<ConsoleSession>('/api/console/session', {
@@ -47,6 +51,19 @@ export const consoleApi = {
           }
         }
         return ResultExtensions.fail(ApiFailureFactory.create('protocol'));
+      },
+    });
+  },
+
+  createOrganization(request: NewConsoleOrganization, signal?: AbortSignal) {
+    return client.post<ConsoleOrganization>('/api/console/organizations', {
+      body: request,
+      signal,
+      decode: (value) => {
+        const organization = decodeOrganization(value);
+        return organization
+          ? ResultExtensions.ok(organization)
+          : ResultExtensions.fail(ApiFailureFactory.create('protocol'));
       },
     });
   },

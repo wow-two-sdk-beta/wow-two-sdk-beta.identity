@@ -42,22 +42,27 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
   checks and refuses on a finding; a local run logs them and serves. The service registers no stranding check yet.
   The descriptor's `configCheck:` item (`[dotnet, Identity.Api.dll, config, check]`, `2m`) is live in `deploy.yml`:
   pipelines `v0.15.0` is the first release that accepts the key.
-- First owner: the image answers `dotnet Identity.Api.dll admin create --slug <handle> --name <organization name>
-  --display-name <owner's name> [--phone <E.164>] [--email <address>] [--organization-id <uuid>] [--user-id <uuid>]
-  [--role admin]` after `migrate`: it builds the host without serving and creates the instance's first organization and
-  its owner with the `owner` role, or reports that both exist (exit `0` created or present, `1` refused when the
-  handle, an id, the email or the phone belongs to someone else, `2` failed: usage, an invalid value, the database), and
-  prints one `admin-result` line last. `--role` also gives the owner an instance role (`admin`, `support`,
-  `auditor`), which opens the console; a rerun adding it answers `created` with `isInstanceRoleGranted: true`. It never
-  takes a password: the owner signs in by phone or sets one through the reset link. Preset ids keep a product's existing
-  keys (Desk's organization id).
-- Console: `/` serves the console to a person signed in with an instance role; `GET /api/console/session` answers `401`
-  signed out, `403` without an instance role, else the person, their instance roles and the organizations they own or
-  administer. The console signs in through the hosted pages, by phone on a phone-only instance.
+- Instance admin: the image answers `dotnet Identity.Api.dll admin create --display-name <admin's name>
+  [--phone <E.164>] [--email <address>] [--user-id <uuid>]` (a phone, an email or both) after `migrate`: it builds the
+  host without serving and creates the instance's first admin, the person holding the instance role `admin`, once per
+  instance. Exit `0` created, or present when that same person holds `admin` already (a deploy may rerun it), `1`
+  refused when any other person holds `admin` or the id, the email or the phone names someone else, `2` failed (usage,
+  an invalid value, the database); the last line is one `admin-result` line (`userId`, `isUserCreated`,
+  `isRoleGranted`). It makes no organization and never takes a password: the admin signs in by phone or sets one
+  through the reset link. A preset `--user-id` keeps a product's existing key.
+- Console: `/` serves the console to a person signed in with an instance role or owning or administering an
+  organization; it renders only a loading state until `GET /api/console/session` answers: `401` signed out (the page
+  forwards to the hosted sign-in and back), `403` for anyone else, else the person, the instance roles their sign-in
+  carries and the organizations they own or administer. An organization's owner or admin manages its invitations and
+  members there; the instance admin also creates organizations (`POST /api/console/organizations` `{ name, slug, id? }`,
+  policy `identity-console-admin`, `admin` only, `support` and `auditor` included in the `403`), becoming each one's
+  owner: `409` `DuplicateOrganizationSlug` or `DuplicateOrganizationId` for a taken handle or id, `400`
+  `OrganizationNameRequired` or `InvalidOrganizationSlug`. A preset id keeps a product's existing key (Desk's
+  organization id). The console signs in through the hosted pages, by phone on a phone-only instance.
 - Invitations: made in the console only, by an organization's owner or admin, with the role and an optional phone; the
-  link is `{issuer origin}/sign-up?invitation={token}`. The host CLI makes none: the first owner comes from `admin
-  create`, and every other person joins through an invitation from the console (or an app embedding
-  `fe-identity/admin`).
+  link is `{issuer origin}/sign-up?invitation={token}`. The host CLI makes none: the instance admin comes from `admin
+  create`, creates the organizations in the console, and every other person joins through an invitation from the
+  console (or an app embedding `fe-identity/admin`).
 - Placement: Ocharo's instance is a service of Ocharo's own `deploy.yml`, the image pinned by tag, its set in Ocharo's
   database; wow2's shared instance is a Wheelhouse product of its own. A product pinning it declares its keys as in
   [Pinning the instance](#pinning-the-instance).
@@ -80,7 +85,7 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 | `Identity:Sessions:{Lifetime,ExtendedLifetime}` | — | fixed: 12 h from sign-in with a browser-session cookie; 30 days with a lasting cookie when the sign-in asks to stay signed in (`isPersistent`, "Keep me signed in"); an empty `ExtendedLifetime` offers no such choice |
 | `Identity:Sessions:{SlidingLifetime,ActivityInterval}` | — | sliding: each use moves the end this far ahead, at most once per `ActivityInterval`; defaults 7 days, 5 min. Ocharo: `Sliding`, `5.00:00:00` |
 | `Identity:SignInLog:{RetentionDays,CleanupInterval}` | — | defaults 180 days, 1 h |
-| `Identity:SignUp:Mode` | — | `Invite` by the descriptor's default: `POST /api/account/sign-up` and a first phone sign-in answer `403` and create nothing unless they carry a pending invitation's `invitationToken`, and the first owner comes from `admin create` (*First owner* above); `Open` takes self sign-up. Ocharo: `Invite` |
+| `Identity:SignUp:Mode` | — | `Invite` by the descriptor's default: `POST /api/account/sign-up` and a first phone sign-in answer `403` and create nothing unless they carry a pending invitation's `invitationToken`, and the first person is the instance admin from `admin create` (*Instance admin* above); `Open` takes self sign-up. Ocharo: `Invite` |
 | `Identity:Methods:Password:IsEnabled` | — | `true` by default; `false` turns password sign-in, sign-up, forgot and reset password and the change routes into `404` (`SignInMethodOff`) and drops the password method from the hosted pages. Ocharo: `false` |
 | `Identity:Methods:Email:IsEnabled` | — | `true` by default; `false` refuses sign-up by email, confirmation and reset links and email sign-in (`404`), and the hosted pages ask for no email. Ocharo: `false` while hosted email waits (OQ-2) |
 | `Identity:SignUp:Profile:{DisplayName,Picture}` | — | `Off` by default, `Optional` or `Required`: the invite sign-up page asks for the name and the picture, then verifies the phone through the bot with no code typed. Ocharo: both `Required` |
@@ -230,6 +235,6 @@ docker build --build-arg APP_VERSION=0.1.99 --build-arg VCS_REF=$(git rev-parse 
   file (gitignored) with wow2's dev bot, which polls; the compose file's header says what to put in it.
 - `identity.local.env` is read after `identity.mailpit.env`, so the same file sends the emails through wow2's dev
   sender instead of Mailpit: its `Identity__Email__*` keys win, and the password is typed in an editor, never a chat.
-- `docker compose -p identity-local -f engineering/deployment/docker-compose.yml run --rm identity admin create --slug ocharo
-  --name Ocharo --display-name "Lola Karimova" --phone +998901234567` makes the first organization and its owner; a
-  rerun answers `present`.
+- `docker compose -p identity-local -f engineering/deployment/docker-compose.yml run --rm identity admin create
+  --display-name "Lola Karimova" --phone +998901234567` makes the instance admin, who signs in to the console and creates
+  the organizations; a rerun answers `present`.

@@ -24,7 +24,8 @@ through Ocharo's own instance with the `Client` BFF. Track: [v0.5](../engineerin
 - protection: lockout for new attempts only, hashed codes with a per-number budget, `identity-credentials` rate limit,
   bounded Argon2, `prompt=login` / `max_age`, end-session safe from other sites.
 - surfaces: the OIDC server (OpenIddict), the `Client` BFF, `fe-identity` `./kit` (password, phone, second factor,
-  password forms), the hosted pages in one animated card, `admin create` for the first owner.
+  password forms), the hosted pages in one animated card, `admin create` for the instance admin, and the console where organizations
+  are made and invitations sent.
 
 ### Gaps
 

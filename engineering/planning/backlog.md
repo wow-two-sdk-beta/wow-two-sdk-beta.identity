@@ -23,7 +23,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 
 | Item | Type | Notes |
 |---|---|---|
-| `admin create` and admin recovery | analysis | what the host CLI should create (developer, 2026-11-02): only the instance admin, and only once? today it makes the first organization owner, and `--role admin` also grants the instance admin; how a new admin is made when the old one loses access; other edge cases (a lost phone, a hijacked Telegram account, the last owner leaving); would revise the decision rows 2026-11-01 "the host CLI creates the first admin only", 2026-11-01 `admin create` exits, 2026-11-02 instance roles and 2026-11-02 invitations in the console only |
+| admin recovery and account edge cases | analysis | `admin create` now makes only the instance admin, once (2026-11-03); open: how a new admin is made when the old one loses access; other edge cases (a lost phone, a hijacked Telegram account, the last owner deleting their account, a person in no organization whose Telegram change nobody can approve); would revise the decision rows 2026-11-01 "the host CLI creates the first admin only", 2026-11-01 `admin create` exits, 2026-11-02 instance roles and 2026-11-02 invitations in the console only |
 | trusted devices and contacts | feature | sign in by sending the code to someone else: a person names trusted contacts (or devices) who may receive their code, for when their own phone is out of reach (developer, 2026-11-02) |
 | open sign-up | feature | C13: the person joins as a guest (no organization role) through an email-first form that turns into sign-in or sign-up |
 | hosted pages layout | product | C14: what the developer names; with the console layout review below |

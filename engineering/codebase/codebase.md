@@ -27,10 +27,10 @@ The code lives in `identity.backend-services/` (.NET) and `identity.frontend-ser
   `wwwroot/` (filled by the `BuildSpa` target; `-p:BuildSpa=false` skips it). A local boot applies the set; a deployed boot only verifies it;
   `dotnet Identity.Api.dll migrate` applies it as the deploy step and exits `0` applied or current, `1` refused, `2` a
   script failed. `dotnet Identity.Api.dll keys generate --role signing|encryption|data-protection` prints one PEM
-  bundle and exits before any host boots. `dotnet Identity.Api.dll admin create --slug … --name … --display-name …
-  [--phone …] [--email …] [--organization-id …] [--user-id …]` makes the first organization and its owner (`owner`
-  role, no password) on the built host without serving, idempotent, and prints one `admin-result` line (exit `0` created
-  or present, `1` refused, `2` failed). `Program.cs` is the be sdk's `ServiceHost.RunAsync` with the service's verbs from
+  bundle and exits before any host boots. `dotnet Identity.Api.dll admin create --display-name … [--phone …] [--email …]
+  [--user-id …]` makes the instance admin (instance role `admin`, no password) on the built host without serving, once
+  per instance and idempotent for that person, and prints one `admin-result` line (exit `0` created or present, `1`
+  refused, `2` failed). `Program.cs` is the be sdk's `ServiceHost.RunAsync` with the service's verbs from
   `HostConfiguration.AddIdentityVerbs` (`keys` before any host, `admin` on the built host); `migrate` and `config check`
   are built in. `config check` builds the host without serving and prints one
   `config-result` line (exit `0` consistent, `1` refused, `2` failed); `Identity` is the settings root, so a key under it

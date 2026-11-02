@@ -22,36 +22,24 @@ public sealed record AdminCreateResult
     [JsonPropertyOrder(2)]
     public required string Status { get; init; }
 
-    /// <summary>Gets the organization's id once it exists.</summary>
+    /// <summary>Gets the admin's id once they exist, or the named person's on a refusal that found them.</summary>
     [JsonPropertyOrder(3)]
-    public Guid? OrganizationId { get; init; }
-
-    /// <summary>Gets the owner's id once they exist.</summary>
-    [JsonPropertyOrder(4)]
     public Guid? UserId { get; init; }
 
-    /// <summary>Gets whether this run created the organization.</summary>
+    /// <summary>Gets whether this run created the person.</summary>
+    [JsonPropertyOrder(4)]
+    public bool IsUserCreated { get; init; }
+
+    /// <summary>Gets whether this run gave the person the instance role <c>admin</c>; false when they held it already.</summary>
     [JsonPropertyOrder(5)]
-    public bool IsOrganizationCreated { get; init; }
-
-    /// <summary>Gets whether this run created the owner.</summary>
-    [JsonPropertyOrder(6)]
-    public bool IsOwnerCreated { get; init; }
-
-    /// <summary>Gets the instance role the owner holds by this run's <c>--role</c>; absent when none was asked.</summary>
-    [JsonPropertyOrder(7)]
-    public string? InstanceRole { get; init; }
-
-    /// <summary>Gets whether this run gave the owner <see cref="InstanceRole"/>.</summary>
-    [JsonPropertyOrder(8)]
-    public bool IsInstanceRoleGranted { get; init; }
+    public bool IsRoleGranted { get; init; }
 
     /// <summary>Gets why the run was refused or failed; absent otherwise.</summary>
-    [JsonPropertyOrder(9)]
+    [JsonPropertyOrder(6)]
     public string? Error { get; init; }
 
     /// <summary>Gets the run's wall time in milliseconds.</summary>
-    [JsonPropertyOrder(10)]
+    [JsonPropertyOrder(7)]
     public long DurationMs { get; init; }
 
     /// <summary>Renders the result as compact camelCase JSON; absent fields are left out.</summary>

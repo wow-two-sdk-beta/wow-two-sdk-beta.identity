@@ -2,18 +2,21 @@
 import { HostedPageRouteConstants } from '@wow-two-beta/fe-identity/contracts';
 import { InvitationsPanel, MembersPanel } from '@wow-two-beta/fe-identity/admin';
 import { Badge, Card } from '@wow-two-beta/fe/presentation/display';
-import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
+import { AlertSimple, Spinner } from '@wow-two-beta/fe/presentation/feedback';
 import { computed, shallowRef, watch } from 'vue';
 import { useSignInOptions } from '../../../application/account/UseSignInOptions';
 import { useConsoleSession } from '../../../application/console/UseConsoleSession';
 import { useSystemStatus } from '../../../application/system/UseSystemStatus';
 import { SignInMethodId } from '../../../domain/account';
+import { isInstanceAdmin, type ConsoleOrganization } from '../../../domain/console/ConsoleSession';
+import CreateOrganizationForm from '../components/CreateOrganizationForm.vue';
 
 /**
- * Renders the console for a person holding an instance role: who is signed in, the running versions, the invitations and
- * members of each organization they own or administer, and the hosted pages this instance serves. Invitations are made
- * here, never from the host CLI. Nobody signed in goes to the sign-in page first; a person without an instance role is
- * told so.
+ * Renders the console, nothing but a loading state until the session resolves. Nobody signed in goes to the sign-in page
+ * first, and comes back. A person holding an instance role, or owning or administering an organization, sees who is
+ * signed in, the running versions, the invitations and members of each organization they own or administer, and the
+ * hosted pages; an instance admin also creates organizations here, becoming their owner. Invitations are made here,
+ * never from the host CLI. Anyone else is told they have no access.
  */
 defineOptions({ name: 'ConsolePage' });
 
@@ -23,7 +26,7 @@ const props = defineProps<{
 }>();
 
 const appVersion = __APP_VERSION__;
-const { session, isDenied, failure } = useConsoleSession(() => props.onSignInRequired());
+const { session, isLoading, isDenied, failure, createOrganization } = useConsoleSession(() => props.onSignInRequired());
 const { status } = useSystemStatus();
 const { options } = useSignInOptions(null);
 const pages = [
@@ -33,7 +36,15 @@ const pages = [
   { label: 'Account security', href: HostedPageRouteConstants.accountSecurity },
 ];
 
-/** The organization the panels manage; the first one the person manages until they pick another. */
+/** The person's name, then their instance roles when they hold any. */
+const signedInAs = computed(() =>
+  session.value ? [session.value.name, session.value.roles.join(', ')].filter(Boolean).join(' · ') : '',
+);
+
+/** Whether the person creates organizations: the instance role `admin`. */
+const isAdmin = computed(() => (session.value ? isInstanceAdmin(session.value) : false));
+
+/** The organization the panels manage; the first one the person manages until they pick or create another. */
 const organizationId = shallowRef<string | null>(null);
 watch(session, (current) => {
   if (current && !current.organizations.some((organization) => organization.id === organizationId.value))
@@ -47,30 +58,37 @@ const countries = computed(() => {
   const phone = options.value?.methods.find((method) => method.id === SignInMethodId.PhoneCode);
   return phone && 'countries' in phone ? [...phone.countries] : undefined;
 });
+
+/** Selects a new organization, so its invitations and members show. */
+function onCreated(created: ConsoleOrganization) {
+  organizationId.value = created.id;
+}
 </script>
 
 <template>
   <main class="mx-auto min-h-screen max-w-3xl px-6 py-16 font-sans text-foreground">
-    <header class="flex flex-wrap items-center gap-3">
-      <h1 class="text-3xl font-semibold">Identity console</h1>
-      <div class="contents" aria-label="App version">
-        <Badge>app {{ appVersion }}</Badge>
-      </div>
-      <div v-if="status" class="contents" aria-label="API version">
-        <Badge>api {{ status.version }}</Badge>
-      </div>
-    </header>
-
-    <AlertSimple v-if="isDenied" class="mt-8" severity="warning">
-      This account has no console access. Sign in with an account that holds an instance role.
+    <p v-if="isLoading" class="flex items-center gap-2 text-muted-foreground" role="status" aria-label="Loading">
+      <Spinner /> Loading the console…
+    </p>
+    <AlertSimple v-else-if="isDenied" severity="warning">
+      This account has no console access. Sign in with an account that holds an instance role or manages an
+      organization.
     </AlertSimple>
-    <AlertSimple v-else-if="failure" class="mt-8" severity="danger">
+    <AlertSimple v-else-if="failure" severity="danger">
       We could not load the console. Reload the page to try again.
     </AlertSimple>
     <template v-else-if="session">
-      <p class="mt-4 text-sm text-muted-foreground" aria-label="Signed in">
-        Signed in as {{ session.name }} · {{ session.roles.join(', ') }}
-      </p>
+      <header class="flex flex-wrap items-center gap-3">
+        <h1 class="text-3xl font-semibold">Identity console</h1>
+        <div class="contents" aria-label="App version">
+          <Badge>app {{ appVersion }}</Badge>
+        </div>
+        <div v-if="status" class="contents" aria-label="API version">
+          <Badge>api {{ status.version }}</Badge>
+        </div>
+      </header>
+
+      <p class="mt-4 text-sm text-muted-foreground" aria-label="Signed in">Signed in as {{ signedInAs }}</p>
 
       <section v-if="organization" class="mt-8 flex flex-col gap-6" aria-labelledby="organization-heading">
         <div class="flex flex-wrap items-center gap-3">
@@ -99,8 +117,17 @@ const countries = computed(() => {
         </Card>
       </section>
       <p v-else class="mt-8 text-sm text-muted-foreground">
-        You own or administer no organization, so there is nobody to invite here.
+        You own or administer no organization, so there is nobody to invite here{{ isAdmin ? ' yet' : '' }}.
       </p>
+
+      <section v-if="isAdmin" class="mt-8" aria-labelledby="create-organization-heading">
+        <Card class="p-6">
+          <h2 id="create-organization-heading" class="mb-4 text-sm font-medium text-muted-foreground">
+            Create organization
+          </h2>
+          <CreateOrganizationForm :create="createOrganization" @created="onCreated" />
+        </Card>
+      </section>
 
       <section class="mt-8" aria-labelledby="hosted-heading">
         <Card class="p-6">

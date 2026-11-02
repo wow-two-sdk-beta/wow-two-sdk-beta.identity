@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Admin;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
@@ -21,8 +22,8 @@ public sealed class IdentityBuilder
 
     /// <summary>
     /// Register the roles slice: <see cref="RoleService"/>, <see cref="UserRoleService"/> and their repositories over
-    /// <see cref="IdentityDbContext"/>, and <see cref="InstanceRoleService"/> for the instance role catalog. Principals then
-    /// carry role claims.
+    /// <see cref="IdentityDbContext"/>, <see cref="InstanceRoleService"/> for the instance role catalog and the host CLI's
+    /// <see cref="InstanceAdminService"/>. Principals then carry role claims.
     /// </summary>
     public IdentityBuilder AddRoles()
     {
@@ -31,6 +32,7 @@ public sealed class IdentityBuilder
         Services.TryAddScoped<RoleService>();
         Services.TryAddScoped<UserRoleService>();
         Services.TryAddScoped<InstanceRoleService>();
+        Services.TryAddScoped<InstanceAdminService>();
         Services.TryAddEnumerable(ServiceDescriptor.Scoped<IPersonalDataExporter, RolePersonalDataExporter>());
         return this;
     }

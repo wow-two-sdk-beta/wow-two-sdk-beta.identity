@@ -216,7 +216,7 @@ describe('console route', () => {
     expect(wrapper.findAll('h1').map((heading) => heading.text())).toEqual(['Sign in']);
   });
 
-  it('tells a person without an instance role and shows nothing else', async () => {
+  it('tells a person with neither an instance role nor an organization and shows nothing else', async () => {
     stubApi({
       'GET /api/console/session': () =>
         Response.json({ status: 403 }, { status: 403, headers: { 'Content-Type': 'application/problem+json' } }),
@@ -225,6 +225,113 @@ describe('console route', () => {
 
     expect(wrapper.text()).toContain('This account has no console access.');
     expect(wrapper.find('[aria-labelledby="hosted-heading"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="App version"]').exists()).toBe(false);
+  });
+
+  it('shows nothing but a loading state until the session resolves', async () => {
+    let answer: (response: Response) => void = () => undefined;
+    stubApi({ 'GET /api/console/session': () => new Promise<Response>((resolve) => (answer = resolve)) as never });
+    const { wrapper } = await renderAt('/');
+
+    expect(wrapper.get('[aria-label="Loading"]').text()).toContain('Loading the console');
+    expect(wrapper.find('h1').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="App version"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-labelledby="hosted-heading"]').exists()).toBe(false);
+
+    answer(consoleAdmin());
+    await flushPromises();
+    expect(wrapper.find('[aria-label="Loading"]').exists()).toBe(false);
+    expect(wrapper.get('h1').text()).toBe('Identity console');
+  });
+
+  it("manages an organization's invitations and members for its owner without an instance role, creating none", async () => {
+    const received = stubApi({
+      'GET /api/console/session': () =>
+        Response.json({
+          data: {
+            userId: 'u2',
+            name: 'Gulnora',
+            roles: [],
+            organizations: [
+              { id: '0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b', name: 'Ocharo', slug: 'ocharo', role: 'owner' },
+            ],
+          },
+        }),
+    });
+    const { wrapper } = await renderAt('/');
+    await flushPromises();
+
+    expect(wrapper.get('[aria-label="Signed in"]').text()).toBe('Signed in as Gulnora');
+    expect(wrapper.get('#organization-heading').text()).toBe('Ocharo');
+    expect(received.map((request) => request.url.pathname)).toContain(
+      '/api/organizations/0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b/invitations',
+    );
+    expect(wrapper.find('form[aria-label="Create organization"]').exists()).toBe(false);
+  });
+
+  it('lets an instance admin create an organization, then manages the new one', async () => {
+    const created = { id: '0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5d', name: 'Desk', slug: 'desk', role: 'owner' };
+    const received = stubApi({
+      'GET /api/console/session': consoleAdmin,
+      'POST /api/console/organizations': () => Response.json({ data: created }, { status: 201 }),
+    });
+    const { wrapper } = await renderAt('/');
+    await flushPromises();
+
+    expect(wrapper.get('#create-organization-heading').text()).toBe('Create organization');
+    await wrapper.get('input[name="name"]').setValue(' Desk ');
+    await wrapper.get('input[name="slug"]').setValue('Desk');
+    await wrapper.get('input[name="id"]').setValue('0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5d');
+    await wrapper.get('form[aria-label="Create organization"]').trigger('submit');
+    await flushPromises();
+
+    const post = received.find(
+      (request) => request.method === 'POST' && request.url.pathname === '/api/console/organizations',
+    );
+    expect(post?.body).toEqual({ name: 'Desk', slug: 'desk', id: '0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5d' });
+    expect(wrapper.get('#organization-heading').text()).toBe('Desk');
+    expect(received.map((request) => request.url.pathname)).toContain(
+      '/api/organizations/0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5d/members',
+    );
+    expect((wrapper.get('input[name="name"]').element as HTMLInputElement).value).toBe('');
+  });
+
+  it('leaves the id out when empty and shows a taken handle under its field', async () => {
+    const received = stubApi({
+      'GET /api/console/session': consoleAdmin,
+      'POST /api/console/organizations': () =>
+        Response.json(
+          { status: 409, detail: "Handle 'ocharo' is already taken.", identityCode: 'DuplicateOrganizationSlug' },
+          { status: 409, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+    });
+    const { wrapper } = await renderAt('/');
+    await flushPromises();
+
+    await wrapper.get('input[name="name"]').setValue('Ocharo Two');
+    await wrapper.get('input[name="slug"]').setValue('ocharo');
+    await wrapper.get('form[aria-label="Create organization"]').trigger('submit');
+    await flushPromises();
+
+    expect(received.find((request) => request.method === 'POST')?.body).toEqual({ name: 'Ocharo Two', slug: 'ocharo' });
+    expect(errorUnder(wrapper, 'slug')).toContain("Handle 'ocharo' is already taken.");
+    expect(wrapper.get('#organization-heading').text()).toBe('Ocharo');
+  });
+
+  it('checks the handle and the id before sending anything', async () => {
+    const received = stubApi({ 'GET /api/console/session': consoleAdmin });
+    const { wrapper } = await renderAt('/');
+    await flushPromises();
+
+    await wrapper.get('input[name="name"]').setValue('Desk');
+    await wrapper.get('input[name="slug"]').setValue('not a handle');
+    await wrapper.get('input[name="id"]').setValue('42');
+    await wrapper.get('form[aria-label="Create organization"]').trigger('submit');
+    await flushPromises();
+
+    expect(received.some((request) => request.method === 'POST')).toBe(false);
+    expect(errorUnder(wrapper, 'slug')).toContain('lowercase letters, digits and single hyphens');
+    expect(errorUnder(wrapper, 'id')).toContain('Enter a uuid');
   });
 });
 

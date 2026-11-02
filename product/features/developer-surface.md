@@ -4,7 +4,7 @@
 
 > What a product's developer touches: packages, screens, hosted pages, APIs and test tools.
 
-- the host CLI: `keys generate` and `admin create` (the first organization and its owner, idempotent).
+- the host CLI: `keys generate` and `admin create` (the instance admin, once per instance, idempotent for that person).
 - the `Client` package: one registration, cookie session, claims, CSRF, back-channel sign-out (P1).
 - `@wow-two-beta/fe-identity`: embeddable components and widgets — phone + code, Telegram link step, password with
   meter, provider buttons, passkey, MFA, account parts — or a forward of the flow to the hosted pages
