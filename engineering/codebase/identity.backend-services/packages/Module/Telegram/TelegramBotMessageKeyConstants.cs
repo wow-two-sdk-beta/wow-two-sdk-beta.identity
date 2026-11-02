@@ -38,4 +38,10 @@ public static class TelegramBotMessageKeyConstants
 
     /// <summary>The shared contact's number is outside the instance's allowed countries.</summary>
     public const string CountryNotAllowed = "country-not-allowed";
+
+    /// <summary>
+    /// The number is linked to another Telegram account and a person holds it, so the link stays until an owner or admin of
+    /// the person's organization approves the change.
+    /// </summary>
+    public const string LinkChangePending = "link-change-pending";
 }

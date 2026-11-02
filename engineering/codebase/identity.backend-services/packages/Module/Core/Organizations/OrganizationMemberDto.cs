@@ -23,4 +23,10 @@ public sealed record OrganizationMemberDto
 
     /// <summary>When the person joined (UTC).</summary>
     public required DateTimeOffset JoinedAt { get; init; }
+
+    /// <summary>
+    /// Whether another Telegram account shared the person's confirmed phone number within the last day and waits for an
+    /// owner or admin to approve or deny moving the number's link to it; false while the instance has no bot.
+    /// </summary>
+    public bool HasPendingTelegramChange { get; init; }
 }

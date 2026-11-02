@@ -15,7 +15,15 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 /// link's number or, for a link that names none, any number, completes it once, saves the number's link to the chat and
 /// hands over to the purpose's handler. Everything else is left unanswered.
 /// </summary>
-/// <param name="repository">The links and start links.</param>
+/// <remarks>
+/// A number a person holds confirmed and already links to another Telegram user (<c>telegram_user_id</c>, stable per
+/// Telegram account) neither moves nor completes the purpose: a recycled number's new holder registers a new Telegram
+/// account with it, so the share records a pending change (<see cref="TelegramLinkChangeService"/>) for an owner or admin of
+/// the person's organization to approve, and the bot says so. A number nobody holds confirmed, or the same Telegram user
+/// again, links as before.
+/// </remarks>
+/// <param name="repository">The links, start links and pending link changes.</param>
+/// <param name="users">Finds the person holding a number confirmed.</param>
 /// <param name="replier">Sends the bot's texts.</param>
 /// <param name="messages">The person's culture.</param>
 /// <param name="handlers">What follows a completed link, per purpose.</param>
@@ -24,6 +32,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 /// <param name="logger">Logs a completed link no handler serves.</param>
 public sealed partial class TelegramUpdateHandler(
     ITelegramLinkRepository repository,
+    IUserRepository users,
     TelegramBotReplier replier,
     TelegramBotMessages messages,
     IEnumerable<ITelegramLinkCompletionHandler> handlers,
@@ -113,6 +122,24 @@ public sealed partial class TelegramUpdateHandler(
         if (!await repository.TryConsumeRequestAsync(request.Id, now, cancellationToken))
             return;
 
+        if (await IsHeldByAnotherAccountAsync(phone, telegramUserId, cancellationToken))
+        {
+            await repository.SaveChangeAsync(
+                new IdentityTelegramLinkChange
+                {
+                    Id = Guid.CreateVersion7(now),
+                    BotUserName = BotUserName,
+                    PhoneNumber = phone,
+                    ChatId = chatId,
+                    TelegramUserId = telegramUserId,
+                    RequestedAt = now,
+                },
+                now - TelegramLinkChangeService.Lifetime,
+                cancellationToken);
+            await ReplyAsync(chatId, TelegramBotMessageKeyConstants.LinkChangePending, culture, new ReplyKeyboardRemove(), cancellationToken);
+            return;
+        }
+
         await repository.SaveLinkAsync(
             new IdentityTelegramLink
             {
@@ -142,6 +169,12 @@ public sealed partial class TelegramUpdateHandler(
 
         await handler.HandleAsync(completion, cancellationToken);
     }
+
+    /// <summary>Whether the number links to another Telegram user while a person holds it confirmed, so it must not move.</summary>
+    private async Task<bool> IsHeldByAnotherAccountAsync(string phone, long telegramUserId, CancellationToken cancellationToken)
+        => await repository.FindLinkAsync(BotUserName, phone, cancellationToken) is { } current
+            && current.TelegramUserId != telegramUserId
+            && await users.FindByConfirmedPhoneNumberAsync(phone, cancellationToken) is not null;
 
     private ITelegramLinkCompletionHandler? HandlerOf(string purpose)
         => handlers.FirstOrDefault(h => string.Equals(h.Purpose, purpose, StringComparison.Ordinal));

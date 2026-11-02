@@ -63,6 +63,7 @@ public static class IdentityErrorTextConstants
                 ["UserAlreadyMember"] = "Пользователь уже состоит в «{OrganizationName}».",
                 ["UserNotMember"] = "Пользователь не состоит в «{OrganizationName}».",
                 ["LastOrganizationOwner"] = "У «{OrganizationName}» должен остаться хотя бы один владелец.",
+                ["TelegramChangeNotFound"] = "Смена аккаунта Telegram не ожидает одобрения.",
             }.ToFrozenDictionary(StringComparer.Ordinal),
             ["uz"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -115,6 +116,7 @@ public static class IdentityErrorTextConstants
                 ["UserAlreadyMember"] = "Foydalanuvchi allaqachon «{OrganizationName}» aʼzosi.",
                 ["UserNotMember"] = "Foydalanuvchi «{OrganizationName}» aʼzosi emas.",
                 ["LastOrganizationOwner"] = "«{OrganizationName}» kamida bitta egaga ega boʻlishi kerak.",
+                ["TelegramChangeNotFound"] = "Telegram akkauntini almashtirish tasdiqni kutmayapti.",
             }.ToFrozenDictionary(StringComparer.Ordinal),
         }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 }

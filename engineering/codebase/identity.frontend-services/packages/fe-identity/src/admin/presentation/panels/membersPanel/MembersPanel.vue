@@ -12,8 +12,9 @@ import MemberRow from './MemberRow.vue';
 
 /**
  * Lists an organization's members with their roles for its owners and admins: re-roles a member through the role
- * catalog and removes one after a confirm step. Only an owner may promote, demote or remove an owner; the server
- * enforces it, and its refusal shows under the member's row.
+ * catalog, removes one after a confirm step, and approves or denies a member's pending Telegram account change, shown as
+ * "Telegram account change pending". Only an owner may promote, demote or remove an owner, or resolve an owner's change;
+ * the server enforces it, and its refusal shows under the member's row.
  */
 defineOptions({ name: 'MembersPanel' });
 
@@ -34,6 +35,8 @@ const emit = defineEmits<{
   roleChanged: [member: OrganizationMemberDto];
   /** Fires once a member is out of the organization. */
   removed: [userId: string];
+  /** Fires once a member's pending Telegram account change is approved (`true`) or denied (`false`). */
+  telegramChangeResolved: [userId: string, isApproved: boolean];
 }>();
 
 const client = useOrganizationClient(props);
@@ -60,6 +63,13 @@ function changed(userId: string, role: string) {
   members.value = members.value.map((member) => (member.userId === userId ? { ...member, role } : member));
   const member = members.value.find((candidate) => candidate.userId === userId);
   if (member) emit('roleChanged', member);
+}
+
+function telegramChangeResolved(userId: string, isApproved: boolean) {
+  members.value = members.value.map((member) =>
+    member.userId === userId ? { ...member, hasPendingTelegramChange: false } : member,
+  );
+  emit('telegramChangeResolved', userId, isApproved);
 }
 
 function removed(userId: string) {
@@ -95,6 +105,7 @@ defineExpose({
         :client="client"
         @role-changed="changed(member.userId, $event)"
         @removed="removed(member.userId)"
+        @telegram-change-resolved="telegramChangeResolved(member.userId, $event)"
       />
     </ul>
     <p v-else-if="!isLoading && !failure" class="text-sm text-muted-foreground">

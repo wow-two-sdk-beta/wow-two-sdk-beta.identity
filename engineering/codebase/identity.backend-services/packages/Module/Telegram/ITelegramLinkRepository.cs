@@ -2,7 +2,10 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
-/// <summary>Defines persistence of the bot's phone links and pending start links; completing a start link is conditional, so it completes once.</summary>
+/// <summary>
+/// Defines persistence of the bot's phone links, pending start links and pending link changes; completing a start link
+/// and resolving a change are conditional, so each happens once.
+/// </summary>
 public interface ITelegramLinkRepository
 {
     /// <summary>The link of <paramref name="phoneNumber"/> to a chat of <paramref name="botUserName"/>, or null.</summary>
@@ -16,7 +19,7 @@ public interface ITelegramLinkRepository
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     Task SaveLinkAsync(IdentityTelegramLink link, CancellationToken cancellationToken = default);
 
-    /// <summary>Removes every bot's link of <paramref name="phoneNumber"/>.</summary>
+    /// <summary>Removes every bot's link of <paramref name="phoneNumber"/>, and every pending change of it.</summary>
     /// <param name="phoneNumber">The number in E.164.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     Task DeleteLinksAsync(string phoneNumber, CancellationToken cancellationToken = default);
@@ -61,4 +64,33 @@ public interface ITelegramLinkRepository
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>Whether this call completed it; false when another update already did.</returns>
     Task<bool> TryConsumeRequestAsync(Guid requestId, DateTimeOffset at, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records a pending change of the number's link, replacing an earlier one of the same bot and number, and prunes
+    /// changes requested before <paramref name="expiredBefore"/>.
+    /// </summary>
+    /// <param name="change">The change; its id is kept only when the number had none pending.</param>
+    /// <param name="expiredBefore">Changes requested before this instant are gone.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task SaveChangeAsync(IdentityTelegramLinkChange change, DateTimeOffset expiredBefore, CancellationToken cancellationToken = default);
+
+    /// <summary>The pending change of the number's link on the bot, requested since <paramref name="since"/>, or null.</summary>
+    /// <param name="botUserName">The bot's normalized user name.</param>
+    /// <param name="phoneNumber">The number in E.164.</param>
+    /// <param name="since">Changes requested before this instant no longer count.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task<IdentityTelegramLinkChange?> FindChangeAsync(string botUserName, string phoneNumber, DateTimeOffset since, CancellationToken cancellationToken = default);
+
+    /// <summary>The numbers among <paramref name="phoneNumbers"/> with a pending change on the bot, requested since <paramref name="since"/>.</summary>
+    /// <param name="botUserName">The bot's normalized user name.</param>
+    /// <param name="phoneNumbers">The numbers in E.164.</param>
+    /// <param name="since">Changes requested before this instant no longer count.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task<IReadOnlySet<string>> FindChangedNumbersAsync(string botUserName, IReadOnlyCollection<string> phoneNumbers, DateTimeOffset since, CancellationToken cancellationToken = default);
+
+    /// <summary>Removes a pending change while it still names the same chat and Telegram user.</summary>
+    /// <param name="change">The change as read.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>Whether this call removed it; false when another call already did, or a newer request replaced it.</returns>
+    Task<bool> TryDeleteChangeAsync(IdentityTelegramLinkChange change, CancellationToken cancellationToken = default);
 }

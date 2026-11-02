@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using WoW.Two.Sdk.Beta.Be.Foundation.Errors;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
+using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 using WoW.Two.Sdk.Beta.Be.Web.Contracts;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
@@ -15,9 +17,10 @@ public static class OrganizationEndpointRouteBuilderExtensions
     /// <summary>
     /// Maps, under <paramref name="endpoints"/> (<c>/api/organizations</c> in the service), for the organization's owners and
     /// admins: <c>GET {organizationId}/members</c>; <c>PUT {organizationId}/members/{userId}</c> with <c>{ role }</c>;
-    /// <c>DELETE {organizationId}/members/{userId}</c>; and, with invitations registered, <c>POST {organizationId}/invitations</c>
+    /// <c>DELETE {organizationId}/members/{userId}</c>; with invitations registered, <c>POST {organizationId}/invitations</c>
     /// with <c>{ role, phoneNumber?, email? }</c> (the answer carries the link once), <c>GET {organizationId}/invitations</c> and
-    /// <c>DELETE {organizationId}/invitations/{invitationId}</c>.
+    /// <c>DELETE {organizationId}/invitations/{invitationId}</c>; and, with the Telegram bot registered,
+    /// <c>POST {organizationId}/members/{userId}/telegram-change/approve</c> and <c>…/deny</c>.
     /// </summary>
     /// <remarks>
     ///   - a signed-in person outside the organization gets <c>404</c> (<c>OrganizationNotFound</c>), a member who is neither
@@ -25,6 +28,9 @@ public static class OrganizationEndpointRouteBuilderExtensions
     ///   - only an owner invites, promotes, demotes or removes an owner (<c>403</c>, <c>OrganizationOwnerRequired</c>); the
     ///     last owner can be neither demoted nor removed (<c>409</c>, <c>LastOrganizationOwner</c>)
     ///   - a role change or removal rotates the member's security stamp, ending their sessions
+    ///   - approving a member's pending Telegram change moves their confirmed number's link to the Telegram account that
+    ///     asked and rotates nothing else; denying drops it; none pending answers <c>404</c> (<c>TelegramChangeNotFound</c>),
+    ///     and only an owner resolves an owner's
     ///   - failures carry their code in the problem's <c>identityCode</c> extension
     /// </remarks>
     /// <param name="endpoints">The route builder or group.</param>
@@ -41,6 +47,12 @@ public static class OrganizationEndpointRouteBuilderExtensions
             endpoints.MapDelete("/{organizationId:guid}/invitations/{invitationId:guid}", RevokeInvitationAsync).RequireAuthorization();
         }
 
+        if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(TelegramLinkChangeService)) == true)
+        {
+            endpoints.MapPost("/{organizationId:guid}/members/{userId:guid}/telegram-change/approve", ApproveTelegramChangeAsync).RequireAuthorization();
+            endpoints.MapPost("/{organizationId:guid}/members/{userId:guid}/telegram-change/deny", DenyTelegramChangeAsync).RequireAuthorization();
+        }
+
         return endpoints;
     }
 
@@ -48,23 +60,28 @@ public static class OrganizationEndpointRouteBuilderExtensions
     {
         var manager = await ManagerOfAsync(organizationId, principal, http, cancellationToken);
         var accounts = http.RequestServices.GetRequiredService<UserAccountService>();
-        var members = new List<OrganizationMemberDto>();
+        var found = new List<(IdentityMembership Membership, IdentityUser User)>();
         foreach (var membership in await manager.Organizations.ListMembersAsync(manager.Organization, cancellationToken))
         {
-            if (await accounts.FindByIdAsync(membership.UserId, cancellationToken) is not { } user)
-                continue;
-
-            members.Add(new OrganizationMemberDto
-            {
-                UserId = user.Id,
-                DisplayName = user.DisplayName,
-                UserName = user.UserName,
-                Email = user.Email,
-                PhoneNumber = user.PhoneNumber,
-                Role = membership.Role,
-                JoinedAt = membership.CreatedAt,
-            });
+            if (await accounts.FindByIdAsync(membership.UserId, cancellationToken) is { } user)
+                found.Add((membership, user));
         }
+
+        var changes = http.RequestServices.GetService<TelegramLinkChangeService>();
+        IReadOnlySet<string> pending = changes is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : await changes.FindPendingNumbersAsync([.. found.Select(member => ConfirmedPhoneOf(member.User)).OfType<string>().Distinct(StringComparer.Ordinal)], cancellationToken);
+        var members = found.Select(member => new OrganizationMemberDto
+        {
+            UserId = member.User.Id,
+            DisplayName = member.User.DisplayName,
+            UserName = member.User.UserName,
+            Email = member.User.Email,
+            PhoneNumber = member.User.PhoneNumber,
+            Role = member.Membership.Role,
+            JoinedAt = member.Membership.CreatedAt,
+            HasPendingTelegramChange = ConfirmedPhoneOf(member.User) is { } phone && pending.Contains(phone),
+        }).ToList();
 
         return Results.Ok(ApiResponse<IReadOnlyList<OrganizationMemberDto>>.Ok(members));
     }
@@ -90,6 +107,40 @@ public static class OrganizationEndpointRouteBuilderExtensions
         var removed = await manager.Organizations.RemoveMemberAsync(manager.Organization, member.User, cancellationToken);
         return removed.IsSuccess ? Results.NoContent() : throw InvitationErrors.Of(removed).ToException();
     }
+
+    private static async Task<IResult> ApproveTelegramChangeAsync(Guid organizationId, Guid userId, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
+    {
+        var phone = await TelegramChangePhoneOfAsync(organizationId, userId, principal, http, cancellationToken);
+        return phone is not null && await http.RequestServices.GetRequiredService<TelegramLinkChangeService>().ApproveAsync(phone, cancellationToken)
+            ? Results.NoContent()
+            : throw TelegramChangeNotFound().ToException();
+    }
+
+    private static async Task<IResult> DenyTelegramChangeAsync(Guid organizationId, Guid userId, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
+    {
+        var phone = await TelegramChangePhoneOfAsync(organizationId, userId, principal, http, cancellationToken);
+        return phone is not null && await http.RequestServices.GetRequiredService<TelegramLinkChangeService>().DenyAsync(phone, cancellationToken)
+            ? Results.NoContent()
+            : throw TelegramChangeNotFound().ToException();
+    }
+
+    /// <summary>The member's confirmed number in E.164, after the member routes' checks; null when they hold none.</summary>
+    private static async Task<string?> TelegramChangePhoneOfAsync(Guid organizationId, Guid userId, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
+    {
+        var manager = await ManagerOfAsync(organizationId, principal, http, cancellationToken);
+        var member = await MemberOfAsync(manager, userId, http, cancellationToken);
+        if (manager.Organizations.IsOwnerRole(member.Role) && !manager.IsOwner)
+            throw InvitationErrors.Coded(AppErrorType.Forbidden, "Only an owner approves or denies an owner's Telegram account change.", IdentityErrorCodeConstants.OrganizationOwnerRequired).ToException();
+
+        return ConfirmedPhoneOf(member.User);
+    }
+
+    /// <summary>The person's phone number in E.164 while it is confirmed; null otherwise.</summary>
+    private static string? ConfirmedPhoneOf(IdentityUser user)
+        => user.IsPhoneNumberConfirmed ? PhoneNumberPolicy.Normalize(user.PhoneNumber) : null;
+
+    private static AppError TelegramChangeNotFound()
+        => InvitationErrors.Coded(AppErrorType.NotFound, "No Telegram account change of the person's phone number is waiting for approval.", IdentityErrorCodeConstants.TelegramChangeNotFound);
 
     private static async Task<IResult> CreateInvitationAsync(Guid organizationId, InvitationApiRequest request, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
     {

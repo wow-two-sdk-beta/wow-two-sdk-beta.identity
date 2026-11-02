@@ -59,4 +59,6 @@ export const IdentityErrorCodeConstants = {
   signUpVerificationNotFound: 'SignUpVerificationNotFound',
   /** An invitation sign-up's `failureCode`: the shared phone number is outside the instance's allowed countries. */
   phoneCountryNotAllowed: 'PhoneCountryNotAllowed',
+  /** `404`: no Telegram account change of the member's confirmed phone number waits for approval. */
+  telegramChangeNotFound: 'TelegramChangeNotFound',
 } as const;

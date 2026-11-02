@@ -28,6 +28,7 @@ describe('organization client', () => {
           phoneNumber: null,
           role: 'viewer',
           joinedAt: 'x',
+          hasPendingTelegramChange: false,
         },
       ],
     });
@@ -74,6 +75,29 @@ describe('organization client', () => {
     expect(received.map((request) => [request.method, request.url.toString(), request.body])).toEqual([
       ['PUT', `${base}/members/u2`, { role: 'admin' }],
       ['DELETE', `${base}/members/u2`, undefined],
+    ]);
+  });
+
+  it("reads a member's pending Telegram change, and approves or denies it", async () => {
+    const lola = member('u3', 'editor', { phoneNumber: '+998901234567', hasPendingTelegramChange: true });
+    const { client, received } = fakeOrganizationApi({
+      'GET /members': () =>
+        Response.json({ data: [lola, { userId: 'u4', role: 'viewer', hasPendingTelegramChange: 'yes' }] }),
+      'POST /members/u3/telegram-change/approve': noContent,
+      'POST /members/u3/telegram-change/deny': () =>
+        problem(404, 'No Telegram account change is waiting.', { identityCode: 'TelegramChangeNotFound' }),
+    });
+
+    const listed = await client.listMembers(organizationId);
+    expect(listed.ok && listed.value.map((m) => m.hasPendingTelegramChange)).toEqual([true, false]);
+    expect(await client.approveTelegramChange(organizationId, 'u3')).toEqual({ ok: true, value: undefined });
+    const denied = await client.denyTelegramChange(organizationId, 'u3');
+
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) expect(readIdentityCode(denied.failure)).toBe(IdentityErrorCodeConstants.telegramChangeNotFound);
+    expect(received.slice(1).map((request) => [request.method, request.url.toString(), request.body])).toEqual([
+      ['POST', `${base}/members/u3/telegram-change/approve`, undefined],
+      ['POST', `${base}/members/u3/telegram-change/deny`, undefined],
     ]);
   });
 

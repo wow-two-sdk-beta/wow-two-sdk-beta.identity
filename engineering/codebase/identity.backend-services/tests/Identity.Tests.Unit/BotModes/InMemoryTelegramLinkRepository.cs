@@ -3,12 +3,13 @@ using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.BotModes;
 
-/// <summary>Keeps the bot's links and start links in memory, for tests that need no database.</summary>
+/// <summary>Keeps the bot's links, start links and pending link changes in memory, for tests that need no database.</summary>
 internal sealed class InMemoryTelegramLinkRepository : ITelegramLinkRepository
 {
     private readonly object _gate = new();
     private readonly List<IdentityTelegramLink> _links = [];
     private readonly List<IdentityTelegramLinkRequest> _requests = [];
+    private readonly List<IdentityTelegramLinkChange> _changes = [];
 
     /// <summary>Whether looking up a pending start link throws, as a database outage would.</summary>
     public bool IsPendingLookupFailing { get; set; }
@@ -20,6 +21,16 @@ internal sealed class InMemoryTelegramLinkRepository : ITelegramLinkRepository
         {
             lock (_gate)
                 return [.. _links];
+        }
+    }
+
+    /// <summary>The pending link changes, as stored.</summary>
+    public IReadOnlyList<IdentityTelegramLinkChange> Changes
+    {
+        get
+        {
+            lock (_gate)
+                return [.. _changes];
         }
     }
 
@@ -56,7 +67,11 @@ internal sealed class InMemoryTelegramLinkRepository : ITelegramLinkRepository
     public Task DeleteLinksAsync(string phoneNumber, CancellationToken cancellationToken = default)
     {
         lock (_gate)
+        {
             _links.RemoveAll(l => l.PhoneNumber == phoneNumber);
+            _changes.RemoveAll(c => c.PhoneNumber == phoneNumber);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -127,4 +142,67 @@ internal sealed class InMemoryTelegramLinkRepository : ITelegramLinkRepository
             return Task.FromResult(true);
         }
     }
+
+    /// <inheritdoc />
+    public Task SaveChangeAsync(IdentityTelegramLinkChange change, DateTimeOffset expiredBefore, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            _changes.RemoveAll(c => c.RequestedAt < expiredBefore);
+            if (_changes.FirstOrDefault(c => c.BotUserName == change.BotUserName && c.PhoneNumber == change.PhoneNumber) is { } existing)
+            {
+                existing.ChatId = change.ChatId;
+                existing.TelegramUserId = change.TelegramUserId;
+                existing.RequestedAt = change.RequestedAt;
+            }
+            else
+            {
+                _changes.Add(change);
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<IdentityTelegramLinkChange?> FindChangeAsync(string botUserName, string phoneNumber, DateTimeOffset since, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            return Task.FromResult(_changes
+                .Where(c => c.BotUserName == botUserName && c.PhoneNumber == phoneNumber && c.RequestedAt >= since)
+                .Select(Copy)
+                .FirstOrDefault());
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlySet<string>> FindChangedNumbersAsync(string botUserName, IReadOnlyCollection<string> phoneNumbers, DateTimeOffset since, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlySet<string> changed = _changes
+                .Where(c => c.BotUserName == botUserName && c.RequestedAt >= since && phoneNumbers.Contains(c.PhoneNumber))
+                .Select(c => c.PhoneNumber)
+                .ToHashSet(StringComparer.Ordinal);
+            return Task.FromResult(changed);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<bool> TryDeleteChangeAsync(IdentityTelegramLinkChange change, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+            return Task.FromResult(_changes.RemoveAll(c => c.Id == change.Id && c.ChatId == change.ChatId && c.TelegramUserId == change.TelegramUserId) == 1);
+    }
+
+    private static IdentityTelegramLinkChange Copy(IdentityTelegramLinkChange change) => new()
+    {
+        Id = change.Id,
+        BotUserName = change.BotUserName,
+        PhoneNumber = change.PhoneNumber,
+        ChatId = change.ChatId,
+        TelegramUserId = change.TelegramUserId,
+        RequestedAt = change.RequestedAt,
+    };
 }

@@ -57,6 +57,10 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
   products.
 - `005-display-name` adds `identity_users.display_name` (nullable, 120), the name the `name` claim takes first; erasure
   scrubs it, and it is not a readable column for products.
+- `006-invitations` adds `identity_invitations`; `007-invite-sign-up` adds `identity_sign_up_requests` (sign-ups waiting
+  for the bot, `InviteSignUp/`), `identity_profile_pictures` (one WebP per person, `ProfilePictures/`) and a nullable
+  number plus `reference_id` on start links; `008-telegram-link-changes` adds `identity_telegram_link_changes` (a known
+  number re-shared from another Telegram account, waiting for a manager's approval). None is published to products.
 - The SQL owns the schema: `../Migrations/Postgres/NNN-name/{Apply,Rollback}.sql`, embedded and run as the be sdk
   migration set `identity` (history `identity_migration_history`, its own advisory lock). EF only maps.
 - Names are pinned in the model, whatever the host's naming convention: snake_case columns, `pk_{table}`,
@@ -84,7 +88,7 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 | `AddSmtpEmail(configuration)` | the `IEmailBroker`: an SMTP relay from `Identity:Email`, else one that skips and logs every send | `Emails/` |
 | `AddLockout()` | `UserLockoutService` | `Lockout/` |
 | `AddSecurityStampValidation()` | `SecurityStampValidator` + cookie/JWT hooks | `SecurityStamps/` |
-| `AddRoles()` | `RoleService`, `UserRoleService` | `Roles/` |
+| `AddRoles()` | `RoleService`, `UserRoleService`, `InstanceRoleService`, `InstanceAdminService` (the host's `admin create`) | `Roles/`, `Admin/` |
 | `AddUserClaims()` | `UserClaimService` | `UserClaims/` |
 | `AddExternalAccounts()` | `ExternalAccountService` | `ExternalAccounts/` |
 | `AddTwoFactor()` | `UserTwoFactorService` | `TwoFactor/` |
@@ -95,7 +99,7 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 | `AddSessions(o => …)` | `UserSessionService` (one session per cookie sign-in, `sid`, list and revoke) + cookie hook | `Sessions/` |
 | `AddSignInLog(o => …)` | `SignInLogService` (every attempt, masked) + the retention cleanup job | `SignInLog/` |
 | `AddPasskeys(o => …)` | `UserPasskeyService`, `SignInService.PasskeySignInAsync` | `Passkeys/` |
-| `AddOrganizations(o => …)` | `OrganizationService` (organizations, memberships, role and permission claims), `FirstOwnerService` (the host's `admin create`) | `Organizations/`, `Admin/` |
+| `AddOrganizations(o => …)` | `OrganizationService` (organizations, memberships, role and permission claims) | `Organizations/` |
 | `AddEmailSignIn(o => …)` | `UserEmailSignInService` (single-use link or code over OTP) | `EmailSignIn/` |
 | `AddPersonalData()` | `UserPersonalDataService` (export sections, account erasure hooks) | `PersonalData/` |
 | `AddInvitations(o => …)` + `MapOrganizationEndpoints()` | `InvitationService` (single-use links carrying a role), the managers' member and invitation routes | `Invitations/`, `Organizations/` |

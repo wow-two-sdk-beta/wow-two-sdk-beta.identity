@@ -3,7 +3,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
-/// <summary>Removes the bot's links of a deleted account's phone number, so its chat gets no more codes.</summary>
+/// <summary>Removes the bot's links and pending link changes of a deleted account's phone number, so its chat gets no more codes.</summary>
 /// <param name="repository">The links.</param>
 public sealed class TelegramLinkDeletionHandler(ITelegramLinkRepository repository) : IAccountDeletionHandler
 {

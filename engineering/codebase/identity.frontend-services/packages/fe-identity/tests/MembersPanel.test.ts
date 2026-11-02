@@ -103,6 +103,59 @@ describe('members panel', () => {
     expect(wrapper.emitted('removed')).toEqual([['u2']]);
   });
 
+  it('shows a pending Telegram account change and approves it', async () => {
+    const lola = member('u3', 'editor', { displayName: 'Lola', hasPendingTelegramChange: true });
+    const { wrapper, received } = await mountPanel({
+      'GET /members': () => Response.json({ data: [ann, lola] }),
+      'POST /members/u3/telegram-change/approve': noContent,
+    });
+
+    expect(row(wrapper, 'Lola').text()).toContain('Telegram account change pending');
+    expect(row(wrapper, 'Ann').text()).not.toContain('Telegram account change pending');
+    await button(row(wrapper, 'Lola'), 'Approve').trigger('click');
+    await flushPromises();
+
+    expect(received[1]).toMatchObject({ method: 'POST' });
+    expect(received[1]?.url.pathname).toBe(`/api/organizations/${organizationId}/members/u3/telegram-change/approve`);
+    expect(row(wrapper, 'Lola').text()).not.toContain('Telegram account change pending');
+    expect(wrapper.emitted('telegramChangeResolved')).toEqual([['u3', true]]);
+  });
+
+  it('denies a pending Telegram account change', async () => {
+    const lola = member('u3', 'editor', { displayName: 'Lola', hasPendingTelegramChange: true });
+    const { wrapper, received } = await mountPanel({
+      'GET /members': () => Response.json({ data: [lola] }),
+      'POST /members/u3/telegram-change/deny': noContent,
+    });
+
+    await button(row(wrapper, 'Lola'), 'Deny').trigger('click');
+    await flushPromises();
+
+    expect(received[1]?.url.pathname).toBe(`/api/organizations/${organizationId}/members/u3/telegram-change/deny`);
+    expect(row(wrapper, 'Lola').text()).not.toContain('Telegram account change pending');
+    expect(wrapper.emitted('telegramChangeResolved')).toEqual([['u3', false]]);
+  });
+
+  it("keeps the pending change and shows the server's refusal under the member", async () => {
+    const lola = member('u3', 'owner', { displayName: 'Lola', hasPendingTelegramChange: true });
+    const { wrapper } = await mountPanel({
+      'GET /members': () => Response.json({ data: [lola] }),
+      'POST /members/u3/telegram-change/approve': () =>
+        problem(403, 'Only an owner approves or denies an owner’s Telegram account change.', {
+          identityCode: 'OrganizationOwnerRequired',
+        }),
+    });
+
+    await button(row(wrapper, 'Lola'), 'Approve').trigger('click');
+    await flushPromises();
+
+    expect(row(wrapper, 'Lola').text()).toContain('Telegram account change pending');
+    expect(row(wrapper, 'Lola').text()).toContain(
+      'Only an owner approves or denies an owner’s Telegram account change.',
+    );
+    expect(wrapper.emitted('telegramChangeResolved')).toBeUndefined();
+  });
+
   it('keeps the last owner and says why', async () => {
     const { wrapper } = await mountPanel({
       'DELETE /members/u1': () =>

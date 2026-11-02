@@ -8,8 +8,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>
 /// The Module's own context over the identity schema in PostgreSQL: 11 account tables, OpenIddict's four
-/// <c>identity_oidc_*</c> tables, the sessions, sign-in log and Data Protection key tables, and the one-time code and
-/// Telegram link tables, mapped only. The embedded
+/// <c>identity_oidc_*</c> tables, the sessions, sign-in log and Data Protection key tables, the one-time code and
+/// Telegram link tables, and the invitation, sign-up and picture tables, mapped only. The embedded
 /// SQL migration set <see cref="IdentityDatabaseOptions.MigrationSetName"/> creates and evolves them; EF never does.
 /// </summary>
 /// <remarks>
@@ -106,6 +106,9 @@ public sealed class IdentityDbContext : AppDbContextBase
 
     /// <summary>Pending start links of the bot (<c>identity_telegram_link_requests</c>).</summary>
     public DbSet<IdentityTelegramLinkRequest> TelegramLinkRequests => Set<IdentityTelegramLinkRequest>();
+
+    /// <summary>Telegram link changes waiting for an organization's owner or admin (<c>identity_telegram_link_changes</c>).</summary>
+    public DbSet<IdentityTelegramLinkChange> TelegramLinkChanges => Set<IdentityTelegramLinkChange>();
 
     /// <summary>Invitations into organizations (<c>identity_invitations</c>).</summary>
     public DbSet<IdentityInvitation> Invitations => Set<IdentityInvitation>();
@@ -401,7 +404,7 @@ public sealed class IdentityDbContext : AppDbContextBase
         });
     }
 
-    /// <summary>Maps one-time codes, Telegram links and the bot's start links (<c>004-phone-sign-in</c>).</summary>
+    /// <summary>Maps one-time codes, Telegram links and the bot's start links (<c>004-phone-sign-in</c>), and the pending link changes (<c>008-telegram-link-changes</c>).</summary>
     private static void MapPhoneSignIn(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<IdentityOtpCode>(code =>
@@ -443,6 +446,18 @@ public sealed class IdentityDbContext : AppDbContextBase
             request.Property(r => r.BotUserName).HasMaxLength(64);
             request.Property(r => r.PhoneNumber).HasMaxLength(32);
             request.Property(r => r.OriginHash).HasMaxLength(64);
+        });
+
+        // 008-telegram-link-changes: one pending change per bot and number.
+        modelBuilder.Entity<IdentityTelegramLinkChange>(change =>
+        {
+            change.ToTable("identity_telegram_link_changes");
+            change.HasKey(c => c.Id);
+            change.Property(c => c.Id).ValueGeneratedNever();
+            change.HasIndex(c => new { c.BotUserName, c.PhoneNumber }).IsUnique();
+            change.HasIndex(c => c.RequestedAt);
+            change.Property(c => c.BotUserName).HasMaxLength(64);
+            change.Property(c => c.PhoneNumber).HasMaxLength(32);
         });
     }
 

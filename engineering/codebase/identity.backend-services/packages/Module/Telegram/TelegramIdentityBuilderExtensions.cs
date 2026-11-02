@@ -17,8 +17,9 @@ public static class TelegramIdentityBuilderExtensions
     /// <summary>
     /// Registers the bot: <see cref="TelegramBotOptions"/> from <paramref name="configure"/>, then the host section
     /// <c>Identity:Telegram</c>, checked at boot; the bot client over <see cref="TelegramBotOptions.BotToken"/> unless one is
-    /// registered already; the <c>telegram</c> OTP channel; the links over <see cref="IdentityDbContext"/>, the start links
-    /// and the <see cref="TelegramUpdateHandler"/> both update modes feed; the linked chat as a verified channel
+    /// registered already; the <c>telegram</c> OTP channel; the links over <see cref="IdentityDbContext"/>, the start links,
+    /// the pending link changes (<see cref="TelegramLinkChangeService"/>) and the <see cref="TelegramUpdateHandler"/> both
+    /// update modes feed; the linked chat as a verified channel
     /// (<see cref="TelegramVerifiedChannelSource"/>); and the two background services, which each act only in their own
     /// <see cref="TelegramBotOptions.UpdateMode"/>: <see cref="TelegramPollingService"/> and, on a deployed boot,
     /// <see cref="TelegramWebhookRegistrationService"/>. Map the webhook with <c>MapTelegramWebhook</c>.
@@ -38,6 +39,7 @@ public static class TelegramIdentityBuilderExtensions
         services.AddTelegramOtpDelivery();
         services.TryAddScoped<ITelegramLinkRepository, EfTelegramLinkRepository>();
         services.TryAddScoped<TelegramLinkService>();
+        services.TryAddScoped<TelegramLinkChangeService>();
         services.TryAddSingleton<TelegramBotMessages>();
         services.TryAddScoped<TelegramBotReplier>();
         services.TryAddScoped<TelegramUpdateHandler>();

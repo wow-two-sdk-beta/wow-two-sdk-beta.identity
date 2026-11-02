@@ -32,6 +32,7 @@ export const member = (userId: string, role: string, extra: Record<string, unkno
   phoneNumber: null,
   role,
   joinedAt: '2026-10-20T08:00:00+00:00',
+  hasPendingTelegramChange: false,
   ...extra,
 });
 

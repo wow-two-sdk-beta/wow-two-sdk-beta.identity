@@ -41,7 +41,8 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         (await HasColumnAsync(migrator, "identity_users", "deleted_at")).Should().BeTrue("001-accounts creates the soft-delete column");
         (await HasColumnAsync(migrator, "identity_users", "display_name")).Should().BeTrue("005-display-name adds the display name");
         (await HasColumnAsync(migrator, "identity_telegram_link_requests", "reference_id")).Should().BeTrue("007-invite-sign-up adds the reference");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5, 6, 7);
+        (await migrator.HasTableAsync(Schema, "identity_telegram_link_changes")).Should().BeTrue("008-telegram-link-changes adds the pending changes");
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
@@ -51,6 +52,10 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         await using var migrator = CreateMigrator(fixture);
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
+
+        (await runner.RollbackAsync(targetOrdinal: 7)).ValueOrThrow().Should().Equal("008-telegram-link-changes");
+        (await migrator.HasTableAsync(Schema, "identity_telegram_link_changes")).Should().BeFalse("rolling 008-telegram-link-changes back drops the pending changes");
+        (await migrator.HasTableAsync(Schema, "identity_telegram_links")).Should().BeTrue("the links stay");
 
         (await runner.RollbackAsync(targetOrdinal: 6)).ValueOrThrow().Should().Equal("007-invite-sign-up");
         (await migrator.HasTableAsync(Schema, "identity_sign_up_requests")).Should().BeFalse("rolling 007-invite-sign-up back drops the sign-ups");

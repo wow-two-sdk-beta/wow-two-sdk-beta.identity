@@ -14,4 +14,9 @@ export interface OrganizationMemberDto {
   readonly role: string;
   /** When the person joined, ISO 8601. */
   readonly joinedAt: string;
+  /**
+   * Whether another Telegram account shared the person's confirmed phone number within the last day and waits for an
+   * owner or admin to approve or deny moving the number's link to it; `false` while the instance has no bot.
+   */
+  readonly hasPendingTelegramChange: boolean;
 }

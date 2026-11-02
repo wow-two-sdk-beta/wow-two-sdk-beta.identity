@@ -209,4 +209,7 @@ public static class IdentityErrorCodeConstants
 
     /// <summary>The verified phone number is outside the instance's allowed countries.</summary>
     public const string PhoneCountryNotAllowed = "PhoneCountryNotAllowed";
+
+    /// <summary>No Telegram account change of the person's confirmed phone number is waiting for approval.</summary>
+    public const string TelegramChangeNotFound = "TelegramChangeNotFound";
 }

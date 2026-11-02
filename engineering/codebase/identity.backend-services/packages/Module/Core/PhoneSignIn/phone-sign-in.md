@@ -55,4 +55,7 @@ app.MapTelegramWebhook();                                    // POST /api/telegr
   unique per bot user name and number, so replacing the bot starts with no links. Bot options, wording and the webhook:
   `Module/Telegram/`.
 - Schema: migration set `004-phone-sign-in` (`identity_otp_codes`, `identity_telegram_links`,
-  `identity_telegram_link_requests`); none of them is published to products.
+  `identity_telegram_link_requests`), and `008-telegram-link-changes` (`identity_telegram_link_changes`); none of them is
+  published to products.
+- A number a person holds confirmed and linked to another Telegram account does not move to a new one: the share waits
+  in `identity_telegram_link_changes` for an owner or admin of the person's organization to approve it.

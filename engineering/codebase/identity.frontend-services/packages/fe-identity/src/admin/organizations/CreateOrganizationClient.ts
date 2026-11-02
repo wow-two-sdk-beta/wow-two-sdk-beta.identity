@@ -44,6 +44,17 @@ export interface OrganizationClient {
   ): Promise<Result<void, ApiFailure>>;
   /** Removes a member from the organization, which ends their sessions. */
   removeMember(organizationId: string, userId: string, signal?: AbortSignal): Promise<Result<void, ApiFailure>>;
+  /**
+   * Moves the member's phone link to the Telegram account whose change waits (`hasPendingTelegramChange`); `404`
+   * `TelegramChangeNotFound` when none waits. Only an owner resolves an owner's.
+   */
+  approveTelegramChange(
+    organizationId: string,
+    userId: string,
+    signal?: AbortSignal,
+  ): Promise<Result<void, ApiFailure>>;
+  /** Drops the member's pending Telegram account change, keeping the link; `404` `TelegramChangeNotFound` when none waits. */
+  denyTelegramChange(organizationId: string, userId: string, signal?: AbortSignal): Promise<Result<void, ApiFailure>>;
   /** Makes an invitation link; the answer alone carries its token and link. */
   createInvitation(
     organizationId: string,
@@ -97,6 +108,7 @@ function decodeMember(value: unknown): OrganizationMemberDto | null {
     phoneNumber: text(body.phoneNumber),
     role,
     joinedAt: text(body.joinedAt) ?? '',
+    hasPendingTelegramChange: body.hasPendingTelegramChange === true,
   };
 }
 
@@ -150,6 +162,8 @@ export function createOrganizationClient(options: OrganizationClientOptions = {}
   });
   const members = (organizationId: string, userId?: string) =>
     `/${encodeURIComponent(organizationId)}${OrganizationRouteConstants.members}${userId ? `/${encodeURIComponent(userId)}` : ''}`;
+  const telegramChange = (organizationId: string, userId: string, decision: string) =>
+    `${members(organizationId, userId)}${OrganizationRouteConstants.telegramChange}${decision}`;
   const invitations = (organizationId: string, invitationId?: string) =>
     `/${encodeURIComponent(organizationId)}${OrganizationRouteConstants.invitations}${invitationId ? `/${encodeURIComponent(invitationId)}` : ''}`;
 
@@ -159,6 +173,16 @@ export function createOrganizationClient(options: OrganizationClientOptions = {}
       client.put(members(organizationId, userId), { body: request, response: 'empty', signal }),
     removeMember: (organizationId, userId, signal) =>
       client.delete(members(organizationId, userId), { response: 'empty', signal }),
+    approveTelegramChange: (organizationId, userId, signal) =>
+      client.post(telegramChange(organizationId, userId, OrganizationRouteConstants.approve), {
+        response: 'empty',
+        signal,
+      }),
+    denyTelegramChange: (organizationId, userId, signal) =>
+      client.post(telegramChange(organizationId, userId, OrganizationRouteConstants.deny), {
+        response: 'empty',
+        signal,
+      }),
     createInvitation: (organizationId, request, signal) =>
       client.post(invitations(organizationId), { body: request, signal, decode: decodeCreated }),
     listInvitations: (organizationId, signal) =>

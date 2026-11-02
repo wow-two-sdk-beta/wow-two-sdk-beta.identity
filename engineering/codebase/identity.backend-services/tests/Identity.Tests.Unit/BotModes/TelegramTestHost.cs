@@ -11,17 +11,21 @@ using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.BotModes;
 
-/// <summary>The bot's registration over a scripted Telegram, in-memory links and a captured log, with a chosen host environment and no database.</summary>
+/// <summary>
+/// The bot's registration over a scripted Telegram, in-memory links, an in-memory record of who holds which number
+/// confirmed and a captured log, with a chosen host environment and no database.
+/// </summary>
 internal sealed class TelegramTestHost : IDisposable
 {
     /// <summary>A bot token that passes the boot check.</summary>
     public const string Token = "123456:TEST-token";
 
-    private TelegramTestHost(ServiceProvider provider, ScriptedTelegramBotClient bot, InMemoryTelegramLinkRepository links, CapturedLog log)
+    private TelegramTestHost(ServiceProvider provider, ScriptedTelegramBotClient bot, InMemoryTelegramLinkRepository links, PhoneHolderUserRepository users, CapturedLog log)
     {
         Provider = provider;
         Bot = bot;
         Links = links;
+        Users = users;
         Log = log;
     }
 
@@ -30,6 +34,9 @@ internal sealed class TelegramTestHost : IDisposable
     public ScriptedTelegramBotClient Bot { get; }
 
     public InMemoryTelegramLinkRepository Links { get; }
+
+    /// <summary>Who holds which number confirmed.</summary>
+    public PhoneHolderUserRepository Users { get; }
 
     public CapturedLog Log { get; }
 
@@ -40,33 +47,42 @@ internal sealed class TelegramTestHost : IDisposable
     /// <param name="schedule">The polling pace; short by default so a test never waits.</param>
     /// <param name="configuration">Host settings, such as <c>DEPLOY_ENVIRONMENT</c>.</param>
     /// <param name="hasHashKey">Whether <c>Identity:Otp:HashKey</c> is set, which a deployed boot with the bot on requires.</param>
+    /// <param name="time">The clock; the system's when null.</param>
+    /// <param name="services">Adds services before the bot's registration, such as a completion handler.</param>
     public static TelegramTestHost Create(
         Action<TelegramBotOptions>? bot = null,
         string environment = "Production",
         bool withoutBotClient = false,
         TelegramPollingSchedule? schedule = null,
         IReadOnlyDictionary<string, string?>? configuration = null,
-        bool hasHashKey = true)
+        bool hasHashKey = true,
+        TimeProvider? time = null,
+        Action<IServiceCollection>? services = null)
     {
         var scripted = new ScriptedTelegramBotClient();
         var links = new InMemoryTelegramLinkRepository();
+        var users = new PhoneHolderUserRepository();
         var log = new CapturedLog();
-        var services = new ServiceCollection();
-        services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Information).AddProvider(log));
-        services.AddSingleton<IHostEnvironment>(new TestEnvironment(environment));
-        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(configuration ?? new Dictionary<string, string?>()).Build());
-        services.AddSingleton(schedule ?? new TelegramPollingSchedule
+        var collection = new ServiceCollection();
+        collection.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Information).AddProvider(log));
+        collection.AddSingleton<IHostEnvironment>(new TestEnvironment(environment));
+        collection.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(configuration ?? new Dictionary<string, string?>()).Build());
+        collection.AddSingleton(schedule ?? new TelegramPollingSchedule
         {
             MinBackoff = TimeSpan.FromMilliseconds(5),
             MaxBackoff = TimeSpan.FromMilliseconds(20),
             IdleDelay = TimeSpan.FromMilliseconds(5),
         });
         if (!withoutBotClient)
-            services.AddSingleton<ITelegramBotClient>(scripted);
-        services.AddSingleton<ITelegramLinkRepository>(links);
+            collection.AddSingleton<ITelegramBotClient>(scripted);
+        collection.AddSingleton<ITelegramLinkRepository>(links);
+        collection.AddSingleton<IUserRepository>(users);
+        if (time is not null)
+            collection.AddSingleton(time);
+        services?.Invoke(collection);
         if (hasHashKey)
-            services.AddOtpService(otp => otp.HashKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
-        new IdentityBuilder(services).AddTelegramLinks(options =>
+            collection.AddOtpService(otp => otp.HashKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+        new IdentityBuilder(collection).AddTelegramLinks(options =>
         {
             options.IsEnabled = true;
             options.BotToken = Token;
@@ -74,7 +90,7 @@ internal sealed class TelegramTestHost : IDisposable
             options.WebhookSecret = "hook-secret";
             bot?.Invoke(options);
         });
-        return new TelegramTestHost(services.BuildServiceProvider(), scripted, links, log);
+        return new TelegramTestHost(collection.BuildServiceProvider(), scripted, links, users, log);
     }
 
     /// <summary>The hosted service of type <typeparamref name="T"/>.</summary>

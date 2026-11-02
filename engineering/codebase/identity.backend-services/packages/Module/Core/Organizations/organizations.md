@@ -37,8 +37,9 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
 - Personal-data export adds an `organizations` section; account deletion removes the user's memberships, and an
   organization whose only owner is deleted keeps its other members without an owner.
 - Existing databases need a migration for `identity_organizations` and `identity_memberships`.
-- The first organization and its owner come from the host CLI's `admin create` (`../Admin/admin.md`); members after
-  that join by invitation link (`../Invitations/invitations.md`) and are managed through `MapOrganizationEndpoints`.
+- Organizations are made in the service's console by the instance admin (`admin create`, `../Admin/admin.md`), who
+  becomes their owner; members join by invitation link (`../Invitations/invitations.md`) and are managed through
+  `MapOrganizationEndpoints`.
 - The roles are a fixed catalog (`OrganizationRoleConstants`): `owner`, `admin`, `editor`, `viewer`, `billing`;
   `Identity:Organizations:Roles` only adds permissions to them, and a role outside the catalog refuses the boot.
 - `admin` manages members and invitations beside the owner; only an owner invites, promotes, demotes or removes an owner.
@@ -49,13 +50,19 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
 
 | Route | Does |
 |---|---|
-| `GET {organizationId}/members` | the members: `userId`, `displayName`, `userName`, `email`, `phoneNumber`, `role`, `joinedAt` |
+| `GET {organizationId}/members` | the members: `userId`, `displayName`, `userName`, `email`, `phoneNumber`, `role`, `joinedAt`, `hasPendingTelegramChange` |
 | `PUT {organizationId}/members/{userId}` | `{ role }`: another role; `409` `LastOrganizationOwner` for the last owner |
 | `DELETE {organizationId}/members/{userId}` | removes the member; `404` `UserNotMember`, `409` for the last owner |
 | `POST {organizationId}/invitations` | `{ role, phoneNumber?, email? }`: a new link, its `token` and `link` shown this once |
 | `GET {organizationId}/invitations` | the invitations, newest first, with `status`; never a token |
 | `DELETE {organizationId}/invitations/{invitationId}` | withdraws a pending one; `404` once used or withdrawn |
+| `POST {organizationId}/members/{userId}/telegram-change/approve` | moves the member's phone link to the Telegram account that asked; `404` `TelegramChangeNotFound` when none waits |
+| `POST {organizationId}/members/{userId}/telegram-change/deny` | drops the request, the link stays; `404` `TelegramChangeNotFound` when none waits |
 
 - A person outside the organization gets `404` `OrganizationNotFound`, a member who is neither owner nor admin `403`
   `OrganizationManagerRequired`, an admin acting on an owner `403` `OrganizationOwnerRequired`.
 - A role change or removal rotates the member's stamp, ending their sessions; failures carry `identityCode`.
+- The Telegram change routes map only with the bot registered (`AddTelegramLinks`, part of `AddPhoneSignIn`). A change
+  waits when another Telegram account shares a member's confirmed, already linked number, as a recycled number's new
+  holder would (`../../Telegram/telegram.md`); `hasPendingTelegramChange` flags it for a day. Approving rotates nothing
+  else; only an owner resolves an owner's (`403` `OrganizationOwnerRequired`).

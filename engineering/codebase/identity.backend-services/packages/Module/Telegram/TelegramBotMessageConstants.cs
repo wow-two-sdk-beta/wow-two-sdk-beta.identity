@@ -21,6 +21,7 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.SignUpFailed] = "This invitation can no longer be used. Ask for a new link.",
                 [TelegramBotMessageKeyConstants.InvitationMismatch] = "This invitation is for another phone number.",
                 [TelegramBotMessageKeyConstants.CountryNotAllowed] = "Phone numbers from this country cannot sign up here.",
+                [TelegramBotMessageKeyConstants.LinkChangePending] = "This number is linked to another Telegram account. An admin of your organization must approve the change; then start again from the sign-in page.",
             },
             ["ru"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -36,6 +37,7 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.SignUpFailed] = "Это приглашение больше нельзя использовать. Попросите новую ссылку.",
                 [TelegramBotMessageKeyConstants.InvitationMismatch] = "Это приглашение для другого номера телефона.",
                 [TelegramBotMessageKeyConstants.CountryNotAllowed] = "Номера из этой страны не могут зарегистрироваться здесь.",
+                [TelegramBotMessageKeyConstants.LinkChangePending] = "Этот номер привязан к другому аккаунту Telegram. Администратор вашей организации должен одобрить изменение; затем начните заново со страницы входа.",
             },
             ["uz"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -51,6 +53,7 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.SignUpFailed] = "Bu taklifnomadan endi foydalanib bo'lmaydi. Yangi havola so'rang.",
                 [TelegramBotMessageKeyConstants.InvitationMismatch] = "Bu taklifnoma boshqa telefon raqami uchun.",
                 [TelegramBotMessageKeyConstants.CountryNotAllowed] = "Bu davlat raqamlari bilan bu yerda ro'yxatdan o'tib bo'lmaydi.",
+                [TelegramBotMessageKeyConstants.LinkChangePending] = "Bu raqam boshqa Telegram akkauntiga bog'langan. Tashkilotingiz administratori o'zgarishni tasdiqlashi kerak; so'ng kirish sahifasidan qaytadan boshlang.",
             },
         };
 }

@@ -11,8 +11,9 @@ import { memberName } from '../../../organizations/OrganizationLabels';
 import { RoleSelect } from '../../roleSelect';
 
 /**
- * One member of the members panel: re-roles them through the catalog select, removes them after a confirm step, and
- * shows a refusal under the row. The server decides who may touch an owner.
+ * One member of the members panel: re-roles them through the catalog select, removes them after a confirm step, approves
+ * or denies a pending Telegram account change, and shows a refusal under the row. The server decides who may touch an
+ * owner.
  */
 defineOptions({ name: 'MemberRow' });
 
@@ -30,6 +31,8 @@ const emit = defineEmits<{
   roleChanged: [role: string];
   /** Fires once the member is out of the organization. */
   removed: [];
+  /** Fires once the member's pending Telegram account change is approved (`true`) or denied (`false`). */
+  telegramChangeResolved: [isApproved: boolean];
 }>();
 
 const t = useAccountText();
@@ -38,6 +41,8 @@ const formatters = useLocaleFormatters();
 const requestedRole = shallowRef<string | null>(null);
 const isRemoving = shallowRef(false);
 const isConfirming = shallowRef(false);
+/** The Telegram change decision running: approve, deny, or none. */
+const resolving = shallowRef<'approve' | 'deny' | null>(null);
 const failure = shallowRef<AppError | null>(null);
 
 const name = computed(() => memberName(props.member));
@@ -52,7 +57,7 @@ const details = computed(() => {
   );
   return [...contacts, ...joined].join(' · ');
 });
-const isBusy = computed(() => requestedRole.value !== null || isRemoving.value);
+const isBusy = computed(() => requestedRole.value !== null || isRemoving.value || resolving.value !== null);
 
 async function changeRole(role: string) {
   if (isBusy.value) return;
@@ -68,6 +73,19 @@ async function changeRole(role: string) {
 function askToRemove() {
   failure.value = null;
   isConfirming.value = true;
+}
+
+async function resolveTelegramChange(decision: 'approve' | 'deny') {
+  if (isBusy.value) return;
+  resolving.value = decision;
+  failure.value = null;
+  const result =
+    decision === 'approve'
+      ? await props.client.approveTelegramChange(props.organizationId, props.member.userId)
+      : await props.client.denyTelegramChange(props.organizationId, props.member.userId);
+  resolving.value = null;
+  if (result.ok) emit('telegramChangeResolved', decision === 'approve');
+  else failure.value = result.failure;
 }
 
 async function remove() {
@@ -108,6 +126,45 @@ async function remove() {
         @click="askToRemove"
       >
         {{ t('MembersPanel.remove', 'Remove') }}
+      </Button>
+    </div>
+    <div
+      v-if="member.hasPendingTelegramChange"
+      class="flex flex-wrap items-center gap-2 rounded-md bg-muted p-3 text-sm"
+      role="group"
+      :aria-label="t('MembersPanel.telegramChangePending', 'Telegram account change pending')"
+    >
+      <div class="min-w-0 flex-1">
+        <p class="font-medium">{{ t('MembersPanel.telegramChangePending', 'Telegram account change pending') }}</p>
+        <p class="text-muted-foreground">
+          {{
+            t(
+              'MembersPanel.telegramChangeHint',
+              'Another Telegram account shared {name}’s phone number. Approve only if {name} changed accounts.',
+              { name },
+            )
+          }}
+        </p>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        :is-loading="resolving === 'approve'"
+        :is-disabled="isBusy && resolving !== 'approve'"
+        @click="resolveTelegramChange('approve')"
+      >
+        {{ t('MembersPanel.approveTelegramChange', 'Approve') }}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        tone="danger"
+        :is-loading="resolving === 'deny'"
+        :is-disabled="isBusy && resolving !== 'deny'"
+        @click="resolveTelegramChange('deny')"
+      >
+        {{ t('MembersPanel.denyTelegramChange', 'Deny') }}
       </Button>
     </div>
     <div v-if="isConfirming" class="flex flex-wrap items-center gap-2 rounded-md bg-muted p-3 text-sm" role="group">
