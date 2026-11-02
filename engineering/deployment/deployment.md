@@ -12,7 +12,7 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 ## Contract with Wheelhouse
 
 - Image: `ghcr.io/<owner>/<repo>/identity`, published by `.github/workflows/publish-docker-image.yml` through the shared
-  `delivery.yml` of `wow-two-platform.pipelines` (pinned `v0.14.0`, as is `codeql.yml`; `generate` keys need it); CI never deploys. Every push
+  `delivery.yml` of `wow-two-platform.pipelines` (pinned `v0.15.0`, as is `codeql.yml`; `generate` keys and `configCheck:` need it); CI never deploys. Every push
   and pull request runs the checks, `renovate/**` branches included, which publish nothing; the concurrency group queues
   (`queue: max`) and sets no `cancel-in-progress`, which GitHub refuses beside it. The bundle carries the typed setting
   keys (`settings.keys`); the runner needs Wheelhouse v0.5 or later.
@@ -40,9 +40,8 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
   serving, validates every setting as the boot does, refuses a key under `Identity` that no settings record binds, and
   prints one `config-result` line last (exit `0` consistent, `1` refused, `2` failed). A deployed boot runs the same
   checks and refuses on a finding; a local run logs them and serves. The service registers no stranding check yet.
-  The descriptor's `configCheck:` item (`[dotnet, Identity.Api.dll, config, check]`, `2m`) is written in `deploy.yml` as
-  a comment: pipelines `v0.14.0` still answers `Unknown top-level key: configCheck`, so it joins the file with the first
-  pipelines release that accepts the key (the runner gets the step with Wheelhouse v0.13).
+  The descriptor's `configCheck:` item (`[dotnet, Identity.Api.dll, config, check]`, `2m`) is live in `deploy.yml`:
+  pipelines `v0.15.0` is the first release that accepts the key.
 - First owner: the image answers `dotnet Identity.Api.dll admin create --slug <handle> --name <organization name>
   --display-name <owner's name> [--phone <E.164>] [--email <address>] [--organization-id <uuid>] [--user-id <uuid>]`
   after `migrate`: it builds the host without serving and creates the instance's first organization and its owner with

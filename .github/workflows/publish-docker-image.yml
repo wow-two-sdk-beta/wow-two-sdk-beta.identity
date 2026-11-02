@@ -33,7 +33,7 @@ concurrency:
 
 jobs:
   delivery:
-    uses: wow-two-platform/wow-two-platform.pipelines/.github/workflows/delivery.yml@v0.14.0
+    uses: wow-two-platform/wow-two-platform.pipelines/.github/workflows/delivery.yml@v0.15.0
     with:
       commit: ${{ inputs.commit }}
       # Backend: every tier (unit, integration, E2E, migrations, conformance in process); the database tiers run on

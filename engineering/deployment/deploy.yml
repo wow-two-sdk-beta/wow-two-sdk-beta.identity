@@ -39,13 +39,11 @@ migrate:
 # The config check step (descriptor convention, § Config check): the image's own `config check` runs in a one-off
 # container with the settings the deploy applies, after migrate and before the first wave, and on every settings-only
 # apply, so a bad setting, a retired key or a stranding change stops the deploy with the old release still serving. It
-# starts no listener and writes nothing. Held back: the newest pipelines release (v0.14.0) still refuses the key
-# ("Unknown top-level key: configCheck") and the runner gets it with Wheelhouse v0.13; uncomment the item with the
-# first pipelines release that accepts it.
-# configCheck:
-#   - service: identity
-#     command: [dotnet, Identity.Api.dll, config, check]
-#     timeout: 2m
+# starts no listener and writes nothing. Pipelines v0.15.0 is the first release that accepts the key.
+configCheck:
+  - service: identity
+    command: [dotnet, Identity.Api.dll, config, check]
+    timeout: 2m
 # Two host roles: the public front door for the API and the hosted pages, and the private admin console. One app
 # serves both; Wheelhouse binds each site to its own host per environment.
 sites:
