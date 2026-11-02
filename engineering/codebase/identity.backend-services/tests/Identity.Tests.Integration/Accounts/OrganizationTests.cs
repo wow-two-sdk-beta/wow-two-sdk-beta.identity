@@ -6,7 +6,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.Accounts;
 
-/// <summary>Organizations, memberships, the last-owner guard, organization claims and personal data.</summary>
+/// <summary>Organizations, memberships, organizations left without an owner, organization claims and personal data.</summary>
 public sealed class OrganizationTests
 {
     private static AccountsHost CreateHost() => AccountsHost.Create(identity => identity
@@ -93,7 +93,7 @@ public sealed class OrganizationTests
     }
 
     [Fact]
-    public async Task LastOwner_ShouldNotBeRemovedOrDemoted()
+    public async Task LastOwner_ShouldBeDemotedOrRemoved_LeavingNoOwner()
     {
         await using var host = CreateHost();
         var founder = await host.CreateUserAsync("nodira");
@@ -102,13 +102,33 @@ public sealed class OrganizationTests
         var organizations = Organizations(scope);
         var ocharo = new IdentityOrganization { Name = "Ocharo", Slug = "ocharo" };
         await organizations.CreateAsync(ocharo, founder);
+        await organizations.AddMemberAsync(ocharo, partner, "admin");
 
-        (await organizations.RemoveMemberAsync(ocharo, founder)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.LastOrganizationOwner);
-        (await organizations.ChangeRoleAsync(ocharo, founder, "editor")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.LastOrganizationOwner);
-
-        await organizations.AddMemberAsync(ocharo, partner, "owner");
         (await organizations.ChangeRoleAsync(ocharo, founder, "editor")).IsSuccess.Should().BeTrue();
-        (await organizations.RemoveMemberAsync(ocharo, partner)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.LastOrganizationOwner);
+        (await organizations.ListMembersAsync(ocharo)).Should().NotContain(m => m.Role == "owner", "demoting the last owner leaves none");
+
+        (await organizations.ChangeRoleAsync(ocharo, partner, "owner")).IsSuccess.Should().BeTrue();
+        (await organizations.RemoveMemberAsync(ocharo, partner)).IsSuccess.Should().BeTrue();
+        (await organizations.ListMembersAsync(ocharo)).Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(new { UserId = founder.Id, Role = "editor" }, "removing the last owner leaves none");
+    }
+
+    [Fact]
+    public async Task LastOwnersAccountDeletion_ShouldLeaveTheOrganizationWithoutAnOwner()
+    {
+        await using var host = CreateHost();
+        var founder = await host.CreateUserAsync("kamola");
+        var member = await host.CreateUserAsync("rustam");
+        await using var scope = host.Scope();
+        var organizations = Organizations(scope);
+        var ocharo = new IdentityOrganization { Name = "Ocharo", Slug = "ocharo" };
+        await organizations.CreateAsync(ocharo, founder);
+        await organizations.AddMemberAsync(ocharo, member, "admin");
+
+        await scope.ServiceProvider.GetRequiredService<UserPersonalDataService>().DeleteAsync(await host.ReloadAsync(founder.Id));
+
+        (await organizations.ListMembersAsync(ocharo)).Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(new { UserId = member.Id, Role = "admin" });
     }
 
     [Fact]

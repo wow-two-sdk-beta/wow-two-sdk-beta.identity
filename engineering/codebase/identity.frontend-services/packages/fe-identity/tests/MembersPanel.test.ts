@@ -67,18 +67,26 @@ describe('members panel', () => {
     expect(wrapper.emitted('roleChanged')).toEqual([[{ ...bob, role: 'admin' }]]);
   });
 
+  it('promotes a member to owner', async () => {
+    const { wrapper, received } = await mountPanel({ 'PUT /members/u2': noContent });
+
+    await pickOption(wrapper, 'Role of bob', 'Owner');
+
+    expect(received[1]).toMatchObject({ method: 'PUT', body: { role: 'owner' } });
+    expect(wrapper.get('button[aria-label="Role of bob"]').text()).toBe('Owner');
+    expect(wrapper.emitted('roleChanged')).toEqual([[{ ...bob, role: 'owner' }]]);
+  });
+
   it("keeps the role and shows the server's refusal under the member", async () => {
     const { wrapper } = await mountPanel({
       'PUT /members/u1': () =>
-        problem(403, 'Only an owner invites, promotes, demotes or removes an owner.', {
-          identityCode: 'OrganizationOwnerRequired',
-        }),
+        problem(404, 'The person is not a member of the organization.', { identityCode: 'UserNotMember' }),
     });
 
     await pickOption(wrapper, 'Role of Ann', 'Viewer');
 
-    expect(row(wrapper, 'Ann').text()).toContain('Only an owner invites, promotes, demotes or removes an owner.');
-    expect(row(wrapper, 'bob').text()).not.toContain('Only an owner');
+    expect(row(wrapper, 'Ann').text()).toContain('The person is not a member of the organization.');
+    expect(row(wrapper, 'bob').text()).not.toContain('not a member');
     expect(wrapper.get('button[aria-label="Role of Ann"]').text()).toBe('Owner');
     expect(wrapper.emitted('roleChanged')).toBeUndefined();
   });
@@ -141,8 +149,8 @@ describe('members panel', () => {
     const { wrapper } = await mountPanel({
       'GET /members': () => Response.json({ data: [lola] }),
       'POST /members/u3/telegram-change/approve': () =>
-        problem(403, 'Only an owner approves or denies an owner’s Telegram account change.', {
-          identityCode: 'OrganizationOwnerRequired',
+        problem(403, 'Only an owner or admin manages the organization’s members.', {
+          identityCode: 'OrganizationManagerRequired',
         }),
     });
 
@@ -150,24 +158,20 @@ describe('members panel', () => {
     await flushPromises();
 
     expect(row(wrapper, 'Lola').text()).toContain('Telegram account change pending');
-    expect(row(wrapper, 'Lola').text()).toContain(
-      'Only an owner approves or denies an owner’s Telegram account change.',
-    );
+    expect(row(wrapper, 'Lola').text()).toContain('Only an owner or admin manages the organization’s members.');
     expect(wrapper.emitted('telegramChangeResolved')).toBeUndefined();
   });
 
-  it('keeps the last owner and says why', async () => {
-    const { wrapper } = await mountPanel({
-      'DELETE /members/u1': () =>
-        problem(409, 'The organization needs at least one owner.', { identityCode: 'LastOrganizationOwner' }),
-    });
+  it('removes the last owner like any member', async () => {
+    const { wrapper, received } = await mountPanel({ 'DELETE /members/u1': noContent });
 
     await button(row(wrapper, 'Ann'), 'Remove').trigger('click');
     await button(row(wrapper, 'Ann'), 'Yes, remove').trigger('click');
     await flushPromises();
 
-    expect(wrapper.findAll('li')).toHaveLength(2);
-    expect(row(wrapper, 'Ann').text()).toContain('The organization needs at least one owner.');
-    expect(wrapper.emitted('removed')).toBeUndefined();
+    expect(received[1]?.url.pathname).toBe(`/api/organizations/${organizationId}/members/u1`);
+    expect(wrapper.findAll('li')).toHaveLength(1);
+    expect(wrapper.text()).not.toContain('Ann');
+    expect(wrapper.emitted('removed')).toEqual([['u1']]);
   });
 });

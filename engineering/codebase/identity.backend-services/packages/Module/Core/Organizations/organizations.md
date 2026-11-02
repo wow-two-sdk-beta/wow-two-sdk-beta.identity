@@ -29,7 +29,7 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
 ## Notes
 
 - Role names compare case-insensitively and are stored as configured; an unconfigured role fails `UnknownOrganizationRole`.
-- An organization keeps at least one owner: removing or demoting the last one fails `LastOrganizationOwner`.
+- An organization may have no owner: removing or demoting the last one succeeds, and an admin may promote one later.
 - Removing a member, changing a role or deleting the organization rotates the member's stamp; joining appears at next sign-in.
 - Claims are `org_role` = `{organizationId}:{role}` and `org_permission` = `{organizationId}:{permission}`; the
   types follow `IdentityClaimOptions` and the principal extensions take the type when a host changes it.
@@ -42,7 +42,9 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
   `MapOrganizationEndpoints`.
 - The roles are a fixed catalog (`OrganizationRoleConstants`): `owner`, `admin`, `editor`, `viewer`, `billing`;
   `Identity:Organizations:Roles` only adds permissions to them, and a role outside the catalog refuses the boot.
-- `admin` manages members and invitations beside the owner; only an owner invites, promotes, demotes or removes an owner.
+- `owner` and `admin` manage members and invitations alike: either invites with any catalog role, promotes to or
+  demotes from `owner`, removes anyone and resolves anyone's Telegram change; `editor`, `viewer` and `billing` manage
+  nothing. No rule stops a manager changing their own role or leaving.
 
 ## Management API
 
@@ -51,8 +53,8 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
 | Route | Does |
 |---|---|
 | `GET {organizationId}/members` | the members: `userId`, `displayName`, `userName`, `email`, `phoneNumber`, `role`, `joinedAt`, `hasPendingTelegramChange` |
-| `PUT {organizationId}/members/{userId}` | `{ role }`: another role; `409` `LastOrganizationOwner` for the last owner |
-| `DELETE {organizationId}/members/{userId}` | removes the member; `404` `UserNotMember`, `409` for the last owner |
+| `PUT {organizationId}/members/{userId}` | `{ role }`: another role, `owner` included; `400` `UnknownOrganizationRole` |
+| `DELETE {organizationId}/members/{userId}` | removes the member, the last owner included; `404` `UserNotMember` |
 | `POST {organizationId}/invitations` | `{ role, phoneNumber?, email? }`: a new link, its `token` and `link` shown this once |
 | `GET {organizationId}/invitations` | the invitations, newest first, with `status`; never a token |
 | `DELETE {organizationId}/invitations/{invitationId}` | withdraws a pending one; `404` once used or withdrawn |
@@ -60,9 +62,9 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
 | `POST {organizationId}/members/{userId}/telegram-change/deny` | drops the request, the link stays; `404` `TelegramChangeNotFound` when none waits |
 
 - A person outside the organization gets `404` `OrganizationNotFound`, a member who is neither owner nor admin `403`
-  `OrganizationManagerRequired`, an admin acting on an owner `403` `OrganizationOwnerRequired`.
+  `OrganizationManagerRequired`.
 - A role change or removal rotates the member's stamp, ending their sessions; failures carry `identityCode`.
 - The Telegram change routes map only with the bot registered (`AddTelegramLinks`, part of `AddPhoneSignIn`). A change
   waits when another Telegram account shares a member's confirmed, already linked number, as a recycled number's new
   holder would (`../../Telegram/telegram.md`); `hasPendingTelegramChange` flags it for a day. Approving rotates nothing
-  else; only an owner resolves an owner's (`403` `OrganizationOwnerRequired`).
+  else; an owner or admin resolves anyone's, an owner's included.

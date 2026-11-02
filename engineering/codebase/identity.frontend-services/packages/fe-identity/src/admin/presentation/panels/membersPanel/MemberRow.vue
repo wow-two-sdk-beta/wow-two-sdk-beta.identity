@@ -12,8 +12,7 @@ import { RoleSelect } from '../../roleSelect';
 
 /**
  * One member of the members panel: re-roles them through the catalog select, removes them after a confirm step, approves
- * or denies a pending Telegram account change, and shows a refusal under the row. The server decides who may touch an
- * owner.
+ * or denies a pending Telegram account change, and shows a refusal under the row.
  */
 defineOptions({ name: 'MemberRow' });
 

@@ -10,7 +10,7 @@ public sealed record OrganizationOptions
     /// <summary>The role an organization's creator receives (<see cref="OrganizationRoleConstants.Owner"/>).</summary>
     public string OwnerRole => OrganizationRoleConstants.Owner;
 
-    /// <summary>The role that manages members and invitations beside the owner, short of owners (<see cref="OrganizationRoleConstants.Admin"/>).</summary>
+    /// <summary>The role that manages members and invitations beside the owner, owners included (<see cref="OrganizationRoleConstants.Admin"/>).</summary>
     public string AdminRole => OrganizationRoleConstants.Admin;
 
     /// <summary>

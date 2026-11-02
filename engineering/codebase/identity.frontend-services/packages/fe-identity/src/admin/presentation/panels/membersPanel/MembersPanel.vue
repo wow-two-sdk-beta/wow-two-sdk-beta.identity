@@ -12,9 +12,8 @@ import MemberRow from './MemberRow.vue';
 
 /**
  * Lists an organization's members with their roles for its owners and admins: re-roles a member through the role
- * catalog, removes one after a confirm step, and approves or denies a member's pending Telegram account change, shown as
- * "Telegram account change pending". Only an owner may promote, demote or remove an owner, or resolve an owner's change;
- * the server enforces it, and its refusal shows under the member's row.
+ * catalog, `owner` included, removes one after a confirm step, and approves or denies a member's pending Telegram account
+ * change, shown as "Telegram account change pending". A server refusal shows under the member's row.
  */
 defineOptions({ name: 'MembersPanel' });
 

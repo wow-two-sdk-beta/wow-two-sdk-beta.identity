@@ -9,8 +9,8 @@ import type { OrganizationClient } from '../../../organizations';
 import { RoleSelect } from '../../roleSelect';
 
 /**
- * Makes an invitation link with a role and, optionally, the one phone number that may redeem it. Only an owner invites
- * an owner; the server's refusal shows above the button.
+ * Makes an invitation link with any catalog role and, optionally, the one phone number that may redeem it; the server's
+ * refusal shows above the button.
  */
 defineOptions({ name: 'InvitationForm' });
 

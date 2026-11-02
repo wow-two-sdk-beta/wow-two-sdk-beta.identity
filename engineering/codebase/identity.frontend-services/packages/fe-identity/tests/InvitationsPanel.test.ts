@@ -99,19 +99,33 @@ describe('invitations panel', () => {
     expect(wrapper.find('code').exists()).toBe(false);
   });
 
-  it("shows the server's refusal of an owner invitation", async () => {
-    const { wrapper } = await mountPanel({
-      'POST /invitations': () =>
-        problem(403, 'Only an owner invites, promotes, demotes or removes an owner.', {
-          identityCode: 'OrganizationOwnerRequired',
-        }),
+  it('invites an owner like any other role', async () => {
+    const made = invitation('i3', 'owner');
+    const { wrapper, received } = await mountPanel({
+      'POST /invitations': () => Response.json({ data: { invitation: made, token: 'tok-3', link } }),
     });
 
     await pickOption(wrapper, 'Role', 'Owner');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(wrapper.get('form').text()).toContain('Only an owner invites, promotes, demotes or removes an owner.');
+    expect(received[1]?.body).toEqual({ role: 'owner' });
+    expect(wrapper.get('code').text()).toBe(link);
+    expect(rows(wrapper)[0]?.text()).toContain('Owner');
+  });
+
+  it("shows the server's refusal of an invitation", async () => {
+    const { wrapper } = await mountPanel({
+      'POST /invitations': () =>
+        problem(403, 'Only an owner or admin manages the organization’s members.', {
+          identityCode: 'OrganizationManagerRequired',
+        }),
+    });
+
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(wrapper.get('form').text()).toContain('Only an owner or admin manages the organization’s members.');
     expect(wrapper.find('code').exists()).toBe(false);
     expect(rows(wrapper)).toHaveLength(2);
   });

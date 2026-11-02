@@ -15,10 +15,6 @@ export const IdentityErrorCodeConstants = {
   organizationNotFound: 'OrganizationNotFound',
   /** `403`: only an owner or admin of the organization manages its members and invitations. */
   organizationManagerRequired: 'OrganizationManagerRequired',
-  /** `403`: only an owner invites, promotes, demotes or removes an owner. */
-  organizationOwnerRequired: 'OrganizationOwnerRequired',
-  /** `409`: the change would leave the organization without an owner. */
-  lastOrganizationOwner: 'LastOrganizationOwner',
   /** `404`: the person is not a member of the organization. */
   userNotMember: 'UserNotMember',
   /** `400`: the role is not one of the organization roles. */

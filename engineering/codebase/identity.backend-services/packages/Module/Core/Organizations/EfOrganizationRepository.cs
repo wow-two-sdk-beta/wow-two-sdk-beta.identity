@@ -88,8 +88,4 @@ public sealed class EfOrganizationRepository(IdentityDbContext context) : IOrgan
                       Role = membership.Role,
                       JoinedAt = membership.CreatedAt,
                   }).ToListAsync(cancellationToken);
-
-    /// <inheritdoc />
-    public Task<int> CountInRoleAsync(Guid organizationId, string role, CancellationToken cancellationToken = default)
-        => Memberships.CountAsync(m => m.OrganizationId == organizationId && m.Role == role, cancellationToken);
 }

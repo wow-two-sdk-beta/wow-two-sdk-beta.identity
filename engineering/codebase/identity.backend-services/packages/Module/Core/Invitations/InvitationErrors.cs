@@ -8,8 +8,8 @@ internal static class InvitationErrors
 {
     /// <summary>
     /// The API error for <paramref name="refusal"/>, its code in the problem's <c>identityCode</c> extension and message key:
-    /// <c>404</c> for an unknown link or member, <c>409</c> for a used, expired or withdrawn invitation and the last owner,
-    /// <c>403</c> for an invitation naming another identifier, else <c>400</c>.
+    /// <c>404</c> for an unknown link or member, <c>409</c> for a used, expired or withdrawn invitation and an existing member,
+    /// <c>403</c> for an invitation naming another identifier or a caller who manages nothing, else <c>400</c>.
     /// </summary>
     /// <param name="refusal">The refused result.</param>
     public static AppError Of(IdentityResult refusal)
@@ -21,9 +21,8 @@ internal static class InvitationErrors
         {
             IdentityErrorCodeConstants.InvitationNotFound or IdentityErrorCodeConstants.UserNotMember or IdentityErrorCodeConstants.OrganizationNotFound => AppErrorType.NotFound,
             IdentityErrorCodeConstants.InvitationExpired or IdentityErrorCodeConstants.InvitationAccepted or IdentityErrorCodeConstants.InvitationRevoked
-                or IdentityErrorCodeConstants.LastOrganizationOwner or IdentityErrorCodeConstants.UserAlreadyMember => AppErrorType.Conflict,
-            IdentityErrorCodeConstants.InvitationIdentifierMismatch or IdentityErrorCodeConstants.OrganizationManagerRequired
-                or IdentityErrorCodeConstants.OrganizationOwnerRequired => AppErrorType.Forbidden,
+                or IdentityErrorCodeConstants.UserAlreadyMember => AppErrorType.Conflict,
+            IdentityErrorCodeConstants.InvitationIdentifierMismatch or IdentityErrorCodeConstants.OrganizationManagerRequired => AppErrorType.Forbidden,
             _ => AppErrorType.Validation,
         };
         return Coded(type, hasError ? refusal.Errors[0].Description : "The invitation link is not valid.", code);

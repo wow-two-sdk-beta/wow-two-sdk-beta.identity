@@ -25,12 +25,11 @@ public static class OrganizationEndpointRouteBuilderExtensions
     /// <remarks>
     ///   - a signed-in person outside the organization gets <c>404</c> (<c>OrganizationNotFound</c>), a member who is neither
     ///     owner nor admin <c>403</c> (<c>OrganizationManagerRequired</c>)
-    ///   - only an owner invites, promotes, demotes or removes an owner (<c>403</c>, <c>OrganizationOwnerRequired</c>); the
-    ///     last owner can be neither demoted nor removed (<c>409</c>, <c>LastOrganizationOwner</c>)
+    ///   - owners and admins manage every member alike: either invites with any catalog role, promotes to or demotes from
+    ///     owner, removes anyone and resolves anyone's Telegram change; an organization may be left with no owner
     ///   - a role change or removal rotates the member's security stamp, ending their sessions
     ///   - approving a member's pending Telegram change moves their confirmed number's link to the Telegram account that
-    ///     asked and rotates nothing else; denying drops it; none pending answers <c>404</c> (<c>TelegramChangeNotFound</c>),
-    ///     and only an owner resolves an owner's
+    ///     asked and rotates nothing else; denying drops it; none pending answers <c>404</c> (<c>TelegramChangeNotFound</c>)
     ///   - failures carry their code in the problem's <c>identityCode</c> extension
     /// </remarks>
     /// <param name="endpoints">The route builder or group.</param>
@@ -90,10 +89,7 @@ public static class OrganizationEndpointRouteBuilderExtensions
     {
         var manager = await ManagerOfAsync(organizationId, principal, http, cancellationToken);
         var member = await MemberOfAsync(manager, userId, http, cancellationToken);
-        if ((manager.Organizations.IsOwnerRole(member.Role) || manager.Organizations.IsOwnerRole(request.Role)) && !manager.IsOwner)
-            throw OwnerRequired().ToException();
-
-        var changed = await manager.Organizations.ChangeRoleAsync(manager.Organization, member.User, request.Role, cancellationToken);
+        var changed = await manager.Organizations.ChangeRoleAsync(manager.Organization, member, request.Role, cancellationToken);
         return changed.IsSuccess ? Results.NoContent() : throw InvitationErrors.Of(changed).ToException();
     }
 
@@ -101,10 +97,7 @@ public static class OrganizationEndpointRouteBuilderExtensions
     {
         var manager = await ManagerOfAsync(organizationId, principal, http, cancellationToken);
         var member = await MemberOfAsync(manager, userId, http, cancellationToken);
-        if (manager.Organizations.IsOwnerRole(member.Role) && !manager.IsOwner)
-            throw OwnerRequired().ToException();
-
-        var removed = await manager.Organizations.RemoveMemberAsync(manager.Organization, member.User, cancellationToken);
+        var removed = await manager.Organizations.RemoveMemberAsync(manager.Organization, member, cancellationToken);
         return removed.IsSuccess ? Results.NoContent() : throw InvitationErrors.Of(removed).ToException();
     }
 
@@ -128,11 +121,7 @@ public static class OrganizationEndpointRouteBuilderExtensions
     private static async Task<string?> TelegramChangePhoneOfAsync(Guid organizationId, Guid userId, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
     {
         var manager = await ManagerOfAsync(organizationId, principal, http, cancellationToken);
-        var member = await MemberOfAsync(manager, userId, http, cancellationToken);
-        if (manager.Organizations.IsOwnerRole(member.Role) && !manager.IsOwner)
-            throw InvitationErrors.Coded(AppErrorType.Forbidden, "Only an owner approves or denies an owner's Telegram account change.", IdentityErrorCodeConstants.OrganizationOwnerRequired).ToException();
-
-        return ConfirmedPhoneOf(member.User);
+        return ConfirmedPhoneOf(await MemberOfAsync(manager, userId, http, cancellationToken));
     }
 
     /// <summary>The person's phone number in E.164 while it is confirmed; null otherwise.</summary>
@@ -145,9 +134,6 @@ public static class OrganizationEndpointRouteBuilderExtensions
     private static async Task<IResult> CreateInvitationAsync(Guid organizationId, InvitationApiRequest request, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
     {
         var manager = await ManagerOfAsync(organizationId, principal, http, cancellationToken);
-        if (manager.Organizations.IsOwnerRole(request.Role) && !manager.IsOwner)
-            throw OwnerRequired().ToException();
-
         var invitations = http.RequestServices.GetRequiredService<InvitationService>();
         var created = await invitations.CreateAsync(manager.Organization, manager.Caller, request.Role, request.PhoneNumber, request.Email, cancellationToken);
         if (!created.IsSuccess)
@@ -196,21 +182,18 @@ public static class OrganizationEndpointRouteBuilderExtensions
         if (!organizations.IsManagerRole(role))
             throw InvitationErrors.Coded(AppErrorType.Forbidden, "Only an owner or admin manages the organization's members.", IdentityErrorCodeConstants.OrganizationManagerRequired).ToException();
 
-        return new Manager(organizations, organization, caller, organizations.IsOwnerRole(role));
+        return new Manager(organizations, organization, caller);
     }
 
-    /// <summary>The member <paramref name="userId"/> with their role; <c>404</c> when they are not one.</summary>
-    private static async Task<(IdentityUser User, string Role)> MemberOfAsync(Manager manager, Guid userId, HttpContext http, CancellationToken cancellationToken)
+    /// <summary>The member <paramref name="userId"/>; <c>404</c> when they are not one.</summary>
+    private static async Task<IdentityUser> MemberOfAsync(Manager manager, Guid userId, HttpContext http, CancellationToken cancellationToken)
     {
         var user = await http.RequestServices.GetRequiredService<UserAccountService>().FindByIdAsync(userId, cancellationToken);
         var role = user is null ? null : await manager.Organizations.GetRoleAsync(manager.Organization, user, cancellationToken);
         return user is not null && role is not null
-            ? (user, role)
+            ? user
             : throw InvitationErrors.Coded(AppErrorType.NotFound, "The person is not a member of the organization.", IdentityErrorCodeConstants.UserNotMember).ToException();
     }
-
-    private static AppError OwnerRequired()
-        => InvitationErrors.Coded(AppErrorType.Forbidden, "Only an owner invites, promotes, demotes or removes an owner.", IdentityErrorCodeConstants.OrganizationOwnerRequired);
 
     private static InvitationDto ToDto(IdentityInvitation invitation, InvitationService invitations) => new()
     {
@@ -225,6 +208,6 @@ public static class OrganizationEndpointRouteBuilderExtensions
         AcceptedByUserId = invitation.AcceptedByUserId,
     };
 
-    /// <summary>The organization a manager acts on, with the services and whether they own it.</summary>
-    private sealed record Manager(OrganizationService Organizations, IdentityOrganization Organization, IdentityUser Caller, bool IsOwner);
+    /// <summary>The organization an owner or admin acts on, with the services and the caller.</summary>
+    private sealed record Manager(OrganizationService Organizations, IdentityOrganization Organization, IdentityUser Caller);
 }

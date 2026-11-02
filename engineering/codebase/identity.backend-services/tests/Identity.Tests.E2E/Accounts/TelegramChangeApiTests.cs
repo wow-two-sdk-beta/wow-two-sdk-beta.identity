@@ -20,7 +20,7 @@ namespace Identity.Tests.E2E.Accounts;
 /// <summary>
 /// A member's pending Telegram account change through the real API and the bot's webhook with a fake bot: a newcomer
 /// sharing a member's linked number leaves the link where it is and flags the member, an owner or admin approves (the
-/// link moves) or denies (the request goes), and the routes refuse outsiders, non-managers, admins acting on owners,
+/// link moves) or denies (the request goes), an owner's change included, and the routes refuse outsiders, non-managers,
 /// non-members and members with nothing pending.
 /// </summary>
 public sealed class TelegramChangeApiTests
@@ -54,10 +54,10 @@ public sealed class TelegramChangeApiTests
     }
 
     [Fact]
-    public async Task Deny_ShouldDropTheRequest_AndKeepTheLink()
+    public async Task Deny_ShouldDropTheRequest_AndKeepTheLink_EvenAnOwnersByAnAdmin()
     {
         await using var test = await ChangeTest.CreateAsync();
-        var lola = await test.MemberWithLinkAsync("lola@example.test", "editor");
+        var lola = await test.MemberWithLinkAsync("lola@example.test", "owner");
         await test.NewcomerSharesAsync();
         var admin = await test.SignedInMemberAsync("admin@example.test", "admin");
 
@@ -84,7 +84,6 @@ public sealed class TelegramChangeApiTests
         await ExpectAsync(await editor.Client.PostAsync(test.Members(lola, "approve"), null), HttpStatusCode.Forbidden, "OrganizationManagerRequired");
         await ExpectAsync(await outsider.Client.PostAsync(test.Members(lola, "deny"), null), HttpStatusCode.NotFound, "OrganizationNotFound");
         await ExpectAsync(await admin.Client.PostAsync(test.Members(outsider.UserId, "approve"), null), HttpStatusCode.NotFound, "UserNotMember");
-        await ExpectAsync(await admin.Client.PostAsync(test.Members(test.OwnerId, "approve"), null), HttpStatusCode.Forbidden, "OrganizationOwnerRequired");
         await ExpectAsync(await admin.Client.PostAsync(test.Members(editor.UserId, "deny"), null), HttpStatusCode.NotFound, "TelegramChangeNotFound");
 
         (await test.LinkAsync()).TelegramUserId.Should().Be(OldChat, "no refused call moved the link");

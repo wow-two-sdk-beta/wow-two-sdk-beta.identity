@@ -1,8 +1,9 @@
 # Identity.Core.Invitations
 
-Invitations into an organization: an owner or admin makes a single-use link carrying a role the person cannot change.
-It signs a new person up, even while sign-up is by invitation only (`Identity:SignUp:Mode` `Invite`, the default), or
-adds a signed-in person, with that role. One row per invitation in `identity_invitations` (`006-invitations`).
+Invitations into an organization: an owner or admin makes a single-use link carrying any catalog role, `owner`
+included, which the person cannot change. It signs a new person up, even while sign-up is by invitation only
+(`Identity:SignUp:Mode` `Invite`, the default), or adds a signed-in person, with that role. One row per invitation in
+`identity_invitations` (`006-invitations`).
 
 ## Quick start
 

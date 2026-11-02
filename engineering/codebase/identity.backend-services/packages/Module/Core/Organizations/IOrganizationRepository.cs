@@ -62,10 +62,4 @@ public interface IOrganizationRepository
     /// <param name="userId">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<IReadOnlyList<OrganizationMembershipModel>> ListForUserAsync(Guid userId, CancellationToken cancellationToken = default);
-
-    /// <summary>How many members of the organization hold <paramref name="role"/>.</summary>
-    /// <param name="organizationId">The organization.</param>
-    /// <param name="role">The role, as stored.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task<int> CountInRoleAsync(Guid organizationId, string role, CancellationToken cancellationToken = default);
 }

@@ -6,10 +6,10 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 /// </summary>
 public static class OrganizationRoleConstants
 {
-    /// <summary>Owns the organization: everything an admin does, plus inviting, promoting, demoting and removing owners.</summary>
+    /// <summary>Owns the organization; manages members and invitations as an admin does. An organization may have none.</summary>
     public const string Owner = "owner";
 
-    /// <summary>Manages members and invitations, short of owners.</summary>
+    /// <summary>Manages members and invitations, owners included: invites, promotes, demotes and removes anyone.</summary>
     public const string Admin = "admin";
 
     /// <summary>Works on the organization's content.</summary>

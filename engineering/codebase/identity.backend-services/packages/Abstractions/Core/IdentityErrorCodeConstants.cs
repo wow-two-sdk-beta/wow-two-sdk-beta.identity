@@ -144,17 +144,11 @@ public static class IdentityErrorCodeConstants
     /// <summary>The user is not a member of the organization.</summary>
     public const string UserNotMember = "UserNotMember";
 
-    /// <summary>The change would leave the organization without an owner.</summary>
-    public const string LastOrganizationOwner = "LastOrganizationOwner";
-
     /// <summary>No organization has the id.</summary>
     public const string OrganizationNotFound = "OrganizationNotFound";
 
     /// <summary>Only an owner or admin of the organization manages its members and invitations.</summary>
     public const string OrganizationManagerRequired = "OrganizationManagerRequired";
-
-    /// <summary>Only an owner invites, promotes or removes an owner.</summary>
-    public const string OrganizationOwnerRequired = "OrganizationOwnerRequired";
 
     /// <summary>No invitation matches the link's token.</summary>
     public const string InvitationNotFound = "InvitationNotFound";

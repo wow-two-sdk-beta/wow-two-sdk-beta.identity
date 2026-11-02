@@ -24,10 +24,9 @@ export interface OrganizationClientOptions {
 }
 
 /**
- * Calls the organization management API over HTTP for the signed-in owner or admin. A person outside the organization
- * gets `404` `OrganizationNotFound`, a member who manages nothing `403` `OrganizationManagerRequired`; only an owner
- * invites, promotes, demotes or removes an owner (`403` `OrganizationOwnerRequired`), and the last owner stays
- * (`409` `LastOrganizationOwner`). The code rides in the problem's `identityCode` (`readIdentityCode`).
+ * Calls the organization management API over HTTP for the signed-in owner or admin, who handle every member alike,
+ * owners included. A person outside the organization gets `404` `OrganizationNotFound`, a member who manages nothing
+ * `403` `OrganizationManagerRequired`. The code rides in the problem's `identityCode` (`readIdentityCode`).
  */
 export interface OrganizationClient {
   /** Reads the organization's members with their roles. */
@@ -46,7 +45,7 @@ export interface OrganizationClient {
   removeMember(organizationId: string, userId: string, signal?: AbortSignal): Promise<Result<void, ApiFailure>>;
   /**
    * Moves the member's phone link to the Telegram account whose change waits (`hasPendingTelegramChange`); `404`
-   * `TelegramChangeNotFound` when none waits. Only an owner resolves an owner's.
+   * `TelegramChangeNotFound` when none waits.
    */
   approveTelegramChange(
     organizationId: string,

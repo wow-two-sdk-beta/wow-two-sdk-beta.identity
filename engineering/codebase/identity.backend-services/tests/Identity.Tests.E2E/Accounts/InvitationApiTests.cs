@@ -11,7 +11,7 @@ namespace Identity.Tests.E2E.Accounts;
 /// <summary>
 /// Invitations through the real API while sign-up is by invitation only: an owner or admin makes a link with a role, the
 /// link's preview names the organization and role, it signs one person up into that role or adds a signed-in person, and
-/// the managers' member routes guard owners and the last owner.
+/// owners and admins handle every member alike, owners included, down to an organization with no owner.
 /// </summary>
 public sealed class InvitationApiTests
 {
@@ -71,7 +71,7 @@ public sealed class InvitationApiTests
     }
 
     [Fact]
-    public async Task Managers_ShouldBeOwnersAndAdmins_AndOnlyAnOwnerHandlesOwners()
+    public async Task Managers_ShouldBeOwnersAndAdmins_AndHandleOwnersAlike()
     {
         await using var host = new AccountHost(InviteOnly);
         var (organizationId, owner, ownerId) = await OrganizationAsync(host, "owner-b@example.test");
@@ -79,27 +79,47 @@ public sealed class InvitationApiTests
         var adminLink = await AccountHost.DataAsync(await owner.PostAsJsonAsync($"/api/organizations/{organizationId}/invitations", new { role = "admin" }));
         var (adminId, admin) = await SignUpAsync(host, "admin-b@example.test", adminLink.GetProperty("token").GetString()!);
         (await RoleAsync(host, organizationId, adminId)).Should().Be("admin", "a link naming no identifier takes anyone holding it");
-
-        await ExpectAsync(await admin.PostAsJsonAsync($"/api/organizations/{organizationId}/invitations", new { role = "owner" }), HttpStatusCode.Forbidden, "OrganizationOwnerRequired");
-        await ExpectAsync(await admin.PutAsJsonAsync($"/api/organizations/{organizationId}/members/{ownerId}", new { role = "editor" }), HttpStatusCode.Forbidden, "OrganizationOwnerRequired");
         var editorLink = await AccountHost.DataAsync(await admin.PostAsJsonAsync($"/api/organizations/{organizationId}/invitations", new { role = "editor" }));
         var (editorId, editor) = await SignUpAsync(host, "editor-b@example.test", editorLink.GetProperty("token").GetString()!);
 
         await ExpectAsync(await editor.GetAsync($"/api/organizations/{organizationId}/members"), HttpStatusCode.Forbidden, "OrganizationManagerRequired");
+        await ExpectAsync(await editor.PostAsJsonAsync($"/api/organizations/{organizationId}/invitations", new { role = "owner" }), HttpStatusCode.Forbidden, "OrganizationManagerRequired");
+        await ExpectAsync(await editor.PutAsJsonAsync($"/api/organizations/{organizationId}/members/{editorId}", new { role = "owner" }), HttpStatusCode.Forbidden, "OrganizationManagerRequired");
+        await ExpectAsync(await editor.DeleteAsync($"/api/organizations/{organizationId}/members/{ownerId}"), HttpStatusCode.Forbidden, "OrganizationManagerRequired");
         using var outsider = host.CreateClient();
         await host.CreateUserAsync("outsider-b@example.test");
         (await AccountHost.SignInAsync(outsider, "outsider-b@example.test", AccountHost.StrongPassword)).StatusCode.Should().Be(HttpStatusCode.NoContent);
         await ExpectAsync(await outsider.GetAsync($"/api/organizations/{organizationId}/members"), HttpStatusCode.NotFound, "OrganizationNotFound");
         (await host.CreateClient().GetAsync($"/api/organizations/{organizationId}/members")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
-        await ExpectAsync(await owner.PutAsJsonAsync($"/api/organizations/{organizationId}/members/{ownerId}", new { role = "editor" }), HttpStatusCode.Conflict, "LastOrganizationOwner");
-        await ExpectAsync(await owner.DeleteAsync($"/api/organizations/{organizationId}/members/{ownerId}"), HttpStatusCode.Conflict, "LastOrganizationOwner");
-        (await admin.PutAsJsonAsync($"/api/organizations/{organizationId}/members/{editorId}", new { role = "admin" })).StatusCode.Should().Be(HttpStatusCode.NoContent);
-        (await RoleAsync(host, organizationId, editorId)).Should().Be("admin");
-        await ExpectAsync(await owner.PutAsJsonAsync($"/api/organizations/{organizationId}/members/{editorId}", new { role = "chief" }), HttpStatusCode.BadRequest, "UnknownOrganizationRole");
-        (await owner.DeleteAsync($"/api/organizations/{organizationId}/members/{adminId}")).StatusCode.Should().Be(HttpStatusCode.NoContent);
-        (await RoleAsync(host, organizationId, adminId)).Should().BeNull();
-        await ExpectAsync(await owner.DeleteAsync($"/api/organizations/{organizationId}/members/{adminId}"), HttpStatusCode.NotFound, "UserNotMember");
+        var ownerLink = await AccountHost.DataAsync(await admin.PostAsJsonAsync($"/api/organizations/{organizationId}/invitations", new { role = "owner" }));
+        var (partnerId, _) = await SignUpAsync(host, "partner-b@example.test", ownerLink.GetProperty("token").GetString()!);
+        (await RoleAsync(host, organizationId, partnerId)).Should().Be("owner", "an admin invites an owner");
+        (await admin.PutAsJsonAsync($"/api/organizations/{organizationId}/members/{editorId}", new { role = "owner" })).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await RoleAsync(host, organizationId, editorId)).Should().Be("owner", "an admin promotes a member to owner");
+        (await admin.PutAsJsonAsync($"/api/organizations/{organizationId}/members/{ownerId}", new { role = "viewer" })).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await RoleAsync(host, organizationId, ownerId)).Should().Be("viewer", "an admin demotes an owner");
+        await ExpectAsync(await admin.PutAsJsonAsync($"/api/organizations/{organizationId}/members/{ownerId}", new { role = "chief" }), HttpStatusCode.BadRequest, "UnknownOrganizationRole");
+        (await admin.DeleteAsync($"/api/organizations/{organizationId}/members/{partnerId}")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await RoleAsync(host, organizationId, partnerId)).Should().BeNull("an admin removes an owner");
+        await ExpectAsync(await admin.DeleteAsync($"/api/organizations/{organizationId}/members/{partnerId}"), HttpStatusCode.NotFound, "UserNotMember");
+    }
+
+    [Fact]
+    public async Task LastOwner_ShouldBeDemotedOrRemoved_LeavingNoOwner()
+    {
+        await using var host = new AccountHost(InviteOnly);
+        var (organizationId, owner, ownerId) = await OrganizationAsync(host, "owner-d@example.test");
+        var adminLink = await AccountHost.DataAsync(await owner.PostAsJsonAsync($"/api/organizations/{organizationId}/invitations", new { role = "admin" }));
+        var (_, admin) = await SignUpAsync(host, "admin-d@example.test", adminLink.GetProperty("token").GetString()!);
+
+        (await owner.PutAsJsonAsync($"/api/organizations/{organizationId}/members/{ownerId}", new { role = "editor" })).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await RolesAsync(admin, organizationId)).Should().BeEquivalentTo(["admin", "editor"], "demoting the last owner leaves none");
+
+        (await admin.PutAsJsonAsync($"/api/organizations/{organizationId}/members/{ownerId}", new { role = "owner" })).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await RolesAsync(admin, organizationId)).Should().BeEquivalentTo(["admin", "owner"], "an admin promotes a member to owner");
+        (await admin.DeleteAsync($"/api/organizations/{organizationId}/members/{ownerId}")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await RolesAsync(admin, organizationId)).Should().BeEquivalentTo(["admin"], "removing the last owner leaves none");
     }
 
     [Fact]
@@ -167,6 +187,10 @@ public sealed class InvitationApiTests
         var user = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(userId))!;
         return await organizations.GetRoleAsync(organization, user);
     }
+
+    /// <summary>The members' roles, read through the members route.</summary>
+    private static async Task<IReadOnlyList<string?>> RolesAsync(HttpClient manager, Guid organizationId)
+        => [.. (await AccountHost.DataAsync(await manager.GetAsync($"/api/organizations/{organizationId}/members"))).EnumerateArray().Select(m => m.GetProperty("role").GetString())];
 
     private static async Task ExpectAsync(HttpResponseMessage response, HttpStatusCode status, string code)
     {

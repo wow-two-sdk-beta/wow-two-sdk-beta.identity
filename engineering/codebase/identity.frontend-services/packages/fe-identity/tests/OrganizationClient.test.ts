@@ -154,8 +154,8 @@ describe('organization client', () => {
   it("keeps a refusal's problem and identity code", async () => {
     const { client } = fakeOrganizationApi({
       'PUT /members/u1': () =>
-        problem(403, 'Only an owner invites, promotes, demotes or removes an owner.', {
-          identityCode: 'OrganizationOwnerRequired',
+        problem(403, 'Only an owner or admin manages the organization’s members.', {
+          identityCode: 'OrganizationManagerRequired',
         }),
     });
 
@@ -164,6 +164,6 @@ describe('organization client', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.failure.status).toBe(403);
-    expect(readIdentityCode(result.failure)).toBe(IdentityErrorCodeConstants.organizationOwnerRequired);
+    expect(readIdentityCode(result.failure)).toBe(IdentityErrorCodeConstants.organizationManagerRequired);
   });
 });

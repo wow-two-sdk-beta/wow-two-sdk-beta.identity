@@ -13,9 +13,9 @@ import InvitationForm from './InvitationForm.vue';
 import InvitationRow from './InvitationRow.vue';
 
 /**
- * Lists an organization's invitations with where each stands, for its owners and admins: makes a link with a role and
- * an optional phone number, shows that link once with a copy button, and revokes a pending one. Only an owner invites
- * an owner; the server enforces it and the panel shows its refusal.
+ * Lists an organization's invitations with where each stands, for its owners and admins: makes a link with any catalog
+ * role and an optional phone number, shows that link once with a copy button, and revokes a pending one; a refusal shows
+ * in the panel.
  */
 defineOptions({ name: 'InvitationsPanel' });
 

@@ -7,9 +7,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 
 /// <summary>
 /// Provides organizations and memberships: create, rename and delete an organization, and add, re-role and remove
-/// its members. The creator becomes owner, and an organization always keeps one. Removing a member or changing a role
-/// rotates the member's security stamp, so principals carrying the old role end; a new membership appears from the
-/// next sign-in.
+/// its members. The creator becomes owner; an organization may later have none, since removing or demoting its last owner
+/// succeeds. Removing a member or changing a role rotates the member's security stamp, so principals carrying the old role
+/// end; a new membership appears from the next sign-in.
 /// </summary>
 /// <param name="organizations">The organization store.</param>
 /// <param name="accounts">The core account service, for stamp rotation.</param>
@@ -132,7 +132,7 @@ public sealed partial class OrganizationService(
         return IdentityResult.Success;
     }
 
-    /// <summary>Give the member <paramref name="role"/> and rotate their stamp; the last owner cannot be demoted.</summary>
+    /// <summary>Give the member <paramref name="role"/> and rotate their stamp; demoting the last owner leaves the organization without one.</summary>
     /// <param name="organization">The organization.</param>
     /// <param name="user">The member.</param>
     /// <param name="role">A configured role name (case-insensitive).</param>
@@ -147,14 +147,12 @@ public sealed partial class OrganizationService(
             return NotMember(organization);
         if (string.Equals(membership.Role, resolved, StringComparison.OrdinalIgnoreCase))
             return IdentityResult.Success;
-        if (IsOwner(membership.Role) && !IsOwner(resolved) && await IsLastOwnerAsync(organization, cancellationToken))
-            return LastOwner(organization);
 
         await organizations.ChangeRoleAsync(organization.Id, user.Id, resolved, cancellationToken);
         return await accounts.RotateSecurityStampAsync(user, cancellationToken);
     }
 
-    /// <summary>Remove the member and rotate their stamp; the last owner cannot leave.</summary>
+    /// <summary>Remove the member and rotate their stamp; removing the last owner leaves the organization without one.</summary>
     /// <param name="organization">The organization.</param>
     /// <param name="user">The member.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -162,10 +160,8 @@ public sealed partial class OrganizationService(
     {
         ArgumentNullException.ThrowIfNull(organization);
         ArgumentNullException.ThrowIfNull(user);
-        if (await organizations.FindMembershipAsync(organization.Id, user.Id, cancellationToken) is not { } membership)
+        if (await organizations.FindMembershipAsync(organization.Id, user.Id, cancellationToken) is null)
             return NotMember(organization);
-        if (IsOwner(membership.Role) && await IsLastOwnerAsync(organization, cancellationToken))
-            return LastOwner(organization);
 
         await organizations.RemoveMembershipAsync(organization.Id, user.Id, cancellationToken);
         return await accounts.RotateSecurityStampAsync(user, cancellationToken);
@@ -281,17 +277,11 @@ public sealed partial class OrganizationService(
 
     private bool IsOwner(string role) => string.Equals(role, options.CurrentValue.OwnerRole, StringComparison.OrdinalIgnoreCase);
 
-    private async Task<bool> IsLastOwnerAsync(IdentityOrganization organization, CancellationToken cancellationToken)
-        => await organizations.CountInRoleAsync(organization.Id, options.CurrentValue.OwnerRole, cancellationToken) <= 1;
-
     private static IdentityResult UnknownRole(string? role)
         => IdentityUserExtensions.Failure(IdentityErrorCodeConstants.UnknownOrganizationRole, $"Role '{role}' is not configured for organizations.", IdentityUserExtensions.Param("Role", role));
 
     private static IdentityResult NotMember(IdentityOrganization organization)
         => IdentityUserExtensions.Failure(IdentityErrorCodeConstants.UserNotMember, $"The user is not a member of '{organization.Name}'.", IdentityUserExtensions.Param("OrganizationName", organization.Name));
-
-    private static IdentityResult LastOwner(IdentityOrganization organization)
-        => IdentityUserExtensions.Failure(IdentityErrorCodeConstants.LastOrganizationOwner, $"'{organization.Name}' must keep at least one owner.", IdentityUserExtensions.Param("OrganizationName", organization.Name));
 
     [GeneratedRegex("^[a-z0-9]+(-[a-z0-9]+)*$", RegexOptions.CultureInvariant)]
     private static partial Regex SlugPattern();

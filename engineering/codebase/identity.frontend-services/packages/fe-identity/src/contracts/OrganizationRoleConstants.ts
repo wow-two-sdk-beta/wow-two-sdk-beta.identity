@@ -3,9 +3,9 @@
  * permissions to these roles, never a role of its own.
  */
 export const OrganizationRoleConstants = {
-  /** Owns the organization: everything an admin does, plus inviting, promoting, demoting and removing owners. */
+  /** Owns the organization: manages members and invitations, as an admin does. */
   owner: 'owner',
-  /** Manages members and invitations, short of owners. */
+  /** Manages members and invitations, owners included, as an owner does. */
   admin: 'admin',
   /** Works on the organization's content. */
   editor: 'editor',
