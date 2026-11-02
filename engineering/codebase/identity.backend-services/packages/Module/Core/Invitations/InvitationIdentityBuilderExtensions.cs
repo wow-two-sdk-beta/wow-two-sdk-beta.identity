@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using WoW.Two.Sdk.Beta.Be.Foundation.Options;
-using WoW.Two.Sdk.Beta.Be.Identity.Core.Admin;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 
@@ -9,8 +8,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 public static class InvitationIdentityBuilderExtensions
 {
     /// <summary>
-    /// Register <see cref="InvitationService"/>, the host CLI's <see cref="AdminInvitationService"/> and the repository over
-    /// <c>identity_invitations</c>; it needs the organizations slice. The account API then maps the invitation preview and
+    /// Register <see cref="InvitationService"/> and its repository over <c>identity_invitations</c>; it needs the
+    /// organizations slice. The account API then maps the invitation preview and
     /// acceptance, sign-up and phone sign-in take an <c>invitationToken</c>, and <c>MapOrganizationEndpoints</c> maps the
     /// managers' invitation routes.
     /// </summary>
@@ -29,7 +28,6 @@ public static class InvitationIdentityBuilderExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddScoped<IInvitationRepository, EfInvitationRepository>();
         services.TryAddScoped<InvitationService>();
-        services.TryAddScoped<AdminInvitationService>();
         return builder;
     }
 }

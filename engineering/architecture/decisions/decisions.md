@@ -69,7 +69,7 @@
 | 2026-11-01 | the hosted pages take one look per instance (`Identity:Pages:{BrandName,Theme,BackgroundUrl}`), as an instance serves one product; no per-client look | developer |
 | 2026-11-01 | no test mode, fake channel or message sink in the runtime; dev and local flows use real dev accounts and bots; fakes live in test projects | developer |
 | 2026-11-01 | every route and member says sign in, sign up and sign out: `/api/account/{sign-in,sign-up,sign-out}`, a BFF's `/api/identity/{session,sign-in,sign-out,callback}` | developer |
-| 2026-11-01 | the host CLI creates the first admin only (`admin create`); members are managed elsewhere (widened 2026-11-02 by `admin invite`) | developer |
+| 2026-11-01 | the host CLI creates the first admin only (`admin create`); members are managed elsewhere (a 2026-11-02 widening by `admin invite` was reversed the same day) | developer |
 | 2026-11-01 | the flows other apps need ship and deploy first, then Ocharo goes live on them; the console comes after | developer |
 | 2026-11-01 | a fixed role catalog: instance `admin`, `support`, `auditor`; organization `owner`, `admin`, `editor`, `viewer`, `billing`; apps add namespaced permissions, never roles; wow2's `operator` becomes `editor` | developer, C3 |
 | 2026-11-01 | external logins are external accounts in every member (`IdentityExternalAccount`, `ExternalAccountService`); the forward-only set keeps `identity_user_logins` and `login_provider` as named, mapped explicitly | naming build |
@@ -94,6 +94,7 @@
 | 2026-11-02 | a profile picture is JPEG, PNG or WebP judged by its leading bytes, at most 5 MiB, sides 256–4096 read before decoding, re-encoded to one square 512 WebP that keeps no metadata; SkiaSharp (MIT) decodes and encodes, ImageSharp's split licence ruled out; the file input accepts exactly those types so iPhones send JPEG for HEIC | developer, orchestrator analysis |
 | 2026-11-02 | pictures live in `identity_profile_pictures` behind `IProfilePictureStore` (File Storage adapter later), served anonymously at `/api/account/pictures/{userId}?v={version}` and given to apps as the `picture` claim under `profile` | developer |
 | 2026-11-02 | app tokens and userinfo carry the active organization's `org_name` and `org_slug` beside `org_id`, and the BFF session's organization carries `name` and `slug`, so a product projects the organization row from the token alone | Ocharo platform |
+| 2026-11-02 | invitations are made in the console only: an owner or admin signs in and makes a link with its role; the `admin invite` verb is removed (reverses the same day's row), and the host CLI keeps `admin create` for the first owner | developer |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

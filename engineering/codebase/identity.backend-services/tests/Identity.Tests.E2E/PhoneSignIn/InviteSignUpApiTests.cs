@@ -11,13 +11,14 @@ using SkiaSharp;
 using Telegram.Bot;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Admin;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Testing;
 
 namespace Identity.Tests.E2E.PhoneSignIn;
 
 /// <summary>
-/// Sign-up from an invitation through the real service with a fake bot: the declaration asks for a name and a picture;
+/// Sign-up from an invitation an owner made, through the real service with a fake bot: the declaration asks for a name and a picture;
 /// the start route checks both and answers the bot link; the shared contact proves the phone, creates the person and joins
 /// the organization; the browser's poll signs it in once; the picture is served as WebP; the invitation is spent.
 /// </summary>
@@ -128,20 +129,22 @@ public sealed class InviteSignUpApiTests
     private static HttpClient Client(WebApiTestHost<Program> host)
         => host.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
 
-    /// <summary>Makes Ocharo with its owner, and an editor invitation from the host CLI's service; the organization and the token.</summary>
+    /// <summary>Makes Ocharo with its owner, who makes an editor invitation as the console does; the organization and the token.</summary>
     private static async Task<(Guid OrganizationId, string Token)> InviteAsync(WebApiTestHost<Program> host)
     {
         await using var scope = host.Services.CreateAsyncScope();
-        var owner = await scope.ServiceProvider.GetRequiredService<FirstOwnerService>().CreateAsync(new FirstOwnerRequest
+        var created = await scope.ServiceProvider.GetRequiredService<FirstOwnerService>().CreateAsync(new FirstOwnerRequest
         {
             Slug = "ocharo",
             OrganizationName = "Ocharo",
             DisplayName = "Sultonbek",
             PhoneNumber = "+998907777777",
         });
-        var invited = await scope.ServiceProvider.GetRequiredService<AdminInvitationService>().CreateAsync(new AdminInvitationRequest { Organization = "ocharo", Role = "editor" });
-        invited.Status.Should().Be(AdminInvitationStatus.Created, invited.Error);
-        return (owner.OrganizationId!.Value, invited.Token!);
+        var owner = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(created.UserId!.Value))!;
+        var organization = (await scope.ServiceProvider.GetRequiredService<OrganizationService>().FindByIdAsync(created.OrganizationId!.Value))!;
+        var invited = await scope.ServiceProvider.GetRequiredService<InvitationService>().CreateAsync(organization, owner, "editor", phoneNumber: null, email: null);
+        invited.IsSuccess.Should().BeTrue();
+        return (organization.Id, invited.Token!);
     }
 
     private static async Task<HttpResponseMessage> StartAsync(HttpClient client, string token, string? name, byte[] picture)

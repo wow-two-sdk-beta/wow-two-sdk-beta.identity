@@ -164,7 +164,15 @@ function declarationWith(passwordRules: unknown) {
 
 const authorize = '/connect/authorize?client_id=desk&response_type=code&state=s1';
 
-const consoleAdmin = () => Response.json({ data: { userId: 'u1', name: 'Lola Karimova', roles: ['admin'] } });
+const consoleAdmin = () =>
+  Response.json({
+    data: {
+      userId: 'u1',
+      name: 'Lola Karimova',
+      roles: ['admin'],
+      organizations: [{ id: '0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b', name: 'Ocharo', slug: 'ocharo', role: 'owner' }],
+    },
+  });
 
 describe('console route', () => {
   it('shows the signed-in admin, the running versions and links the hosted pages', async () => {
@@ -175,6 +183,27 @@ describe('console route', () => {
     expect(wrapper.get('[aria-label="API version"]').text()).toBe('api 0.1.4+abc1234');
     expect(wrapper.get('[aria-label="Signed in"]').text()).toBe('Signed in as Lola Karimova · admin');
     expect(wrapper.findAll('a').map((link) => link.attributes('href'))).toContain('/sign-in');
+  });
+
+  it('manages the invitations and members of the organization the admin owns', async () => {
+    const received = stubApi({ 'GET /api/console/session': consoleAdmin });
+    const { wrapper } = await renderAt('/');
+    await flushPromises();
+
+    expect(wrapper.get('#organization-heading').text()).toBe('Ocharo');
+    const paths = received.map((request) => request.url.pathname);
+    expect(paths).toContain('/api/organizations/0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b/invitations');
+    expect(paths).toContain('/api/organizations/0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b/members');
+  });
+
+  it('says there is nobody to invite when the admin manages no organization', async () => {
+    stubApi({
+      'GET /api/console/session': () =>
+        Response.json({ data: { userId: 'u1', name: 'Lola', roles: ['admin'], organizations: [] } }),
+    });
+    const { wrapper } = await renderAt('/');
+
+    expect(wrapper.text()).toContain('You own or administer no organization');
   });
 
   it('sends a signed-out visitor to sign in, coming back to the console', async () => {

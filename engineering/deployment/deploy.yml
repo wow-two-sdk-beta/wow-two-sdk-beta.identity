@@ -84,12 +84,21 @@ services:
     # it needs BotToken and BotUserName, a deployed boot registers the webhook itself (UpdateMode Polling is for a
     # local run only, so a deployed boot refuses it) and each environment needs a bot of its own. The hosted pages' one look
     # per instance (Identity:Pages; no client overrides it) falls back to appsettings.json (BrandName Identity, Theme platform).
+    #
+    # Sign-up and methods: an invitation's sign-up page asks for a name and a picture as Identity:SignUp:Profile says
+    # (Off by default); a phone-only instance turns Identity:Methods:Password and Identity:Methods:Email off. A product
+    # pinning the image (Ocharo) sets its own values as defaults in its descriptor; the picture rules
+    # (Identity:ProfilePictures) keep their built-in defaults unless a descriptor names them.
     settings:
       keys:
         DatabaseSettings:ConnectionString: { required: true }
         Identity:Server:Issuer: { type: url, required: true }
         Identity:Server:Keys:IsEphemeral: { type: boolean, default: false }
         Identity:SignUp:Mode: { type: choice, values: [Invite, Open], default: Invite }
+        Identity:SignUp:Profile:DisplayName: { type: choice, values: [Off, Optional, Required], default: Off }
+        Identity:SignUp:Profile:Picture: { type: choice, values: [Off, Optional, Required], default: Off }
+        Identity:Methods:Password:IsEnabled: { type: boolean, default: true }
+        Identity:Methods:Email:IsEnabled: { type: boolean, default: true }
         Identity:Server:Keys:Signing:0: { secret: true, required: true }
         Identity:Server:Keys:Encryption:0: { secret: true, required: true }
         Identity:DataProtection:Certificates:0: { secret: true, required: true }

@@ -80,8 +80,7 @@ public sealed record AdminCreateResult
     }
 }
 
-/// <summary>The source-generated JSON of <see cref="AdminCreateResult"/> and <see cref="AdminInviteResult"/>.</summary>
+/// <summary>The source-generated JSON of <see cref="AdminCreateResult"/>.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AdminCreateResult))]
-[JsonSerializable(typeof(AdminInviteResult))]
 internal sealed partial class AdminJsonContext : JsonSerializerContext;

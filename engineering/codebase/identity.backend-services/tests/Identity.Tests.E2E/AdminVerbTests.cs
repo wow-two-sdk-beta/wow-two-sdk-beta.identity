@@ -92,29 +92,10 @@ public sealed class AdminVerbTests : IAsyncLifetime
         (await RunAsync([.. Create, "--role", "owner"])).Exit.Should().Be(2, "owner is an organization role, not an instance role");
     }
 
-    [Fact]
-    public async Task Invite_ShouldPrintTheLink_AndExit1ForAnUnknownOrganization()
-    {
-        (await RunAsync(Create)).Exit.Should().Be(0);
-
-        var invited = await RunAsync("admin", "invite", "--organization", "ocharo", "--role", "owner", "--phone", "+998907654321");
-
-        invited.Exit.Should().Be(0, invited.Error);
-        invited.Output.Trim().Split('\n').Should().ContainSingle("stdout carries the result line only");
-        var result = AdminInviteResult.FromOutput(invited.Output)!;
-        result.Should().BeEquivalentTo(new { Verb = "invite", Status = "created", OrganizationId = Guid.Parse(OrganizationId), Role = "owner", Token = (string?)null }, options => options.ExcludingMissingMembers());
-        result.Link.Should().MatchRegex("^https://id\\.example\\.test/sign-up\\?invitation=[A-Za-z0-9_-]{43}$");
-        invited.Error.Should().Contain("admin invite: created");
-
-        var refused = await RunAsync("admin", "invite", "--organization", "nowhere", "--role", "owner");
-        refused.Exit.Should().Be(1, refused.Error);
-        AdminInviteResult.FromOutput(refused.Output)!.Status.Should().Be("refused");
-        (await RunAsync("admin", "invite", "--organization", "ocharo", "--role", "chief")).Exit.Should().Be(2);
-    }
-
     [Theory]
     [InlineData(new[] { "admin" }, "missing verb")]
     [InlineData(new[] { "admin", "delete" }, "unknown verb")]
+    [InlineData(new[] { "admin", "invite", "--organization", "ocharo", "--role", "owner" }, "unknown verb 'invite'")]
     [InlineData(new[] { "admin", "create", "--slug", "ocharo", "--name", "Ocharo" }, "--display-name is required")]
     [InlineData(new[] { "admin", "create", "--slug", "ocharo", "--name", "Ocharo", "--display-name", "Lola", "--password", "x" }, "unknown option '--password'")]
     [InlineData(new[] { "admin", "create", "--slug", "ocharo", "--name", "Ocharo", "--display-name", "Lola" }, "a phone, an email or both")]

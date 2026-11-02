@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 
 namespace Identity.Tests.E2E.Accounts;
@@ -41,6 +42,18 @@ public sealed class ConsoleAndMethodsApiTests
         data.GetProperty("userId").GetString().Should().Be(userId.ToString());
         data.GetProperty("name").GetString().Should().Be("lola@example.test");
         data.GetProperty("roles").EnumerateArray().Select(role => role.GetString()).Should().Equal("admin");
+        data.GetProperty("organizations").GetArrayLength().Should().Be(0, "an instance admin manages no organization by that role alone");
+
+        await using (var scope = host.Host.Services.CreateAsyncScope())
+        {
+            var person = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(userId))!;
+            var organization = new IdentityOrganization { Name = "Ocharo", Slug = "ocharo" };
+            (await scope.ServiceProvider.GetRequiredService<OrganizationService>().CreateAsync(organization, person)).IsSuccess.Should().BeTrue();
+        }
+
+        var managed = (await AccountHost.DataAsync(await client.GetAsync(Console))).GetProperty("organizations")[0];
+        managed.GetProperty("slug").GetString().Should().Be("ocharo");
+        managed.GetProperty("role").GetString().Should().Be("owner", "the console invites into the organizations its person owns or administers");
     }
 
     [Fact]

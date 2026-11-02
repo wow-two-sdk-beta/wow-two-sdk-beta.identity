@@ -5,9 +5,9 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.Admin;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests;
 
 /// <summary>
-/// <c>admin create</c>'s and <c>admin invite</c>'s arguments and result lines without a database: the options each reads, a
-/// usage error for anything else, and exit <c>2</c> with one <c>admin-result</c> line when the arguments or the host's slices
-/// make no run.
+/// <c>admin create</c>'s arguments and result line without a database: the options it reads, a usage error for anything
+/// else (<c>invite</c> included: invitations are made in the console), and exit <c>2</c> with one <c>admin-result</c> line
+/// when the arguments or the host's slices make no run.
 /// </summary>
 public sealed class AdminCommandTests
 {
@@ -36,44 +36,10 @@ public sealed class AdminCommandTests
         });
     }
 
-    [Fact]
-    public void ParseInvite_ShouldReadEveryOption()
-    {
-        AdminCommand.ParseInvite(["invite", "--organization", "ocharo", "--role=owner", "--phone", "+998901234567"], out var request).Should().BeNull();
-
-        request.Should().Be(new AdminInvitationRequest { Organization = "ocharo", Role = "owner", PhoneNumber = "+998901234567" });
-    }
-
-    [Theory]
-    [InlineData(new[] { "invite", "--role", "owner" }, "--organization is required")]
-    [InlineData(new[] { "invite", "--organization", "ocharo" }, "--role is required")]
-    [InlineData(new[] { "invite", "--organization", "ocharo", "--role", "owner", "--email", "a@example.test" }, "unknown option '--email'")]
-    public void ParseInvite_ShouldNameTheProblem_OfArgumentsThatMakeNoRequest(string[] arguments, string expected)
-    {
-        AdminCommand.ParseInvite(arguments, out var request).Should().Be(expected);
-        request.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task RunInvite_ShouldExit2_WithTheUsage_OrWithoutTheInvitationsSlice()
-    {
-        using var output = new StringWriter();
-        using var error = new StringWriter();
-        await using var services = new ServiceCollection().BuildServiceProvider();
-
-        (await AdminCommand.RunAsync(services, ["invite", "--role", "owner"], output, error)).Should().Be(2);
-        (await AdminCommand.RunAsync(services, ["invite", "--organization", "ocharo", "--role", "owner"], output, error)).Should().Be(2);
-
-        var lines = output.ToString().Trim().Split('\n');
-        AdminInviteResult.FromOutput(lines[0])!.Should().BeEquivalentTo(new { Verb = "invite", Status = "failed" }, options => options.ExcludingMissingMembers());
-        AdminInviteResult.FromOutput(lines[0])!.Error.Should().Contain("--organization is required").And.Contain(AdminCommand.Usage);
-        AdminInviteResult.FromOutput(output.ToString())!.Error.Should().Contain("AddInvitations");
-        error.ToString().Should().StartWith("✗ admin invite: failed (exit 2)");
-    }
-
     [Theory]
     [InlineData(new string[0], "missing verb")]
     [InlineData(new[] { "list" }, "unknown verb 'list'")]
+    [InlineData(new[] { "invite", "--organization", "ocharo", "--role", "owner" }, "unknown verb 'invite'")]
     [InlineData(new[] { "create", "--slug" }, "--slug needs a value")]
     [InlineData(new[] { "create", "--slug", "a", "--slug", "b" }, "--slug is given twice")]
     [InlineData(new[] { "create", "--slug", "a", "--name", "A", "--display-name", "L", "--password", "secret" }, "unknown option '--password'")]

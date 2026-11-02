@@ -51,17 +51,13 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
   `auditor`), which opens the console; a rerun adding it answers `created` with `isInstanceRoleGranted: true`. It never
   takes a password: the owner signs in by phone or sets one through the reset link. Preset ids keep a product's existing
   keys (Desk's organization id).
-- First invitation: `dotnet Identity.Api.dll admin invite --organization <handle or uuid> --role <organization role>
-  [--phone <E.164>]` makes one invitation (any catalog role, `owner` included; `--phone` binds it to that number),
-  recorded as made by the host. Exit `0` created, `1` refused (no such organization), `2` failed (usage, a role outside
-  the catalog, an invalid phone, the database). The last line is `admin-result {"verb":"invite","exit":0,
-  "status":"created","organizationId":…,"invitationId":…,"role":"owner","link":"https://<issuer>/sign-up?invitation=<token>",
-  "expiresAt":…}`; the link carries the secret token, so it goes to the invitee only. Without `Identity:Server:Issuer`
-  the line carries `token` instead of `link`. Each run makes a new invitation; other members are invited from an
-  organization's owners and admins.
 - Console: `/` serves the console to a person signed in with an instance role; `GET /api/console/session` answers `401`
-  signed out, `403` without an instance role. The console signs in through the hosted pages, by phone on a phone-only
-  instance.
+  signed out, `403` without an instance role, else the person, their instance roles and the organizations they own or
+  administer. The console signs in through the hosted pages, by phone on a phone-only instance.
+- Invitations: made in the console only, by an organization's owner or admin, with the role and an optional phone; the
+  link is `{issuer origin}/sign-up?invitation={token}`. The host CLI makes none: the first owner comes from `admin
+  create`, and every other person joins through an invitation from the console (or an app embedding
+  `fe-identity/admin`).
 - Placement: Ocharo's instance is a service of Ocharo's own `deploy.yml`, the image pinned by tag, its set in Ocharo's
   database; wow2's shared instance is a Wheelhouse product of its own. A product pinning it declares its keys as in
   [Pinning the instance](#pinning-the-instance).
