@@ -1,6 +1,6 @@
 # Ocharo slice — shortlist and gaps
 
-*Last updated: 2026-10-28*
+*Last updated: 2026-11-02*
 
 > The least Identity must build so Ocharo's apps (Desk first) sign in through Ocharo's own instance, and every gap
 > between that and today's code. Source: the instances analysis in the hub (`wow-two-ws/ideas/identity-instances-2026-10/`,
@@ -183,7 +183,7 @@ For a later Ocharo chat. Nothing here is done; Desk was read, not changed.
 ## 6 · Points
 
 - [ ] P1 Q61 closure: permissions namespaced per app (`desk:edit`, `desk:approve`, `desk:publish`, `desk:connections`; a flat `can-edit` is dropped for a namespaced client), `owner` reaches every app, other roles need an `app_access` entry → yes
-- [ ] P2 Pre-registration is a pending member (user row plus membership), with no `invitations` table and no invite links in this slice → yes
+- [x] P2 Pre-registration → superseded: invitation links with a fixed role and an optional bound phone or email, single use, 7 days (`identity_invitations`, v0.5 Iteration 7); Ocharo signs up by invitation only (developer, 2026-11-02)
 - [ ] P3 Telegram start token binds the claimed phone, not a user, so unknown numbers get the same answer; per-IP caps limit minting → yes
 - [ ] P4 Phones stay on `identity_users.phone_number` with the confirmed flag; `identity_user_phones` (Q56) waits for Haven → defer
 - [ ] P5 Operator second factor is TOTP plus recovery codes now; passkeys come with wow2's pages → TOTP

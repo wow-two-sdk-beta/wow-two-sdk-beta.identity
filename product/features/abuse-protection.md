@@ -1,12 +1,15 @@
 # Abuse protection
 
-*Last updated: 2026-10-26*
+*Last updated: 2026-11-02*
 
 > Limits that keep codes, channels and accounts from being guessed, pumped or hijacked.
 
-- codes: 6 digits, 5-minute life, 5 attempts, 30-second resend, hashed at rest, one live code per phone (P1).
-- the failure count survives a regenerated code, and a code is bound to its sign-in request (Q19, open).
-- rate limits per phone, per IP and per client (P1); a country allow-list against SMS pumping, with a daily spend
+- codes: 6 digits, 5-minute life, 5 attempts, 30-second resend, hashed at rest, one live code per phone (P1; exists
+  2026-11-02, with an undelivered code discarded).
+- the failure count survives a regenerated code: 10 wrong codes per hour per number (exists 2026-11-02); binding a code
+  to its sign-in request stays open (Q19).
+- rate limits per phone, per IP and per client (P1; per phone and the `identity-credentials` 30 per minute per address
+  exist 2026-11-02); a country allow-list against SMS pumping, with a daily spend
   cap per paid channel (P2).
 - the bot accepts only the sender's own contact (`contact.user_id` equals the sender) (P1).
 - hosted pages refuse framing (`frame-ancestors 'none'`) and load no third-party assets (Q19, open).

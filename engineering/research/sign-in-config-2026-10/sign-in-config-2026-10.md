@@ -1,6 +1,6 @@
 # Sign-in configuration — settings, declaration, roles, console access
 
-*Last updated: 2026-11-01*
+*Last updated: 2026-11-02*
 
 > How an instance turns sign-in methods, verification and policies on from settings, how the pages adapt, what an
 > instance does when settings change under existing accounts, which roles exist, and how the console signs people in.
@@ -269,3 +269,7 @@ Shape, as a draft (rule codes illustrative; the fe sdk's `ValidationCodes` names
 - [x] C5 A declaration per method with fe sdk rule codes, and one `fe-identity` component per method; no schema renderer now (developer, 2026-11-01)
 - [x] C6 Each rule carries its message in the request's locale (developer, 2026-11-01)
 - [x] C7 A public `GET /api/account/sign-in-options`, with `?clientId=` now for each app's methods, theme and background (developer, 2026-11-01)
+- [x] C11 Session lifetime → `Identity:Sessions:Expiration` `Fixed` (default and extended lifetimes, "Keep me signed in") or `Sliding` (one lifetime after the last use); Ocharo slides 5 days (developer, 2026-11-02)
+- [x] C12 Sign-up → by invitation only by default (`Identity:SignUp:Mode=Invite`): an admin adds the person or sends a link with a fixed role; `Open` is opt-in; Ocharo uses invitations only (developer, 2026-11-02)
+- [ ] C13 Open sign-up's person joins as a "guest": an account with no organization role, and the open form starts with the email alone, then becomes sign-in or sign-up → guest = no role?
+- [ ] C14 The hosted pages' layout: what changes (the card, the page frame, the console) → the developer names it

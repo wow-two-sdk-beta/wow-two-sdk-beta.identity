@@ -1,45 +1,37 @@
 # Identity — Product Context
 
-*Last updated: 2026-10-31*
+*Last updated: 2026-11-02*
 
 > Current state — changes often. Durable definition: [product.md](product.md).
 
 ## Current state
 
-v0.3 (shared spine) is in progress. v0.1 moved Identity out of the be sdk (2026-10-26); v0.2 built the schema
-migrations, signing keys and the OIDC server; v0.3's first iteration made it PostgreSQL only, with keys as vault
-secrets, the Data Protection ring in the database, sessions and the sign-in log (2026-10-27). The seven NuGet packages
-publish from tags; the npm package still holds the template's sample and is unpublished. The first consumer is Ocharo
-(Form 2).
+v0.5 (Ocharo sign-in) is in progress; v0.1–v0.4 are closed. `main` at `2376611` ships NuGet `10.0.17-beta`, npm
+`@wow-two-beta/fe-identity` `0.0.7` and image `v0.5.7` (2026-11-02). The first consumer is Ocharo: Desk signs in
+through Ocharo's own instance with the `Client` BFF. Track: [v0.5](../engineering/planning/version-track/v0.5/v0.5.md).
 
 ### What exists
 
-From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the packages:
-
-- email + password: Argon2id with rehash on upgrade, length 8–128, identifier check, breached-password check (fails
-  open), lockout 5 attempts / 5 minutes, reset tokens bound to the security stamp.
-- organizations and memberships with roles and permissions as claims (I13).
-- email magic link and email code; phone OTP sign-in as a service (no HTTP route yet); OTP channels SMS (Twilio,
-  Vonage, Eskiz), email, WhatsApp, Telegram bot message, Telegram Gateway.
-- passkeys (Fido2, usernameless), TOTP, hashed recovery codes, delivered-code second factors, API keys.
-- 17 OAuth registrations (Amazon, Apple, Discord, Facebook, GitHub, GitLab, Google, LinkedIn, Microsoft, Notion,
-  Reddit, Slack, Spotify, Twitch, X, VK, Yandex) and a generic OIDC client.
-- cookie or JWT sessions; refresh tokens rotate and a reuse revokes the family.
-- fe sdk: auth bridge and strategies, Google button, `accountMenu`, `pinInput`, `passwordInput`, a naive strength
-  callout.
-- Ocharo Desk holds working prototypes: organizations and memberships (`owner`, `editor`, `viewer`), Telegram links,
-  the bot's link-by-contact flow with 6-digit codes, an 8-hour session table, PKCE app codes.
+- methods: password with email confirmation (SMTP, Mailpit locally), phone code by Ocharo's Telegram bot (webhook
+  hosted, polling locally), passkeys, email link and code, TOTP and delivered second factors, recovery codes.
+- settings: every method, verification and policy from `Identity:*`; `config check`; a public declaration
+  `GET /api/account/sign-in-options`; password change confirmation `None` | `Code` | `Link`.
+- sessions: `Identity:Sessions:Expiration` `Fixed` (12 h, or 30 days with "Keep me signed in") or `Sliding`; the
+  cookie, every OIDC refresh chain, each BFF session and a bearer refresh family end with the session.
+- sign-up: `Identity:SignUp:Mode` `Invite` (default) or `Open`; single-use invitation links with a fixed role and an
+  optional bound phone or email; member routes at `/api/organizations/{id}`; the fixed role catalog `owner`, `admin`,
+  `editor`, `viewer`, `billing`.
+- protection: lockout for new attempts only, hashed codes with a per-number budget, `identity-credentials` rate limit,
+  bounded Argon2, `prompt=login` / `max_age`, end-session safe from other sites.
+- surfaces: the OIDC server (OpenIddict), the `Client` BFF, `fe-identity` `./kit` (password, phone, second factor,
+  password forms), the hosted pages in one animated card, `admin create` for the first owner.
 
 ### Gaps
 
-- protocol — back-channel sign-out (I18) and the OIDC client package (I19).
-- accounts — invitations, admin-managed members, an OAuth callback-to-link route.
-- passwords — expiry, history, forced reset, admin-generated temporary passwords, generator, a real strength meter.
-- sessions — a durable OTP store (memory only today, codes plaintext at rest, 5-second resend).
-- audit — security events (log lines only today), admin action trail.
-- admin — user admin API, disable, impersonation, the console itself.
-- Telegram — Sign in with Telegram (OIDC), link-on-first-sign-in without a password.
-- fe — sign-in, phone + code, Telegram link, passkey, MFA and account screens; `passwordStrength` is empty.
+- the members panel (`./admin`) and the console; open sign-up's guest and email-first form (C13); the layout (C14).
+- back-channel sign-out (I18), app access checks, client credentials and agent tokens, conformance in CI.
+- a built-in BFF session store; until a product registers a shared cache and key ring, its deploys sign people out.
+- local runtime: arm64 image, HTTPS from a mounted PEM, the compose build, phone sign-in tested with a real bot.
 
 ---
 
@@ -47,28 +39,28 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
 
 | Task | Status | Notes |
 |---|---|---|
-| Move the code, tests and research out of the be sdk | ✅ | 2026-10-27; `contract.md` and `package-registry.md` follow from the moved code |
-| Move the spec and the analysis batch into the repo | ✅ | 2026-10-26 |
-| First npm publish of `@wow-two-beta/fe-identity` | ⬜ | by hand once real fe content lands; then its trusted publisher; tag `fe-v0.0.1` is burned |
-| NuGet trusted-publishing consent for the seven ids | ✅ | 2026-10-27; the family published at `10.0.0-beta` |
-| Ocharo's secrets and DNS for its instance | ⬜ | by hand; the instance is a service in Ocharo's `deploy.yml` |
-| Migrator follow-ups before the first deploy | ✅ | owner marker, baseline and multi-set harness in be sdk `10.0.82-beta` |
-| Shortlist Ocharo's needs, close the gaps, deploy with Ocharo | ⬜ | migrations settled 2026-10-28; from the [backlog](../engineering/planning/backlog.md) P1 group |
-| Sign-in configuration: settings, declaration, kit, roles, console access | ⬜ | [analysis](../engineering/research/sign-in-config-2026-10/sign-in-config-2026-10.md), C1 settled, C1b and C2–C8 open; Ocharo's Telegram sign-in first |
-| Rest of P1, Ocharo fixes, console layout review | ⬜ | after Ocharo's capabilities are verified on its deploy |
+| Ocharo's instance on v0.5.7 with the new settings | ⬜ | drop `Identity:SignUp:IsEnabled`; `SignUp:Mode=Invite`; `Sessions` sliding 5 days; roles from the catalog only; driven from the Ocharo chat |
+| Desk's BFF on `10.0.17-beta` with a shared cache and key ring | ⬜ | Ocharo's side ([Client README](../engineering/codebase/identity.backend-services/packages/Client/README.md)) |
+| Phone sign-in on a local run with Ocharo's local bot | ⬜ | the developer writes `engineering/deployment/identity.local.env`; then restart the stack |
+| Sign in to Ocharo dev by both methods | ⬜ | v0.5 verification |
+| Members panel, invite by phone | ⬜ | v0.5 Iteration 4; the routes exist |
+| Open sign-up and the layout | ⬜ | after C13 and C14 |
+| Local runtime items | ⬜ | v0.5 Iteration 5 |
 
 ---
 
 ## Open questions
 
-- Q2 — confirm the registration shape: `Identity:Mode = Module | Oidc`, a shared `IdentityMode` enum, options from
-  configuration overridable in code.
-- Q4 — the Form 3 host.
-- Q7–Q11 — browser mode, organization scope in tokens, revocation, front-channel sign-out, management authorization.
-- Q13 (D5) — Identity owns the Ocharo bot's webhook.
-- Q19, Q25–Q28, Q30 — hosted-page headers, signing keys, the Data Protection ring, counsel on the telecom clause,
-  conformance in CI, domain binding and backups before Ocharo's cutover.
-- the full queue with evidence: [identity analysis](../engineering/research/identity-analysis-2026-10/identity-analysis-2026-10.md) § Points.
+- C4 — the console signs in by the instance's own cookie, opened from Wheelhouse through one-time links, keeping no
+  password: yes?
+- C13 — open sign-up's "guest" is an account with no organization role, through an email-first form: yes?
+- C14 — the hosted pages' layout: what should change?
+- P1, P3–P8 — the [Ocharo shortlist](../engineering/research/ocharo-shortlist-2026-10/ocharo-shortlist-2026-10.md)'s
+  remaining points (permissions per app, start tokens, phones, operator factor, registration shape, G1 scope,
+  offboarding).
+- Q2, Q4, Q7–Q11, Q13, Q19, Q25–Q28, Q30 — the
+  [identity analysis](../engineering/research/identity-analysis-2026-10/identity-analysis-2026-10.md) § Points.
+- C-points with evidence: [sign-in configuration](../engineering/research/sign-in-config-2026-10/sign-in-config-2026-10.md) § Points.
 
 ---
 
@@ -101,4 +93,9 @@ From the be sdk's `Identity/` (113 tests, green 2026-10-25), now moving into the
   them into the console, and a central services console or a product's admin page imports the same export.
 - 2026-10-27 — after the spine, Ocharo's slice comes before wow2's hosted pages: shortlist, close the gaps, deploy
   with Ocharo and verify; the rest of P1 and the console layout review follow.
+- 2026-11-01 — the flows other apps need ship and deploy first, Ocharo goes live on them, the console comes after; no
+  test mode in the runtime; one look per instance; routes say sign in, sign up and sign out.
+- 2026-11-02 — sessions end by `Fixed` (default and extended) or `Sliding` lifetimes, and everything issued under a
+  session ends with it; sign-up is by invitation only unless `Open`; the role catalog is fixed in code.
+- 2026-11-02 — a lockout refuses new attempts only and never signs anyone out; phone codes carry a per-number budget.
 - every architecture decision with its source: [decisions](../engineering/architecture/decisions/decisions.md).
