@@ -88,20 +88,25 @@ async function resendConfirmation() {
         <PasswordInput v-model="field.value" name="password" autocomplete="current-password" @blur="field.onBlur" />
       </Field>
     </form.Field>
-    <form.Field v-if="isPersistenceOffered" v-slot="field" name="isPersistent">
-      <CheckboxField
-        v-model="field.value"
-        :label="t('PasswordSignIn.keepSignedIn', 'Keep me signed in')"
-        @blur="field.onBlur"
-      />
-    </form.Field>
-    <a
-      v-if="forgotPasswordHref"
-      :href="forgotPasswordHref"
-      class="-mt-2 self-end text-sm text-primary underline-offset-4 hover:underline"
+    <div
+      v-if="isPersistenceOffered || forgotPasswordHref"
+      class="-mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
     >
-      {{ t('PasswordSignIn.forgotPassword', 'Forgot your password?') }}
-    </a>
+      <form.Field v-if="isPersistenceOffered" v-slot="field" name="isPersistent">
+        <CheckboxField
+          v-model="field.value"
+          :label="t('PasswordSignIn.keepSignedIn', 'Keep me signed in')"
+          @blur="field.onBlur"
+        />
+      </form.Field>
+      <a
+        v-if="forgotPasswordHref"
+        :href="forgotPasswordHref"
+        class="ms-auto text-sm text-primary underline-offset-4 hover:underline"
+      >
+        {{ t('PasswordSignIn.forgotPassword', 'Forgot your password?') }}
+      </a>
+    </div>
     <FailureAlert :failure="form.state.submitError" />
     <template v-if="unconfirmedEmail">
       <AlertSimple v-if="isResent" severity="success">
