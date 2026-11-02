@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Restores the packed nupkgs in a throwaway consumer, as a product would take them, and compiles a composition root
-# that wires Form 1 (Module), Forms 2/3 (Client over Auth's cookie), the providers and the contract, beside the test kit. A private packages folder keeps the local versions
+# that wires Form 1 (Module), Forms 2/3 (the Client's BFF), Auth's cookie, the providers and the contract, beside the test kit. A private packages folder keeps the local versions
 # out of the machine's NuGet cache.
 #
 #   pack-smoke.sh <artifact-dir> <version>
@@ -43,17 +43,19 @@ XML
 
 cat > "$consumer/Program.cs" <<CS
 using Microsoft.Extensions.DependencyInjection;
+using WoW.Two.Sdk.Beta.Be.Identity.Bff;
 using WoW.Two.Sdk.Beta.Be.Identity.Claims;
 using WoW.Two.Sdk.Beta.Be.Identity.Cookies;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
-using WoW.Two.Sdk.Beta.Be.Identity.Oidc;
 
 var formOne = new ServiceCollection();
 formOne.AddUserAccounts();
 
 var formThree = new ServiceCollection();
-formThree.AddCookieAuthentication();
-formThree.AddOpenIdConnectAuthentication(options => { options.Authority = "https://id.example.test"; options.ClientId = "pack-smoke"; });
+formThree.AddIdentityBff(options => { options.Authority = "https://id.example.test"; options.ClientId = "pack-smoke"; });
+
+var auth = new ServiceCollection();
+auth.AddCookieAuthentication();
 
 var providers = new ServiceCollection();
 providers.AddClaimNormalization();
