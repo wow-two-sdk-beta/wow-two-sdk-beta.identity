@@ -25,6 +25,7 @@ import {
   type SignUpApiRequest,
   type SignedUpAccountDto,
   SignUpMode,
+  type TwoFactorSignInApiRequest,
 } from '../../contracts';
 
 /** Configures where the account API is reached. */
@@ -76,12 +77,18 @@ export interface AccountClient {
   acceptInvitation(token: string, signal?: AbortSignal): Promise<Result<void, ApiFailure>>;
   /**
    * Signs in with an identifier and password: `null` once the session cookie is set, or the ticket of a required
-   * password change, which sets no session.
+   * password change, which sets no session. An account with a second factor answers `401` `TwoFactorRequired`
+   * (`readTwoFactorChallenge`); the request then repeats with `twoFactorCode` or `recoveryCode`.
    */
   signIn(
     request: SignInApiRequest,
     options?: AccountSignInOptions,
   ): Promise<Result<PasswordChangeRequiredDto | null, ApiFailure>>;
+  /** Completes a sign-in whose `TwoFactorRequired` challenge carried a ticket, and sets the session cookie. */
+  signInWithSecondFactor(
+    request: TwoFactorSignInApiRequest,
+    options?: AccountSignInOptions,
+  ): Promise<Result<void, ApiFailure>>;
   /** Confirms an email with the emailed token. */
   confirmEmail(request: ConfirmEmailApiRequest, signal?: AbortSignal): Promise<Result<void, ApiFailure>>;
   /** Sends the confirmation email again; succeeds whether or not the account exists. */
@@ -112,7 +119,10 @@ export interface AccountClient {
     request: PhoneSignInSendApiRequest,
     signal?: AbortSignal,
   ): Promise<Result<PhoneSignInSentDto, ApiFailure>>;
-  /** Signs in with a phone and its code and sets the session cookie. */
+  /**
+   * Signs in with a phone and its code and sets the session cookie; a second factor answers `401` `TwoFactorRequired`
+   * with the ticket `signInWithSecondFactor` takes.
+   */
   signInWithPhone(request: PhoneSignInApiRequest, options?: AccountSignInOptions): Promise<Result<void, ApiFailure>>;
   /** Ends the cookie's session. */
   signOut(signal?: AbortSignal): Promise<Result<void, ApiFailure>>;
@@ -326,6 +336,13 @@ export function createAccountClient(options: AccountClientOptions = {}): Account
       });
       return answered.ok ? decodeSignedIn(answered.value) : answered;
     },
+    signInWithSecondFactor: (request, { clientId, signal } = {}) =>
+      client.post(AccountRouteConstants.signInTwoFactor, {
+        query: signInQuery(clientId),
+        body: request,
+        response: 'empty',
+        signal,
+      }),
     confirmEmail: (request, signal) =>
       client.get(AccountRouteConstants.confirmEmail, { query: { ...request }, response: 'empty', signal }),
     resendConfirmationEmail: (request, signal) => send(AccountRouteConstants.resendConfirmationEmail, request, signal),

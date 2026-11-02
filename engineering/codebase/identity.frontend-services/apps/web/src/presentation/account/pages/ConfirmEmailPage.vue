@@ -3,19 +3,21 @@ import { HostedPageRouteConstants, type ConfirmEmailApiRequest } from '@wow-two-
 import { ApiFailureExtensions } from '@wow-two-beta/fe/foundation/http';
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple, Spinner } from '@wow-two-beta/fe/presentation/feedback';
-import { useEmailConfirmation } from '../../../application/account';
+import { hostedHref, useEmailConfirmation } from '../../../application/account';
 import HostedPage from '../../common/layout/HostedPage.vue';
 
-/** Confirms the email an emailed link names, then offers the sign-in. */
+/** Confirms the email an emailed link names, then offers the sign-in, which continues to the link's return URL. */
 defineOptions({ name: 'ConfirmEmailPage' });
 
 const props = defineProps<{
   /** The account and token the link carried, or `null` for an incomplete link. */
   request: ConfirmEmailApiRequest | null;
+  /** Where the person continues once signed in, from the link's `returnUrl`; `/` without one. */
+  returnUrl: string;
 }>();
 
 const { isConfirming, isConfirmed, failure } = useEmailConfirmation(props.request);
-const signInHref = HostedPageRouteConstants.signIn;
+const signInHref = hostedHref(HostedPageRouteConstants.signIn, props.returnUrl);
 </script>
 
 <template>

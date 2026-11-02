@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { HostedPageRouteConstants } from '@wow-two-beta/fe-identity/contracts';
 import { ForgotPasswordForm } from '@wow-two-beta/fe-identity/kit';
-import { hostedHref } from '../../../application/account';
+import { emailedReturnUrl, hostedHref } from '../../../application/account';
 import type { SignInRequest } from '../../../domain/account';
 import HostedPage from '../../common/layout/HostedPage.vue';
 
@@ -14,11 +14,12 @@ const props = defineProps<{
 }>();
 
 const signInHref = hostedHref(HostedPageRouteConstants.signIn, props.request.returnUrl);
+const returnUrl = emailedReturnUrl(props.request.returnUrl);
 </script>
 
 <template>
   <HostedPage title="Reset your password">
-    <ForgotPasswordForm />
+    <ForgotPasswordForm :return-url="returnUrl" />
     <template #footer>
       <a :href="signInHref" class="font-medium text-primary underline-offset-4 hover:underline">Back to sign-in</a>
     </template>

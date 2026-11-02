@@ -5,7 +5,7 @@ import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
 import { DividerLayout } from '@wow-two-beta/fe/presentation/layout';
 import { computed, shallowRef } from 'vue';
-import { hostedHref, useHostedOptions, useInvitation } from '../../../application/account';
+import { emailedReturnUrl, hostedHref, useHostedOptions, useInvitation } from '../../../application/account';
 import { SignInMethodId, type SignInRequest } from '../../../domain/account';
 import HostedPage from '../../common/layout/HostedPage.vue';
 
@@ -30,6 +30,7 @@ const props = defineProps<{
 const { options, failure: optionsFailure } = useHostedOptions();
 const { invitation, failure, isSignedIn, isLoading, accept } = useInvitation(props.invitationToken);
 const signInHref = hostedHref(HostedPageRouteConstants.signIn, props.request.returnUrl);
+const returnUrl = emailedReturnUrl(props.request.returnUrl);
 /** Signing in first comes back here, to join with the link. */
 const signInToJoinHref = hostedHref(HostedPageRouteConstants.signIn, props.selfHref);
 const isJoining = shallowRef(false);
@@ -102,11 +103,13 @@ async function join() {
                 :sign-in-href="signInHref"
                 :password-rules="options.passwordRules"
                 :invitation-token="invitationToken"
+                :return-url="returnUrl"
               />
               <PhoneCodeSignIn
                 v-else-if="method.id === SignInMethodId.PhoneCode"
                 :client-id="request.clientId"
                 :countries="method.countries"
+                :code-rules="method.codeRules"
                 :invitation-token="invitationToken"
                 @signed-in="continueToReturnUrl"
               />
@@ -115,7 +118,12 @@ async function join() {
         </template>
       </template>
     </template>
-    <SignUpForm v-else-if="isFormOffered" :sign-in-href="signInHref" :password-rules="options?.passwordRules" />
+    <SignUpForm
+      v-else-if="isFormOffered"
+      :sign-in-href="signInHref"
+      :password-rules="options?.passwordRules"
+      :return-url="returnUrl"
+    />
     <AlertSimple v-else-if="options" severity="info">
       Sign-up is by invitation only. Ask an admin of your organization for an invitation link.
     </AlertSimple>

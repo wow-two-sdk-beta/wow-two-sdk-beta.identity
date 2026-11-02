@@ -8,7 +8,7 @@ import { ChangePasswordForm, PasswordSignIn, PhoneCodeSignIn } from '@wow-two-be
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
 import { DividerLayout } from '@wow-two-beta/fe/presentation/layout';
 import { shallowRef } from 'vue';
-import { hostedHref, useHostedOptions } from '../../../application/account';
+import { emailedReturnUrl, hostedHref, useHostedOptions } from '../../../application/account';
 import { SignInMethodId, type SignInRequest } from '../../../domain/account';
 import HostedPage from '../../common/layout/HostedPage.vue';
 
@@ -31,6 +31,7 @@ const required = shallowRef<PasswordChangeRequiredDto | null>(null);
 const isPasswordChanged = shallowRef(false);
 const forgotPasswordHref = hostedHref(HostedPageRouteConstants.forgotPassword, props.request.returnUrl);
 const signUpHref = hostedHref(HostedPageRouteConstants.signUp, props.request.returnUrl);
+const returnUrl = emailedReturnUrl(props.request.returnUrl);
 
 function continueToReturnUrl() {
   props.onContinue(props.request.returnUrl);
@@ -71,6 +72,7 @@ function passwordChanged() {
             :client-id="request.clientId"
             :forgot-password-href="forgotPasswordHref"
             :is-persistence-offered="options.isPersistenceOffered"
+            :return-url="returnUrl"
             @signed-in="continueToReturnUrl"
             @password-change-required="changeRequired"
           />
@@ -78,6 +80,7 @@ function passwordChanged() {
             v-else-if="method.id === SignInMethodId.PhoneCode"
             :client-id="request.clientId"
             :countries="method.countries"
+            :code-rules="method.codeRules"
             :is-persistence-offered="options.isPersistenceOffered"
             @signed-in="continueToReturnUrl"
           />

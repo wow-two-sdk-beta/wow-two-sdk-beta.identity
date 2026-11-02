@@ -60,6 +60,22 @@ describe('sign-up form', () => {
     });
   });
 
+  it('carries the return URL into the confirmation link', async () => {
+    const { client, received } = fakeAccountApi({ 'POST /sign-up': () => Response.json({ data: { userId: 'u3' } }) });
+    const wrapper = render(SignUpForm, { props: { client, returnUrl: '/connect/authorize?client_id=desk' } });
+
+    await wrapper.get('input[name="email"]').setValue('ann@example.test');
+    await wrapper.get('input[name="password"]').setValue('a-long-password');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received[0]?.body).toEqual({
+      email: 'ann@example.test',
+      password: 'a-long-password',
+      returnUrl: '/connect/authorize?client_id=desk',
+    });
+  });
+
   it('says so when the instance keeps sign-up closed', async () => {
     const { client } = fakeAccountApi({
       'POST /sign-up': () => problem(403, 'Sign-up is by invitation only; ask an admin for a link.'),
@@ -189,6 +205,17 @@ describe('forgot password form', () => {
 
     expect(received[0]?.body).toEqual({ email: 'ann@example.test' });
     expect(wrapper.text()).toContain('If an account uses ann@example.test, we sent it a link');
+  });
+
+  it('carries the return URL into the reset link', async () => {
+    const { client, received } = fakeAccountApi({ 'POST /forgot-password': noContent });
+    const wrapper = render(ForgotPasswordForm, { props: { client, returnUrl: '/account/security' } });
+
+    await wrapper.get('input[name="email"]').setValue('ann@example.test');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received[0]?.body).toEqual({ email: 'ann@example.test', returnUrl: '/account/security' });
   });
 });
 

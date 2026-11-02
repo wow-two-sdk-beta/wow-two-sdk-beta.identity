@@ -65,7 +65,10 @@ export const routes: RouteConfig = [
         handle: { title: 'Confirm your email' },
         lazy: lazyPage(
           () => import('../../presentation/account/pages/ConfirmEmailPage.vue'),
-          (route) => ({ request: readConfirmEmailRequest(route.query) }),
+          (route) => ({
+            request: readConfirmEmailRequest(route.query),
+            returnUrl: readSignInRequest(route.query).returnUrl,
+          }),
         ),
       },
       {
@@ -83,7 +86,10 @@ export const routes: RouteConfig = [
         handle: { title: 'Choose a new password' },
         lazy: lazyPage(
           () => import('../../presentation/account/pages/ResetPasswordPage.vue'),
-          (route) => ({ request: readResetPasswordRequest(route.query) }),
+          (route) => ({
+            request: readResetPasswordRequest(route.query),
+            returnUrl: readSignInRequest(route.query).returnUrl,
+          }),
         ),
       },
       {
@@ -94,6 +100,7 @@ export const routes: RouteConfig = [
           () => import('../../presentation/account/pages/ChangePasswordPage.vue'),
           (route, router) => ({
             token: readChangePasswordToken(route.hash),
+            returnUrl: readSignInRequest(route.query).returnUrl,
             onTokenRead: () => void router.replace({ path: route.path, query: route.query, hash: '' }),
           }),
         ),

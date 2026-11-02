@@ -2,17 +2,23 @@
 import { AppErrorFactory, ResultExtensions, type AppError } from '@wow-two-beta/fe/foundation/results';
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
-import { object, phone as phoneRule } from '@wow-two-beta/fe/foundation/validators';
+import { boolean, object, phone as phoneRule } from '@wow-two-beta/fe/foundation/validators';
 import { CheckboxField, Field, PhoneInput, TextInput } from '@wow-two-beta/fe/presentation/forms';
-import { shallowRef } from 'vue';
+import { computed, shallowRef } from 'vue';
+import type { SignInRuleDto, TwoFactorChallengeDto } from '../../../../contracts';
 import type { AccountClient } from '../../../account';
+import { readTwoFactorChallenge } from '../../../account/AccountProblems';
 import { useAccountClient, useAccountForm, useAccountText } from '../../../account/hooks';
+import { codeRule, passwordRuleMessages } from '../../../account/validation';
 import { FailureAlert } from '../../feedback/failureAlert';
+import { SecondFactorForm, type SecondFactor } from '../secondFactorForm';
 import { PhoneSignInStep } from './PhoneSignInStep';
 
 /**
  * Signs a person in by a code sent to their phone: the phone first, then the code. A phone with no linked Telegram
- * chat first opens the bot, where sharing the contact links it and brings the code.
+ * chat first opens the bot, where sharing the contact links it and brings the code. A code that breaks `codeRules`
+ * shows under its field and spends no attempt; an account with a second factor continues to a code or recovery code
+ * step before `signedIn` fires.
  */
 defineOptions({ name: 'PhoneCodeSignIn' });
 
@@ -28,6 +34,8 @@ const props = withDefaults(
     countries?: ReadonlyArray<string>;
     /** The ISO code selected first; the first allowed country when omitted. */
     defaultCountry?: string;
+    /** The rules the code meets, the declared `code` field's `rules`, such as its length; with none, it is only required. */
+    codeRules?: ReadonlyArray<SignInRuleDto>;
     /** Whether to offer "Keep me signed in", as the declaration's `isPersistenceOffered` says. */
     isPersistenceOffered?: boolean;
     /**
@@ -42,6 +50,7 @@ const props = withDefaults(
     clientId: null,
     countries: undefined,
     defaultCountry: undefined,
+    codeRules: undefined,
     isPersistenceOffered: false,
     invitationToken: null,
   },
@@ -61,6 +70,8 @@ const telegramLinkUrl = shallowRef<string | null>(null);
 const isResending = shallowRef(false);
 const isResent = shallowRef(false);
 const resendFailure = shallowRef<AppError | null>(null);
+/** The second factor's challenge and whether the code step asked to stay signed in, once the code checked out. */
+const pending = shallowRef<{ challenge: TwoFactorChallengeDto; isPersistent: boolean } | null>(null);
 
 const notSent = () =>
   ResultExtensions.fail({
@@ -92,36 +103,74 @@ const phoneForm = useAccountForm({
   },
 });
 
-const codeForm = useAccountForm({
+/** Follows `codeRules`, which the page may load after the form shows. */
+const codeSchema = computed(() => object({ code: codeRule(props.codeRules), isPersistent: boolean() }));
+
+const codeForm = useAccountForm(() => ({
   defaultValues: { code: '', isPersistent: false },
+  schema: codeSchema.value,
+  messages: passwordRuleMessages,
   onSubmit: async (values, { signal }) => {
+    const isPersistent = props.isPersistenceOffered && values.isPersistent;
     const result = await client.signInWithPhone(
       {
         phone: phone.value,
         code: values.code.trim(),
-        isPersistent: props.isPersistenceOffered && values.isPersistent,
+        isPersistent,
         ...(props.invitationToken ? { invitationToken: props.invitationToken } : {}),
       },
       { clientId: props.clientId, signal },
     );
-    if (result.ok) emit('signedIn');
+    if (result.ok) {
+      emit('signedIn');
+      return result;
+    }
+    // The code is spent once it checked out, so only a challenge with its ticket can finish the sign-in.
+    const challenge = readTwoFactorChallenge(result.failure);
+    if (challenge?.userId && challenge.twoFactorTicket) {
+      pending.value = { challenge, isPersistent };
+      step.value = PhoneSignInStep.SecondFactor;
+      return ResultExtensions.ok(undefined);
+    }
     return result;
   },
-});
+}));
 
+/** Completes the sign-in with the second factor and the challenge's ticket, keeping the code step's `isPersistent`. */
+async function completeSecondFactor(factor: SecondFactor, signal: AbortSignal) {
+  const current = pending.value;
+  const { userId, twoFactorTicket, twoFactorMethod } = current?.challenge ?? {};
+  if (!current || !userId || !twoFactorTicket) return ResultExtensions.ok(undefined);
+  const result = await client.signInWithSecondFactor(
+    {
+      userId,
+      ticket: twoFactorTicket,
+      ...(twoFactorMethod ? { twoFactorMethod } : {}),
+      ...factor,
+      isPersistent: current.isPersistent,
+    },
+    { clientId: props.clientId, signal },
+  );
+  if (result.ok) emit('signedIn');
+  return result;
+}
+
+/** Sends a new code; a phone whose chat is no longer linked goes back to the Telegram step, which brings the code. */
 async function resend() {
   isResending.value = true;
   isResent.value = false;
   resendFailure.value = null;
   const result = await send(phone.value);
   isResending.value = false;
-  if (result.ok) isResent.value = true;
-  else resendFailure.value = result.failure;
+  if (!result.ok) resendFailure.value = result.failure;
+  else if (result.value.isCodeSent) isResent.value = true;
+  else step.value = PhoneSignInStep.Telegram;
 }
 
 function useAnotherPhone() {
   step.value = PhoneSignInStep.Phone;
   telegramLinkUrl.value = null;
+  pending.value = null;
 }
 </script>
 
@@ -172,6 +221,13 @@ function useAnotherPhone() {
       {{ t('PhoneCodeSignIn.otherPhone', 'Use another number') }}
     </Button>
   </div>
+
+  <SecondFactorForm
+    v-else-if="step === PhoneSignInStep.SecondFactor && pending"
+    :challenge="pending.challenge"
+    :complete="completeSecondFactor"
+    @restart="useAnotherPhone"
+  />
 
   <form v-else class="flex flex-col gap-4" novalidate @submit="codeForm.handleSubmit">
     <p class="text-sm text-muted-foreground">

@@ -1,3 +1,4 @@
+export { readIdentityCode, readTwoFactorChallenge } from './AccountProblems';
 export {
   createAccountClient,
   type AccountClient,
@@ -6,4 +7,4 @@ export {
   type SignInOptionsQuery,
 } from './CreateAccountClient';
 export { useAccountText, type AccountClientSource, type AccountText } from './hooks';
-export { passwordRule, passwordRuleMessages, type PasswordAccount } from './validation';
+export { codeRule, passwordRule, passwordRuleMessages, type PasswordAccount } from './validation';

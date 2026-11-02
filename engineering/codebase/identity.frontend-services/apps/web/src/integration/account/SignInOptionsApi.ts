@@ -17,6 +17,7 @@ function toMethod(method: SignInMethodDto): SignInMethod | null {
       return {
         id: SignInMethodId.PhoneCode,
         countries: method.fields.find((field) => field.kind === 'phone')?.countries ?? [],
+        codeRules: method.fields.find((field) => field.name === 'code')?.rules ?? [],
       };
     default:
       return null;

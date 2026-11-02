@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  emailedReturnUrl,
   hostedHref,
   readChangePasswordToken,
   readConfirmEmailRequest,
@@ -47,6 +48,11 @@ describe('link requests', () => {
   it('reads the change token from the fragment only', () => {
     expect(readChangePasswordToken('#token=abc%2Bdef')).toBe('abc+def');
     expect(readChangePasswordToken('')).toBeNull();
+  });
+
+  it('sends an emailed link back to a return URL other than the console', () => {
+    expect(emailedReturnUrl('/')).toBeNull();
+    expect(emailedReturnUrl('/connect/authorize?client_id=desk')).toBe('/connect/authorize?client_id=desk');
   });
 
   it('keeps the return URL on links between hosted pages', () => {

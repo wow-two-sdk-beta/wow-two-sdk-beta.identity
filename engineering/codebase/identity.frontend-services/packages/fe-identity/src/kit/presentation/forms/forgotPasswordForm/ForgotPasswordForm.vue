@@ -18,8 +18,10 @@ const props = withDefaults(
     baseUrl?: string;
     /** The email the field starts with. */
     initialEmail?: string;
+    /** The local path the reset link continues to once the person signs in; the service drops anything else. */
+    returnUrl?: string | null;
   }>(),
-  { client: undefined, baseUrl: undefined, initialEmail: '' },
+  { client: undefined, baseUrl: undefined, initialEmail: '', returnUrl: null },
 );
 
 const emit = defineEmits<{
@@ -34,7 +36,10 @@ const sentTo = shallowRef<string | null>(null);
 const form = useAccountForm({
   defaultValues: { email: props.initialEmail },
   onSubmit: async (values, { signal }) => {
-    const result = await client.forgotPassword(values, signal);
+    const result = await client.forgotPassword(
+      { ...values, ...(props.returnUrl ? { returnUrl: props.returnUrl } : {}) },
+      signal,
+    );
     if (result.ok) {
       sentTo.value = values.email;
       emit('sent', values.email);

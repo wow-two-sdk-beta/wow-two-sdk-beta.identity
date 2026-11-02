@@ -6,5 +6,7 @@ export const PhoneSignInStep = {
   Telegram: 'telegram',
   /** Refers to entering the code. */
   Code: 'code',
+  /** Refers to entering the second factor the account requires once the code checked out. */
+  SecondFactor: 'second-factor',
 } as const;
 export type PhoneSignInStep = (typeof PhoneSignInStep)[keyof typeof PhoneSignInStep];

@@ -1,7 +1,7 @@
 import { createMessageResolver, type StringValidator } from '@wow-two-beta/fe/foundation/validators';
 import { describe, expect, it } from 'vitest';
 import type { SignInRuleDto } from '../src/contracts';
-import { passwordRule, passwordRuleMessages } from '../src/kit';
+import { codeRule, passwordRule, passwordRuleMessages } from '../src/kit';
 import { emailRule } from '../src/kit/account/validation';
 
 /** The issues a validator reports for `value`, as `code: message` lines. */
@@ -190,5 +190,23 @@ describe('email rule', () => {
 
   it('fails an empty value as required', () => {
     expect(issues(emailRule(), '')).toEqual(['required: is required']);
+  });
+});
+
+describe('code rule from the declaration', () => {
+  const required = rule('required', null, 'Enter the code.');
+  const sixDigits = rule('length', { length: 6, unit: 'characters' }, 'The code has 6 characters.');
+
+  it('checks the declared length of the code as it is sent, without the spaces around it', () => {
+    const validator = codeRule([required, sixDigits]);
+
+    expect(issues(validator, ' 123456 ')).toEqual([]);
+    expect(issues(validator, '12345')).toEqual(['length: The code has 6 characters.']);
+    expect(issues(validator, '   ')).toEqual(['required: Enter the code.']);
+  });
+
+  it('checks only presence without rules', () => {
+    expect(issues(codeRule(undefined), '1')).toEqual([]);
+    expect(issues(codeRule(undefined), '')).toEqual(['required: is required']);
   });
 });

@@ -4,13 +4,13 @@ export const HostedPageRouteConstants = {
   signIn: '/sign-in',
   /** Creates an account while sign-up is open, or from an invitation link (`invitation`). */
   signUp: '/sign-up',
-  /** Confirms an email from the emailed link (`userId`, `token`). */
+  /** Confirms an email from the emailed link (`userId`, `token`), then offers the sign-in that continues to `returnUrl`. */
   confirmEmail: '/confirm-email',
   /** Sends a password reset email. */
   forgotPassword: '/forgot-password',
-  /** Sets a new password from the emailed reset link (`email`, `token`). */
+  /** Sets a new password from the emailed reset link (`email`, `token`), then offers the sign-in that continues to `returnUrl`. */
   resetPassword: '/reset-password',
-  /** Spends a password change link; the token travels in the URL fragment (`#token=`). */
+  /** Spends a password change link; the token travels in the URL fragment (`#token=`), `returnUrl` in the query. */
   changePassword: '/change-password',
   /** The signed-in person's security settings: the password change. */
   accountSecurity: '/account/security',

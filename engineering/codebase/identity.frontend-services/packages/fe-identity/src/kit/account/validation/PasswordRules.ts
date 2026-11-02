@@ -104,6 +104,35 @@ function toCheck(rule: SignInRuleDto, account: PasswordAccount): StringValidator
 }
 
 /**
+ * Maps the rules a declaration lists for one field onto fe sdk validators, as {@link passwordRule} describes; `typeName`
+ * names the validator.
+ */
+export function declaredRule(
+  rules: ReadonlyArray<SignInRuleDto> | null | undefined,
+  account: PasswordAccount,
+  typeName: string,
+): StringValidator {
+  const declared = rules ?? [];
+  const checks = declared.flatMap((rule) => {
+    const check = toCheck(rule, account);
+    return check ? [check] : [];
+  });
+  const required = declared.find((rule) => rule.code === SignInRuleCodeConstants.required);
+  const text = string();
+  const all = new StringValidator(typeName, (value, path) => {
+    const parsed = text.parseAt(value, path);
+    if (!parsed.ok) return parsed;
+    const issues: ValidationIssue[] = [];
+    for (const check of checks) {
+      const result = check.parseAt(parsed.value, path);
+      if (!result.ok) issues.push(...result.failure.issues);
+    }
+    return issues.length === 0 ? parsed : invalid(issues);
+  });
+  return requiredText(all, required ? declaredMessage(required) : undefined);
+}
+
+/**
  * Maps the rules a declaration lists for a new password onto fe sdk validators: `min`, `max`, `length`, `pattern`,
  * `custom` (`distinctCharacters`) and `notEqual`, plus `required` for the message of the presence check. A code or
  * operand it does not know is skipped, since the server still checks everything. An empty value fails as `required`
@@ -117,22 +146,5 @@ export function passwordRule(
   rules: ReadonlyArray<SignInRuleDto> | null | undefined,
   account: PasswordAccount = {},
 ): StringValidator {
-  const declared = rules ?? [];
-  const checks = declared.flatMap((rule) => {
-    const check = toCheck(rule, account);
-    return check ? [check] : [];
-  });
-  const required = declared.find((rule) => rule.code === SignInRuleCodeConstants.required);
-  const text = string();
-  const all = new StringValidator('password', (value, path) => {
-    const parsed = text.parseAt(value, path);
-    if (!parsed.ok) return parsed;
-    const issues: ValidationIssue[] = [];
-    for (const check of checks) {
-      const result = check.parseAt(parsed.value, path);
-      if (!result.ok) issues.push(...result.failure.issues);
-    }
-    return issues.length === 0 ? parsed : invalid(issues);
-  });
-  return requiredText(all, required ? declaredMessage(required) : undefined);
+  return declaredRule(rules, account, 'password');
 }

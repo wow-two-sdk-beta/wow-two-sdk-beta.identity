@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAccountClient } from '../src/kit';
+import { createAccountClient, readIdentityCode, readTwoFactorChallenge } from '../src/kit';
 import { fakeAccountApi, noContent, problem, serviceUrl } from './FakeAccountApi';
 
 describe('account client', () => {
@@ -82,6 +82,57 @@ describe('account client', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.failure.problem?.detail).toBe('The user name, email or password is incorrect.');
+  });
+
+  it('completes a ticketed second factor for a cookie, naming the client', async () => {
+    const { client, received } = fakeAccountApi({ 'POST /sign-in/two-factor': noContent });
+
+    const result = await client.signInWithSecondFactor(
+      { userId: 'u1', ticket: 'tk', twoFactorCode: '123456', isPersistent: true },
+      { clientId: 'desk' },
+    );
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(received[0]?.url.toString()).toBe(
+      `${serviceUrl}/api/account/sign-in/two-factor?useCookies=true&clientId=desk`,
+    );
+    expect(received[0]?.body).toEqual({ userId: 'u1', ticket: 'tk', twoFactorCode: '123456', isPersistent: true });
+  });
+
+  it("reads a refusal's identity code and second-factor challenge", async () => {
+    const answers = [
+      problem(403, 'Confirm your email to sign in.', { identityCode: 'EmailConfirmationRequired' }),
+      problem(401, 'Enter your two-factor code.', { twoFactorMethod: 'authenticator' }),
+      problem(401, 'Enter your two-factor code.', {
+        identityCode: 'TwoFactorRequired',
+        twoFactorMethod: 'email',
+        userId: 'u1',
+        twoFactorTicket: 'tk',
+      }),
+      problem(401, 'The user name, email or password is incorrect.', { identityCode: 'SignInFailed' }),
+      problem(429, 'A code was sent moments ago.', { identityCode: 'TwoFactorRequired' }),
+    ];
+    const { client } = fakeAccountApi({ 'POST /sign-in': () => answers.shift()! });
+    const failures = [];
+    for (let index = 0; index < 5; index += 1) {
+      const result = await client.signIn({ identifier: 'ann', password: 'secret' });
+      if (!result.ok) failures.push(result.failure);
+    }
+
+    expect(failures.map(readIdentityCode)).toEqual([
+      'EmailConfirmationRequired',
+      null,
+      'TwoFactorRequired',
+      'SignInFailed',
+      'TwoFactorRequired',
+    ]);
+    expect(failures.map(readTwoFactorChallenge)).toEqual([
+      null,
+      { twoFactorMethod: 'authenticator', userId: null, twoFactorTicket: null },
+      { twoFactorMethod: 'email', userId: 'u1', twoFactorTicket: 'tk' },
+      null,
+      null,
+    ]);
   });
 
   it('decodes the password change confirmation, whatever the case of its type', async () => {

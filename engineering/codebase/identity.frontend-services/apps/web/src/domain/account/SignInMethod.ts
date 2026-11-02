@@ -1,3 +1,5 @@
+import type { SignInRuleDto } from '@wow-two-beta/fe-identity/contracts';
+
 /** Names a sign-in method the hosted pages can lay out. */
 export const SignInMethodId = {
   /** Refers to an identifier and password. */
@@ -14,4 +16,6 @@ export type SignInMethod =
       readonly id: typeof SignInMethodId.PhoneCode;
       /** The ISO codes of the countries a phone may come from, in display order. */
       readonly countries: ReadonlyArray<string>;
+      /** The rules the sent code meets, such as its length, in the request's locale. */
+      readonly codeRules: ReadonlyArray<SignInRuleDto>;
     };

@@ -28,8 +28,8 @@ sources. Messages resolve through the fe sdk `LocaleProvider` under `IdentityKit
 
 | Export | Holds |
 |---|---|
-| `./contracts` | the account API's request and answer shapes, the sign-in declaration (`SignInOptionsDto`, `SignInMethodIdConstants`), `AccountRouteConstants`, `HostedPageRouteConstants`, `PasswordChangeConfirmationType` |
-| `./kit` | `createAccountClient` (with `getSignInOptions`); `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm` |
+| `./contracts` | the account API's request and answer shapes, the sign-in declaration (`SignInOptionsDto`, `SignInMethodIdConstants`), `AccountRouteConstants`, `HostedPageRouteConstants`, `IdentityErrorCodeConstants`, `PasswordChangeConfirmationType` |
+| `./kit` | `createAccountClient` (with `getSignInOptions`), `readIdentityCode`, `readTwoFactorChallenge`, `passwordRule`, `codeRule`; `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm` |
 
 - `getSignInOptions({ clientId, locale })` reads `GET /api/account/sign-in-options`: the hosted pages' look, whether
   sign-up is open, and each enabled method in layout order with its fields and fe sdk rules, the messages in the
@@ -37,7 +37,12 @@ sources. Messages resolve through the fe sdk `LocaleProvider` under `IdentityKit
 - a cross-origin `baseUrl` sends the session cookie (`credentials: 'include'`); the service's CORS policy must allow
   the consumer's origin.
 - `PhoneCodeSignIn` shows an "Open Telegram" step when the phone has no linked chat; the bot sends the code once the
-  person shares the contact.
+  person shares the contact. Its `codeRules`, the declared `code` field's rules, block a code of the wrong length
+  before it spends an attempt.
+- `PasswordSignIn` and `PhoneCodeSignIn` continue to a second-factor step, a code or a recovery code, when the account
+  has one (`TwoFactorRequired`), and emit `signedIn` after it.
+- `SignUpForm`, `ForgotPasswordForm` and `PasswordSignIn` (its confirmation resend) take a `returnUrl`, a local path the
+  emailed link carries back to the pages.
 - `ChangePasswordForm` follows the instance's confirmation: the form at once (`None`), the form with a sent code
   (`Code`), or a sent link (`Link`) whose page passes the link's `token`. A sign-in whose password breaks the current
   rules emits `passwordChangeRequired` with a `ticket` and sets no session: pass `ticket` and `confirmation` to the

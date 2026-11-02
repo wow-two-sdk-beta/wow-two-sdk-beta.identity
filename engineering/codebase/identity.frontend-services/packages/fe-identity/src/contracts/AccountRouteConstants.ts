@@ -6,6 +6,8 @@ export const AccountRouteConstants = {
   signUp: '/sign-up',
   /** `POST`: signs in with an identifier and password. */
   signIn: '/sign-in',
+  /** `POST`: completes a sign-in that answered `TwoFactorRequired` with a ticket, by a second-factor or recovery code. */
+  signInTwoFactor: '/sign-in/two-factor',
   /** `GET`: confirms an email with the emailed `userId` and `token`. */
   confirmEmail: '/confirm-email',
   /** `POST`: sends the confirmation email again; always `204`. */

@@ -225,6 +225,59 @@ describe('sign-in route', () => {
     expect(assign).toHaveBeenCalledWith(authorize);
   });
 
+  it('resends the confirmation of an unconfirmed email with the return URL, so its link comes back here', async () => {
+    const received = stubApi({
+      'POST /api/account/sign-in': () =>
+        Response.json(
+          { status: 403, detail: 'Confirm your email to sign in.', identityCode: 'EmailConfirmationRequired' },
+          { status: 403, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      'POST /api/account/resend-confirmation-email': noContent,
+    });
+    const { wrapper } = await renderAt(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
+
+    await signInWithPassword(wrapper);
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Send the confirmation email again')
+      ?.trigger('click');
+    await flushPromises();
+
+    expect(received.at(-1)?.url.pathname).toBe('/api/account/resend-confirmation-email');
+    expect(received.at(-1)?.body).toEqual({ email: 'ann@example.test', returnUrl: authorize });
+  });
+
+  it('checks the phone code against the length the declaration gives it before sending', async () => {
+    const codeLength = { code: 'length', params: { length: 6, unit: 'characters' }, message: 'The code has 6 digits.' };
+    const received = stubApi({
+      'GET /api/account/sign-in-options': () =>
+        Response.json({
+          data: {
+            ...instanceDeclaration,
+            methods: instanceDeclaration.methods.map((method) => ({
+              ...method,
+              fields: method.fields.map((field) =>
+                field.name === 'code' ? { ...field, rules: [...field.rules, codeLength] } : field,
+              ),
+            })),
+          },
+        }),
+      'POST /api/account/phone-sign-in/send': () =>
+        Response.json({ data: { isCodeSent: true, telegramLinkUrl: null } }),
+    });
+    const { wrapper } = await renderAt('/sign-in');
+
+    await wrapper.get('section[aria-label="Phone"] input[type="tel"]').setValue('901234567');
+    await wrapper.get('section[aria-label="Phone"] form').trigger('submit');
+    await flushPromises();
+    await wrapper.get('input[name="code"]').setValue('12345');
+    await wrapper.get('section[aria-label="Phone"] form').trigger('submit');
+    await flushPromises();
+
+    expect(errorUnder(wrapper, 'code')).toBe('The code has 6 digits.');
+    expect(received.map((request) => request.url.pathname)).not.toContain('/api/account/phone-sign-in');
+  });
+
   it('offers "Keep me signed in" only where the declaration does', async () => {
     stubApi();
     withOptions({ isPersistenceOffered: true });
@@ -465,6 +518,78 @@ describe('password pages', () => {
 
     expect(received.at(-1)?.url.search).toBe('?userId=u1&token=t%2B1');
     expect(wrapper.text()).toContain('Your email is confirmed.');
+    expect(
+      wrapper
+        .findAll('a')
+        .find((link) => link.text() === 'Sign in')
+        ?.attributes('href'),
+    ).toBe('/sign-in');
+  });
+
+  it("signs in from a confirmed email toward the link's return URL, not the console", async () => {
+    const received = stubApi({ 'GET /api/account/confirm-email': noContent });
+    const { wrapper } = await renderAt(`/confirm-email?userId=u1&token=t1&returnUrl=${encodeURIComponent(authorize)}`);
+
+    expect(received.at(-1)?.url.search).toBe(`?userId=u1&token=t1`);
+    expect(
+      wrapper
+        .findAll('a')
+        .find((link) => link.text() === 'Sign in')
+        ?.attributes('href'),
+    ).toBe(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
+  });
+
+  it("signs in from a reset password toward the link's return URL", async () => {
+    stubApi({ 'POST /api/account/reset-password': noContent });
+    const { wrapper } = await renderAt(
+      `/reset-password?email=ann%40example.test&token=r1&returnUrl=${encodeURIComponent(authorize)}`,
+    );
+
+    const hrefOf = (text: string) =>
+      wrapper
+        .findAll('a')
+        .find((link) => link.text() === text)
+        ?.attributes('href');
+    expect(hrefOf('Send a new reset link')).toBe(`/forgot-password?returnUrl=${encodeURIComponent(authorize)}`);
+    await wrapper.get('input[name="newPassword"]').setValue('a-much-longer-password');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(hrefOf('Sign in')).toBe(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
+  });
+
+  it("keeps a change link's return URL for the sign-in once the token is cleared", async () => {
+    stubApi();
+    const { wrapper, router } = await renderAt(
+      `/change-password?returnUrl=${encodeURIComponent(authorize)}#token=link-token`,
+    );
+
+    expect(router.currentRoute.value.hash).toBe('');
+    expect(router.currentRoute.value.query).toEqual({ returnUrl: authorize });
+    expect(
+      wrapper
+        .findAll('a')
+        .find((link) => link.text() === 'Sign in')
+        ?.attributes('href'),
+    ).toBe(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
+  });
+
+  it.each([
+    [
+      'carries the return URL into the reset link',
+      `/forgot-password?returnUrl=${encodeURIComponent(authorize)}`,
+      { returnUrl: authorize },
+    ],
+    ['carries no return URL to the console', '/forgot-password', {}],
+  ])('%s', async (_case, path, extra) => {
+    const received = stubApi({ 'POST /api/account/forgot-password': noContent });
+    const { wrapper } = await renderAt(path);
+
+    await wrapper.get('input[name="email"]').setValue('ann@example.test');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received.at(-1)?.body).toEqual({ email: 'ann@example.test', ...extra });
   });
 
   it('takes the reset token and email from the link', async () => {
@@ -500,6 +625,24 @@ describe('sign-up route', () => {
     expiresAt: '2026-11-09T07:00:00+00:00',
   };
 
+  it('carries the return URL into the confirmation link of a sign-up', async () => {
+    const received = stubApi({
+      'POST /api/account/sign-up': () => Response.json({ data: { userId: 'u1', isConfirmationSent: true } }),
+    });
+    const { wrapper } = await renderAt(`/sign-up?returnUrl=${encodeURIComponent(authorize)}`);
+
+    await wrapper.get('input[name="email"]').setValue('ann@example.test');
+    await wrapper.get('input[name="password"]').setValue('a-much-longer-password');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received.at(-1)?.body).toEqual({
+      email: 'ann@example.test',
+      password: 'a-much-longer-password',
+      returnUrl: authorize,
+    });
+  });
+
   it('offers no form while sign-up is by invitation only and no link came', async () => {
     stubApi();
     withOptions({ signUpMode: 'invite' });
@@ -517,7 +660,7 @@ describe('sign-up route', () => {
     });
     withOptions({
       signUpMode: 'invite',
-      methods: [{ id: SignInMethodId.Password }, { id: SignInMethodId.PhoneCode, countries: ['UZ'] }],
+      methods: [{ id: SignInMethodId.Password }, { id: SignInMethodId.PhoneCode, countries: ['UZ'], codeRules: [] }],
     });
     const { wrapper } = await renderAt('/sign-up?invitation=tok-1');
 

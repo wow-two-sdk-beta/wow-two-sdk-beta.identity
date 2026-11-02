@@ -1,6 +1,7 @@
 export { hostedNavigation, readHostedPageLink } from './HostedNavigation';
 export { provideHostedOptions, useHostedOptions, type HostedOptions } from './HostedOptions';
 export {
+  emailedReturnUrl,
   hostedHref,
   readChangePasswordToken,
   readConfirmEmailRequest,

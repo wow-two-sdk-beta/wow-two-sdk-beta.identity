@@ -31,8 +31,17 @@ const props = withDefaults(
      * is by invitation only.
      */
     invitationToken?: string | null;
+    /** The local path the confirmation link continues to once the person signs in; the service drops anything else. */
+    returnUrl?: string | null;
   }>(),
-  { client: undefined, baseUrl: undefined, signInHref: undefined, passwordRules: undefined, invitationToken: null },
+  {
+    client: undefined,
+    baseUrl: undefined,
+    signInHref: undefined,
+    passwordRules: undefined,
+    invitationToken: null,
+    returnUrl: null,
+  },
 );
 
 const emit = defineEmits<{
@@ -53,7 +62,11 @@ const form = useAccountForm(() => ({
   validateOn: 'blur' as const,
   messages: passwordRuleMessages,
   onSubmit: async (values, { signal }) => {
-    const request = props.invitationToken ? { ...values, invitationToken: props.invitationToken } : values;
+    const request = {
+      ...values,
+      ...(props.invitationToken ? { invitationToken: props.invitationToken } : {}),
+      ...(props.returnUrl ? { returnUrl: props.returnUrl } : {}),
+    };
     const result = await client.signUp(request, signal);
     if (result.ok) {
       created.value = { account: result.value, email: values.email };

@@ -1,14 +1,26 @@
 <script setup lang="ts">
+import type { ApiFailure } from '@wow-two-beta/fe/foundation/http';
+import { ResultExtensions } from '@wow-two-beta/fe/foundation/results';
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
 import { CheckboxField, Field, PasswordInput, TextInput } from '@wow-two-beta/fe/presentation/forms';
 import { shallowRef } from 'vue';
-import type { PasswordChangeRequiredDto } from '../../../../contracts';
+import {
+  IdentityErrorCodeConstants,
+  type PasswordChangeRequiredDto,
+  type SignInApiRequest,
+  type TwoFactorChallengeDto,
+} from '../../../../contracts';
 import type { AccountClient } from '../../../account';
+import { readIdentityCode, readTwoFactorChallenge } from '../../../account/AccountProblems';
 import { useAccountClient, useAccountForm, useAccountText } from '../../../account/hooks';
 import { FailureAlert } from '../../feedback/failureAlert';
+import { SecondFactorForm, type SecondFactor } from '../secondFactorForm';
 
-/** Signs a person in with an identifier and password, by cookie session — on the hosted page or embedded in a product. */
+/**
+ * Signs a person in with an identifier and password, by cookie session — on the hosted page or embedded in a product.
+ * An account with a second factor continues to a code or recovery code step before `signedIn` fires.
+ */
 defineOptions({ name: 'PasswordSignIn' });
 
 const props = withDefaults(
@@ -25,6 +37,8 @@ const props = withDefaults(
     initialIdentifier?: string;
     /** Whether to offer "Keep me signed in", as the declaration's `isPersistenceOffered` says. */
     isPersistenceOffered?: boolean;
+    /** The local path a resent confirmation link continues to once the person signs in; the service drops anything else. */
+    returnUrl?: string | null;
   }>(),
   {
     client: undefined,
@@ -33,6 +47,7 @@ const props = withDefaults(
     forgotPasswordHref: undefined,
     initialIdentifier: '',
     isPersistenceOffered: false,
+    returnUrl: null,
   },
 );
 
@@ -49,6 +64,22 @@ const t = useAccountText();
 const unconfirmedEmail = shallowRef<string | null>(null);
 const isResent = shallowRef(false);
 const isResending = shallowRef(false);
+/** The sign-in a second factor completes: the challenge, and the first factor's request it repeats without a ticket. */
+const pending = shallowRef<{ challenge: TwoFactorChallengeDto; request: SignInApiRequest } | null>(null);
+
+function signedIn(answer: PasswordChangeRequiredDto | null) {
+  if (answer) emit('passwordChangeRequired', answer);
+  else emit('signedIn');
+}
+
+/** Reads whether a refusal is the `403` of an unconfirmed email, which only an email identifier can resend to. */
+function isUnconfirmedEmail(failure: ApiFailure, identifier: string) {
+  return (
+    failure.status === 403 &&
+    readIdentityCode(failure) === IdentityErrorCodeConstants.emailConfirmationRequired &&
+    identifier.includes('@')
+  );
+}
 
 const form = useAccountForm({
   defaultValues: { identifier: props.initialIdentifier, password: '', isPersistent: false },
@@ -58,26 +89,67 @@ const form = useAccountForm({
     const request = { ...values, isPersistent: props.isPersistenceOffered && values.isPersistent };
     const result = await client.signIn(request, { clientId: props.clientId, signal });
     if (result.ok) {
-      if (result.value) emit('passwordChangeRequired', result.value);
-      else emit('signedIn');
-    } else if (result.failure.status === 403 && values.identifier.includes('@')) {
-      unconfirmedEmail.value = values.identifier;
+      signedIn(result.value);
+      return result;
     }
+    const challenge = readTwoFactorChallenge(result.failure);
+    if (challenge) {
+      pending.value = { challenge, request };
+      return ResultExtensions.ok(null);
+    }
+    if (isUnconfirmedEmail(result.failure, values.identifier)) unconfirmedEmail.value = values.identifier;
     return result;
   },
 });
 
+/**
+ * Completes the sign-in with the second factor: by the challenge's ticket when it carried one, else by repeating the
+ * password sign-in with the factor. Either way it keeps the first request's `isPersistent`.
+ */
+async function completeSecondFactor(factor: SecondFactor, signal: AbortSignal) {
+  const current = pending.value;
+  if (!current) return ResultExtensions.ok(null);
+  const { challenge, request } = current;
+  const method = challenge.twoFactorMethod ? { twoFactorMethod: challenge.twoFactorMethod } : {};
+  if (challenge.userId && challenge.twoFactorTicket) {
+    const completed = await client.signInWithSecondFactor(
+      {
+        userId: challenge.userId,
+        ticket: challenge.twoFactorTicket,
+        ...method,
+        ...factor,
+        isPersistent: request.isPersistent === true,
+      },
+      { clientId: props.clientId, signal },
+    );
+    if (completed.ok) signedIn(null);
+    return completed;
+  }
+  const repeated = await client.signIn({ ...request, ...method, ...factor }, { clientId: props.clientId, signal });
+  if (repeated.ok) signedIn(repeated.value);
+  return repeated;
+}
+
 async function resendConfirmation() {
   if (!unconfirmedEmail.value) return;
   isResending.value = true;
-  const result = await client.resendConfirmationEmail({ email: unconfirmedEmail.value });
+  const result = await client.resendConfirmationEmail({
+    email: unconfirmedEmail.value,
+    ...(props.returnUrl ? { returnUrl: props.returnUrl } : {}),
+  });
   isResending.value = false;
   isResent.value = result.ok;
 }
 </script>
 
 <template>
-  <form class="flex flex-col gap-4" novalidate @submit="form.handleSubmit">
+  <SecondFactorForm
+    v-if="pending"
+    :challenge="pending.challenge"
+    :complete="completeSecondFactor"
+    @restart="pending = null"
+  />
+  <form v-else class="flex flex-col gap-4" novalidate @submit="form.handleSubmit">
     <form.Field v-slot="field" name="identifier" is-required>
       <Field :label="t('PasswordSignIn.identifier', 'Email or user name')">
         <TextInput v-model="field.value" name="identifier" autocomplete="username" @blur="field.onBlur" />

@@ -59,6 +59,11 @@ export function readChangePasswordToken(hash: string): string | null {
   return token ? token : null;
 }
 
+/** Returns the return URL an emailed link carries back: none for `/`, where the pages continue anyway. */
+export function emailedReturnUrl(returnUrl: string): string | null {
+  return returnUrl === '/' ? null : returnUrl;
+}
+
 /** Builds a hosted page's link that keeps the return URL, which `/` needs no parameter for. */
 export function hostedHref(path: string, returnUrl: string): string {
   return returnUrl === '/'

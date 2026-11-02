@@ -11,4 +11,6 @@ export interface SignUpApiRequest {
    * is by invitation only. An invitation naming an email takes only that email.
    */
   readonly invitationToken?: string;
+  /** The local path the confirmation link continues to once the person signs in; the service drops anything else. */
+  readonly returnUrl?: string;
 }
