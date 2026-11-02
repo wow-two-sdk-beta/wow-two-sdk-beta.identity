@@ -9,24 +9,73 @@ import {
   readResetPasswordRequest,
   readSignInRequest,
 } from '../../application/account';
+import { ConsolePaths } from '../../application/console';
 
 const pages = HostedPageRouteConstants;
 
+/** Reads a path parameter as text: the value itself, or the first of a repeated one. */
+function param(value: string | string[] | undefined): string {
+  return (Array.isArray(value) ? value[0] : value) ?? '';
+}
+
 /**
- * Holds the route table: the console at the root, then the hosted pages as children of one layout route, which keeps
- * the instance's background, brand and card mounted while people move between them.
+ * Holds the route table: the console at the root, its pages as children of one layout route that keeps the app bar and
+ * navigation mounted, then the hosted pages as children of another, which keeps the instance's background, brand and
+ * card mounted while people move between them.
  */
 export const routes: RouteConfig = [
   {
     path: '/',
     id: 'console',
-    handle: { title: 'Console' },
     lazy: lazyPage(
-      () => import('../../presentation/console/pages/ConsolePage.vue'),
+      () => import('../../presentation/console/layout/ConsoleLayout.vue'),
       (route, router) => ({
+        path: route.path,
         onSignInRequired: () => void router.replace(hostedHref(pages.signIn, route.fullPath)),
+        onSignedOut: () => void router.replace(hostedHref(pages.signIn, ConsolePaths.overview())),
+        onNavigate: (path: string) => void router.push(path),
       }),
     ),
+    children: [
+      {
+        index: true,
+        id: 'console-overview',
+        handle: { title: 'Console' },
+        lazy: lazyPage(
+          () => import('../../presentation/console/pages/ConsoleOverviewPage.vue'),
+          () => ({}),
+        ),
+      },
+      {
+        path: ConsolePaths.createOrganization.pattern,
+        id: 'create-organization',
+        handle: { title: 'Create organization' },
+        lazy: lazyPage(
+          () => import('../../presentation/console/pages/CreateOrganizationPage.vue'),
+          (_route, router) => ({
+            onCreated: (organizationId: string) => void router.push(ConsolePaths.members({ organizationId })),
+          }),
+        ),
+      },
+      {
+        path: ConsolePaths.members.pattern,
+        id: 'organization-members',
+        handle: { title: 'Members' },
+        lazy: lazyPage(
+          () => import('../../presentation/console/pages/OrganizationMembersPage.vue'),
+          (route) => ({ organizationId: param(route.params['organizationId']) }),
+        ),
+      },
+      {
+        path: ConsolePaths.invitations.pattern,
+        id: 'organization-invitations',
+        handle: { title: 'Invitations' },
+        lazy: lazyPage(
+          () => import('../../presentation/console/pages/OrganizationInvitationsPage.vue'),
+          (route) => ({ organizationId: param(route.params['organizationId']) }),
+        ),
+      },
+    ],
   },
   {
     id: 'hosted',

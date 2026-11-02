@@ -10,8 +10,8 @@ namespace Identity.Tests.E2E.Accounts;
 
 /// <summary>
 /// The console's gate and the method switches through the real service: <c>GET /api/console/session</c> answers 401 without
-/// a sign-in, 403 to a person with neither an instance role nor an organization they own or administer, and the person to
-/// either; <c>POST /api/console/organizations</c> makes the
+/// a sign-in or after signing out, 403 to a person with neither an instance role nor an organization they own or administer,
+/// and the person to either, their instance roles read live; <c>POST /api/console/organizations</c> makes the
 /// instance admin an organization's owner, 403 for <c>support</c>, 409 for a taken handle or id and 400 for an invalid one;
 /// <c>Identity:Methods</c> off turns the password and email routes into 404 <c>SignInMethodOff</c> and drops them from the
 /// declaration.
@@ -23,7 +23,7 @@ public sealed class ConsoleAndMethodsApiTests
     private const string DeskId = "0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b";
 
     [Fact]
-    public async Task Console_ShouldAnswer401_403_ThenThePerson_OnceAnInstanceRoleIsHeld()
+    public async Task Console_ShouldAnswer401_403_ThenThePerson_OnceAnInstanceRoleIsHeldAndTheySignInAgain()
     {
         await using var host = new AccountHost();
         var userId = await host.CreateUserAsync("lola@example.test");
@@ -40,9 +40,10 @@ public sealed class ConsoleAndMethodsApiTests
             (await scope.ServiceProvider.GetRequiredService<InstanceRoleService>().GrantAsync(person, "admin")).IsGranted.Should().BeTrue();
         }
 
-        (await client.GetAsync(Console)).StatusCode.Should().Be(HttpStatusCode.Forbidden, "a role reaches the console from the next sign-in");
+        (await client.GetAsync(Console)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "the grant ended her sessions");
         (await AccountHost.SignInAsync(client, "lola@example.test", AccountHost.StrongPassword)).StatusCode.Should().Be(HttpStatusCode.NoContent);
         using var session = await client.GetAsync(Console);
+        session.StatusCode.Should().Be(HttpStatusCode.OK, "the console reads the role from the store");
         var data = await AccountHost.DataAsync(session);
         data.GetProperty("userId").GetString().Should().Be(userId.ToString());
         data.GetProperty("name").GetString().Should().Be("lola@example.test");
@@ -142,6 +143,19 @@ public sealed class ConsoleAndMethodsApiTests
         (await anonymous.PostAsJsonAsync(Organizations, new { name = "Ocharo", slug = "ocharo" })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         await using var scope = host.Host.Services.CreateAsyncScope();
         (await scope.ServiceProvider.GetRequiredService<OrganizationService>().FindBySlugAsync("ocharo")).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SignOut_ShouldEndTheConsoleSession()
+    {
+        await using var host = new AccountHost();
+        using var client = await SignInWithRoleAsync(host, "lola@example.test", InstanceRoleConstants.Admin);
+        (await client.GetAsync(Console)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        (await client.PostAsync("/api/account/sign-out", content: null)).StatusCode.Should().Be(HttpStatusCode.NoContent, "the console signs out with an empty POST");
+
+        (await client.GetAsync(Console)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await client.PostAsJsonAsync(Organizations, new { name = "Ocharo", slug = "ocharo" })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]

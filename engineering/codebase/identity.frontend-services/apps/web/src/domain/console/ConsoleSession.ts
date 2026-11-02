@@ -33,7 +33,7 @@ export interface ConsoleSession {
   readonly userId: string;
   /** The name the console shows: the display name, else the phone, else the user name. */
   readonly name: string;
-  /** The instance roles the person's sign-in carries, in catalog order: `admin`, `support`, `auditor`; empty for an organization's owner or admin without one. */
+  /** The instance roles the person holds now, read from the store on every request, in catalog order: `admin`, `support`, `auditor`; empty for an organization's owner or admin without one. */
   readonly roles: ReadonlyArray<string>;
   /** The organizations the person owns or administers, where the console makes invitations and manages members. */
   readonly organizations: ReadonlyArray<ConsoleOrganization>;
@@ -51,4 +51,9 @@ export interface NewConsoleOrganization {
 /** Whether the session's person holds the instance role `admin`, which creates organizations. */
 export function isInstanceAdmin(session: ConsoleSession): boolean {
   return session.roles.includes(InstanceRole.admin);
+}
+
+/** The organization the session's person manages with the id `organizationId`; `null` when they manage none by it. */
+export function findManagedOrganization(session: ConsoleSession, organizationId: string): ConsoleOrganization | null {
+  return session.organizations.find((organization) => organization.id === organizationId) ?? null;
 }

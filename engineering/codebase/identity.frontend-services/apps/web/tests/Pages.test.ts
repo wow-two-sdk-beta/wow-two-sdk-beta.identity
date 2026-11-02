@@ -164,68 +164,212 @@ function declarationWith(passwordRules: unknown) {
 
 const authorize = '/connect/authorize?client_id=desk&response_type=code&state=s1';
 
-const consoleAdmin = () =>
-  Response.json({
-    data: {
-      userId: 'u1',
-      name: 'Lola Karimova',
-      roles: ['admin'],
-      organizations: [{ id: '0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b', name: 'Ocharo', slug: 'ocharo', role: 'owner' }],
-    },
-  });
+const organizationId = '0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b';
+const ocharo = { id: organizationId, name: 'Ocharo', slug: 'ocharo', role: 'owner' };
+const membersPath = `/organizations/${organizationId}/members`;
+const invitationsPath = `/organizations/${organizationId}/invitations`;
 
-describe('console route', () => {
-  it('shows the signed-in admin, the running versions and links the hosted pages', async () => {
+/** A console session answer: Lola, an instance admin owning Ocharo, unless `overrides` say otherwise. */
+const sessionOf =
+  (overrides: Record<string, unknown> = {}) =>
+  () =>
+    Response.json({
+      data: { userId: 'u1', name: 'Lola Karimova', roles: ['admin'], organizations: [ocharo], ...overrides },
+    });
+const consoleAdmin = sessionOf();
+const forbidden = () =>
+  Response.json({ status: 403 }, { status: 403, headers: { 'Content-Type': 'application/problem+json' } });
+
+/** The console's sidebar navigation. */
+function sidebar(wrapper: ReturnType<typeof mount>) {
+  return wrapper.get('nav[aria-label="Sidebar"]');
+}
+
+/** Each sidebar link as its text and address. */
+function navLinks(wrapper: ReturnType<typeof mount>) {
+  return sidebar(wrapper)
+    .findAll('a')
+    .map((link) => [link.text(), link.attributes('href')]);
+}
+
+/** Opens the account menu at the end of the app bar; its panel renders at the end of the document. */
+async function openAccountMenu(wrapper: ReturnType<typeof mount>) {
+  await wrapper.get('button[aria-label^="Account menu for"]').trigger('click');
+  await flushPromises();
+}
+
+/** Clicks the account menu's row whose text is `text`. */
+async function selectMenuItem(text: string) {
+  const row = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) =>
+    item.textContent?.includes(text),
+  );
+  expect(row, text).toBeDefined();
+  row?.click();
+  await flushPromises();
+}
+
+describe('console shell', () => {
+  it('frames the console: the brand, the signed-in person with their instance roles, and the navigation', async () => {
     stubApi({ 'GET /api/console/session': consoleAdmin });
     const { wrapper } = await renderAt('/');
 
+    expect(wrapper.find('.hosted-card').exists()).toBe(false);
+    expect(wrapper.get('a[aria-label="Console overview"]').text()).toContain('Identity');
+    const person = wrapper.get('[aria-label="Signed in"]');
+    expect(person.text()).toContain('Lola Karimova');
+    expect(person.get('[aria-label="Instance roles"]').text()).toBe('admin');
+    expect(wrapper.find('button[aria-label="Account menu for Lola Karimova"]').exists()).toBe(true);
+    expect(navLinks(wrapper)).toEqual([
+      ['Overview', '/'],
+      ['Members', membersPath],
+      ['Invitations', invitationsPath],
+      ['Create organization', '/organizations/new'],
+    ]);
+    expect(sidebar(wrapper).get('a[aria-current="page"]').text()).toBe('Overview');
+  });
+
+  it('shows the overview: the running versions, the organizations and the hosted pages', async () => {
+    stubApi({ 'GET /api/console/session': consoleAdmin });
+    const { wrapper } = await renderAt('/');
+
+    expect(wrapper.get('h1').text()).toBe('Overview');
     expect(wrapper.get('[aria-label="App version"]').text()).toBe('app test');
     expect(wrapper.get('[aria-label="API version"]').text()).toBe('api 0.1.4+abc1234');
-    expect(wrapper.get('[aria-label="Signed in"]').text()).toBe('Signed in as Lola Karimova · admin');
+    const organizations = wrapper.get('[aria-labelledby="organizations-heading"]');
+    expect(organizations.text()).toContain('Ocharo');
+    expect(organizations.findAll('a').map((link) => link.attributes('href'))).toEqual([
+      '/organizations/new',
+      membersPath,
+      invitationsPath,
+    ]);
     expect(wrapper.findAll('a').map((link) => link.attributes('href'))).toContain('/sign-in');
   });
 
-  it('manages the invitations and members of the organization the admin owns', async () => {
-    const received = stubApi({ 'GET /api/console/session': consoleAdmin });
+  it("gives an organization's owner without an instance role its pages but no organization creation", async () => {
+    stubApi({ 'GET /api/console/session': sessionOf({ name: 'Gulnora', roles: [] }) });
     const { wrapper } = await renderAt('/');
-    await flushPromises();
 
-    expect(wrapper.get('#organization-heading').text()).toBe('Ocharo');
-    const paths = received.map((request) => request.url.pathname);
-    expect(paths).toContain('/api/organizations/0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b/invitations');
-    expect(paths).toContain('/api/organizations/0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b/members');
+    expect(wrapper.get('[aria-label="Signed in"]').text()).toBe('Gulnora');
+    expect(wrapper.find('[aria-label="Instance roles"]').exists()).toBe(false);
+    expect(navLinks(wrapper).map(([text]) => text)).toEqual(['Overview', 'Members', 'Invitations']);
+    expect(wrapper.get('[aria-labelledby="organizations-heading"]').text()).not.toContain('Create organization');
   });
 
   it('says there is nobody to invite when the admin manages no organization', async () => {
-    stubApi({
-      'GET /api/console/session': () =>
-        Response.json({ data: { userId: 'u1', name: 'Lola', roles: ['admin'], organizations: [] } }),
-    });
+    stubApi({ 'GET /api/console/session': sessionOf({ organizations: [] }) });
     const { wrapper } = await renderAt('/');
 
     expect(wrapper.text()).toContain('You own or administer no organization');
+    expect(navLinks(wrapper).map(([text]) => text)).toEqual(['Overview', 'Create organization']);
+    expect(sidebar(wrapper).text()).toContain('None yet');
   });
 
-  it('sends a signed-out visitor to sign in, coming back to the console', async () => {
-    stubApi({ 'GET /api/console/session': unauthorized });
+  it("opens an organization's members and invitations as their own pages", async () => {
+    const received = stubApi({ 'GET /api/console/session': consoleAdmin });
+    const { wrapper, router } = await renderAt(membersPath);
+    await flushPromises();
+
+    expect(wrapper.get('h1').text()).toBe('Ocharo');
+    expect(wrapper.get('nav[aria-label="Ocharo pages"] a[aria-current="page"]').text()).toBe('Members');
+    expect(sidebar(wrapper).get('a[aria-current="page"]').attributes('href')).toBe(membersPath);
+    expect(received.map((request) => request.url.pathname)).toContain(`/api/organizations/${organizationId}/members`);
+
+    await sidebar(wrapper)
+      .findAll('a')
+      .find((link) => link.text() === 'Invitations')
+      ?.trigger('click');
+    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe(invitationsPath));
+    await flushPromises();
+
+    expect(wrapper.get('nav[aria-label="Ocharo pages"] a[aria-current="page"]').text()).toBe('Invitations');
+    expect(received.map((request) => request.url.pathname)).toContain(
+      `/api/organizations/${organizationId}/invitations`,
+    );
+  });
+
+  it('tells the person when the route names an organization they do not manage', async () => {
+    stubApi({ 'GET /api/console/session': consoleAdmin });
+    const { wrapper } = await renderAt('/organizations/0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5f/members');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('You do not own or administer this organization.');
+  });
+
+  it('reads the session again on every move, so a role granted since shows without a new sign-in', async () => {
+    let roles: string[] = [];
+    stubApi({ 'GET /api/console/session': () => sessionOf({ roles })() });
+    const { wrapper, router } = await renderAt('/');
+    expect(navLinks(wrapper).map(([text]) => text)).not.toContain('Create organization');
+
+    roles = ['admin'];
+    await router.push(membersPath);
+    await flushPromises();
+
+    expect(navLinks(wrapper).map(([text]) => text)).toContain('Create organization');
+    expect(wrapper.get('[aria-label="Instance roles"]').text()).toBe('admin');
+  });
+
+  it('shows the no-access view once a revoke leaves the person nothing to manage', async () => {
+    let isRevoked = false;
+    stubApi({
+      'GET /api/console/session': () => (isRevoked ? forbidden() : sessionOf({ organizations: [] })()),
+    });
     const { wrapper, router } = await renderAt('/');
 
-    // The sign-in page returns to the console by default.
+    isRevoked = true;
+    await router.push('/organizations/new');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('This account has no console access.');
+    expect(wrapper.find('nav[aria-label="Sidebar"]').exists()).toBe(false);
+  });
+
+  it('sends a signed-out visitor to sign in, coming back to the page they asked for', async () => {
+    stubApi({ 'GET /api/console/session': unauthorized, 'GET /api/account/manage/info': unauthorized });
+    const { wrapper, router } = await renderAt(membersPath);
+
+    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/sign-in'));
+    expect(router.currentRoute.value.query['returnUrl']).toBe(membersPath);
+    await flushPromises();
+    expect(wrapper.findAll('h1').map((heading) => heading.text())).toEqual(['Sign in']);
+  });
+
+  it('sends a signed-out visitor to sign in, returning to the console by default', async () => {
+    stubApi({ 'GET /api/console/session': unauthorized, 'GET /api/account/manage/info': unauthorized });
+    const { wrapper, router } = await renderAt('/');
+
     await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/sign-in'));
     await flushPromises();
     expect(wrapper.findAll('h1').map((heading) => heading.text())).toEqual(['Sign in']);
   });
 
-  it('tells a person with neither an instance role nor an organization and shows nothing else', async () => {
-    stubApi({
-      'GET /api/console/session': () =>
-        Response.json({ status: 403 }, { status: 403, headers: { 'Content-Type': 'application/problem+json' } }),
+  it('tells a person with neither an instance role nor an organization, and lets them sign out', async () => {
+    const received = stubApi({
+      'GET /api/console/session': forbidden,
+      'POST /api/account/sign-out': noContent,
+      'GET /api/account/manage/info': unauthorized,
     });
-    const { wrapper } = await renderAt('/');
+    const { wrapper, router } = await renderAt('/');
 
     expect(wrapper.text()).toContain('This account has no console access.');
     expect(wrapper.find('[aria-labelledby="hosted-heading"]').exists()).toBe(false);
     expect(wrapper.find('[aria-label="App version"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="Signed in"]').exists()).toBe(false);
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Sign out')
+      ?.trigger('click');
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/sign-in'));
+    await flushPromises();
+
+    expect(
+      received.some((request) => request.method === 'POST' && request.url.pathname === '/api/account/sign-out'),
+    ).toBe(true);
+    expect(wrapper.findAll('section').map((section) => section.attributes('aria-label'))).toEqual([
+      'Password',
+      'Phone',
+    ]);
   });
 
   it('shows nothing but a loading state until the session resolves', async () => {
@@ -235,65 +379,97 @@ describe('console route', () => {
 
     expect(wrapper.get('[aria-label="Loading"]').text()).toContain('Loading the console');
     expect(wrapper.find('h1').exists()).toBe(false);
-    expect(wrapper.find('[aria-label="App version"]').exists()).toBe(false);
-    expect(wrapper.find('[aria-labelledby="hosted-heading"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="Signed in"]').exists()).toBe(false);
+    expect(wrapper.find('nav[aria-label="Sidebar"]').exists()).toBe(false);
 
     answer(consoleAdmin());
     await flushPromises();
     expect(wrapper.find('[aria-label="Loading"]').exists()).toBe(false);
-    expect(wrapper.get('h1').text()).toBe('Identity console');
+    await vi.waitFor(() => expect(wrapper.get('h1').text()).toBe('Overview'));
   });
+});
 
-  it("manages an organization's invitations and members for its owner without an instance role, creating none", async () => {
-    const received = stubApi({
-      'GET /api/console/session': () =>
-        Response.json({
-          data: {
-            userId: 'u2',
-            name: 'Gulnora',
-            roles: [],
-            organizations: [
-              { id: '0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b', name: 'Ocharo', slug: 'ocharo', role: 'owner' },
-            ],
-          },
-        }),
-    });
-    const { wrapper } = await renderAt('/');
-    await flushPromises();
-
-    expect(wrapper.get('[aria-label="Signed in"]').text()).toBe('Signed in as Gulnora');
-    expect(wrapper.get('#organization-heading').text()).toBe('Ocharo');
-    expect(received.map((request) => request.url.pathname)).toContain(
-      '/api/organizations/0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b/invitations',
-    );
-    expect(wrapper.find('form[aria-label="Create organization"]').exists()).toBe(false);
-  });
-
-  it('lets an instance admin create an organization, then manages the new one', async () => {
-    const created = { id: '0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5d', name: 'Desk', slug: 'desk', role: 'owner' };
+describe('console sign-out', () => {
+  it('signs out from the account menu and lands on the sign-in page, which returns to the console', async () => {
     const received = stubApi({
       'GET /api/console/session': consoleAdmin,
-      'POST /api/console/organizations': () => Response.json({ data: created }, { status: 201 }),
+      'POST /api/account/sign-out': noContent,
+      'GET /api/account/manage/info': unauthorized,
     });
-    const { wrapper } = await renderAt('/');
+    const { wrapper, router } = await renderAt(membersPath);
+
+    await openAccountMenu(wrapper);
+    expect(document.querySelector('[data-account-menu-identity]')?.textContent).toContain('admin');
+    await selectMenuItem('Sign out');
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/sign-in'));
     await flushPromises();
 
-    expect(wrapper.get('#create-organization-heading').text()).toBe('Create organization');
+    const signOut = received.find((request) => request.url.pathname === '/api/account/sign-out');
+    expect(signOut?.method).toBe('POST');
+    expect(wrapper.findAll('h1').map((heading) => heading.text())).toEqual(['Sign in']);
+    expect(wrapper.findAll('section').map((section) => section.attributes('aria-label'))).toEqual([
+      'Password',
+      'Phone',
+    ]);
+  });
+
+  it('stays in the console and says so when the sign-out fails', async () => {
+    stubApi({
+      'GET /api/console/session': consoleAdmin,
+      'POST /api/account/sign-out': () =>
+        Response.json({ status: 500 }, { status: 500, headers: { 'Content-Type': 'application/problem+json' } }),
+    });
+    const { wrapper, router } = await renderAt('/');
+
+    await openAccountMenu(wrapper);
+    await selectMenuItem('Sign out');
+
+    expect(router.currentRoute.value.path).toBe('/');
+    expect(wrapper.text()).toContain('We could not sign you out. Try again.');
+  });
+
+  it('opens the account security page from the account menu', async () => {
+    stubApi({
+      'GET /api/console/session': consoleAdmin,
+      'GET /api/account/manage/info': () => Response.json({ data: { userId: 'u1', email: 'lola@example.test' } }),
+    });
+    const { wrapper, router } = await renderAt('/');
+
+    await openAccountMenu(wrapper);
+    await selectMenuItem('Account security');
+
+    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/account/security'));
+  });
+});
+
+describe('console organization creation', () => {
+  it('lets an instance admin create an organization, then opens its members', async () => {
+    const created = { id: '0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5d', name: 'Desk', slug: 'desk', role: 'owner' };
+    let organizations = [ocharo];
+    const received = stubApi({
+      'GET /api/console/session': () => sessionOf({ organizations })(),
+      'POST /api/console/organizations': () => {
+        organizations = [ocharo, created];
+        return Response.json({ data: created }, { status: 201 });
+      },
+    });
+    const { wrapper, router } = await renderAt('/organizations/new');
+    await flushPromises();
+
+    expect(wrapper.get('h1').text()).toBe('Create organization');
     await wrapper.get('input[name="name"]').setValue(' Desk ');
     await wrapper.get('input[name="slug"]').setValue('Desk');
-    await wrapper.get('input[name="id"]').setValue('0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5d');
+    await wrapper.get('input[name="id"]').setValue(created.id);
     await wrapper.get('form[aria-label="Create organization"]').trigger('submit');
+    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe(`/organizations/${created.id}/members`));
     await flushPromises();
 
     const post = received.find(
       (request) => request.method === 'POST' && request.url.pathname === '/api/console/organizations',
     );
-    expect(post?.body).toEqual({ name: 'Desk', slug: 'desk', id: '0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5d' });
-    expect(wrapper.get('#organization-heading').text()).toBe('Desk');
-    expect(received.map((request) => request.url.pathname)).toContain(
-      '/api/organizations/0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5d/members',
-    );
-    expect((wrapper.get('input[name="name"]').element as HTMLInputElement).value).toBe('');
+    expect(post?.body).toEqual({ name: 'Desk', slug: 'desk', id: created.id });
+    expect(wrapper.get('h1').text()).toBe('Desk');
+    expect(received.map((request) => request.url.pathname)).toContain(`/api/organizations/${created.id}/members`);
   });
 
   it('leaves the id out when empty and shows a taken handle under its field', async () => {
@@ -305,7 +481,7 @@ describe('console route', () => {
           { status: 409, headers: { 'Content-Type': 'application/problem+json' } },
         ),
     });
-    const { wrapper } = await renderAt('/');
+    const { wrapper, router } = await renderAt('/organizations/new');
     await flushPromises();
 
     await wrapper.get('input[name="name"]').setValue('Ocharo Two');
@@ -315,12 +491,12 @@ describe('console route', () => {
 
     expect(received.find((request) => request.method === 'POST')?.body).toEqual({ name: 'Ocharo Two', slug: 'ocharo' });
     expect(errorUnder(wrapper, 'slug')).toContain("Handle 'ocharo' is already taken.");
-    expect(wrapper.get('#organization-heading').text()).toBe('Ocharo');
+    expect(router.currentRoute.value.path).toBe('/organizations/new');
   });
 
   it('checks the handle and the id before sending anything', async () => {
     const received = stubApi({ 'GET /api/console/session': consoleAdmin });
-    const { wrapper } = await renderAt('/');
+    const { wrapper } = await renderAt('/organizations/new');
     await flushPromises();
 
     await wrapper.get('input[name="name"]').setValue('Desk');
@@ -332,6 +508,15 @@ describe('console route', () => {
     expect(received.some((request) => request.method === 'POST')).toBe(false);
     expect(errorUnder(wrapper, 'slug')).toContain('lowercase letters, digits and single hyphens');
     expect(errorUnder(wrapper, 'id')).toContain('Enter a uuid');
+  });
+
+  it('tells a person without the instance role admin that only an admin creates organizations', async () => {
+    stubApi({ 'GET /api/console/session': sessionOf({ roles: ['support'] }) });
+    const { wrapper } = await renderAt('/organizations/new');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Only an instance admin creates organizations.');
+    expect(wrapper.find('form[aria-label="Create organization"]').exists()).toBe(false);
   });
 });
 
@@ -346,6 +531,63 @@ describe('sign-in route', () => {
     expect(wrapper.text()).toContain('+998');
     const signUp = wrapper.findAll('a').find((link) => link.text() === 'Sign up');
     expect(signUp?.attributes('href')).toBe(`/sign-up?returnUrl=${encodeURIComponent(authorize)}`);
+  });
+
+  describe('when the browser is signed in already', () => {
+    const signedIn = () => Response.json({ data: { userId: 'u1', email: 'ann@example.test' } });
+
+    it.each([
+      ['the return URL', `/sign-in?returnUrl=${encodeURIComponent(authorize)}`, authorize],
+      ['the console without one', '/sign-in', '/'],
+    ])('continues to %s at once, showing only a loading state', async (_case, path, target) => {
+      let answer: (response: Response) => void = () => undefined;
+      stubApi({
+        'GET /api/account/manage/info': () => new Promise<Response>((resolve) => (answer = resolve)) as never,
+      });
+      const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
+      const { wrapper } = await renderAt(path);
+
+      expect(wrapper.get('[aria-label="Loading"]').text()).toContain('Checking your sign-in');
+      expect(wrapper.find('h1').exists()).toBe(false);
+      expect(wrapper.find('section').exists()).toBe(false);
+
+      answer(signedIn());
+      await flushPromises();
+      expect(assign).toHaveBeenCalledWith(target);
+      expect(wrapper.find('section').exists()).toBe(false);
+    });
+
+    it.each([
+      ['prompt=login', '&prompt=login'],
+      ['a prompt list with login', '&prompt=consent%20login'],
+      ['max_age', '&max_age=0'],
+    ])('shows the methods when the authorization request asks for a fresh sign-in with %s', async (_case, extra) => {
+      const received = stubApi({ 'GET /api/account/manage/info': signedIn });
+      const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
+      const { wrapper } = await renderAt(`/sign-in?returnUrl=${encodeURIComponent(authorize + extra)}`);
+
+      expect(wrapper.findAll('section').map((section) => section.attributes('aria-label'))).toEqual([
+        'Password',
+        'Phone',
+      ]);
+      expect(assign).not.toHaveBeenCalled();
+      expect(received.map((request) => request.url.pathname)).not.toContain('/api/account/manage/info');
+    });
+  });
+
+  it('shows the methods to a signed-out browser', async () => {
+    const received = stubApi({ 'GET /api/account/manage/info': unauthorized });
+    const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
+    const { wrapper } = await renderAt(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
+
+    expect(received.map((request) => request.url.pathname)).toContain('/api/account/manage/info');
+    expect(wrapper.find('[aria-label="Loading"]').exists()).toBe(false);
+    expect(wrapper.get('h1').text()).toBe('Sign in');
+    expect(wrapper.findAll('section').map((section) => section.attributes('aria-label'))).toEqual([
+      'Password',
+      'Phone',
+    ]);
+    expect(assign).not.toHaveBeenCalled();
   });
 
   it('continues to the local return URL once signed in, naming the client', async () => {

@@ -5,17 +5,19 @@ import {
   type PasswordChangeRequiredDto,
 } from '@wow-two-beta/fe-identity/contracts';
 import { ChangePasswordForm, PasswordSignIn, PhoneCodeSignIn } from '@wow-two-beta/fe-identity/kit';
-import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
+import { AlertSimple, Spinner } from '@wow-two-beta/fe/presentation/feedback';
 import { DividerLayout } from '@wow-two-beta/fe/presentation/layout';
 import { shallowRef } from 'vue';
-import { emailedReturnUrl, hostedHref, useHostedOptions } from '../../../application/account';
+import { emailedReturnUrl, hostedHref, useHostedOptions, useSignedInGate } from '../../../application/account';
 import { SignInMethodId, type SignInRequest } from '../../../domain/account';
 import HostedPage from '../../common/layout/HostedPage.vue';
 
 /**
- * Signs a person in by every enabled method, in the declared order, then continues to the return URL. A password that
- * breaks the current rules is changed first, with the sign-in's ticket, and then signs in anew. The forgot-password link
- * shows only while the instance takes emails, as the reset goes by email.
+ * Signs a person in by every enabled method, in the declared order, then continues to the return URL. Someone signed in
+ * already continues there at once, the page showing only a loading state meanwhile; to use another account they sign
+ * out in the console first. A return URL asking for a fresh sign-in (`prompt=login`, `max_age`) shows the methods
+ * anyway. A password that breaks the current rules is changed first, with the sign-in's ticket, and then signs in anew.
+ * The forgot-password link shows only while the instance takes emails, as the reset goes by email.
  */
 defineOptions({ name: 'SignInPage' });
 
@@ -38,6 +40,8 @@ function continueToReturnUrl() {
   props.onContinue(props.request.returnUrl);
 }
 
+const { isChecking } = useSignedInGate(props.request.returnUrl, continueToReturnUrl);
+
 function changeRequired(change: PasswordChangeRequiredDto) {
   isPasswordChanged.value = false;
   required.value = change;
@@ -50,7 +54,10 @@ function passwordChanged() {
 </script>
 
 <template>
-  <HostedPage :title="required ? 'Change your password' : 'Sign in'">
+  <p v-if="isChecking" class="flex items-center gap-2 text-muted-foreground" role="status" aria-label="Loading">
+    <Spinner /> Checking your sign-in…
+  </p>
+  <HostedPage v-else :title="required ? 'Change your password' : 'Sign in'">
     <ChangePasswordForm
       v-if="required"
       :ticket="required.ticket"

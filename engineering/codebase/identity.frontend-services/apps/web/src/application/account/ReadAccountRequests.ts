@@ -34,6 +34,22 @@ export function readSignInRequest(query: RouteQuery): SignInRequest {
   return { returnUrl, clientId: clientId || null };
 }
 
+/** Names the OIDC authorization parameters that ask for a fresh sign-in, whatever session stands. */
+const FreshSignInParameter = { prompt: 'prompt', maxAge: 'max_age' } as const;
+
+/**
+ * Whether the return URL asks for a fresh sign-in: an authorization request carrying `prompt=login` (alone or among
+ * other prompts) or any `max_age`. The server sent the person here for exactly that, so a standing session must not
+ * continue on its own; it would come straight back.
+ */
+export function isFreshSignInRequested(returnUrl: string): boolean {
+  const query = new URL(returnUrl, 'https://identity.invalid').searchParams;
+  return (
+    query.getAll(FreshSignInParameter.prompt).some((prompt) => prompt.split(' ').includes('login')) ||
+    query.has(FreshSignInParameter.maxAge)
+  );
+}
+
 /** Reads the token an invitation link carries (`?invitation=`); `null` without one. */
 export function readInvitationToken(query: RouteQuery): string | null {
   return filled(query, HostedPageRouteConstants.invitationParameter);

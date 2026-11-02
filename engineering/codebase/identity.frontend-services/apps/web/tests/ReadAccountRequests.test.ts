@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   emailedReturnUrl,
   hostedHref,
+  isFreshSignInRequested,
   readChangePasswordToken,
   readConfirmEmailRequest,
   readHostedPageLink,
@@ -84,5 +85,18 @@ describe('hosted page link', () => {
     'http://[bad',
   ])('leaves %s to a full load', (href) => {
     expect(readHostedPageLink(href, origin)).toBeNull();
+  });
+});
+
+describe('fresh sign-in request', () => {
+  it.each([
+    ['/connect/authorize?client_id=desk&prompt=login', true],
+    ['/connect/authorize?client_id=desk&prompt=consent+login', true],
+    ['/connect/authorize?client_id=desk&max_age=300', true],
+    ['/connect/authorize?client_id=desk&prompt=consent', false],
+    ['/connect/authorize?client_id=desk&prompt=none', false],
+    ['/', false],
+  ])('reads %j as %s', (returnUrl, expected) => {
+    expect(isFreshSignInRequested(returnUrl)).toBe(expected);
   });
 });

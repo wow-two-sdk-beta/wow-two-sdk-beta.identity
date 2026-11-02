@@ -11,7 +11,8 @@ Defer to `wow-two-ws/conventions/development/frontend/`.
   `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm`) and `./admin` (`createOrganizationClient`
   and the embeddable `MembersPanel` and `InvitationsPanel` for an organization's owners and admins). It peers `@wow-two-beta/fe` at `>=0.0.n <0.1.0`, `n` the pinned version; `check:package` enforces it.
 - `apps/web` is `@identity/web`, private: the hosted pages (`/sign-in`, `/sign-up`, `/confirm-email`, `/forgot-password`,
-  `/reset-password`, `/change-password`, `/account/security`) and the console (`/`). It takes `fe-identity` by
+  `/reset-password`, `/change-password`, `/account/security`) in one card, and the console in its own shell (`/`,
+  `/organizations/new`, `/organizations/:id/members`, `/organizations/:id/invitations`). It takes `fe-identity` by
   `workspace:*`, through its `exports` only — the way a product would; the package never imports `apps/`.
 - App source uses `bootstrap`, `presentation`, `application`, `domain`, and `integration` layers.
 - Routes live in `src/bootstrap/router/Routes.ts` on the fe sdk router (`createAppRouter`, `lazyPage`); a new hosted

@@ -1,4 +1,6 @@
+using Identity.Api.Console.Authorization;
 using Identity.Api.Settings;
+using Microsoft.AspNetCore.Authorization;
 using WoW.Two.Sdk.Beta.Be.Data;
 using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore.Audit;
 using WoW.Two.Sdk.Beta.Be.Foundation.Configuration;
@@ -36,7 +38,10 @@ public static partial class HostConfiguration
     /// <summary>The organization management API's mount point: members and invitations, for each organization's owners and admins.</summary>
     internal const string OrganizationsPath = "/api/organizations";
 
-    /// <summary>The console's narrower policy for instance-wide changes, such as creating an organization: a signed-in person holding the instance role <c>admin</c>.</summary>
+    /// <summary>
+    /// The console's narrower policy for instance-wide changes, such as creating an organization: a signed-in person who
+    /// holds the instance role <c>admin</c> in the store now, read on every request.
+    /// </summary>
     internal const string ConsoleAdminPolicy = "identity-console-admin";
 
     /// <summary>The service's root settings section: <c>config check</c> refuses every key under it that no settings record binds.</summary>
@@ -174,8 +179,9 @@ public static partial class HostConfiguration
     /// The sign-in session the authorization endpoint reads: the account API's cookie, ending with the session row
     /// (<c>Identity:Sessions</c>; reissued as a sliding session moves) and answering a raw 401 to API callers, sealed by the
     /// database ring <c>AddDataProtectionRing</c> registers; and <see cref="ConsoleAdminPolicy"/> for the console's
-    /// instance-wide changes: the instance role <c>admin</c>, which the cookie carries as a role claim from the sign-in on.
-    /// The console's session opens to anyone holding an instance role or owning or administering an organization.
+    /// instance-wide changes: the instance role <c>admin</c>, which <see cref="InstanceRoleAuthorizationHandler"/> reads from
+    /// the store on every request, so a grant or revoke counts from the next request rather than the next sign-in. The
+    /// console's session opens to anyone holding an instance role or owning or administering an organization.
     /// </summary>
     private static WebApplicationBuilder AddSignInSession(this WebApplicationBuilder builder)
     {
@@ -186,8 +192,11 @@ public static partial class HostConfiguration
             options.IsExpirationSliding = false;
             options.Mode = AuthChallengeMode.Api;
         });
+        builder.Services.AddScoped<IAuthorizationHandler, InstanceRoleAuthorizationHandler>();
         builder.Services.AddAuthorizationBuilder()
-            .AddPolicy(ConsoleAdminPolicy, policy => policy.RequireAuthenticatedUser().RequireRole(InstanceRoleConstants.Admin));
+            .AddPolicy(ConsoleAdminPolicy, policy => policy
+                .RequireAuthenticatedUser()
+                .AddRequirements(new InstanceRoleRequirement(InstanceRoleConstants.Admin)));
         return builder;
     }
 

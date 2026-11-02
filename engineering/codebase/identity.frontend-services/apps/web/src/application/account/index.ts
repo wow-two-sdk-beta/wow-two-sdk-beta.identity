@@ -3,6 +3,7 @@ export { provideHostedOptions, useHostedOptions, type HostedOptions } from './Ho
 export {
   emailedReturnUrl,
   hostedHref,
+  isFreshSignInRequested,
   readChangePasswordToken,
   readConfirmEmailRequest,
   readInvitationToken,
@@ -14,3 +15,4 @@ export { useAccountInfo } from './UseAccountInfo';
 export { useEmailConfirmation } from './UseEmailConfirmation';
 export { useInvitation } from './UseInvitation';
 export { useSignInOptions } from './UseSignInOptions';
+export { useSignedInGate } from './UseSignedInGate';

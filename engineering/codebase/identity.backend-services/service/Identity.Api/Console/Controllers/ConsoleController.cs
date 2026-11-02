@@ -14,10 +14,13 @@ namespace Identity.Api.Console.Controllers;
 /// <summary>
 /// Exposes the console's session: who is signed in, which instance roles open its areas, and the organizations they
 /// manage; and, for the instance's admins, organization creation. The console opens to a person holding an instance role
-/// or owning or administering an organization; its instance-wide parts stay behind the instance role.
+/// or owning or administering an organization; its instance-wide parts stay behind the instance role. Roles and
+/// memberships are read from the store on every request, never from the cookie, so a grant or revoke counts from the
+/// next request.
 /// </summary>
 /// <param name="accounts">Finds the signed-in person.</param>
 /// <param name="core">The claim type the person's id travels under.</param>
+/// <param name="instanceRoles">The person's instance roles, read live.</param>
 /// <param name="organizations">The person's memberships, and the organizations an admin creates.</param>
 [ApiController]
 [Route("api/console")]
@@ -25,12 +28,13 @@ namespace Identity.Api.Console.Controllers;
 public sealed class ConsoleController(
     UserAccountService accounts,
     IdentityCoreOptions core,
+    InstanceRoleService instanceRoles,
     OrganizationService organizations) : ControllerBase
 {
     /// <summary>
     /// Reports the signed-in person: <c>401</c> without a sign-in, <c>403</c> for a person who neither holds an instance
-    /// role nor owns or administers an organization. The instance roles are those the sign-in carries, so an added role
-    /// counts from the next sign-in; the organizations are read live.
+    /// role nor owns or administers an organization. The instance roles and the organizations are read from the store, so
+    /// a role granted or revoked after the sign-in shows on the next request.
     /// </summary>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>The person's id, name, instance roles and managed organizations.</returns>
@@ -43,7 +47,7 @@ public sealed class ConsoleController(
         if (await CallerAsync(cancellationToken) is not { } user)
             return Unauthorized();
 
-        IReadOnlyList<string> roles = [.. InstanceRoleConstants.All.Where(User.IsInRole)];
+        var roles = await instanceRoles.GetAsync(user, cancellationToken);
         IReadOnlyList<ConsoleOrganizationDto> managed = [.. (await organizations.ListForUserAsync(user, cancellationToken))
             .Where(membership => membership.Role is OrganizationRoleConstants.Owner or OrganizationRoleConstants.Admin)
             .OrderBy(membership => membership.JoinedAt)
@@ -65,7 +69,7 @@ public sealed class ConsoleController(
     /// <summary>
     /// Creates an organization with the signed-in admin as its owner, after which it appears in the session's
     /// organizations; a preset id keeps a product's existing key. <c>401</c> without a sign-in, <c>403</c> without the
-    /// instance role <c>admin</c> (<c>support</c> and <c>auditor</c> included).
+    /// instance role <c>admin</c> in the store now (<c>support</c> and <c>auditor</c> included), whatever the sign-in carried.
     /// </summary>
     /// <remarks>
     /// Refusals carry their code in the problem's <c>identityCode</c>: <c>400</c> <c>OrganizationNameRequired</c> or
