@@ -38,7 +38,7 @@
 |---|---|
 | `packages/Abstractions` | the contract: error catalogue, organization, `amr` and `sid` claims (brokers not built) |
 | `packages/Auth` | store-less auth: JWT, cookies, API keys, allowlists, current user, guest sessions |
-| `packages/Module` | Form 1: `AddUserAccounts` and its slices (sessions, the sign-in log, password change, SMTP email and phone sign-in included), OTP and its channels, the Telegram bot, account HTTP API, the PostgreSQL schema (OIDC, Data Protection, one-time code and Telegram link tables included) |
+| `packages/Module` | Form 1: `AddUserAccounts` and its slices (sessions, the sign-in log, password change, SMTP email, phone sign-in and invitations included), OTP and its channels, the Telegram bot, account HTTP API, the organization management API, the PostgreSQL schema (OIDC, Data Protection, one-time code, Telegram link and invitation tables included) |
 | `packages/Client` | Forms 2/3: the broker over the service's HTTP API (empty until brokers exist) |
 | `packages/Providers` | upstream sign-in: OAuth providers and claim normalization |
 | `packages/Server` | the OIDC server: OpenIddict over the Module, pass-through endpoints, client seeding, keys from settings (inline PEM or path) and `keys generate`, grants tied to sessions, the Data Protection ring in the database |

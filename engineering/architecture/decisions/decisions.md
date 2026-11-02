@@ -80,6 +80,11 @@
 | 2026-11-02 | an invitation is a single-use link into one organization carrying a fixed role, made by its owner or admin (only an owner invites an owner), lasting `Identity:Invitations:Lifetime` (7 days); naming a phone or email binds it to that identifier; it signs a new person up by email or phone, or adds a signed-in person (`006-invitations`, `/api/organizations/{id}/invitations`) | developer |
 | 2026-11-02 | the managers' member routes live at `/api/organizations/{id}/members`: list, re-role, remove; `OrganizationOptions.AdminRole` (`admin`) manages beside the owner; the last owner stays | developer |
 | 2026-11-02 | open sign-up's "guest" meaning and its email-first form are not built yet: `Open` signs up as before, with no role | developer |
+| 2026-11-02 | a lockout refuses new credential attempts only: it never ends sessions, refreshes or authorize; ending sessions takes a stamp rotation or a revocation; an account without a password answers a password attempt as an unknown one and counts nothing | bug sweep #1 |
+| 2026-11-02 | phone codes: one per number per 30 s, one per address per 5 s, 10 wrong codes per hour per number across codes; an undelivered code is discarded; a new code expires the older ones | bug sweep #2, #16 |
+| 2026-11-02 | the Module's `identity-credentials` rate-limit policy (30 per minute per address) covers every sign-in, sign-up, reset and phone route; Argon2 runs 4 hashes at once and answers 429 after 5 s queued | bug sweep #2, #3 |
+| 2026-11-02 | end-session revokes only with a valid `id_token_hint` or a same-origin POST; `prompt=login` and `max_age` hold through a sealed `fresh_sign_in` marker; `auth_time` is the session's start | bug sweep #10, #11 |
+| 2026-11-02 | a deployed BFF on the in-memory session cache or an unpersisted key ring logs a warning at boot; products register a shared `IDistributedCache` and a persisted key ring | bug sweep #5 |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).
