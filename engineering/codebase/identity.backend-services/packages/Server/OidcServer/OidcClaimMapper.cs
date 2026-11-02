@@ -15,7 +15,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 /// <summary>
 /// The one place that turns a person into token claims and sends each claim to its tokens: <c>sub</c>, <c>sid</c>,
 /// <c>name</c>, <c>picture</c> (under <c>profile</c>, a versioned link to the person's kept picture), <c>email</c>, <c>email_verified</c>, <c>phone_number</c>, <c>phone_number_verified</c>, <c>amr</c>,
-/// <c>auth_time</c>, and <c>org_id</c>, <c>org_role</c>, <c>org_permission</c> for one active organization.
+/// <c>auth_time</c>, and <c>org_id</c>, <c>org_name</c>, <c>org_slug</c>, <c>org_role</c>, <c>org_permission</c> for one
+/// active organization.
 /// </summary>
 /// <remarks>
 ///   - the active organization is the one the token already carries while the person still belongs to it, else the
@@ -42,7 +43,8 @@ internal sealed class OidcClaimMapper(
     private static readonly string[] PersonClaimTypes =
     [
         Claims.Subject, Claims.Name, Claims.Picture, Claims.Email, Claims.EmailVerified, Claims.PhoneNumber, Claims.PhoneNumberVerified,
-        OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Role, OrganizationClaimTypeConstants.Permission,
+        OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Name, OrganizationClaimTypeConstants.Slug,
+        OrganizationClaimTypeConstants.Role, OrganizationClaimTypeConstants.Permission,
     ];
 
     /// <summary>A new identity for a sign-in, carrying the granted scopes, the client's audience, the session and how the person signed in.</summary>
@@ -149,8 +151,9 @@ internal sealed class OidcClaimMapper(
     }
 
     /// <summary>
-    /// Write the active organization's claims: <c>org_id</c>, <c>org_role</c> as <c>{org}:{role}</c> and one
-    /// <c>org_permission</c> per permission as <c>{org}:{permission}</c>, kept to <paramref name="permissionNamespace"/>.
+    /// Write the active organization's claims: <c>org_id</c>, its <c>org_name</c> and <c>org_slug</c>, <c>org_role</c> as
+    /// <c>{org}:{role}</c> and one <c>org_permission</c> per permission as <c>{org}:{permission}</c>, kept to
+    /// <paramref name="permissionNamespace"/>.
     /// </summary>
     /// <param name="identity">The identity.</param>
     /// <param name="memberships">The person's memberships.</param>
@@ -165,7 +168,7 @@ internal sealed class OidcClaimMapper(
         string? permissionNamespace,
         Guid? preferred)
     {
-        foreach (var type in new[] { OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Role, OrganizationClaimTypeConstants.Permission })
+        foreach (var type in new[] { OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Name, OrganizationClaimTypeConstants.Slug, OrganizationClaimTypeConstants.Role, OrganizationClaimTypeConstants.Permission })
             identity.RemoveClaims(type);
 
         var ordered = memberships.OrderBy(m => m.JoinedAt).ThenBy(m => m.OrganizationId).ToList();
@@ -175,6 +178,8 @@ internal sealed class OidcClaimMapper(
         var organization = active.OrganizationId.ToString("D", CultureInfo.InvariantCulture);
         var prefix = permissionNamespace is null ? null : permissionNamespace + ":";
         identity.SetClaim(OrganizationClaimTypeConstants.Id, organization);
+        identity.SetClaim(OrganizationClaimTypeConstants.Name, active.Name);
+        identity.SetClaim(OrganizationClaimTypeConstants.Slug, active.Slug);
         identity.SetClaim(OrganizationClaimTypeConstants.Role, $"{organization}:{active.Role}");
         SetArrayClaim(identity, OrganizationClaimTypeConstants.Permission, permissionsOf(active.Role)
             .Where(permission => prefix is null || permission.StartsWith(prefix, StringComparison.Ordinal))
@@ -224,7 +229,8 @@ internal sealed class OidcClaimMapper(
         return claim.Type switch
         {
             Claims.Subject or SessionClaimTypeConstants.SessionId or Claims.AuthenticationMethodReference => both,
-            OrganizationClaimTypeConstants.Id or OrganizationClaimTypeConstants.Role or OrganizationClaimTypeConstants.Permission => both,
+            OrganizationClaimTypeConstants.Id or OrganizationClaimTypeConstants.Name or OrganizationClaimTypeConstants.Slug
+                or OrganizationClaimTypeConstants.Role or OrganizationClaimTypeConstants.Permission => both,
             Claims.Name or Claims.Picture => claim.Subject?.HasScope(Scopes.Profile) == true ? both : [],
             Claims.Email or Claims.EmailVerified => claim.Subject?.HasScope(Scopes.Email) == true ? both : [],
             Claims.PhoneNumber or Claims.PhoneNumberVerified => claim.Subject?.HasScope(Scopes.Phone) == true ? both : [],

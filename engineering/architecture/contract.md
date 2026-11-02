@@ -39,6 +39,7 @@
 | Member | Contract |
 |---|---|
 | `OrganizationClaimTypeConstants.Id` = `org_id` | the active organization's id; an OIDC token carries one active organization |
+| `OrganizationClaimTypeConstants.Name` = `org_name` · `.Slug` = `org_slug` | the active organization's display name and handle, beside `org_id` |
 | `OrganizationClaimTypeConstants.Role` = `org_role` | one claim per membership, valued `{organizationId}:{role}` |
 | `OrganizationClaimTypeConstants.Permission` = `org_permission` | one claim per granted permission, valued `{organizationId}:{permission}` |
 | `ClaimsPrincipal.GetOrganizationRole(organizationId, claimType)` | the role in that organization, or `null` |
@@ -60,8 +61,8 @@
 
 | Claim | ID token | Access token |
 |---|---|---|
-| `sub` (user id) · `sid` (sign-in session) · `amr` · `org_id` · `org_role` · `org_permission` | ✓ | ✓ |
-| `name` (with `profile`) · `email`, `email_verified` (with `email`) | ✓ | ✓ |
+| `sub` (user id) · `sid` (sign-in session) · `amr` · `org_id` · `org_name` · `org_slug` · `org_role` · `org_permission` | ✓ | ✓ |
+| `name`, `picture` (with `profile`) · `email`, `email_verified` (with `email`) · `phone_number`, `phone_number_verified` (with `phone`) | ✓ | ✓ |
 | `auth_time` | ✓ | — |
 
 - One active organization per token: the one the grant carries while the person still belongs to it, else the

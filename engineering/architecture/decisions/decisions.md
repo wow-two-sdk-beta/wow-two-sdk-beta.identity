@@ -93,6 +93,7 @@
 | 2026-11-02 | sign-up profile fields are settings: `Identity:SignUp:Profile:{DisplayName,Picture}` each `Off`, `Optional` or `Required`, carried in the declaration; Ocharo sets both `Required`; any custom field waits for after G3 | developer |
 | 2026-11-02 | a profile picture is JPEG, PNG or WebP judged by its leading bytes, at most 5 MiB, sides 256–4096 read before decoding, re-encoded to one square 512 WebP that keeps no metadata; SkiaSharp (MIT) decodes and encodes, ImageSharp's split licence ruled out; the file input accepts exactly those types so iPhones send JPEG for HEIC | developer, orchestrator analysis |
 | 2026-11-02 | pictures live in `identity_profile_pictures` behind `IProfilePictureStore` (File Storage adapter later), served anonymously at `/api/account/pictures/{userId}?v={version}` and given to apps as the `picture` claim under `profile` | developer |
+| 2026-11-02 | app tokens and userinfo carry the active organization's `org_name` and `org_slug` beside `org_id`, and the BFF session's organization carries `name` and `slug`, so a product projects the organization row from the token alone | Ocharo platform |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

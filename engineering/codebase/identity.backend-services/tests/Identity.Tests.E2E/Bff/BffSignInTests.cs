@@ -55,6 +55,8 @@ public sealed class BffSignInTests(BffIdentityFixture fixture)
         person.GetProperty("phoneNumber").ValueKind.Should().Be(JsonValueKind.Null);
         session.GetProperty("organization").GetProperty("id").GetGuid().Should().Be(organization);
         session.GetProperty("organization").GetProperty("role").GetString().Should().Be("owner");
+        session.GetProperty("organization").GetProperty("name").GetString().Should().Be("BFF");
+        session.GetProperty("organization").GetProperty("slug").GetString().Should().StartWith("bff-");
         session.GetProperty("permissions").EnumerateArray().Select(value => value.GetString()).Should().Equal(BffHost.GrantedPermission);
         session.GetProperty("expiresAt").GetDateTimeOffset().Should().BeCloseTo(DateTimeOffset.UtcNow.AddHours(12), TimeSpan.FromMinutes(2));
         var csrf = session.GetProperty("csrfToken").GetString()!;

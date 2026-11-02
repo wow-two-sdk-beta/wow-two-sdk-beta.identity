@@ -40,12 +40,15 @@ public sealed class OidcCodeFlowTests(OidcHostFixture fixture)
         idToken.GetPayloadValue<bool>("email_verified").Should().BeFalse("email_verified is a JSON boolean");
         idToken.GetClaim("org_id").Value.Should().Be(organization.ToString());
         idToken.GetClaim("org_role").Value.Should().Be($"{organization}:owner");
+        idToken.GetClaim("org_name").Value.Should().Be("E2E");
+        idToken.GetClaim("org_slug").Value.Should().StartWith("e2e-");
         Values(idToken, "org_permission").Should().Equal($"{organization}:e2e:deploy");
 
         // The access token: an unencrypted JWT for the client's own audience, verified offline.
         var accessToken = await client.ValidateAsync(tokens.AccessToken, OidcHost.Audience);
         accessToken.Subject.Should().Be(userId.ToString());
         accessToken.GetClaim("org_id").Value.Should().Be(organization.ToString());
+        accessToken.GetClaim("org_name").Value.Should().Be("E2E");
         Values(accessToken, "amr").Should().Equal(AuthenticationMethodConstants.Password);
         accessToken.TryGetClaim("auth_time", out _).Should().BeFalse();
         accessToken.TryGetClaim("AspNet.Identity.SecurityStamp", out _).Should().BeFalse("the stamp stays inside codes and refresh tokens");

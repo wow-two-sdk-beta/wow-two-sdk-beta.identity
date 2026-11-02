@@ -29,7 +29,13 @@ internal static class BffSessionMapper
                 PhoneNumber = principal.FindFirst(JwtRegisteredClaimNames.PhoneNumber)?.Value,
             },
             Organization = organization is { } active
-                ? new BffOrganizationDto { Id = active, Role = principal.GetOrganizationRole(active) }
+                ? new BffOrganizationDto
+                {
+                    Id = active,
+                    Name = principal.FindFirst(OrganizationClaimTypeConstants.Name)?.Value,
+                    Slug = principal.FindFirst(OrganizationClaimTypeConstants.Slug)?.Value,
+                    Role = principal.GetOrganizationRole(active),
+                }
                 : null,
             Permissions = organization is null
                 ? []

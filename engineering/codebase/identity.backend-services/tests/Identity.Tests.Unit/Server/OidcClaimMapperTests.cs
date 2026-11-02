@@ -55,6 +55,9 @@ public sealed class OidcClaimMapperTests
 
         active.Should().Be(Second);
         identity.GetClaim(OrganizationClaimTypeConstants.Id).Should().Be(Second.ToString());
+        identity.GetClaim(OrganizationClaimTypeConstants.Name).Should().Be("Org");
+        identity.GetClaim(OrganizationClaimTypeConstants.Slug).Should().Be("org-2");
+        OidcClaimMapper.GetDestinations(identity.FindFirst(OrganizationClaimTypeConstants.Slug)!).Should().BeEquivalentTo(Both);
         identity.GetClaim(OrganizationClaimTypeConstants.Role).Should().Be($"{Second}:viewer");
         OidcClaimMapper.ReadValues(identity, OrganizationClaimTypeConstants.Permission).Should().Equal($"{Second}:wheelhouse:read");
     }
@@ -137,7 +140,9 @@ public sealed class OidcClaimMapperTests
 
         var info = OidcClaimMapper.ToUserInfo(new ClaimsPrincipal(identity));
 
-        info.Keys.Should().BeEquivalentTo(Claims.Subject, Claims.Email, Claims.EmailVerified, OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Role, OrganizationClaimTypeConstants.Permission);
+        info.Keys.Should().BeEquivalentTo(
+            Claims.Subject, Claims.Email, Claims.EmailVerified, OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Name,
+            OrganizationClaimTypeConstants.Slug, OrganizationClaimTypeConstants.Role, OrganizationClaimTypeConstants.Permission);
         info[Claims.EmailVerified].Should().Be(false);
         info[OrganizationClaimTypeConstants.Permission].Should().BeEquivalentTo(new[] { $"{First}:wheelhouse:read" });
         info[Claims.Email].Should().Be("alice@example.test");
