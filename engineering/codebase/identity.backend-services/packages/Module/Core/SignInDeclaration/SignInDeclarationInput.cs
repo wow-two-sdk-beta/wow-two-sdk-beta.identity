@@ -1,3 +1,5 @@
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
+
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 
 /// <summary>Holds the settings a declaration is built from, read once per request by <see cref="SignInDeclarationService"/>.</summary>
@@ -12,8 +14,8 @@ internal sealed record SignInDeclarationInput
     /// <summary>The instance's background; null for none.</summary>
     public string? BackgroundUrl { get; init; }
 
-    /// <summary>Whether anyone may create an account.</summary>
-    public bool IsSignUpEnabled { get; init; }
+    /// <summary>Who may create an account (<c>Identity:SignUp:Mode</c>).</summary>
+    public SignUpMode SignUpMode { get; init; } = SignUpMode.Invite;
 
     /// <summary>The password rules while password sign-in is on; null while it is off.</summary>
     public PasswordOptions? Password { get; init; }

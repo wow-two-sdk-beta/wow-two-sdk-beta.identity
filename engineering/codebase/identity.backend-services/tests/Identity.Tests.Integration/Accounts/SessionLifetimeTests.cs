@@ -115,7 +115,7 @@ public sealed class SessionLifetimeTests
             .AddSecurityStampValidation(o => o.ValidationInterval = TimeSpan.Zero)
             .AddSessions(configure)
             .AddSignIn()
-            .AddAccountEndpoints(o => o.IsEnabled = true);
+            .AddAccountEndpoints(o => o.Mode = SignUpMode.Open);
         builder.Services.AddCookieAuthentication(o =>
         {
             o.Mode = AuthChallengeMode.Api;

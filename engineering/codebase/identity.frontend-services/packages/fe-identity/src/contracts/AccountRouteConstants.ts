@@ -2,7 +2,7 @@
 export const AccountRouteConstants = {
   /** The account API's mount point. */
   base: '/api/account',
-  /** `POST`: signs an account up while sign-up is on. */
+  /** `POST`: signs an account up while sign-up is open, or with an invitation's token. */
   signUp: '/sign-up',
   /** `POST`: signs in with an identifier and password. */
   signIn: '/sign-in',
@@ -26,6 +26,8 @@ export const AccountRouteConstants = {
   phoneSignInSend: '/phone-sign-in/send',
   /** `POST`: signs in with a phone and the code sent to it. */
   phoneSignIn: '/phone-sign-in',
+  /** `GET`, anonymous: an invitation link's preview, `/invitations/{token}`; `POST` `/invitations/{token}/accept` adds the signed-in person. */
+  invitations: '/invitations',
   /** `POST`: ends the cookie's session. */
   signOut: '/sign-out',
   /** `GET`, anonymous: the sign-in declaration, the look and the enabled methods with their rules; `?clientId=`, `?locale=`. */

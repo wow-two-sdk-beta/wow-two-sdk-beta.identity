@@ -47,11 +47,15 @@ public static class SchemaShape
         "identity_otp_codes", "identity_telegram_link_requests", "identity_telegram_links",
     ];
 
+    /// <summary>The table 006-invitations creates.</summary>
+    public static readonly IReadOnlyList<string> InvitationTables = ["identity_invitations"];
+
     /// <summary>Every table the set creates, in name order.</summary>
-    public static readonly IReadOnlyList<string> AllTables = [.. AccountTables.Concat(OidcTables).Concat(SpineTables).Concat(PhoneSignInTables).Order(StringComparer.Ordinal)];
+    public static readonly IReadOnlyList<string> AllTables =
+        [.. AccountTables.Concat(OidcTables).Concat(SpineTables).Concat(PhoneSignInTables).Concat(InvitationTables).Order(StringComparer.Ordinal)];
 
     /// <summary>The set's migrations in apply order.</summary>
-    public static readonly IReadOnlyList<string> Migrations = ["001-accounts", "002-oidc", "003-spine", "004-phone-sign-in", "005-display-name"];
+    public static readonly IReadOnlyList<string> Migrations = ["001-accounts", "002-oidc", "003-spine", "004-phone-sign-in", "005-display-name", "006-invitations"];
 
     /// <summary>The identity set's own history table, which the model does not map.</summary>
     private const string MigrationHistoryTable = $"{IdentityDatabaseOptions.MigrationSetName}_migration_history";

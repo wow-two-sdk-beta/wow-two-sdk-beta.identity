@@ -11,9 +11,9 @@ using WoW.Two.Sdk.Beta.Be.Testing;
 namespace Identity.Tests.E2E;
 
 /// <summary>
-/// Self sign-up as a deployed instance runs it: closed unless the environment sets <c>Identity:SignUp:IsEnabled</c>, the
-/// boolean <c>deploy.yml</c> declares with the default <c>false</c>. Closed, <c>sign-up</c> refuses anyone and creates
-/// nothing, while an account an admin added still signs in.
+/// Self sign-up as a deployed instance runs it: by invitation only unless the environment sets <c>Identity:SignUp:Mode</c>
+/// to <c>Open</c>, the choice <c>deploy.yml</c> declares with the default <c>Invite</c>. Without an invitation, <c>sign-up</c>
+/// refuses anyone and creates nothing, while an account an admin added still signs in.
 /// </summary>
 [Collection(IdentityApiCollection.Name)]
 public sealed class SignUpTests(IdentityApiFixture fixture)
@@ -31,7 +31,7 @@ public sealed class SignUpTests(IdentityApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         problem.RootElement.GetProperty("type").GetString().Should().Be("urn:wow-two:error:Forbidden");
-        problem.RootElement.GetProperty("detail").GetString().Should().StartWith("Sign-up is closed");
+        problem.RootElement.GetProperty("detail").GetString().Should().StartWith("Sign-up is by invitation only");
         await using var scope = fixture.Host.Services.CreateAsyncScope();
         (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByEmailAsync(email)).Should().BeNull();
     }
@@ -66,7 +66,7 @@ public sealed class SignUpTests(IdentityApiFixture fixture)
                     ["DatabaseSettings:ConnectionString"] = connectionString,
                     ["AllowedHosts"] = "localhost",
                     ["Logging:LogLevel:Default"] = "Warning",
-                    ["Identity:SignUp:IsEnabled"] = "true",
+                    ["Identity:SignUp:Mode"] = "Open",
                 }),
             };
             using var client = host.CreateClient();

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Foundation.Errors;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Emails;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.EmailSignIn;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passkeys;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
@@ -41,8 +42,10 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
     /// group such as <c>app.MapGroup("/api/account")</c>. Sign-in returns a bearer session (JWT via <see cref="ITokenIssuer"/>,
     /// plus a refresh token when registered) or, with <c>?useCookies=true</c>, a cookie that carries a new session's
     /// <c>sid</c> when sessions are registered. Each sign-in route takes an optional <c>?clientId=</c> the sign-in log
-    /// records. <c>sign-up</c> answers <c>403</c> (message key <c>SignUpClosed</c>) unless <see cref="SignUpOptions.IsEnabled"/>
-    /// is on. A sign-in whose password matched but breaks the current password rules answers <c>200</c> with
+    /// records. <c>sign-up</c> answers <c>403</c> (message key <c>SignUpClosed</c>) unless <see cref="SignUpOptions.Mode"/> is
+    /// <see cref="SignUpMode.Open"/> or it carries a pending invitation's <c>invitationToken</c>, whose organization the account
+    /// then joins with its role; with invitations registered, <c>invitations/{token}</c> previews a link and
+    /// <c>invitations/{token}/accept</c> adds the signed-in person. A sign-in whose password matched but breaks the current password rules answers <c>200</c> with
     /// <c>isPasswordChangeRequired</c> and a ticket instead of a session. Bearer sign-in and <c>refresh</c> answer <c>400</c>
     /// (message key <c>BearerSignInUnsupported</c>) on a host without JWT issuance or refresh tokens, such as a cookie-only
     /// instance. With the password change slice registered, <c>manage/password/confirmation</c>, <c>manage/password</c> and
@@ -65,6 +68,9 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserPasswordChangeService)) == true)
             MapPasswordChangeEndpoints(endpoints);
+
+        if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(InvitationService)) == true)
+            MapInvitationEndpoints(endpoints);
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserTwoFactorService)) == true)
         {
@@ -114,11 +120,28 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
     private static async Task<IResult> SignUpAsync(SignUpApiRequest request, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
-        if (services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.IsEnabled != true)
-            throw AppError.Of(AppErrorType.Forbidden, "Sign-up is closed; ask an admin to add you.", MessageKey(IdentityErrorCodeConstants.SignUpClosed)).ToException();
+        var invitation = await InvitationOfAsync(services, request.InvitationToken, request.Email, phoneNumber: null, cancellationToken);
+        if (invitation is null && services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.IsOpen != true)
+            throw CodedError(AppErrorType.Forbidden, "Sign-up is by invitation only; ask an admin for a link.", IdentityErrorCodeConstants.SignUpClosed).ToException();
 
         var user = new IdentityUser { UserName = string.IsNullOrWhiteSpace(request.UserName) ? request.Email : request.UserName, Email = request.Email };
-        var created = await services.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(user, request.Password, cancellationToken);
+        var passwords = services.GetRequiredService<UserPasswordService>();
+        IdentityResult created;
+        if (invitation is null)
+        {
+            created = await passwords.CreateWithPasswordAsync(user, request.Password, cancellationToken);
+        }
+        else
+        {
+            (created, var redemption) = await services.GetRequiredService<InvitationService>().RedeemWithAsync(
+                invitation,
+                token => passwords.CreateWithPasswordAsync(user, request.Password, token),
+                result => result.IsSuccess ? user : null,
+                cancellationToken);
+            if (redemption is { IsSuccess: false })
+                throw InvitationErrors.Of(redemption).ToException();
+        }
+
         if (!created.IsSuccess)
             throw created.ToValidationError().ToException();
 

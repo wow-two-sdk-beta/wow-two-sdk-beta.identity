@@ -15,4 +15,10 @@ public sealed record PhoneSignInApiRequest
     /// extended lifetime is set (<c>sign-in-options</c>' <c>isPersistenceOffered</c>).
     /// </summary>
     public bool IsPersistent { get; init; }
+
+    /// <summary>
+    /// The token of an invitation link: the person joins its organization with its role, and a first sign-in creates them
+    /// even while sign-up is by invitation only. An invitation naming a phone number takes only that number.
+    /// </summary>
+    public string? InvitationToken { get; init; }
 }

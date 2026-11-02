@@ -134,4 +134,31 @@ public static class IdentityErrorCodeConstants
 
     /// <summary>The change would leave the organization without an owner.</summary>
     public const string LastOrganizationOwner = "LastOrganizationOwner";
+
+    /// <summary>No organization has the id.</summary>
+    public const string OrganizationNotFound = "OrganizationNotFound";
+
+    /// <summary>Only an owner or admin of the organization manages its members and invitations.</summary>
+    public const string OrganizationManagerRequired = "OrganizationManagerRequired";
+
+    /// <summary>Only an owner invites, promotes or removes an owner.</summary>
+    public const string OrganizationOwnerRequired = "OrganizationOwnerRequired";
+
+    /// <summary>No invitation matches the link's token.</summary>
+    public const string InvitationNotFound = "InvitationNotFound";
+
+    /// <summary>The invitation is past its end.</summary>
+    public const string InvitationExpired = "InvitationExpired";
+
+    /// <summary>The invitation was already redeemed.</summary>
+    public const string InvitationAccepted = "InvitationAccepted";
+
+    /// <summary>An owner or admin withdrew the invitation.</summary>
+    public const string InvitationRevoked = "InvitationRevoked";
+
+    /// <summary>The invitation names another phone number or email than the one signing up.</summary>
+    public const string InvitationIdentifierMismatch = "InvitationIdentifierMismatch";
+
+    /// <summary>The invitation names neither a valid phone number nor a valid email where one was given.</summary>
+    public const string InvalidInvitationIdentifier = "InvalidInvitationIdentifier";
 }

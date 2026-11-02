@@ -117,7 +117,7 @@ public sealed partial class BotUpdateModeTests
             ["DatabaseSettings:ConnectionString"] = connectionString,
             ["AllowedHosts"] = "localhost",
             ["Logging:LogLevel:Default"] = "Warning",
-            ["Identity:SignUp:IsEnabled"] = "true",
+            ["Identity:SignUp:Mode"] = "Open",
             ["Identity:Telegram:IsEnabled"] = "true",
             ["Identity:Telegram:BotToken"] = "123456:E2E-token",
             ["Identity:Telegram:BotUserName"] = "ocharo_e2e_bot",

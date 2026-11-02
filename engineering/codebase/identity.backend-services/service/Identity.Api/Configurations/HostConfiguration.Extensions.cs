@@ -8,6 +8,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Cookies;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Emails;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
@@ -29,6 +30,9 @@ public static partial class HostConfiguration
 {
     /// <summary>The account API's mount point, under the contract's HTTP mirror.</summary>
     internal const string AccountPath = "/api/account";
+
+    /// <summary>The organization management API's mount point: members and invitations, for each organization's owners and admins.</summary>
+    internal const string OrganizationsPath = "/api/organizations";
 
     /// <summary>The service's root settings section: <c>config check</c> refuses every key under it that no settings record binds.</summary>
     internal const string RootSection = "Identity";
@@ -55,6 +59,8 @@ public static partial class HostConfiguration
     ///   - the purpose tokens (confirmation, reset, forced-change ticket) are signed with <c>Identity:Tokens:SigningKey</c>
     ///   - the hosted pages' one look, brand, theme and background, comes from <c>Identity:Pages</c>; the sign-in declaration
     ///     answers it for every app
+    ///   - who signs up comes from <c>Identity:SignUp:Mode</c> (<c>Invite</c> by default); invitation links last
+    ///     <c>Identity:Invitations:Lifetime</c> and lead to the hosted sign-up page
     /// </remarks>
     private static WebApplicationBuilder AddIdentityModule(this WebApplicationBuilder builder)
     {
@@ -72,6 +78,7 @@ public static partial class HostConfiguration
             .AddSessions()
             .AddSignInLog()
             .AddOrganizations()
+            .AddInvitations()
             .AddAccountEndpoints()
             .AddSignInDeclaration()
             .AddOidcServer()
@@ -119,7 +126,8 @@ public static partial class HostConfiguration
     /// <summary>
     /// Points the links the account emails carry at the hosted pages on the instance's own origin (that of
     /// <c>Identity:Server:Issuer</c>), unless a setting already names them: <c>/confirm-email</c> and <c>/reset-password</c>,
-    /// and the change page <c>/change-password#token=…</c>. With no issuer there is no origin, and no link.
+    /// the change page <c>/change-password#token=…</c> and the invitation link <c>/sign-up?invitation=…</c>. With no issuer
+    /// there is no origin, and no link.
     /// </summary>
     private static IServiceCollection AddAccountPageLinks(this IServiceCollection services)
     {
@@ -135,6 +143,11 @@ public static partial class HostConfiguration
         {
             if (OriginOf(server) is { } origin)
                 options.Password.Change.LinkTemplate ??= origin + "/change-password#token={token}";
+        });
+        services.AddOptions<InvitationOptions>().PostConfigure<OidcServerOptions>((options, server) =>
+        {
+            if (OriginOf(server) is { } origin)
+                options.LinkTemplate ??= origin + "/sign-up?invitation={token}";
         });
         return services;
     }
@@ -159,12 +172,14 @@ public static partial class HostConfiguration
         return builder;
     }
 
-    /// <summary>Maps the account API (<see cref="AccountPath"/>) with its sign-in declaration, and the OIDC server's pass-through endpoints.</summary>
+    /// <summary>Maps the account API (<see cref="AccountPath"/>) with its sign-in declaration, the organization management API
+    /// (<see cref="OrganizationsPath"/>), and the OIDC server's pass-through endpoints.</summary>
     private static WebApplication MapIdentityEndpoints(this WebApplication app)
     {
         var account = app.MapGroup(AccountPath);
         account.MapUserAccountEndpoints();
         account.MapSignInOptionsEndpoint();
+        app.MapGroup(OrganizationsPath).MapOrganizationEndpoints();
         app.MapOidcServerEndpoints();
         return app;
     }

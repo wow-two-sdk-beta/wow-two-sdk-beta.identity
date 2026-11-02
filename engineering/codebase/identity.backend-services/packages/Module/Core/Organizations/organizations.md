@@ -38,4 +38,23 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
   organization whose only owner is deleted keeps its other members without an owner.
 - Existing databases need a migration for `identity_organizations` and `identity_memberships`.
 - The first organization and its owner come from the host CLI's `admin create` (`../Admin/admin.md`); members after
-  that are managed in the console.
+  that join by invitation link (`../Invitations/invitations.md`) and are managed through `MapOrganizationEndpoints`.
+- `OrganizationOptions.AdminRole` (default `admin`) manages members and invitations beside the owner while it is one of
+  the configured roles; only an owner invites, promotes, demotes or removes an owner.
+
+## Management API
+
+`app.MapGroup("/api/organizations").MapOrganizationEndpoints()` — for the organization's owners and admins, signed in:
+
+| Route | Does |
+|---|---|
+| `GET {organizationId}/members` | the members: `userId`, `displayName`, `userName`, `email`, `phoneNumber`, `role`, `joinedAt` |
+| `PUT {organizationId}/members/{userId}` | `{ role }`: another role; `409` `LastOrganizationOwner` for the last owner |
+| `DELETE {organizationId}/members/{userId}` | removes the member; `404` `UserNotMember`, `409` for the last owner |
+| `POST {organizationId}/invitations` | `{ role, phoneNumber?, email? }`: a new link, its `token` and `link` shown this once |
+| `GET {organizationId}/invitations` | the invitations, newest first, with `status`; never a token |
+| `DELETE {organizationId}/invitations/{invitationId}` | withdraws a pending one; `404` once used or withdrawn |
+
+- A person outside the organization gets `404` `OrganizationNotFound`, a member who is neither owner nor admin `403`
+  `OrganizationManagerRequired`, an admin acting on an owner `403` `OrganizationOwnerRequired`.
+- A role change or removal rotates the member's stamp, ending their sessions; failures carry `identityCode`.

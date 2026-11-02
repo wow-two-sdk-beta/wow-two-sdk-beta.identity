@@ -38,7 +38,7 @@ public sealed class SignInOptionsApiTests(IdentityApiFixture fixture)
         var data = await DataAsync(response);
         data.GetProperty("brandName").GetString().Should().Be("Identity");
         data.GetProperty("theme").GetString().Should().Be("platform");
-        data.GetProperty("isSignUpEnabled").GetBoolean().Should().BeFalse();
+        data.GetProperty("signUpMode").GetString().Should().Be("invite");
         data.GetProperty("locale").GetString().Should().Be("en");
         Ids(data).Should().Equal("password");
         var password = data.GetProperty("methods")[0];
@@ -69,7 +69,7 @@ public sealed class SignInOptionsApiTests(IdentityApiFixture fixture)
             data.GetProperty("brandName").GetString().Should().Be("Ocharo");
             data.GetProperty("theme").GetString().Should().Be("ocharo");
             data.GetProperty("backgroundUrl").GetString().Should().Be("/backgrounds/instance.jpg");
-            data.GetProperty("isSignUpEnabled").GetBoolean().Should().BeTrue();
+            data.GetProperty("signUpMode").GetString().Should().Be("open");
             data.GetProperty("requirements").GetProperty("isConfirmedPhoneNumberRequired").GetBoolean().Should().BeTrue();
             Ids(data).Should().Equal("password", "phone-code");
             var phone = data.GetProperty("methods")[1];
@@ -113,7 +113,7 @@ public sealed class SignInOptionsApiTests(IdentityApiFixture fixture)
             ["DatabaseSettings:ConnectionString"] = connectionString,
             ["AllowedHosts"] = "localhost",
             ["Logging:LogLevel:Default"] = "Warning",
-            ["Identity:SignUp:IsEnabled"] = "true",
+            ["Identity:SignUp:Mode"] = "Open",
             ["Identity:SignIn:IsConfirmedPhoneNumberRequired"] = "true",
             ["Identity:Pages:BrandName"] = "Ocharo",
             ["Identity:Pages:Theme"] = "ocharo",

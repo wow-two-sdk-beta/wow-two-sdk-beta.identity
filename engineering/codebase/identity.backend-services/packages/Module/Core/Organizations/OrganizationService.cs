@@ -264,6 +264,25 @@ public sealed partial class OrganizationService(
         return IdentityResult.Success;
     }
 
+    /// <summary>The configured role named <paramref name="role"/> (case-insensitive), in its configured spelling; null when unknown.</summary>
+    /// <param name="role">The role name.</param>
+    public string? FindRole(string? role) => ResolveRole(role);
+
+    /// <summary>Whether <paramref name="role"/> is the owner role.</summary>
+    /// <param name="role">The role name.</param>
+    public bool IsOwnerRole(string? role) => role is not null && IsOwner(role);
+
+    /// <summary>Whether <paramref name="role"/> manages members and invitations: the owner role, or the admin role while it is configured.</summary>
+    /// <param name="role">The role name.</param>
+    public bool IsManagerRole(string? role)
+    {
+        if (role is null)
+            return false;
+        var current = options.CurrentValue;
+        return IsOwner(role)
+               || (string.Equals(role, current.AdminRole, StringComparison.OrdinalIgnoreCase) && current.Roles.ContainsKey(current.AdminRole));
+    }
+
     private string? ResolveRole(string? role)
     {
         if (string.IsNullOrWhiteSpace(role))

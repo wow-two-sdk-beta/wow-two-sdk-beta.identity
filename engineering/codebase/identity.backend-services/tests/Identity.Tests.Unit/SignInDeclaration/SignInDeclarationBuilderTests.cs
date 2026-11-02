@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Microsoft.Net.Http.Headers;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 
@@ -71,7 +72,7 @@ public sealed class SignInDeclarationBuilderTests
             {
                 Theme = "ocharo",
                 BackgroundUrl = "/backgrounds/ocharo.jpg",
-                IsSignUpEnabled = true,
+                SignUpMode = SignUpMode.Open,
                 IsConfirmedPhoneNumberRequired = true,
             },
             "en");
@@ -79,7 +80,7 @@ public sealed class SignInDeclarationBuilderTests
         declaration.BrandName.Should().Be("Ocharo");
         declaration.Theme.Should().Be("ocharo");
         declaration.BackgroundUrl.Should().Be("/backgrounds/ocharo.jpg");
-        declaration.IsSignUpEnabled.Should().BeTrue();
+        declaration.SignUpMode.Should().Be("open");
         declaration.Requirements.Should().Be(new SignInRequirementsDto { IsConfirmedPhoneNumberRequired = true });
     }
 

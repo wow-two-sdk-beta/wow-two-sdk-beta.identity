@@ -11,8 +11,8 @@ import { FailureAlert } from '../../feedback/failureAlert';
 import { signUpSchema } from './SignUpSchema';
 
 /**
- * Creates an account with an email and password while the instance keeps sign-up on, then says what comes next. An email
- * that is not one, or a password that breaks `passwordRules`, shows under its field and sends nothing.
+ * Creates an account with an email and password while sign-up is open, or with an invitation's token, then says what
+ * comes next. An email that is not one, or a password that breaks `passwordRules`, shows under its field and sends nothing.
  */
 defineOptions({ name: 'SignUpForm' });
 
@@ -26,8 +26,13 @@ const props = withDefaults(
     signInHref?: string;
     /** The rules a new password meets, the declaration's `passwordRules`; with none, the password is only required. */
     passwordRules?: ReadonlyArray<SignInRuleDto>;
+    /**
+     * The token of an invitation link: the account joins its organization with its role, and signs up even while sign-up
+     * is by invitation only.
+     */
+    invitationToken?: string | null;
   }>(),
-  { client: undefined, baseUrl: undefined, signInHref: undefined, passwordRules: undefined },
+  { client: undefined, baseUrl: undefined, signInHref: undefined, passwordRules: undefined, invitationToken: null },
 );
 
 const emit = defineEmits<{
@@ -48,7 +53,8 @@ const form = useAccountForm(() => ({
   validateOn: 'blur' as const,
   messages: passwordRuleMessages,
   onSubmit: async (values, { signal }) => {
-    const result = await client.signUp(values, signal);
+    const request = props.invitationToken ? { ...values, invitationToken: props.invitationToken } : values;
+    const result = await client.signUp(request, signal);
     if (result.ok) {
       created.value = { account: result.value, email: values.email };
       emit('signedUp', result.value);

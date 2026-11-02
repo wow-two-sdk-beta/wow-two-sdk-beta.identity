@@ -102,13 +102,13 @@ public sealed partial class AccountEndpointTests
     [Fact]
     public async Task SignUp_IsRefused_WhenTheHostSectionClosesSignUpTheCodeOpened()
     {
-        await using var app = await StartAsync(new Dictionary<string, string?> { ["Identity:SignUp:IsEnabled"] = "false" });
+        await using var app = await StartAsync(new Dictionary<string, string?> { ["Identity:SignUp:Mode"] = "Invite" });
         var client = app.Server.CreateClient();
 
         using var refused = await client.PostAsJsonAsync("/account/sign-up", new { email = "ned@example.test", password = Password });
 
         refused.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await Problem(refused)).GetProperty("detail").GetString().Should().StartWith("Sign-up is closed");
+        (await Problem(refused)).GetProperty("detail").GetString().Should().StartWith("Sign-up is by invitation only");
         app.Mail.Sent.Should().BeEmpty("a refused sign-up creates no account to confirm");
     }
 
@@ -387,7 +387,7 @@ public sealed partial class AccountEndpointTests
                 o.Origins.Add("https://app.test");
             })
             .AddSignIn()
-            .AddAccountEndpoints(o => o.IsEnabled = true);
+            .AddAccountEndpoints(o => o.Mode = SignUpMode.Open);
         builder.Services.AddJwtBearerAuthentication(o => { o.Issuer = "tests"; o.Audience = "tests"; o.SymmetricKey = JwtKey; });
         builder.Services.AddJwtTokenIssuance(o => { o.Issuer = "tests"; o.Audience = "tests"; o.SigningKey = JwtKey; });
         builder.Services.AddAuthorization();

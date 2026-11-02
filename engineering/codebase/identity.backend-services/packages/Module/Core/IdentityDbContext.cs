@@ -107,6 +107,9 @@ public sealed class IdentityDbContext : AppDbContextBase
     /// <summary>Pending start links of the bot (<c>identity_telegram_link_requests</c>).</summary>
     public DbSet<IdentityTelegramLinkRequest> TelegramLinkRequests => Set<IdentityTelegramLinkRequest>();
 
+    /// <summary>Invitations into organizations (<c>identity_invitations</c>).</summary>
+    public DbSet<IdentityInvitation> Invitations => Set<IdentityInvitation>();
+
     /// <inheritdoc />
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -233,7 +236,7 @@ public sealed class IdentityDbContext : AppDbContextBase
         });
     }
 
-    /// <summary>Maps organizations and memberships.</summary>
+    /// <summary>Maps organizations, memberships and invitations.</summary>
     private static void MapOrganizations(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<IdentityOrganization>(organization =>
@@ -252,6 +255,19 @@ public sealed class IdentityDbContext : AppDbContextBase
             membership.HasKey(m => new { m.OrganizationId, m.UserId });
             membership.HasIndex(m => m.UserId);
             membership.Property(m => m.Role).HasMaxLength(64);
+        });
+
+        modelBuilder.Entity<IdentityInvitation>(invitation =>
+        {
+            invitation.ToTable("identity_invitations");
+            invitation.HasKey(i => i.Id);
+            invitation.Property(i => i.Id).ValueGeneratedNever();
+            invitation.HasIndex(i => i.TokenHash).IsUnique();
+            invitation.HasIndex(i => i.OrganizationId);
+            invitation.Property(i => i.Role).HasMaxLength(64);
+            invitation.Property(i => i.TokenHash).HasMaxLength(64);
+            invitation.Property(i => i.PhoneNumber).HasMaxLength(32);
+            invitation.Property(i => i.Email).HasMaxLength(256);
         });
     }
 

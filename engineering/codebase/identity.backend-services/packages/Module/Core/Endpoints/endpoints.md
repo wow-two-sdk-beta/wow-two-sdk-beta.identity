@@ -48,9 +48,11 @@ app.MapGroup("/api/account").MapUserAccountEndpoints();
 - Every sign-in route takes an optional `?clientId=` (the OIDC client the hosted pages serve), which the sign-in log
   records with each attempt (`.AddSignInLog()`, `../SignInLog/sign-in-log.md`).
 - Lockout answers `429`, an unconfirmed account `403`, wrong credentials and a missing second factor `401`.
-- Sign-up is off by default: `sign-up` answers `403` (message key `SignUpClosed`) and creates nothing until
-  `SignUpOptions.IsEnabled` turns it on, in code or in the host section `Identity:SignUp`; an admin's code path
-  (`UserAccountService`) still creates accounts, and sign-in is unaffected.
+- Sign-up is by invitation only by default (`SignUpOptions.Mode` `Invite`): `sign-up` answers `403` (message key
+  `SignUpClosed`) and creates nothing unless it carries a pending invitation's `invitationToken`; `Open`, in code or in
+  the host section `Identity:SignUp`, takes anyone. An admin's code path (`UserAccountService`) still creates accounts,
+  and sign-in is unaffected. With invitations registered, `GET invitations/{token}` previews a link and
+  `POST invitations/{token}/accept` adds the signed-in person (`../Invitations/invitations.md`).
 - Refresh renews without a second factor but re-checks lockout and confirmation; a refused renewal revokes the token.
 - Without an `IEmailBroker` or a link template, emails are skipped and `isConfirmationSent` is false.
 - A host with no JWT issuance (`ITokenIssuer`) or refresh slice is cookie-only: a bearer sign-in (any sign-in route without

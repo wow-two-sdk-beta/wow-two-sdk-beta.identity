@@ -11,4 +11,10 @@ public sealed record SignUpApiRequest
 
     /// <summary>Optional user name; the email when omitted.</summary>
     public string? UserName { get; init; }
+
+    /// <summary>
+    /// The token of an invitation link: the account joins its organization with its role, and signs up even while sign-up
+    /// is by invitation only. An invitation naming an email takes only that email.
+    /// </summary>
+    public string? InvitationToken { get; init; }
 }

@@ -89,7 +89,7 @@ services:
         DatabaseSettings:ConnectionString: { required: true }
         Identity:Server:Issuer: { type: url, required: true }
         Identity:Server:Keys:IsEphemeral: { type: boolean, default: false }
-        Identity:SignUp:IsEnabled: { type: boolean, default: false }
+        Identity:SignUp:Mode: { type: choice, values: [Invite, Open], default: Invite }
         Identity:Server:Keys:Signing:0: { secret: true, required: true }
         Identity:Server:Keys:Encryption:0: { secret: true, required: true }
         Identity:DataProtection:Certificates:0: { secret: true, required: true }
@@ -107,6 +107,7 @@ services:
         Identity:Sessions:Lifetime: {}
         Identity:Sessions:ExtendedLifetime: {}
         Identity:Sessions:SlidingLifetime: {}
+        Identity:Invitations:Lifetime: {}
         Identity:Telegram:IsEnabled: { type: boolean, default: false }
         Identity:Telegram:BotToken: { secret: true }
         Identity:Telegram:BotUserName: {}

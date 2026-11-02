@@ -39,7 +39,7 @@ public sealed class AccountHost : IAsyncDisposable
             ["DatabaseSettings:ConnectionString"] = _connectionString,
             ["AllowedHosts"] = "localhost",
             ["Logging:LogLevel:Default"] = "Warning",
-            ["Identity:SignUp:IsEnabled"] = "true",
+            ["Identity:SignUp:Mode"] = "Open",
             ["Identity:Server:Issuer"] = Issuer,
             ["Identity:Otp:RateLimitWindow"] = "00:00:00",
         };

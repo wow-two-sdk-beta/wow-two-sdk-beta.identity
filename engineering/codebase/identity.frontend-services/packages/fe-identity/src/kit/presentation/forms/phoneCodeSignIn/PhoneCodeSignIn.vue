@@ -30,6 +30,11 @@ const props = withDefaults(
     defaultCountry?: string;
     /** Whether to offer "Keep me signed in", as the declaration's `isPersistenceOffered` says. */
     isPersistenceOffered?: boolean;
+    /**
+     * The token of an invitation link: the person joins its organization with its role, and a first sign-in creates them
+     * even while sign-up is by invitation only.
+     */
+    invitationToken?: string | null;
   }>(),
   {
     client: undefined,
@@ -38,6 +43,7 @@ const props = withDefaults(
     countries: undefined,
     defaultCountry: undefined,
     isPersistenceOffered: false,
+    invitationToken: null,
   },
 );
 
@@ -90,7 +96,12 @@ const codeForm = useAccountForm({
   defaultValues: { code: '', isPersistent: false },
   onSubmit: async (values, { signal }) => {
     const result = await client.signInWithPhone(
-      { phone: phone.value, code: values.code.trim(), isPersistent: props.isPersistenceOffered && values.isPersistent },
+      {
+        phone: phone.value,
+        code: values.code.trim(),
+        isPersistent: props.isPersistenceOffered && values.isPersistent,
+        ...(props.invitationToken ? { invitationToken: props.invitationToken } : {}),
+      },
       { clientId: props.clientId, signal },
     );
     if (result.ok) emit('signedIn');

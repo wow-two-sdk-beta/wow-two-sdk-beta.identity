@@ -15,8 +15,11 @@ public sealed record SignInOptionsDto
     /// <summary>The image behind the card, a same-origin path or an HTTPS URL; null for the theme's own backdrop.</summary>
     public string? BackgroundUrl { get; init; }
 
-    /// <summary>Whether anyone may create an account (<c>Identity:SignUp:IsEnabled</c>).</summary>
-    public bool IsSignUpEnabled { get; init; }
+    /// <summary>
+    /// Who may create an account (<c>Identity:SignUp:Mode</c>): <c>invite</c>, only through an invitation link, so the pages
+    /// offer no sign-up without one; <c>open</c>, anyone.
+    /// </summary>
+    public required string SignUpMode { get; init; }
 
     /// <summary>
     /// Whether the sign-in forms offer "Keep me signed in": the sign-in request's <c>isPersistent</c> then takes the extended

@@ -1,0 +1,82 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using WoW.Two.Sdk.Beta.Be.Foundation.Errors;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
+using WoW.Two.Sdk.Beta.Be.Web.Contracts;
+
+namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
+
+public static partial class UserAccountEndpointRouteBuilderExtensions
+{
+    /// <summary>
+    /// Maps <c>GET invitations/{token}</c>, the public preview of an invitation link (<c>404</c> when it names none), and
+    /// <c>POST invitations/{token}/accept</c>, which adds the signed-in person to its organization with its role and reissues
+    /// their cookie carrying it.
+    /// </summary>
+    private static void MapInvitationEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/invitations/{token}", PreviewInvitationAsync);
+        endpoints.MapPost("/invitations/{token}/accept", AcceptInvitationAsync).RequireAuthorization();
+    }
+
+    private static async Task<IResult> PreviewInvitationAsync(string token, HttpContext http, CancellationToken cancellationToken)
+    {
+        var lookup = await http.RequestServices.GetRequiredService<InvitationService>().FindAsync(token, cancellationToken)
+            ?? throw InvitationErrors.Of(InvitationService.NotFound()).ToException();
+        var invitation = lookup.Invitation;
+        return Results.Ok(ApiResponse<InvitationPreviewDto>.Ok(new InvitationPreviewDto
+        {
+            OrganizationName = lookup.Organization.Name,
+            Role = invitation.Role,
+            Status = lookup.Status.ToString().ToLowerInvariant(),
+            PhoneNumberHint = PersonalDataMasks.MaskSubject(invitation.PhoneNumber),
+            EmailHint = PersonalDataMasks.MaskSubject(invitation.Email),
+            ExpiresAt = invitation.ExpiresAt,
+        }));
+    }
+
+    private static async Task<IResult> AcceptInvitationAsync(string token, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)
+    {
+        var services = http.RequestServices;
+        var invitations = services.GetRequiredService<InvitationService>();
+        var user = await FindAsync(services, principal.FindFirst(services.GetRequiredService<IdentityCoreOptions>().Claims.UserIdClaimType)?.Value, cancellationToken)
+            ?? throw AppErrorFactory.Unauthorized("The account no longer exists.").ToException();
+        var lookup = await invitations.FindAsync(token, cancellationToken)
+            ?? throw InvitationErrors.Of(InvitationService.NotFound()).ToException();
+        var redeemed = await invitations.RedeemAsync(lookup.Invitation, user, cancellationToken);
+        if (!redeemed.IsSuccess)
+            throw InvitationErrors.Of(redeemed).ToException();
+
+        // The cookie carries organization claims from its sign-in: reissue it, same session, so the new role holds at once.
+        if (SessionOf(services, principal) is { } session && await HasCookieSchemeAsync(services))
+        {
+            var cookie = await http.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            if (cookie.Succeeded)
+                await ReissueCookieAsync(services, user, principal, session.SessionId, cookie, http, cancellationToken);
+        }
+
+        return Results.NoContent();
+    }
+
+    /// <summary>
+    /// The pending invitation <paramref name="token"/> names, checked against the identifier signing up; null without a token.
+    /// A token naming none, or an invitation that is not pending or names another identifier, is refused.
+    /// </summary>
+    internal static async Task<IdentityInvitation?> InvitationOfAsync(IServiceProvider services, string? token, string? email, string? phoneNumber, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return null;
+
+        var invitations = services.GetService<InvitationService>()
+            ?? throw InvitationErrors.Of(InvitationService.NotFound()).ToException();
+        var lookup = await invitations.FindAsync(token, cancellationToken)
+            ?? throw InvitationErrors.Of(InvitationService.NotFound()).ToException();
+        var check = invitations.Check(lookup.Invitation, email, phoneNumber);
+        return check.IsSuccess ? lookup.Invitation : throw InvitationErrors.Of(check).ToException();
+    }
+}

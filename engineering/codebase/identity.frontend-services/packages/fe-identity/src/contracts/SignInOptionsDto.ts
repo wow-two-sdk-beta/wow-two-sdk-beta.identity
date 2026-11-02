@@ -1,5 +1,6 @@
 import type { SignInMethodDto } from './SignInMethodDto';
 import type { SignInRequirementsDto } from './SignInRequirementsDto';
+import type { SignUpMode } from './SignUpMode';
 
 /**
  * Mirrors `SignInOptionsDto` of the be contract, the sign-in declaration `GET sign-in-options` answers: the hosted pages'
@@ -12,8 +13,8 @@ export interface SignInOptionsDto {
   readonly theme: string;
   /** The image behind the card, a same-origin path or an HTTPS URL; `null` for the theme's own backdrop. */
   readonly backgroundUrl: string | null;
-  /** Whether anyone may create an account. */
-  readonly isSignUpEnabled: boolean;
+  /** Who may create an account: `invite`, only through an invitation link, so the pages offer no sign-up without one; `open`, anyone. */
+  readonly signUpMode: SignUpMode;
   /**
    * Whether the sign-in forms offer "Keep me signed in" (`isPersistent`): sessions are fixed with an extended lifetime.
    * False while sessions slide, as a used session stays signed in anyway.

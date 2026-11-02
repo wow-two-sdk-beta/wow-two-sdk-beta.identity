@@ -5,6 +5,7 @@ import {
   hostedNavigation,
   readChangePasswordToken,
   readConfirmEmailRequest,
+  readInvitationToken,
   readResetPasswordRequest,
   readSignInRequest,
 } from '../../application/account';
@@ -50,7 +51,12 @@ export const routes: RouteConfig = [
         handle: { title: 'Sign up' },
         lazy: lazyPage(
           () => import('../../presentation/account/pages/SignUpPage.vue'),
-          (route) => ({ request: readSignInRequest(route.query) }),
+          (route) => ({
+            request: readSignInRequest(route.query),
+            invitationToken: readInvitationToken(route.query),
+            selfHref: route.fullPath,
+            onContinue: (url: string) => hostedNavigation.assign(url),
+          }),
         ),
       },
       {

@@ -6,4 +6,9 @@ export interface SignUpApiRequest {
   readonly password: string;
   /** The user name; the email when omitted. */
   readonly userName?: string;
+  /**
+   * The token of an invitation link: the account joins its organization with its role, and signs up even while sign-up
+   * is by invitation only. An invitation naming an email takes only that email.
+   */
+  readonly invitationToken?: string;
 }

@@ -6,6 +6,8 @@ import {
   type AccountInfoDto,
   type ConfirmEmailApiRequest,
   type EmailAddressApiRequest,
+  type InvitationPreviewDto,
+  type InvitationStatus,
   type PasswordChangeApiRequest,
   type PasswordChangeConfirmationApiRequest,
   type PasswordChangeConfirmationDto,
@@ -22,6 +24,7 @@ import {
   type SignInRuleDto,
   type SignUpApiRequest,
   type SignedUpAccountDto,
+  SignUpMode,
 } from '../../contracts';
 
 /** Configures where the account API is reached. */
@@ -62,8 +65,15 @@ export interface AccountClient {
    * order with its fields and rules. The look is the instance's, whatever `clientId` names.
    */
   getSignInOptions(query?: SignInOptionsQuery): Promise<Result<SignInOptionsDto, ApiFailure>>;
-  /** Signs an account up while sign-up is on; `403` while it is closed. */
+  /**
+   * Signs an account up while sign-up is open, or with an invitation's `invitationToken`; `403` while it is by invitation
+   * only and no token came.
+   */
   signUp(request: SignUpApiRequest, signal?: AbortSignal): Promise<Result<SignedUpAccountDto, ApiFailure>>;
+  /** Reads what an invitation link offers: its organization, role and where it stands; `404` for a link naming none. */
+  getInvitation(token: string, signal?: AbortSignal): Promise<Result<InvitationPreviewDto, ApiFailure>>;
+  /** Adds the signed-in person to the invitation's organization with its role. */
+  acceptInvitation(token: string, signal?: AbortSignal): Promise<Result<void, ApiFailure>>;
   /**
    * Signs in with an identifier and password: `null` once the session cookie is set, or the ticket of a required
    * password change, which sets no session.
@@ -124,6 +134,24 @@ function decodeSignedUp(value: unknown): Decoded<SignedUpAccountDto> {
     return ResultExtensions.ok({ userId: body.userId, isConfirmationSent: body.isConfirmationSent === true });
   }
   return protocolFailure();
+}
+
+const invitationStatuses: ReadonlyArray<InvitationStatus> = ['pending', 'expired', 'accepted', 'revoked'];
+
+function decodeInvitation(value: unknown): Decoded<InvitationPreviewDto> {
+  const body = record(value);
+  const status = invitationStatuses.find((known) => known === body?.status);
+  if (!body || typeof body.organizationName !== 'string' || typeof body.role !== 'string' || !status) {
+    return protocolFailure();
+  }
+  return ResultExtensions.ok({
+    organizationName: body.organizationName,
+    role: body.role,
+    status,
+    phoneNumberHint: typeof body.phoneNumberHint === 'string' ? body.phoneNumberHint : null,
+    emailHint: typeof body.emailHint === 'string' ? body.emailHint : null,
+    expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : '',
+  });
 }
 
 function decodeAccountInfo(value: unknown): Decoded<AccountInfoDto> {
@@ -215,7 +243,7 @@ function decodeSignInOptions(value: unknown): Decoded<SignInOptionsDto> {
     brandName,
     theme,
     backgroundUrl: text(body.backgroundUrl) || null,
-    isSignUpEnabled: body.isSignUpEnabled === true,
+    signUpMode: body.signUpMode === SignUpMode.Open ? SignUpMode.Open : SignUpMode.Invite,
     isPersistenceOffered: body.isPersistenceOffered === true,
     locale: text(body.locale) ?? 'en',
     locales: strings(body.locales) ?? [],
@@ -279,6 +307,16 @@ export function createAccountClient(options: AccountClientOptions = {}): Account
       }),
     signUp: (request, signal) =>
       client.post(AccountRouteConstants.signUp, { body: request, signal, decode: decodeSignedUp }),
+    getInvitation: (token, signal) =>
+      client.get(`${AccountRouteConstants.invitations}/${encodeURIComponent(token)}`, {
+        signal,
+        decode: decodeInvitation,
+      }),
+    acceptInvitation: (token, signal) =>
+      client.post(`${AccountRouteConstants.invitations}/${encodeURIComponent(token)}/accept`, {
+        response: 'empty',
+        signal,
+      }),
     async signIn(request, { clientId, signal } = {}) {
       const answered = await client.post(AccountRouteConstants.signIn, {
         query: signInQuery(clientId),

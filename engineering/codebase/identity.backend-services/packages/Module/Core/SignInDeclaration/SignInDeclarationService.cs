@@ -12,7 +12,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 /// <summary>
 /// Provides the sign-in declaration from the live settings, as the routes it describes read them: the password method
 /// while the password and sign-in slices are registered, the phone code while the Telegram bot is on
-/// (<c>Identity:Telegram:IsEnabled</c>), sign-up from <c>Identity:SignUp:IsEnabled</c>, the verifications from
+/// (<c>Identity:Telegram:IsEnabled</c>), sign-up from <c>Identity:SignUp:Mode</c>, the verifications from
 /// <c>Identity:SignIn</c>, and the instance's one look from <c>Identity:Pages</c>.
 /// </summary>
 /// <param name="services">The request's services, for the slices a registration may leave out.</param>
@@ -40,7 +40,7 @@ public sealed class SignInDeclarationService(
             BrandName = instance.BrandName,
             Theme = instance.Theme,
             BackgroundUrl = Filled(instance.BackgroundUrl),
-            IsSignUpEnabled = services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.IsEnabled == true,
+            SignUpMode = services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.Mode ?? SignUpMode.Invite,
             IsPersistenceOffered = services.GetService<Sessions.SessionOptions>()?.IsPersistenceOffered == true,
             Password = IsPasswordSignInOn() ? identity.Password : null,
             IsEmailIdentifierAllowed = signIn.IsEmailIdentifierAllowed,

@@ -40,7 +40,7 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
             (await migrator.HasTableAsync(Schema, table)).Should().BeTrue($"the set creates {table}");
         (await HasColumnAsync(migrator, "identity_users", "deleted_at")).Should().BeTrue("001-accounts creates the soft-delete column");
         (await HasColumnAsync(migrator, "identity_users", "display_name")).Should().BeTrue("005-display-name adds the display name");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5);
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5, 6);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
@@ -50,6 +50,10 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         await using var migrator = CreateMigrator(fixture);
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
+
+        (await runner.RollbackAsync(targetOrdinal: 5)).ValueOrThrow().Should().Equal("006-invitations");
+        (await migrator.HasTableAsync(Schema, "identity_invitations")).Should().BeFalse("rolling 006-invitations back drops the table");
+        (await migrator.HasTableAsync(Schema, "identity_memberships")).Should().BeTrue("the memberships stay");
 
         (await runner.RollbackAsync(targetOrdinal: 4)).ValueOrThrow().Should().Equal("005-display-name");
         (await HasColumnAsync(migrator, "identity_users", "display_name")).Should().BeFalse("rolling 005-display-name back drops the column");

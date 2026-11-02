@@ -44,9 +44,25 @@ describe('sign-up form', () => {
     expect(wrapper.emitted('signedUp')).toEqual([[{ userId: 'u1', isConfirmationSent: true }]]);
   });
 
+  it('signs up with the invitation link that opened it', async () => {
+    const { client, received } = fakeAccountApi({ 'POST /sign-up': () => Response.json({ data: { userId: 'u2' } }) });
+    const wrapper = render(SignUpForm, { props: { client, invitationToken: 'tok-1' } });
+
+    await wrapper.get('input[name="email"]').setValue('ann@example.test');
+    await wrapper.get('input[name="password"]').setValue('a-long-password');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received[0]?.body).toEqual({
+      email: 'ann@example.test',
+      password: 'a-long-password',
+      invitationToken: 'tok-1',
+    });
+  });
+
   it('says so when the instance keeps sign-up closed', async () => {
     const { client } = fakeAccountApi({
-      'POST /sign-up': () => problem(403, 'Sign-up is closed; ask an admin to add you.'),
+      'POST /sign-up': () => problem(403, 'Sign-up is by invitation only; ask an admin for a link.'),
     });
     const wrapper = render(SignUpForm, { props: { client } });
 
@@ -55,7 +71,7 @@ describe('sign-up form', () => {
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Sign-up is closed; ask an admin to add you.');
+    expect(wrapper.text()).toContain('Sign-up is by invitation only; ask an admin for a link.');
     expect(wrapper.find('form').exists()).toBe(true);
   });
 

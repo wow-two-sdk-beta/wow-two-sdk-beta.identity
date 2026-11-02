@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { HostedPageRouteConstants, type PasswordChangeRequiredDto } from '@wow-two-beta/fe-identity/contracts';
+import {
+  HostedPageRouteConstants,
+  SignUpMode,
+  type PasswordChangeRequiredDto,
+} from '@wow-two-beta/fe-identity/contracts';
 import { ChangePasswordForm, PasswordSignIn, PhoneCodeSignIn } from '@wow-two-beta/fe-identity/kit';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
 import { DividerLayout } from '@wow-two-beta/fe/presentation/layout';
@@ -80,7 +84,7 @@ function passwordChanged() {
         </section>
       </template>
     </template>
-    <template v-if="options?.isSignUpEnabled && !required" #footer>
+    <template v-if="options?.signUpMode === SignUpMode.Open && !required" #footer>
       <p class="text-muted-foreground">
         New here?
         <a :href="signUpHref" class="font-medium text-primary underline-offset-4 hover:underline">Sign up</a>

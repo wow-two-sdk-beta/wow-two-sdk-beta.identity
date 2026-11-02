@@ -15,7 +15,7 @@ public static class AccountEndpointIdentityBuilderExtensions
     /// <c>MapUserAccountEndpoints</c>.
     /// </summary>
     /// <param name="builder">The identity builder.</param>
-    /// <param name="signUp">Optional sign-up switch, off by default; the host section <c>Identity:SignUp</c> is applied last.</param>
+    /// <param name="signUp">Optional sign-up mode, by invitation only by default; the host section <c>Identity:SignUp</c> is applied last.</param>
     public static IdentityBuilder AddAccountEndpoints(this IdentityBuilder builder, Action<SignUpOptions>? signUp = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -31,7 +31,10 @@ public static class AccountEndpointIdentityBuilderExtensions
                         ?? new ConfigurationBuilder().Build()));
         }
 
-        services.AddModuleOptions(SignUpOptions.SectionName, signUp);
+        services.AddModuleOptions(
+            SignUpOptions.SectionName,
+            signUp,
+            options => options.Validate(o => Enum.IsDefined(o.Mode), "Identity:SignUp:Mode must be Invite or Open."));
         services.TryAddScoped<UserAccountMailService>();
         return builder;
     }

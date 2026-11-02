@@ -15,7 +15,11 @@ describe('password sign-in', () => {
     await flushPromises();
 
     expect(received[0]?.url.search).toBe('?useCookies=true&clientId=desk');
-    expect(received[0]?.body).toEqual({ identifier: 'ann@example.test', password: 'old-password', isPersistent: false });
+    expect(received[0]?.body).toEqual({
+      identifier: 'ann@example.test',
+      password: 'old-password',
+      isPersistent: false,
+    });
     expect(wrapper.emitted('signedIn')).toEqual([[]]);
     expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false);
   });
@@ -138,6 +142,27 @@ describe('phone code sign-in', () => {
     await flushPromises();
 
     expect(received[1]?.body).toEqual({ phone: '+998901234567', code: '123456', isPersistent: true });
+  });
+
+  it('carries the invitation link that opened it into the sign-in', async () => {
+    const { client, received } = fakeAccountApi({
+      'POST /phone-sign-in/send': () => Response.json({ data: { isCodeSent: true, telegramLinkUrl: null } }),
+      'POST /phone-sign-in': noContent,
+    });
+    const wrapper = render(PhoneCodeSignIn, { props: { client, countries: ['UZ'], invitationToken: 'tok-1' } });
+
+    await sendCode(wrapper);
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received[1]?.body).toEqual({
+      phone: '+998901234567',
+      code: '123456',
+      isPersistent: false,
+      invitationToken: 'tok-1',
+    });
+    expect(wrapper.emitted('signedIn')).toEqual([[]]);
   });
 
   it('opens Telegram first when the phone has no linked chat, then takes the code', async () => {

@@ -2,7 +2,7 @@
 export const HostedPageRouteConstants = {
   /** Signs a person in by every enabled method, then continues to `returnUrl`. */
   signIn: '/sign-in',
-  /** Creates an account while sign-up is on. */
+  /** Creates an account while sign-up is open, or from an invitation link (`invitation`). */
   signUp: '/sign-up',
   /** Confirms an email from the emailed link (`userId`, `token`). */
   confirmEmail: '/confirm-email',
@@ -24,4 +24,6 @@ export const HostedPageRouteConstants = {
   emailParameter: 'email',
   /** The query or fragment parameter that carries a one-time token. */
   tokenParameter: 'token',
+  /** The query parameter of an invitation link that carries its token. */
+  invitationParameter: 'invitation',
 } as const;

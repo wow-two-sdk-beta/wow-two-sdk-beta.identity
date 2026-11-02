@@ -34,6 +34,11 @@ export function readSignInRequest(query: RouteQuery): SignInRequest {
   return { returnUrl, clientId: clientId || null };
 }
 
+/** Reads the token an invitation link carries (`?invitation=`); `null` without one. */
+export function readInvitationToken(query: RouteQuery): string | null {
+  return filled(query, HostedPageRouteConstants.invitationParameter);
+}
+
 /** Reads the account and token an email confirmation link carries; `null` when either is missing. */
 export function readConfirmEmailRequest(query: RouteQuery) {
   const userId = filled(query, HostedPageRouteConstants.userIdParameter);

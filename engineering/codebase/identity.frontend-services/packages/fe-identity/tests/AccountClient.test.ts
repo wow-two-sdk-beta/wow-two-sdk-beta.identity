@@ -28,6 +28,40 @@ describe('account client', () => {
     });
   });
 
+  it('reads an invitation link and accepts it for the signed-in person', async () => {
+    const preview = {
+      organizationName: 'Ocharo',
+      role: 'editor',
+      status: 'pending',
+      phoneNumberHint: '+998*******67',
+      emailHint: null,
+      expiresAt: '2026-11-09T07:00:00+00:00',
+    };
+    const { client, received } = fakeAccountApi({
+      'GET /invitations/tok-1': () => Response.json({ data: preview }),
+      'POST /invitations/tok-1/accept': noContent,
+    });
+
+    expect(await client.getInvitation('tok-1')).toEqual({ ok: true, value: preview });
+    expect(await client.acceptInvitation('tok-1')).toEqual({ ok: true, value: undefined });
+    expect(received.map((request) => `${request.method} ${request.url.pathname}`)).toEqual([
+      'GET /api/account/invitations/tok-1',
+      'POST /api/account/invitations/tok-1/accept',
+    ]);
+  });
+
+  it('refuses an invitation preview with an unknown status', async () => {
+    const { client } = fakeAccountApi({
+      'GET /invitations/tok-2': () =>
+        Response.json({ data: { organizationName: 'Ocharo', role: 'editor', status: 'lost' } }),
+    });
+
+    const result = await client.getInvitation('tok-2');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.failure.code).toBe('protocol');
+  });
+
   it('refuses a required password change without its ticket', async () => {
     const { client } = fakeAccountApi({
       'POST /sign-in': () => Response.json({ data: { isPasswordChangeRequired: true, confirmation: 'None' } }),

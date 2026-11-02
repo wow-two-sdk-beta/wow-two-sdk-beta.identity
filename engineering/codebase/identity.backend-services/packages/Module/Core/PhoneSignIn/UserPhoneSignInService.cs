@@ -117,14 +117,14 @@ public sealed class UserPhoneSignInService(
 
     /// <summary>
     /// Spends <paramref name="code"/> for <paramref name="phoneNumber"/> and returns the person holding the number
-    /// confirmed; with none, creates one holding it confirmed while <paramref name="isSignUpEnabled"/>, else
+    /// confirmed; with none, creates one holding it confirmed while <paramref name="isSignUpAllowed"/>, else
     /// <see cref="PhoneSignInStatus.SignUpClosed"/>.
     /// </summary>
     /// <param name="phoneNumber">The number as typed.</param>
     /// <param name="code">The code the bot sent.</param>
-    /// <param name="isSignUpEnabled">Whether a first sign-in may create the person (<c>Identity:SignUp:IsEnabled</c>).</param>
+    /// <param name="isSignUpAllowed">Whether a first sign-in may create the person: sign-up is open, or an invitation came with it.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<PhoneSignInResult> VerifyAsync(string? phoneNumber, string? code, bool isSignUpEnabled, CancellationToken cancellationToken = default)
+    public async Task<PhoneSignInResult> VerifyAsync(string? phoneNumber, string? code, bool isSignUpAllowed, CancellationToken cancellationToken = default)
     {
         var phone = PhoneNumberPolicy.Normalize(phoneNumber);
         if (phone is null)
@@ -136,7 +136,7 @@ public sealed class UserPhoneSignInService(
 
         if (await users.FindByConfirmedPhoneNumberAsync(phone, cancellationToken) is { } known)
             return new PhoneSignInResult { Status = PhoneSignInStatus.Verified, PhoneNumber = phone, User = known };
-        if (!isSignUpEnabled)
+        if (!isSignUpAllowed)
             return PhoneSignInResult.Of(PhoneSignInStatus.SignUpClosed, phone);
 
         var created = await CreateAsync(phone, phone, cancellationToken)

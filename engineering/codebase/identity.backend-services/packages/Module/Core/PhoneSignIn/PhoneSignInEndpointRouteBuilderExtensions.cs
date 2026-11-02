@@ -9,6 +9,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Foundation.Errors;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.RefreshTokens;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
@@ -35,8 +37,9 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
     ///     failures carry their code in the problem's <c>identityCode</c>
     ///   - <c>phone-sign-in</c> takes <c>{ phone, code }</c> and signs in as <c>sign-in</c> does: a cookie with
     ///     <c>?useCookies=true</c> (<c>204</c>), else a bearer token pair; <c>amr</c> <c>otp</c>, sign-in log method
-    ///     <c>phone_code</c>, optional <c>?clientId=</c>. A first sign-in creates the person while
-    ///     <c>Identity:SignUp:IsEnabled</c> is on, else <c>403</c> (message key <c>SignUpClosed</c>); a wrong code is
+    ///     <c>phone_code</c>, optional <c>?clientId=</c>. A first sign-in creates the person while <c>Identity:SignUp:Mode</c>
+    ///     is <c>Open</c> or the request carries a pending invitation's <c>invitationToken</c>, else <c>403</c> (message key
+    ///     <c>SignUpClosed</c>); with a token the person, new or known, joins its organization with its role; a wrong code is
     ///     <c>401</c> (<c>InvalidPhoneCode</c>); a second factor answers <c>401</c> with the ticket for <c>sign-in/two-factor</c>;
     ///     a bearer sign-in on a cookie-only instance is <c>400</c> (<c>BearerSignInUnsupported</c>) before the code is spent
     /// </remarks>
@@ -71,8 +74,25 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
         if (!string.IsNullOrWhiteSpace(clientId) && services.GetService<SignInLogService>() is { } log)
             log.ClientId = clientId;
 
-        var isSignUpEnabled = services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.IsEnabled == true;
-        var verified = await phoneSignIn.VerifyAsync(request.Phone, request.Code, isSignUpEnabled, cancellationToken);
+        var invitation = await UserAccountEndpointRouteBuilderExtensions.InvitationOfAsync(
+            services, request.InvitationToken, email: null, PhoneNumberPolicy.Normalize(request.Phone), cancellationToken);
+        var isSignUpAllowed = invitation is not null || services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.IsOpen == true;
+        PhoneSignInResult verified;
+        if (invitation is null)
+        {
+            verified = await phoneSignIn.VerifyAsync(request.Phone, request.Code, isSignUpAllowed, cancellationToken);
+        }
+        else
+        {
+            (verified, var redemption) = await services.GetRequiredService<InvitationService>().RedeemWithAsync(
+                invitation,
+                token => phoneSignIn.VerifyAsync(request.Phone, request.Code, isSignUpAllowed, token),
+                result => result.Status == PhoneSignInStatus.Verified ? result.User : null,
+                cancellationToken);
+            if (redemption is { IsSuccess: false })
+                throw InvitationErrors.Of(redemption).ToException();
+        }
+
         switch (verified.Status)
         {
             case PhoneSignInStatus.InvalidCode:
@@ -80,7 +100,7 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
                 throw CodedError(AppErrorType.Unauthorized, "The code is invalid or has expired.", IdentityErrorCodeConstants.InvalidPhoneCode).ToException();
             case PhoneSignInStatus.SignUpClosed:
                 await RecordRefusalAsync(services, verified.PhoneNumber, SignInReasonConstants.UnknownAccount, cancellationToken);
-                throw CodedError(AppErrorType.Forbidden, "Sign-up is closed; ask an admin to add you.", IdentityErrorCodeConstants.SignUpClosed).ToException();
+                throw CodedError(AppErrorType.Forbidden, "Sign-up is by invitation only; ask an admin for a link.", IdentityErrorCodeConstants.SignUpClosed).ToException();
             case not PhoneSignInStatus.Verified:
                 throw NumberError(verified.Status).ToException();
         }

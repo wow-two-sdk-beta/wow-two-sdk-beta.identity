@@ -10,6 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Telegram.Bot;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Testing;
 
 namespace Identity.Tests.E2E.PhoneSignIn;
@@ -33,7 +35,7 @@ public sealed class PhoneSignInApiTests(IdentityApiFixture fixture)
         var connectionString = await PostgresTestServer.CreateDatabaseAsync();
         try
         {
-            await using var host = CreateHost(connectionString, bot, isSignUpEnabled: true);
+            await using var host = CreateHost(connectionString, bot, isSignUpOpen: true);
             using var client = host.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
 
             var link = await SendAsync(client, Phone);
@@ -91,7 +93,7 @@ public sealed class PhoneSignInApiTests(IdentityApiFixture fixture)
         var connectionString = await PostgresTestServer.CreateDatabaseAsync();
         try
         {
-            await using var host = CreateHost(connectionString, bot, isSignUpEnabled: false);
+            await using var host = CreateHost(connectionString, bot, isSignUpOpen: false);
             using var client = host.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
 
             using (var foreign = await client.PostAsJsonAsync("/api/account/phone-sign-in/send", new { phone = "+77011234567" }))
@@ -130,6 +132,54 @@ public sealed class PhoneSignInApiTests(IdentityApiFixture fixture)
     }
 
     [Fact]
+    public async Task FirstSignIn_ShouldCreateThePersonIntoTheInvitationsRole_WhileSignUpIsByInvitation()
+    {
+        var bot = new FakeTelegramBotClient();
+        var connectionString = await PostgresTestServer.CreateDatabaseAsync();
+        try
+        {
+            await using var host = CreateHost(connectionString, bot, isSignUpOpen: false);
+            using var client = host.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+            Guid organizationId;
+            string forOtherNumber, forThisNumber;
+            await using (var scope = host.Services.CreateAsyncScope())
+            {
+                var owner = new IdentityUser { UserName = "owner", Email = "owner@example.test" };
+                (await scope.ServiceProvider.GetRequiredService<UserAccountService>().CreateAsync(owner)).IsSuccess.Should().BeTrue();
+                var organization = new IdentityOrganization { Name = "Ocharo", Slug = "ocharo" };
+                (await scope.ServiceProvider.GetRequiredService<OrganizationService>().CreateAsync(organization, owner)).IsSuccess.Should().BeTrue();
+                organizationId = organization.Id;
+                var invitations = scope.ServiceProvider.GetRequiredService<InvitationService>();
+                forOtherNumber = (await invitations.CreateAsync(organization, owner, "editor", "+998907654321", null)).Token!;
+                forThisNumber = (await invitations.CreateAsync(organization, owner, "editor", Phone, null)).Token!;
+            }
+
+            var url = (await SendAsync(client, Phone)).GetProperty("telegramLinkUrl").GetString()!;
+            (await PostUpdateAsync(client, StartUpdate(url))).StatusCode.Should().Be(HttpStatusCode.OK);
+            (await PostUpdateAsync(client, ContactUpdate(Phone))).StatusCode.Should().Be(HttpStatusCode.OK);
+            var code = bot.LastCode(ChatId);
+
+            using (var mismatch = await client.PostAsJsonAsync("/api/account/phone-sign-in?useCookies=true", new { phone = Phone, code, invitationToken = forOtherNumber }))
+            {
+                mismatch.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+                (await IdentityCodeAsync(mismatch)).Should().Be("InvitationIdentifierMismatch");
+            }
+
+            using var signedIn = await client.PostAsJsonAsync("/api/account/phone-sign-in?useCookies=true", new { phone = Phone, code, invitationToken = forThisNumber });
+            signedIn.StatusCode.Should().Be(HttpStatusCode.NoContent, "the refused mismatch left the code unspent");
+            await using var check = host.Services.CreateAsyncScope();
+            var context = check.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            var person = await context.Users.SingleAsync(u => u.PhoneNumber == Phone);
+            (await context.Memberships.SingleAsync(m => m.UserId == person.Id)).Should().Match<IdentityMembership>(m => m.OrganizationId == organizationId && m.Role == "editor");
+            (await context.Invitations.SingleAsync(i => i.AcceptedByUserId == person.Id)).PhoneNumber.Should().Be(Phone);
+        }
+        finally
+        {
+            await PostgresTestServer.DropDatabaseAsync(connectionString);
+        }
+    }
+
+    [Fact]
     public async Task PhoneSignIn_ShouldAnswer404_WhileTheBotIsOff()
     {
         using var client = fixture.Host.CreateClient();
@@ -146,7 +196,7 @@ public sealed class PhoneSignInApiTests(IdentityApiFixture fixture)
         var connectionString = await PostgresTestServer.CreateDatabaseAsync();
         try
         {
-            await using var host = CreateHost(connectionString, new FakeTelegramBotClient(), isSignUpEnabled: false, botToken: null);
+            await using var host = CreateHost(connectionString, new FakeTelegramBotClient(), isSignUpOpen: false, botToken: null);
 
             FluentActions.Invoking(() => host.CreateClient()).Should().Throw<Exception>().Where(e => e.ToString().Contains("BotToken"));
         }
@@ -156,7 +206,7 @@ public sealed class PhoneSignInApiTests(IdentityApiFixture fixture)
         }
     }
 
-    private static WebApiTestHost<Program> CreateHost(string connectionString, FakeTelegramBotClient bot, bool isSignUpEnabled, string? botToken = "123456:E2E-token")
+    private static WebApiTestHost<Program> CreateHost(string connectionString, FakeTelegramBotClient bot, bool isSignUpOpen, string? botToken = "123456:E2E-token")
     {
         var host = new WebApiTestHost<Program>
         {
@@ -165,12 +215,13 @@ public sealed class PhoneSignInApiTests(IdentityApiFixture fixture)
                 ["DatabaseSettings:ConnectionString"] = connectionString,
                 ["AllowedHosts"] = "localhost",
                 ["Logging:LogLevel:Default"] = "Warning",
-                ["Identity:SignUp:IsEnabled"] = isSignUpEnabled ? "true" : "false",
+                ["Identity:SignUp:Mode"] = isSignUpOpen ? "Open" : "Invite",
                 ["Identity:Telegram:IsEnabled"] = "true",
                 ["Identity:Telegram:BotToken"] = botToken,
                 ["Identity:Telegram:BotUserName"] = "ocharo_e2e_bot",
                 ["Identity:Telegram:WebhookSecret"] = Secret,
                 ["Identity:Phone:AllowedCountries:0"] = "UZ",
+                ["Identity:Organizations:Roles:editor:0"] = "content:edit",
                 ["Identity:Otp:HashKey"] = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
             }),
             ConfigureServicesHook = services =>

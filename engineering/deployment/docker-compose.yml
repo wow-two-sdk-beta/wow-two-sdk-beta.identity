@@ -133,7 +133,7 @@ services:
       Identity__Server__Keys__Encryption__0: /data/keys/encryption.pem
       Identity__DataProtection__Certificates__0: /data/keys/data-protection.pem
       Identity__Tokens__SigningKey: /data/keys/token.key
-      Identity__SignUp__IsEnabled: "true"
+      Identity__SignUp__Mode: Open
     volumes:
       - identity-keys:/data
     mem_limit: 256m

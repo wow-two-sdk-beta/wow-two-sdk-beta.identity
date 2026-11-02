@@ -68,12 +68,12 @@ public sealed class PhoneSignInTests
         await updates.HandleAsync(Contact(Phone));
         bot.To(ChatId).Last().Text.Should().Contain("Havola eskirgan", "a completed link completes once");
 
-        (await phoneSignIn.VerifyAsync(Phone, Wrong(code), isSignUpEnabled: true)).Status.Should().Be(PhoneSignInStatus.InvalidCode);
-        var verified = await phoneSignIn.VerifyAsync(Phone, code, isSignUpEnabled: true);
+        (await phoneSignIn.VerifyAsync(Phone, Wrong(code), isSignUpAllowed: true)).Status.Should().Be(PhoneSignInStatus.InvalidCode);
+        var verified = await phoneSignIn.VerifyAsync(Phone, code, isSignUpAllowed: true);
         verified.Status.Should().Be(PhoneSignInStatus.Verified);
         verified.IsUserCreated.Should().BeTrue();
         verified.User!.Should().BeEquivalentTo(new { UserName = Phone, PhoneNumber = Phone, IsPhoneNumberConfirmed = true }, options => options.ExcludingMissingMembers());
-        (await phoneSignIn.VerifyAsync(Phone, code, isSignUpEnabled: true)).Status.Should().Be(PhoneSignInStatus.InvalidCode, "the code is spent");
+        (await phoneSignIn.VerifyAsync(Phone, code, isSignUpAllowed: true)).Status.Should().Be(PhoneSignInStatus.InvalidCode, "the code is spent");
 
         var signedIn = await services.GetRequiredService<SignInService>().SignInAsync(verified.User!, [AuthenticationMethodConstants.OneTimePassword], "phone_code");
         signedIn.Status.Should().Be(SignInStatus.Succeeded);
@@ -100,7 +100,7 @@ public sealed class PhoneSignInTests
 
         sent.Status.Should().Be(PhoneSignInStatus.CodeSent);
         bot.To(ChatId).Last().ReplyMarkup.Should().BeNull();
-        var verified = await services.GetRequiredService<UserPhoneSignInService>().VerifyAsync(Phone, bot.LastCode(ChatId), isSignUpEnabled: false);
+        var verified = await services.GetRequiredService<UserPhoneSignInService>().VerifyAsync(Phone, bot.LastCode(ChatId), isSignUpAllowed: false);
         verified.Status.Should().Be(PhoneSignInStatus.Verified);
         verified.IsUserCreated.Should().BeFalse();
         verified.User!.Id.Should().Be(person.Id);
@@ -115,7 +115,7 @@ public sealed class PhoneSignInTests
         var services = scope.ServiceProvider;
         await LinkAsync(services, bot);
 
-        var verified = await services.GetRequiredService<UserPhoneSignInService>().VerifyAsync(Phone, bot.LastCode(ChatId), isSignUpEnabled: false);
+        var verified = await services.GetRequiredService<UserPhoneSignInService>().VerifyAsync(Phone, bot.LastCode(ChatId), isSignUpAllowed: false);
 
         verified.Status.Should().Be(PhoneSignInStatus.SignUpClosed);
         (await services.GetRequiredService<IUserRepository>().FindByConfirmedPhoneNumberAsync(Phone)).Should().BeNull();

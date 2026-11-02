@@ -27,7 +27,7 @@ const instanceDeclaration = {
   brandName: 'Identity',
   theme: 'platform',
   backgroundUrl: null,
-  isSignUpEnabled: true,
+  signUpMode: 'open',
   locale: 'en',
   locales: ['uz', 'ru', 'en'],
   methods: [
@@ -126,7 +126,7 @@ function withOptions(overrides: Partial<SignInOptions>) {
     brandName: 'Identity',
     theme: 'platform',
     backgroundImageUrl: null,
-    isSignUpEnabled: true,
+    signUpMode: 'open',
     isPersistenceOffered: false,
     methods: [{ id: SignInMethodId.Password }],
     passwordRules: [],
@@ -238,7 +238,7 @@ describe('sign-in route', () => {
 
   it('offers no sign-up while the declaration keeps it closed', async () => {
     stubApi();
-    withOptions({ isSignUpEnabled: false });
+    withOptions({ signUpMode: 'invite' });
     const { wrapper } = await renderAt('/sign-in');
 
     expect(wrapper.text()).not.toMatch(/create an account/i);
@@ -300,7 +300,7 @@ describe('sign-in declaration', () => {
             brandName: 'Ocharo',
             theme: 'ocharo',
             backgroundUrl: '/backgrounds/ocharo.jpg',
-            isSignUpEnabled: false,
+            signUpMode: 'invite',
             methods: [{ ...phone, id: 'passkey' }, phone, password],
           },
         }),
@@ -487,6 +487,100 @@ describe('password pages', () => {
     const { wrapper } = await renderAt('/reset-password?email=ann%40example.test');
 
     expect(wrapper.text()).toContain('This link is incomplete.');
+  });
+});
+
+describe('sign-up route', () => {
+  const pending = {
+    organizationName: 'Ocharo',
+    role: 'editor',
+    status: 'pending',
+    phoneNumberHint: null,
+    emailHint: 'a***@example.test',
+    expiresAt: '2026-11-09T07:00:00+00:00',
+  };
+
+  it('offers no form while sign-up is by invitation only and no link came', async () => {
+    stubApi();
+    withOptions({ signUpMode: 'invite' });
+    const { wrapper } = await renderAt('/sign-up');
+
+    expect(wrapper.text()).toContain('Sign-up is by invitation only');
+    expect(wrapper.find('input[name="email"]').exists()).toBe(false);
+  });
+
+  it("names the link's organization and role, then signs up by email with its token", async () => {
+    const received = stubApi({
+      'GET /api/account/manage/info': unauthorized,
+      'GET /api/account/invitations/tok-1': () => Response.json({ data: pending }),
+      'POST /api/account/sign-up': () => Response.json({ data: { userId: 'u2', isConfirmationSent: true } }),
+    });
+    withOptions({
+      signUpMode: 'invite',
+      methods: [{ id: SignInMethodId.Password }, { id: SignInMethodId.PhoneCode, countries: ['UZ'] }],
+    });
+    const { wrapper } = await renderAt('/sign-up?invitation=tok-1');
+
+    expect(wrapper.get('h1').text()).toBe('Join');
+    expect(wrapper.text()).toContain('You are invited to join Ocharo as editor.');
+    expect(wrapper.text()).toContain('a***@example.test');
+    expect(wrapper.findAll('section').map((section) => section.attributes('aria-label'))).toEqual(['Email', 'Phone']);
+    const signIn = wrapper.findAll('a').find((link) => link.text() === 'Sign in');
+    expect(signIn?.attributes('href')).toBe(`/sign-in?returnUrl=${encodeURIComponent('/sign-up?invitation=tok-1')}`);
+
+    await wrapper.get('section[aria-label="Email"] input[name="email"]').setValue('ann@example.test');
+    await wrapper.get('section[aria-label="Email"] input[name="password"]').setValue('a-long-password');
+    await wrapper.get('section[aria-label="Email"] form').trigger('submit');
+    await flushPromises();
+
+    expect(received.at(-1)?.body).toEqual({
+      email: 'ann@example.test',
+      password: 'a-long-password',
+      invitationToken: 'tok-1',
+    });
+  });
+
+  it('lets a signed-in person join at once, then continues', async () => {
+    const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
+    const received = stubApi({
+      'GET /api/account/manage/info': () => Response.json({ data: { userId: 'u1', email: 'ann@example.test' } }),
+      'GET /api/account/invitations/tok-1': () => Response.json({ data: pending }),
+      'POST /api/account/invitations/tok-1/accept': noContent,
+    });
+    const { wrapper } = await renderAt(`/sign-up?invitation=tok-1&returnUrl=${encodeURIComponent(authorize)}`);
+
+    expect(wrapper.find('input[name="email"]').exists()).toBe(false);
+    const join = wrapper.findAll('button').find((button) => button.text() === 'Join Ocharo');
+    await join?.trigger('click');
+    await flushPromises();
+
+    expect(received.at(-1)).toMatchObject({
+      method: 'POST',
+      url: new URL('http://localhost/api/account/invitations/tok-1/accept'),
+    });
+    expect(assign).toHaveBeenCalledWith(authorize);
+  });
+
+  it.each([
+    ['expired', 'This invitation has expired.'],
+    ['accepted', 'This invitation was already used.'],
+    ['revoked', 'This invitation was withdrawn.'],
+  ])('says a link that is %s no longer works', async (status, message) => {
+    stubApi({
+      'GET /api/account/manage/info': unauthorized,
+      'GET /api/account/invitations/tok-1': () => Response.json({ data: { ...pending, status } }),
+    });
+    const { wrapper } = await renderAt('/sign-up?invitation=tok-1');
+
+    expect(wrapper.text()).toContain(message);
+    expect(wrapper.find('form').exists()).toBe(false);
+  });
+
+  it('says a link naming no invitation is not valid', async () => {
+    stubApi({ 'GET /api/account/manage/info': unauthorized });
+    const { wrapper } = await renderAt('/sign-up?invitation=unknown');
+
+    expect(wrapper.text()).toContain('This invitation link is not valid.');
   });
 });
 

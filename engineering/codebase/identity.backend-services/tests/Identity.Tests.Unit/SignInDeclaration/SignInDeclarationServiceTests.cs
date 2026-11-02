@@ -35,7 +35,7 @@ public sealed class SignInDeclarationServiceTests
         declaration.BrandName.Should().Be("Identity");
         declaration.Theme.Should().Be("platform");
         declaration.BackgroundUrl.Should().BeNull();
-        declaration.IsSignUpEnabled.Should().BeFalse();
+        declaration.SignUpMode.Should().Be("invite", "sign-up is by invitation only by default");
         declaration.Methods.Select(method => method.Id).Should().Equal("password");
         declaration.Requirements.Should().Be(new SignInRequirementsDto());
     }
@@ -48,7 +48,7 @@ public sealed class SignInDeclarationServiceTests
             ["Identity:Pages:BrandName"] = "Ocharo",
             ["Identity:Pages:Theme"] = "ocharo",
             ["Identity:Pages:BackgroundUrl"] = "/backgrounds/ocharo.jpg",
-            ["Identity:SignUp:IsEnabled"] = "true",
+            ["Identity:SignUp:Mode"] = "Open",
             ["Identity:SignIn:IsConfirmedEmailRequired"] = "true",
             ["Identity:Password:MinLength"] = "20",
         });
@@ -58,7 +58,7 @@ public sealed class SignInDeclarationServiceTests
         declaration.BrandName.Should().Be("Ocharo");
         declaration.Theme.Should().Be("ocharo");
         declaration.BackgroundUrl.Should().Be("/backgrounds/ocharo.jpg");
-        declaration.IsSignUpEnabled.Should().BeTrue();
+        declaration.SignUpMode.Should().Be("open");
         declaration.Requirements.IsConfirmedEmailRequired.Should().BeTrue();
         declaration.Methods.Single().PasswordRules![0].Params!["min"].Should().Be(20);
         declaration.Locale.Should().Be("ru");

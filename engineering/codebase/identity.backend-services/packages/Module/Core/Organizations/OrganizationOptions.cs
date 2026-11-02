@@ -11,6 +11,12 @@ public sealed record OrganizationOptions
     public string OwnerRole { get; set; } = "owner";
 
     /// <summary>
+    /// Gets or sets the role that manages members and invitations beside the owner, short of inviting, promoting or removing
+    /// an owner; it manages only while it is one of <see cref="Roles"/>. Default <c>admin</c>.
+    /// </summary>
+    public string AdminRole { get; set; } = "admin";
+
+    /// <summary>
     /// Gets the other roles by name, each with the permissions it grants, such as <c>editor</c> → <c>can-edit</c>.
     /// Names compare case-insensitively; the owner role may appear here to list its permissions.
     /// </summary>

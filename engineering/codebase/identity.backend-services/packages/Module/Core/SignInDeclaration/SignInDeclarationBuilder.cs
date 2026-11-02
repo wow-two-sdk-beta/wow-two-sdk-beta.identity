@@ -1,4 +1,5 @@
 using System.Globalization;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 using static WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration.SignInRuleCodeConstants;
 
@@ -41,7 +42,7 @@ internal static class SignInDeclarationBuilder
             BrandName = input.BrandName,
             Theme = input.Theme,
             BackgroundUrl = string.IsNullOrEmpty(input.BackgroundUrl) ? null : input.BackgroundUrl,
-            IsSignUpEnabled = input.IsSignUpEnabled,
+            SignUpMode = input.SignUpMode == SignUpMode.Open ? "open" : "invite",
             IsPersistenceOffered = input.IsPersistenceOffered,
             Locale = locale,
             Locales = SignInLocaleResolver.Locales,

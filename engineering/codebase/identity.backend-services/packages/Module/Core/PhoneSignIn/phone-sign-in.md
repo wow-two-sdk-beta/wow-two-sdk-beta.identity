@@ -37,8 +37,10 @@ app.MapTelegramWebhook();                                    // POST /api/telegr
   (`identity_otp_codes`); a wrong, spent or expired code is `401` `InvalidPhoneCode`.
 - A verified code signs in with `amr` `otp` and sign-in log method `phone_code`; lockout and preconditions still apply,
   and a second factor answers `401` with the ticket for `sign-in/two-factor`.
-- A first sign-in creates the person, holding the number confirmed, only while `Identity:SignUp:IsEnabled` is on; else `403`
-  (`SignUpClosed`) and the refusal is logged.
+- A first sign-in creates the person, holding the number confirmed, only while `Identity:SignUp:Mode` is `Open` or the
+  request carries a pending invitation's `invitationToken`; else `403` (`SignUpClosed`) and the refusal is logged. With
+  a token the person, new or known, joins its organization with its role; one naming another number answers `403`
+  (`InvitationIdentifierMismatch`) before the code is spent.
 - A bearer sign-in on a cookie-only host answers `400` (`BearerSignInUnsupported`) before the code is spent.
 - A hosted instance reads the bot by webhook and registers it with Telegram at start; a local run sets
   `Identity:Telegram:UpdateMode` to `Polling` with a dev bot of its own; the runtime has no fake bot. Update modes, registration and the `409` a hosted bot answers to polling: `Module/Telegram/telegram.md`.

@@ -9,4 +9,9 @@ export interface PhoneSignInApiRequest {
    * and a cookie that outlives the browser; ignored where `SignInOptionsDto.isPersistenceOffered` is false.
    */
   readonly isPersistent?: boolean;
+  /**
+   * The token of an invitation link: the person joins its organization with its role, and a first sign-in creates them
+   * even while sign-up is by invitation only. An invitation naming a phone number takes only that number.
+   */
+  readonly invitationToken?: string;
 }
