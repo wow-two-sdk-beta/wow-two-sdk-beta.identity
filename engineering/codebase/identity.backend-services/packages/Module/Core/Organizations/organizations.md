@@ -23,7 +23,7 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
 ```
 
 ```jsonc
-"Identity": { "Organizations": { "OwnerRole": "owner", "Roles": { "editor": [ "can-edit" ], "viewer": [] } } }
+"Identity": { "Organizations": { "Roles": { "editor": [ "desk:orders:edit" ], "viewer": [ "desk:orders:read" ] } } }
 ```
 
 ## Notes
@@ -39,8 +39,9 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
 - Existing databases need a migration for `identity_organizations` and `identity_memberships`.
 - The first organization and its owner come from the host CLI's `admin create` (`../Admin/admin.md`); members after
   that join by invitation link (`../Invitations/invitations.md`) and are managed through `MapOrganizationEndpoints`.
-- `OrganizationOptions.AdminRole` (default `admin`) manages members and invitations beside the owner while it is one of
-  the configured roles; only an owner invites, promotes, demotes or removes an owner.
+- The roles are a fixed catalog (`OrganizationRoleConstants`): `owner`, `admin`, `editor`, `viewer`, `billing`;
+  `Identity:Organizations:Roles` only adds permissions to them, and a role outside the catalog refuses the boot.
+- `admin` manages members and invitations beside the owner; only an owner invites, promotes, demotes or removes an owner.
 
 ## Management API
 

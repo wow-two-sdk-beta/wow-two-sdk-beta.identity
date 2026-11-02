@@ -77,7 +77,7 @@ public sealed class OrganizationTests
         (await organizations.AddMemberAsync(ocharo, member, "Editor")).IsSuccess.Should().BeTrue();
         (await organizations.GetRoleAsync(ocharo, member)).Should().Be("editor");
         (await organizations.AddMemberAsync(ocharo, member, "viewer")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.UserAlreadyMember);
-        (await organizations.AddMemberAsync(ocharo, await host.CreateUserAsync("aziz"), "admin")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.UnknownOrganizationRole);
+        (await organizations.AddMemberAsync(ocharo, await host.CreateUserAsync("aziz"), "operator")).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.UnknownOrganizationRole);
 
         var stamp = (await host.ReloadAsync(member.Id)).SecurityStamp;
         (await organizations.ChangeRoleAsync(ocharo, member, "viewer")).IsSuccess.Should().BeTrue();

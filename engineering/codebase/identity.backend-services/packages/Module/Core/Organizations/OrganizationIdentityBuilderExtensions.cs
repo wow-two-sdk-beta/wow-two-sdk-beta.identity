@@ -24,8 +24,9 @@ public static class OrganizationIdentityBuilderExtensions
             OrganizationOptions.SectionName,
             configure,
             options => options
-                .Validate(o => !string.IsNullOrWhiteSpace(o.OwnerRole), "OrganizationOptions.OwnerRole is required.")
-                .Validate(o => o.Roles.Keys.All(name => !string.IsNullOrWhiteSpace(name)), "OrganizationOptions.Roles needs non-empty role names."));
+                .Validate(
+                    o => o.Roles.Keys.All(name => OrganizationRoleConstants.Find(name) is not null),
+                    "Identity:Organizations:Roles names a role outside the catalog (owner, admin, editor, viewer, billing); an app adds permissions to these roles, never a role of its own."));
         builder.Services.TryAddScoped<IOrganizationRepository, EfOrganizationRepository>();
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddScoped<OrganizationService>();

@@ -28,4 +28,4 @@ verbs.AddHostVerb(AdminCommand.Name, (services, verb, ct) => AdminCommand.RunAsy
 ```
 
 `FirstOwnerService` (registered by `AddOrganizations`) holds the logic; the person keeps the given phone and email
-confirmed and the `owner` role (`Identity:Organizations:OwnerRole`).
+confirmed and the `owner` role of the catalog (`OrganizationRoleConstants.Owner`).
