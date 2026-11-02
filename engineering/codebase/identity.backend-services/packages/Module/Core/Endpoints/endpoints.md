@@ -58,6 +58,11 @@ app.MapGroup("/api/account").MapUserAccountEndpoints();
   `/`, no `//`, no scheme or backslash) rides in the emailed link as `&returnUrl=`, anything else is dropped.
 - `sign-up` refuses an email that is no plain address of at most 320 characters (`InvalidEmail`) and a user name over 256
   (`InvalidUserName`) with `400`, before anything persists.
+- `Identity:Methods:Password:IsEnabled` and `Identity:Methods:Email:IsEnabled` (`SignInMethodOptions`, both on by
+  default) switch the password and email routes: off, `sign-in`, `sign-up`, `forgot-password`, `reset-password`, the
+  password change routes, `confirm-email`, `resend-confirmation-email` and email sign-in answer `404` (`SignInMethodOff`)
+  as their method needs, and the declaration drops the password method and answers `isEmailEnabled: false`. A
+  phone-only instance turns both off.
 - Sign-up is by invitation only by default (`SignUpOptions.Mode` `Invite`): `sign-up` answers `403` (message key
   `SignUpClosed`) and creates nothing unless it carries a pending invitation's `invitationToken`; `Open`, in code or in
   the host section `Identity:SignUp`, takes anyone. An admin's code path (`UserAccountService`) still creates accounts,

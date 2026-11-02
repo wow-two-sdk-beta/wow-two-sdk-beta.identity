@@ -255,6 +255,8 @@ public sealed partial class ConfigCheckVerbTests
         ["Identity:Sessions:ActivityInterval"] = "00:05:00",
         ["Identity:SignInLog:RetentionDays"] = "180",
         ["Identity:SignInLog:CleanupInterval"] = "01:00:00",
+        ["Identity:Methods:Password:IsEnabled"] = "false",
+        ["Identity:Methods:Email:IsEnabled"] = "false",
         ["Identity:Password:MinLength"] = "12",
         ["Identity:Password:MaxLength"] = "100",
         ["Identity:Password:IsDigitRequired"] = "true",

@@ -44,6 +44,7 @@ internal static class SignInDeclarationBuilder
             BackgroundUrl = string.IsNullOrEmpty(input.BackgroundUrl) ? null : input.BackgroundUrl,
             SignUpMode = input.SignUpMode == SignUpMode.Open ? "open" : "invite",
             IsPersistenceOffered = input.IsPersistenceOffered,
+            IsEmailEnabled = input.IsEmailEnabled,
             Locale = locale,
             Locales = SignInLocaleResolver.Locales,
             Methods = methods,

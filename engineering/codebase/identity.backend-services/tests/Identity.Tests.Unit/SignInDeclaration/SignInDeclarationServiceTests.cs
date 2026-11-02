@@ -37,6 +37,7 @@ public sealed class SignInDeclarationServiceTests
         declaration.BackgroundUrl.Should().BeNull();
         declaration.SignUpMode.Should().Be("invite", "sign-up is by invitation only by default");
         declaration.Methods.Select(method => method.Id).Should().Equal("password");
+        declaration.IsEmailEnabled.Should().BeTrue("email is on by default");
         declaration.Requirements.Should().Be(new SignInRequirementsDto());
     }
 
@@ -89,6 +90,33 @@ public sealed class SignInDeclarationServiceTests
         using var provider = Build([], withPasswords: false);
 
         Declare(provider, clientId: null).Methods.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Build_ShouldLeavePasswordAndEmailOut_WhileTheirMethodsAreOff()
+    {
+        using var provider = Build(new Dictionary<string, string?>
+        {
+            ["Identity:Methods:Password:IsEnabled"] = "false",
+            ["Identity:Methods:Email:IsEnabled"] = "false",
+        });
+
+        var declaration = Declare(provider, clientId: null);
+
+        declaration.Methods.Should().BeEmpty("the password slice is registered, but its method is off");
+        declaration.IsEmailEnabled.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Build_ShouldKeepPassword_AndDropTheEmailIdentifier_WhileOnlyEmailIsOff()
+    {
+        using var provider = Build(new Dictionary<string, string?> { ["Identity:Methods:Email:IsEnabled"] = "false" });
+
+        var declaration = Declare(provider, clientId: null);
+
+        declaration.Methods.Select(method => method.Id).Should().Equal("password");
+        declaration.IsEmailEnabled.Should().BeFalse();
+        declaration.Methods[0].Fields[0].Rules[0].Message.Should().NotContainEquivalentOf("email", "an email no longer signs in");
     }
 
     [Theory]

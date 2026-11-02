@@ -13,6 +13,8 @@ export interface SignInOptions {
   readonly signUpMode: SignUpMode;
   /** Whether the sign-in forms offer "Keep me signed in". */
   readonly isPersistenceOffered: boolean;
+  /** Whether the instance takes emails: sign-up by email, confirmation and the forgot-password link. */
+  readonly isEmailEnabled: boolean;
   /** The enabled sign-in methods, in the order the sign-in page lays them out. */
   readonly methods: ReadonlyArray<SignInMethod>;
   /** The rules a new password meets on sign-up, reset and change, in the request's locale; empty without a password method. */

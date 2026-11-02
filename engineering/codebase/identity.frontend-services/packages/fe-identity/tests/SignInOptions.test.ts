@@ -8,6 +8,7 @@ const declaration: SignInOptionsDto = {
   backgroundUrl: '/backgrounds/ocharo.jpg',
   signUpMode: 'open',
   isPersistenceOffered: true,
+  isEmailEnabled: false,
   locale: 'ru',
   locales: ['uz', 'ru', 'en'],
   methods: [
@@ -90,6 +91,7 @@ describe('sign-in declaration', () => {
         backgroundUrl: null,
         signUpMode: 'invite',
         isPersistenceOffered: false,
+        isEmailEnabled: true,
         locale: 'en',
         locales: [],
         methods: [{ id: 'password', channels: [], fields: [], passwordRules: null }],

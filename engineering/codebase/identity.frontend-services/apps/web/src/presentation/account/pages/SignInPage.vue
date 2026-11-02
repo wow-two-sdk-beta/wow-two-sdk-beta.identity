@@ -14,7 +14,8 @@ import HostedPage from '../../common/layout/HostedPage.vue';
 
 /**
  * Signs a person in by every enabled method, in the declared order, then continues to the return URL. A password that
- * breaks the current rules is changed first, with the sign-in's ticket, and then signs in anew.
+ * breaks the current rules is changed first, with the sign-in's ticket, and then signs in anew. The forgot-password link
+ * shows only while the instance takes emails, as the reset goes by email.
  */
 defineOptions({ name: 'SignInPage' });
 
@@ -70,7 +71,7 @@ function passwordChanged() {
           <PasswordSignIn
             v-if="method.id === SignInMethodId.Password"
             :client-id="request.clientId"
-            :forgot-password-href="forgotPasswordHref"
+            :forgot-password-href="options.isEmailEnabled ? forgotPasswordHref : undefined"
             :is-persistence-offered="options.isPersistenceOffered"
             :return-url="returnUrl"
             @signed-in="continueToReturnUrl"

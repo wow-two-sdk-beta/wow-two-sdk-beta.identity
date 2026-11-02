@@ -20,6 +20,9 @@ internal sealed record SignInDeclarationInput
     /// <summary>The password rules while password sign-in is on; null while it is off.</summary>
     public PasswordOptions? Password { get; init; }
 
+    /// <summary>Whether the instance takes emails: sign-up by email, confirmation and reset links (<c>Identity:Methods:Email</c>).</summary>
+    public bool IsEmailEnabled { get; init; } = true;
+
     /// <summary>Whether an email signs in where a user name is expected.</summary>
     public bool IsEmailIdentifierAllowed { get; init; } = true;
 

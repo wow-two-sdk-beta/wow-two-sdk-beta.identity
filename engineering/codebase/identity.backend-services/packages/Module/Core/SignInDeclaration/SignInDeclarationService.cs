@@ -11,7 +11,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 
 /// <summary>
 /// Provides the sign-in declaration from the live settings, as the routes it describes read them: the password method
-/// while the password and sign-in slices are registered, the phone code while the Telegram bot is on
+/// while the password and sign-in slices are registered and <c>Identity:Methods:Password</c> is on, email while
+/// <c>Identity:Methods:Email</c> is on, the phone code while the Telegram bot is on
 /// (<c>Identity:Telegram:IsEnabled</c>), sign-up from <c>Identity:SignUp:Mode</c>, the verifications from
 /// <c>Identity:SignIn</c>, and the instance's one look from <c>Identity:Pages</c>.
 /// </summary>
@@ -35,6 +36,7 @@ public sealed class SignInDeclarationService(
         _ = clientId; // one look per instance: a client will narrow the methods, never the look
         var instance = pages.CurrentValue;
         var signIn = identity.SignIn;
+        var methods = services.GetService<IOptionsMonitor<SignInMethodOptions>>()?.CurrentValue ?? new SignInMethodOptions();
         var input = new SignInDeclarationInput
         {
             BrandName = instance.BrandName,
@@ -42,8 +44,9 @@ public sealed class SignInDeclarationService(
             BackgroundUrl = Filled(instance.BackgroundUrl),
             SignUpMode = services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.Mode ?? SignUpMode.Invite,
             IsPersistenceOffered = services.GetService<Sessions.SessionOptions>()?.IsPersistenceOffered == true,
-            Password = IsPasswordSignInOn() ? identity.Password : null,
-            IsEmailIdentifierAllowed = signIn.IsEmailIdentifierAllowed,
+            Password = methods.Password.IsEnabled && IsPasswordSignInOn() ? identity.Password : null,
+            IsEmailEnabled = methods.Email.IsEnabled,
+            IsEmailIdentifierAllowed = signIn.IsEmailIdentifierAllowed && methods.Email.IsEnabled,
             PhoneCountries = PhoneCountries(),
             PhoneCodeLength = services.GetService<OtpOptions>()?.CodeLength ?? new OtpOptions().CodeLength,
             IsConfirmedEmailRequired = signIn.IsConfirmedEmailRequired,

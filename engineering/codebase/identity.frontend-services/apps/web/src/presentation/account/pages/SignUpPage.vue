@@ -11,8 +11,9 @@ import HostedPage from '../../common/layout/HostedPage.vue';
 
 /**
  * Creates an account. With an invitation link's token it names the organization and role the link carries, then offers
- * the instance's methods carrying the token, or, to someone signed in, joining at once. Without one it offers the form
- * only while sign-up is open; by invitation only, it says so.
+ * the instance's methods carrying the token, or, to someone signed in, joining at once. Without one it offers the email
+ * form while sign-up is open and the instance takes emails, the phone method on an open phone-only instance; by
+ * invitation only, it says so.
  */
 defineOptions({ name: 'SignUpPage' });
 
@@ -42,8 +43,22 @@ const unavailable: Record<Exclude<InvitationStatus, 'pending'>, string> = {
   revoked: 'This invitation was withdrawn.',
 };
 
-/** Offers the form while sign-up is open, and while the declaration failed to load: the service then decides. */
-const isFormOffered = computed(() => options.value?.signUpMode === SignUpMode.Open || optionsFailure.value !== null);
+/** Whether the email and password form signs up: the password method is on and the instance takes emails. */
+const isEmailSignUpOn = computed(
+  () =>
+    options.value?.isEmailEnabled === true &&
+    options.value.methods.some((method) => method.id === SignInMethodId.Password),
+);
+/** Offers the form while sign-up is open by email, and while the declaration failed to load: the service then decides. */
+const isFormOffered = computed(
+  () => (options.value?.signUpMode === SignUpMode.Open && isEmailSignUpOn.value) || optionsFailure.value !== null,
+);
+/** The phone method an open, phone-only instance signs up with: its first sign-in creates the person. */
+const openPhoneMethod = computed(() =>
+  options.value?.signUpMode === SignUpMode.Open && !isEmailSignUpOn.value
+    ? (options.value.methods.find((method) => method.id === SignInMethodId.PhoneCode) ?? null)
+    : null,
+);
 const isPending = computed(() => invitation.value?.status === 'pending');
 /** What the link offers, and the identifier it is for when it names one. */
 const invitationText = computed(() => {
@@ -99,7 +114,7 @@ async function join() {
             <DividerLayout v-if="index > 0" label="or" />
             <section :aria-label="method.id === SignInMethodId.Password ? 'Email' : 'Phone'">
               <SignUpForm
-                v-if="method.id === SignInMethodId.Password"
+                v-if="method.id === SignInMethodId.Password && options.isEmailEnabled"
                 :sign-in-href="signInHref"
                 :password-rules="options.passwordRules"
                 :invitation-token="invitationToken"
@@ -123,6 +138,13 @@ async function join() {
       :sign-in-href="signInHref"
       :password-rules="options?.passwordRules"
       :return-url="returnUrl"
+    />
+    <PhoneCodeSignIn
+      v-else-if="openPhoneMethod?.id === SignInMethodId.PhoneCode"
+      :client-id="request.clientId"
+      :countries="openPhoneMethod.countries"
+      :code-rules="openPhoneMethod.codeRules"
+      @signed-in="continueToReturnUrl"
     />
     <AlertSimple v-else-if="options" severity="info">
       Sign-up is by invitation only. Ask an admin of your organization for an invitation link.

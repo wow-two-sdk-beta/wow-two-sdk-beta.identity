@@ -11,12 +11,13 @@ public static class AccountEndpointIdentityBuilderExtensions
 {
     /// <summary>
     /// Register <see cref="UserAccountMailService"/> with <see cref="UserAccountEmailSettings"/> bound live from
-    /// the container's <c>UserAccounts:Emails</c> section, <see cref="SignUpOptions"/>, and the credential routes' rate-limit
+    /// the container's <c>UserAccounts:Emails</c> section, <see cref="SignUpOptions"/>, <see cref="SignInMethodOptions"/>, and the credential routes' rate-limit
     /// policy (<see cref="AccountRateLimitPolicyConstants.Credentials"/>); map the API with <c>MapUserAccountEndpoints</c>.
     /// </summary>
     /// <param name="builder">The identity builder.</param>
     /// <param name="signUp">Optional sign-up mode, by invitation only by default; the host section <c>Identity:SignUp</c> is applied last.</param>
-    public static IdentityBuilder AddAccountEndpoints(this IdentityBuilder builder, Action<SignUpOptions>? signUp = null)
+    /// <param name="methods">Optional method switches, every one on by default; the host section <c>Identity:Methods</c> is applied last.</param>
+    public static IdentityBuilder AddAccountEndpoints(this IdentityBuilder builder, Action<SignUpOptions>? signUp = null, Action<SignInMethodOptions>? methods = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
         var services = builder.Services;
@@ -35,6 +36,7 @@ public static class AccountEndpointIdentityBuilderExtensions
             SignUpOptions.SectionName,
             signUp,
             options => options.Validate(o => Enum.IsDefined(o.Mode), "Identity:SignUp:Mode must be Invite or Open."));
+        services.AddModuleOptions(SignInMethodOptions.SectionName, methods, _ => { });
         services.TryAddScoped<UserAccountMailService>();
         services.AddAccountRateLimit();
         return builder;

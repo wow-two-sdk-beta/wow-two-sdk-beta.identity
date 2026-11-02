@@ -2,10 +2,15 @@
 import { ChangePasswordForm } from '@wow-two-beta/fe-identity/kit';
 import { ApiFailureExtensions } from '@wow-two-beta/fe/foundation/http';
 import { AlertSimple, Spinner } from '@wow-two-beta/fe/presentation/feedback';
+import { computed } from 'vue';
 import { useAccountInfo, useHostedOptions } from '../../../application/account';
+import { SignInMethodId } from '../../../domain/account';
 import HostedPage from '../../common/layout/HostedPage.vue';
 
-/** Shows the signed-in person's security settings: the password change, under the instance's confirmation. */
+/**
+ * Shows the signed-in person's security settings: the password change, under the instance's confirmation, while the
+ * instance signs in by password; a phone-only instance has no password to change.
+ */
 defineOptions({ name: 'AccountSecurityPage' });
 
 const props = defineProps<{
@@ -15,6 +20,9 @@ const props = defineProps<{
 
 const { options } = useHostedOptions();
 const { account, failure } = useAccountInfo(() => props.onSignInRequired());
+const isPasswordOn = computed(
+  () => options.value?.methods.some((method) => method.id === SignInMethodId.Password) ?? true,
+);
 </script>
 
 <template>
@@ -25,10 +33,13 @@ const { account, failure } = useAccountInfo(() => props.onSignInRequired());
       <p class="text-sm text-muted-foreground">
         Signed in as <span class="font-medium text-foreground">{{ account.email ?? account.userName }}</span>
       </p>
-      <section class="flex flex-col gap-3" aria-labelledby="password-heading">
+      <section v-if="isPasswordOn" class="flex flex-col gap-3" aria-labelledby="password-heading">
         <h2 id="password-heading" class="text-lg font-semibold">Password</h2>
         <ChangePasswordForm :password-rules="options?.passwordRules" />
       </section>
+      <p v-else class="text-sm text-muted-foreground">
+        You sign in with your phone number; there is no password to change.
+      </p>
     </template>
   </HostedPage>
 </template>

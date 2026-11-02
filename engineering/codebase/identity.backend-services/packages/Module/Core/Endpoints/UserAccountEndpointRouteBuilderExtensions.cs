@@ -30,6 +30,10 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
 {
     private static readonly JsonSerializerOptions ExportJson = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
+    private const string Password = SignInMethodOptions.PasswordMethod;
+
+    private const string Email = SignInMethodOptions.EmailMethod;
+
     /// <summary>
     /// Maps <c>sign-up</c>, <c>sign-in</c>, <c>refresh</c>, <c>sign-out</c>, <c>confirm-email</c>,
     /// <c>resend-confirmation-email</c>, <c>forgot-password</c>, <c>reset-password</c>, <c>manage/info</c> and, with the
@@ -53,21 +57,22 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
     /// Every route that checks a credential or sends a code or link takes the per-address
     /// <see cref="AccountRateLimitPolicyConstants.Credentials"/> policy (<c>429</c> past it). <c>sign-up</c>,
     /// <c>resend-confirmation-email</c> and <c>forgot-password</c> take an optional <c>returnUrl</c>, kept when it is a local
-    /// path, which the emailed link carries back as <c>&amp;returnUrl=</c>.
+    /// path, which the emailed link carries back as <c>&amp;returnUrl=</c>. A route whose method <see cref="SignInMethodOptions"/>
+    /// turns off answers <c>404</c> (message key <c>SignInMethodOff</c>).
     /// </summary>
     /// <param name="endpoints">The route builder or group.</param>
     public static IEndpointRouteBuilder MapUserAccountEndpoints(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        endpoints.MapPost("/sign-up", SignUpAsync).LimitCredentials(endpoints);
-        endpoints.MapPost("/sign-in", SignInAsync).LimitCredentials(endpoints);
+        endpoints.MapPost("/sign-up", SignUpAsync).RequireMethods(Password, Email).LimitCredentials(endpoints);
+        endpoints.MapPost("/sign-in", SignInAsync).RequireMethods(Password).LimitCredentials(endpoints);
         endpoints.MapPost("/refresh", RefreshAsync);
         endpoints.MapPost("/sign-out", SignOutAsync);
-        endpoints.MapGet("/confirm-email", ConfirmEmailAsync);
-        endpoints.MapPost("/resend-confirmation-email", ResendConfirmationAsync).LimitCredentials(endpoints);
-        endpoints.MapPost("/forgot-password", ForgotPasswordAsync).LimitCredentials(endpoints);
-        endpoints.MapPost("/reset-password", ResetPasswordAsync).LimitCredentials(endpoints);
+        endpoints.MapGet("/confirm-email", ConfirmEmailAsync).RequireMethods(Email);
+        endpoints.MapPost("/resend-confirmation-email", ResendConfirmationAsync).RequireMethods(Email).LimitCredentials(endpoints);
+        endpoints.MapPost("/forgot-password", ForgotPasswordAsync).RequireMethods(Password, Email).LimitCredentials(endpoints);
+        endpoints.MapPost("/reset-password", ResetPasswordAsync).RequireMethods(Password, Email).LimitCredentials(endpoints);
         endpoints.MapGet("/manage/info", InfoAsync).RequireAuthorization();
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserPasswordChangeService)) == true)
@@ -97,8 +102,8 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserEmailSignInService)) == true)
         {
-            endpoints.MapPost("/email-sign-in/send", SendEmailSignInAsync).LimitCredentials(endpoints);
-            endpoints.MapPost("/email-sign-in", EmailSignInAsync).LimitCredentials(endpoints);
+            endpoints.MapPost("/email-sign-in/send", SendEmailSignInAsync).RequireMethods(Email).LimitCredentials(endpoints);
+            endpoints.MapPost("/email-sign-in", EmailSignInAsync).RequireMethods(Email).LimitCredentials(endpoints);
         }
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserPasskeyService)) == true)

@@ -20,6 +20,11 @@ export interface SignInOptionsDto {
    * False while sessions slide, as a used session stays signed in anyway.
    */
   readonly isPersistenceOffered: boolean;
+  /**
+   * Whether the instance takes emails (`Identity:Methods:Email`): sign-up by email and password, email confirmation and the
+   * forgot-password link. False on a phone-only instance, whose pages then ask for no email.
+   */
+  readonly isEmailEnabled: boolean;
   /** The locale the rule messages are in: `uz`, `ru` or `en`. */
   readonly locale: string;
   /** The locales the pages offer, in display order. */

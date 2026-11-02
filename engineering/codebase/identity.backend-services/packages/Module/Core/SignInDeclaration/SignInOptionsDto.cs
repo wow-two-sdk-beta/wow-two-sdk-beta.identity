@@ -34,6 +34,12 @@ public sealed record SignInOptionsDto
     /// <summary>The locales the pages offer, in display order.</summary>
     public required IReadOnlyList<string> Locales { get; init; }
 
+    /// <summary>
+    /// Whether the instance takes emails (<c>Identity:Methods:Email</c>): sign-up by email and password, email confirmation
+    /// and the forgot-password link. False on a phone-only instance, whose pages then ask for no email.
+    /// </summary>
+    public bool IsEmailEnabled { get; init; } = true;
+
     /// <summary>The enabled sign-in methods, in the order the pages lay them out (<see cref="SignInMethodIdConstants"/>).</summary>
     public required IReadOnlyList<SignInMethodDto> Methods { get; init; }
 

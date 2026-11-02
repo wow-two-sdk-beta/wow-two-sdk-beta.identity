@@ -255,6 +255,7 @@ function decodeSignInOptions(value: unknown): Decoded<SignInOptionsDto> {
     backgroundUrl: text(body.backgroundUrl) || null,
     signUpMode: body.signUpMode === SignUpMode.Open ? SignUpMode.Open : SignUpMode.Invite,
     isPersistenceOffered: body.isPersistenceOffered === true,
+    isEmailEnabled: body.isEmailEnabled !== false,
     locale: text(body.locale) ?? 'en',
     locales: strings(body.locales) ?? [],
     methods,

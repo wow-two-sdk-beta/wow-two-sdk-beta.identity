@@ -173,4 +173,10 @@ public static class IdentityErrorCodeConstants
 
     /// <summary>The invitation names neither a valid phone number nor a valid email where one was given.</summary>
     public const string InvalidInvitationIdentifier = "InvalidInvitationIdentifier";
+
+    /// <summary>The route's sign-in method or channel is off on this instance (<c>Identity:Methods</c>).</summary>
+    public const string SignInMethodOff = "SignInMethodOff";
+
+    /// <summary>The role is not one of the instance role catalog.</summary>
+    public const string UnknownInstanceRole = "UnknownInstanceRole";
 }

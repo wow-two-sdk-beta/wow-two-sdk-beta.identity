@@ -23,9 +23,9 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
     /// </summary>
     private static void MapPasswordChangeEndpoints(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/manage/password/confirmation", PasswordChangeConfirmationAsync).LimitCredentials(endpoints);
-        endpoints.MapPost("/manage/password", ChangePasswordAsync).LimitCredentials(endpoints);
-        endpoints.MapPost("/password/change", ChangePasswordByLinkAsync).LimitCredentials(endpoints);
+        endpoints.MapPost("/manage/password/confirmation", PasswordChangeConfirmationAsync).RequireMethods(Password).LimitCredentials(endpoints);
+        endpoints.MapPost("/manage/password", ChangePasswordAsync).RequireMethods(Password).LimitCredentials(endpoints);
+        endpoints.MapPost("/password/change", ChangePasswordByLinkAsync).RequireMethods(Password).LimitCredentials(endpoints);
     }
 
     private static async Task<IResult> PasswordChangeConfirmationAsync(
