@@ -62,8 +62,7 @@ public static class OidcServerIdentityBuilderExtensions
                 server.AllowAuthorizationCodeFlow()
                     .AllowRefreshTokenFlow()
                     .RequireProofKeyForCodeExchange()
-                    .DisableAccessTokenEncryption()
-                    .DisableSlidingRefreshTokenExpiration();
+                    .DisableAccessTokenEncryption();
 
                 server.RegisterScopes(Scopes.OpenId, Scopes.Profile, Scopes.Email, Scopes.Phone, Scopes.OfflineAccess);
                 server.RegisterClaims(

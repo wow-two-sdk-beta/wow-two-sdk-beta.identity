@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
@@ -18,6 +19,12 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 /// <summary>Maps the OpenID Connect server's pass-through endpoints: authorize, token, userinfo and end-session.</summary>
 public static class OidcServerEndpointRouteBuilderExtensions
 {
+    /// <summary>
+    /// The token response parameter naming, in seconds, when the refresh chain ends: with the sign-in session behind it.
+    /// Not in RFC 6749; the name others use for it.
+    /// </summary>
+    public const string RefreshTokenExpiresInParameter = "refresh_token_expires_in";
+
     /// <summary>The parameters dropped from the return URL, so the sign-in it leads back to is not asked for again.</summary>
     private static readonly HashSet<string> FreshSignInParameters = new(StringComparer.Ordinal) { Parameters.Prompt, Parameters.MaxAge };
 
@@ -98,12 +105,44 @@ public static class OidcServerEndpointRouteBuilderExtensions
         var client = await OidcClientProfile.FindAsync(services.GetRequiredService<IOpenIddictApplicationManager>(), request.ClientId, cancellationToken);
         if (user is null || client is null)
             return Forbid(Errors.InvalidGrant, "The sign-in behind this grant is no longer valid.");
-        if (!await IsSessionLiveAsync(services, grant.Principal!, user, cancellationToken))
+        var (isLive, session) = await SessionOfAsync(services, grant.Principal!, user, cancellationToken);
+        if (!isLive)
             return Forbid(Errors.InvalidGrant, "The sign-in session behind this grant has ended.");
 
         var identity = new ClaimsIdentity(grant.Principal!.Claims, grant.Principal.Identity?.AuthenticationType, Claims.Name, Claims.Role);
         var principal = await services.GetRequiredService<OidcClaimMapper>().ApplyAsync(identity, user, client, cancellationToken);
-        return Results.SignIn(principal, authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        var accessTokenLifetime = services.GetRequiredService<IOptions<OidcServerOptions>>().Value.AccessTokenLifetime;
+        var properties = EndWithSession(principal, grant.Principal, session, request, accessTokenLifetime, time.GetUtcNow());
+        return Results.SignIn(principal, properties, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
+    /// <summary>
+    /// Ends the refresh chain with the sign-in session: each new refresh token lives until the session's end (moved by a
+    /// sliding session's use), and the response names that end as <see cref="RefreshTokenExpiresInParameter"/>, so a client
+    /// such as the BFF ends its own session with it; no access token outlives the session. A grant without a session keeps
+    /// the chain's absolute end.
+    /// </summary>
+    private static AuthenticationProperties EndWithSession(
+        ClaimsPrincipal principal,
+        ClaimsPrincipal grant,
+        IdentitySession? session,
+        OpenIddictRequest request,
+        TimeSpan accessTokenLifetime,
+        DateTimeOffset now)
+    {
+        var properties = new AuthenticationProperties();
+        var end = session?.ExpiresAt ?? (request.IsRefreshTokenGrantType() ? grant.GetExpirationDate() : null);
+        if (end is not { } chainEnd || chainEnd <= now)
+            return properties;
+
+        var remaining = chainEnd - now;
+        principal.SetRefreshTokenLifetime(remaining);
+        if (remaining < accessTokenLifetime)
+            principal.SetAccessTokenLifetime(remaining);
+        if (principal.HasScope(Scopes.OfflineAccess))
+            properties.Parameters[RefreshTokenExpiresInParameter] = (long)remaining.TotalSeconds;
+
+        return properties;
     }
 
     private static async Task<IResult> UserInfoAsync(HttpContext http, CancellationToken cancellationToken)
@@ -190,12 +229,17 @@ public static class OidcServerEndpointRouteBuilderExtensions
     /// sessions) and a host without the sessions slice pass.
     /// </summary>
     private static async Task<bool> IsSessionLiveAsync(IServiceProvider services, ClaimsPrincipal principal, IdentityUser user, CancellationToken cancellationToken)
+        => (await SessionOfAsync(services, principal, user, cancellationToken)).IsLive;
+
+    /// <summary>The live sign-in session a grant or token names, its use recorded; live with no session when it names none.</summary>
+    private static async Task<(bool IsLive, IdentitySession? Session)> SessionOfAsync(IServiceProvider services, ClaimsPrincipal principal, IdentityUser user, CancellationToken cancellationToken)
     {
         var presented = principal.GetClaim(SessionClaimTypeConstants.SessionId);
         if (presented is null || services.GetService<UserSessionService>() is not { } sessions)
-            return true;
+            return (true, null);
 
-        return Guid.TryParse(presented, out var sid) && await sessions.ValidateAsync(sid, user.Id, cancellationToken);
+        var session = Guid.TryParse(presented, out var sid) ? await sessions.FindLiveAsync(sid, user.Id, cancellationToken) : null;
+        return (session is not null, session);
     }
 
     /// <summary>The session id a cookie principal carries under <paramref name="claimType"/>, or null.</summary>

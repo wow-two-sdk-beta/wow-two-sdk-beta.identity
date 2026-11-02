@@ -14,6 +14,11 @@ export interface SignInOptionsDto {
   readonly backgroundUrl: string | null;
   /** Whether anyone may create an account. */
   readonly isSignUpEnabled: boolean;
+  /**
+   * Whether the sign-in forms offer "Keep me signed in" (`isPersistent`): sessions are fixed with an extended lifetime.
+   * False while sessions slide, as a used session stays signed in anyway.
+   */
+  readonly isPersistenceOffered: boolean;
   /** The locale the rule messages are in: `uz`, `ru` or `en`. */
   readonly locale: string;
   /** The locales the pages offer, in display order. */

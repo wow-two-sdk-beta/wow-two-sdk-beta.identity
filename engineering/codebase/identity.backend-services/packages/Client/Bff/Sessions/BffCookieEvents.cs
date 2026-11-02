@@ -7,12 +7,14 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 
 /// <summary>
 /// Binds the session cookie to the server-side session: a sign-in stores the session and leaves the cookie its
-/// reference, each request resolves (and refreshes) the session behind it, a sign-out removes it; API requests answer
+/// reference, each request resolves (and refreshes) the session behind it and reissues the cookie when the session's end
+/// moved, a sign-out removes it; API requests answer
 /// 401 and 403 problems where a page request is redirected to the sign-in route.
 /// </summary>
 /// <param name="sessions">The session service.</param>
 /// <param name="options">The BFF options.</param>
-internal sealed class BffCookieEvents(BffSessionService sessions, IOptions<IdentityBffOptions> options) : CookieAuthenticationEvents
+/// <param name="time">The clock a reissued cookie counts from.</param>
+internal sealed class BffCookieEvents(BffSessionService sessions, IOptions<IdentityBffOptions> options, TimeProvider time) : CookieAuthenticationEvents
 {
     /// <inheritdoc />
     public override async Task SigningIn(CookieSigningInContext context)
@@ -46,7 +48,15 @@ internal sealed class BffCookieEvents(BffSessionService sessions, IOptions<Ident
 
         context.ReplacePrincipal(BffSessionService.CreatePrincipal(session));
         context.Properties.StoreTokens(BffSessionService.TokensOf(session));
+
+        // The instance's sliding session moved the end: reissue the cookie to end with it.
+        var cookieEnd = context.Properties.ExpiresUtc;
         context.Properties.ExpiresUtc = session.State.ExpiresAt;
+        if (cookieEnd is { } end && session.State.ExpiresAt > end)
+        {
+            context.Properties.IssuedUtc = time.GetUtcNow();
+            context.ShouldRenew = true;
+        }
     }
 
     /// <inheritdoc />

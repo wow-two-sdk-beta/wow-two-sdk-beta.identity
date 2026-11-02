@@ -35,7 +35,8 @@ app.MapOidcServerEndpoints();                           // /connect/{authorize,t
   credentials grant.
 - Tokens: access tokens are unencrypted JWTs a resource server verifies offline against the JWKS; codes and refresh
   tokens are encrypted. Lifetimes default to code 60 s, access 10 min, ID 5 min, refresh 12 h absolute. With sessions,
-  both tokens carry `sid`.
+  both tokens carry `sid`, and the refresh chain ends with the session (`Identity:Sessions`: fixed, extended or
+  sliding), no access token outlives it, and each token response names the end as `refresh_token_expires_in` seconds.
 - Tables: `identity_oidc_applications`, `_authorizations`, `_scopes`, `_tokens` (Module's `002-oidc`) and
   `identity_data_protection_keys` (`003-spine`); this package only reads and writes them.
 - Boot fails closed on unusable keys, on ephemeral keys outside a local run, on an invalid client registry, and on a

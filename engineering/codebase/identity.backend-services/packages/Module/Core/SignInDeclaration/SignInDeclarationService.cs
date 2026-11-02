@@ -41,6 +41,7 @@ public sealed class SignInDeclarationService(
             Theme = instance.Theme,
             BackgroundUrl = Filled(instance.BackgroundUrl),
             IsSignUpEnabled = services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.IsEnabled == true,
+            IsPersistenceOffered = services.GetService<Sessions.SessionOptions>()?.IsPersistenceOffered == true,
             Password = IsPasswordSignInOn() ? identity.Password : null,
             IsEmailIdentifierAllowed = signIn.IsEmailIdentifierAllowed,
             PhoneCountries = PhoneCountries(),

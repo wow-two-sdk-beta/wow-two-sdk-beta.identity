@@ -19,8 +19,11 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 ///     <see cref="BffSessionProtector"/>; the cookie carries only the <c>sid</c> and a per-sign-in reference
 ///   - a refresh runs once the access token is within <see cref="IdentityBffOptions.AccessTokenRefreshMargin"/> of its
 ///     end; requests of one session in one process wait for one refresh rather than spend the refresh token twice
-///   - the session ends at <see cref="IdentityBffOptions.SessionLifetime"/> after the sign-in, when the instance refuses
-///     the refresh, or when the access token ran out with no refresh token; an unreachable instance keeps it
+///   - the session ends with the instance's sign-in session, whose end each token response names
+///     (<c>refresh_token_expires_in</c>) and a sliding one moves; an instance that names none ends it
+///     <see cref="IdentityBffOptions.SessionLifetime"/> after the sign-in
+///   - it also ends when the instance refuses the refresh, or when the access token ran out with no refresh token; an
+///     unreachable instance keeps it
 /// </remarks>
 /// <param name="repository">The session store.</param>
 /// <param name="protector">The payload protector.</param>
@@ -38,6 +41,9 @@ internal sealed partial class BffSessionService(
 {
     /// <summary>Holds the request item that marks the session ended in this request, so signing out never ends it twice.</summary>
     private const string EndedItem = "WoW.Two.Sdk.Beta.Be.Identity.Bff.SessionEnded";
+
+    /// <summary>The sign-in property holding the instance session's end, from the code exchange's token response.</summary>
+    private const string InstanceEndItem = ".bff.instance_session_end";
 
     /// <summary>Holds the gates that serialize one session's refreshes in this process, striped by <c>sid</c>.</summary>
     private readonly SemaphoreSlim[] _gates = [.. Enumerable.Range(0, 32).Select(_ => new SemaphoreSlim(1, 1))];
@@ -62,6 +68,21 @@ internal sealed partial class BffSessionService(
         return http.Items.ContainsKey(EndedItem);
     }
 
+    /// <summary>Record in the sign-in's <paramref name="properties"/> when the instance's session ends.</summary>
+    /// <param name="properties">The code flow's properties.</param>
+    /// <param name="end">The instant the instance named.</param>
+    public static void WriteInstanceEnd(AuthenticationProperties properties, DateTimeOffset end)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+        properties.Items[InstanceEndItem] = end.ToString("o", CultureInfo.InvariantCulture);
+    }
+
+    private static DateTimeOffset? ReadInstanceEnd(AuthenticationProperties properties)
+        => properties.Items.TryGetValue(InstanceEndItem, out var value)
+           && DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var end)
+            ? end
+            : null;
+
     /// <summary>Start a session from the code flow's principal and the tokens the handler saved into <paramref name="properties"/>.</summary>
     /// <param name="principal">The person, from the validated ID token.</param>
     /// <param name="properties">The sign-in properties carrying the tokens.</param>
@@ -82,7 +103,7 @@ internal sealed partial class BffSessionService(
             RefreshToken = properties.GetTokenValue("refresh_token"),
             IdentityToken = properties.GetTokenValue("id_token"),
             SignedInAt = now,
-            ExpiresAt = now + options.Value.SessionLifetime,
+            ExpiresAt = ReadInstanceEnd(properties) ?? now + options.Value.SessionLifetime,
         };
 
         var session = new BffSession { SessionId = sessionId, State = state };
@@ -203,6 +224,7 @@ internal sealed partial class BffSessionService(
                 AccessTokenExpiresAt = refreshed.AccessTokenLifetime is { } lifetime ? now + lifetime : null,
                 RefreshToken = refreshed.RefreshToken ?? refreshToken,
                 IdentityToken = refreshed.IdentityToken ?? state.IdentityToken,
+                ExpiresAt = refreshed.SessionLifetime is { } remaining ? now + remaining : state.ExpiresAt,
             },
         };
         await SaveAsync(renewed, cancellationToken);

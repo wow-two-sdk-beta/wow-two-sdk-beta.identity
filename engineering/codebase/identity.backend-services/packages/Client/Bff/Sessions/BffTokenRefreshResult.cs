@@ -18,6 +18,9 @@ internal sealed record BffTokenRefreshResult
     /// <summary>Gets the new access token's lifetime, or null when the response named none.</summary>
     public TimeSpan? AccessTokenLifetime { get; init; }
 
+    /// <summary>Gets how long the instance's sign-in session still lives (<c>refresh_token_expires_in</c>), or null when it named none.</summary>
+    public TimeSpan? SessionLifetime { get; init; }
+
     /// <summary>Gets the rotated refresh token, or null when the instance kept the old one.</summary>
     public string? RefreshToken { get; init; }
 

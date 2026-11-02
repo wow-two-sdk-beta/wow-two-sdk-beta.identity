@@ -11,11 +11,11 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 /// <remarks>
 ///   - a session lives while unrevoked, unexpired and its stamp equals the person's: a stamp rotation ends every
 ///     session, marked <see cref="SessionRevokeReasonConstants.SecurityStamp"/> when next seen
-///   - <c>last_seen_at</c> moves at most once per <see cref="SessionOptions.ActivityInterval"/>
+///   - <c>last_seen_at</c> moves at most once per <see cref="SessionOptions.ActivityInterval"/>; a sliding session's end moves with it
 /// </remarks>
 /// <param name="sessions">The session store.</param>
 /// <param name="users">The core user store, for the current stamp.</param>
-/// <param name="options">The lifetime and activity interval.</param>
+/// <param name="options">The expiration, lifetimes and activity interval.</param>
 /// <param name="time">The clock sessions take their instants from.</param>
 /// <param name="handlers">What else ends with a session.</param>
 /// <param name="http">The current request, for the address and user agent; null outside a request.</param>
@@ -33,8 +33,14 @@ public sealed class UserSessionService(
     /// <param name="user">The signed-in person.</param>
     /// <param name="methods">How they signed in, as <c>amr</c> values.</param>
     /// <param name="signInLogEntryId">The logged attempt that signed them in, which then names the session; null when none.</param>
+    /// <param name="isPersistent">Whether the person asked to stay signed in: a fixed session then takes <see cref="SessionOptions.ExtendedLifetime"/>.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentitySession> StartAsync(IdentityUser user, IEnumerable<string> methods, long? signInLogEntryId = null, CancellationToken cancellationToken = default)
+    public async Task<IdentitySession> StartAsync(
+        IdentityUser user,
+        IEnumerable<string> methods,
+        long? signInLogEntryId = null,
+        bool isPersistent = false,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentNullException.ThrowIfNull(methods);
@@ -48,7 +54,7 @@ public sealed class UserSessionService(
             SecurityStamp = user.SecurityStamp,
             CreatedAt = now,
             LastSeenAt = now,
-            ExpiresAt = now + options.Lifetime,
+            ExpiresAt = now + options.LifetimeOf(isPersistent),
             IpMasked = ipMasked,
             UserAgent = userAgent,
         };
@@ -58,6 +64,10 @@ public sealed class UserSessionService(
 
         return session;
     }
+
+    /// <summary>Whether a session's cookie outlives the browser (<see cref="SessionOptions.IsCookiePersistent"/>).</summary>
+    /// <param name="isPersistent">Whether the sign-in asked to stay signed in.</param>
+    public bool IsCookiePersistent(bool isPersistent) => options.IsCookiePersistent(isPersistent);
 
     /// <summary>
     /// Keep a live session through a stamp rotation the person caused themselves (a password change): the session takes the
@@ -79,25 +89,42 @@ public sealed class UserSessionService(
     /// <param name="userId">The person the cookie or token names.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<bool> ValidateAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken = default)
+        => await FindLiveAsync(sessionId, userId, cancellationToken) is not null;
+
+    /// <summary>
+    /// The live session <paramref name="sessionId"/> of <paramref name="userId"/>, its use recorded; null when it is not
+    /// live, a stamp-stale one ending on the way. A recorded use of a sliding session moves its end
+    /// <see cref="SessionOptions.SlidingLifetime"/> ahead, and the session returned carries the new end.
+    /// </summary>
+    /// <param name="sessionId">The <c>sid</c> presented.</param>
+    /// <param name="userId">The person the cookie or token names.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<IdentitySession?> FindLiveAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken = default)
     {
         var now = time.GetUtcNow();
         var session = await sessions.FindAsync(sessionId, cancellationToken);
         if (session is null || session.UserId != userId || session.RevokedAt is not null || session.ExpiresAt <= now)
-            return false;
+            return null;
 
         if (await users.FindByIdAsync(userId, cancellationToken) is not { } user)
-            return false;
+            return null;
 
         if (!IsCurrent(session, user))
         {
             await EndAsync([session.Id], SessionRevokeReasonConstants.SecurityStamp, cancellationToken);
-            return false;
+            return null;
         }
 
-        if (now - session.LastSeenAt >= options.ActivityInterval)
-            await sessions.TouchAsync(session.Id, now, cancellationToken);
+        if (now - session.LastSeenAt < options.ActivityInterval)
+            return session;
 
-        return true;
+        DateTimeOffset? expiresAt = options.Expiration == SessionExpiration.Sliding ? now + options.SlidingLifetime : null;
+        await sessions.TouchAsync(session.Id, now, expiresAt, cancellationToken);
+        session.LastSeenAt = now;
+        if (expiresAt is { } moved && moved > session.ExpiresAt)
+            session.ExpiresAt = moved;
+
+        return session;
     }
 
     /// <summary>The person's live sessions, newest first; sessions a stamp rotation ended are marked so on the way.</summary>

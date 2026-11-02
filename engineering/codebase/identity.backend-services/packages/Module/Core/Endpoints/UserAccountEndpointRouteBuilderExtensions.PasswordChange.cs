@@ -152,6 +152,6 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         await http.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme,
             fresh,
-            new AuthenticationProperties { ExpiresUtc = cookie.Properties?.ExpiresUtc });
+            new AuthenticationProperties { IssuedUtc = cookie.Properties?.IssuedUtc, ExpiresUtc = cookie.Properties?.ExpiresUtc, IsPersistent = cookie.Properties?.IsPersistent == true });
     }
 }

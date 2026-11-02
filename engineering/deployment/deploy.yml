@@ -103,6 +103,10 @@ services:
         Identity:Email:Smtp:Username: {}
         Identity:Email:Smtp:Password: { secret: true }
         Identity:Password:Change:Confirmation: { type: choice, values: [None, Code, Link], default: None }
+        Identity:Sessions:Expiration: { type: choice, values: [Fixed, Sliding], default: Fixed }
+        Identity:Sessions:Lifetime: {}
+        Identity:Sessions:ExtendedLifetime: {}
+        Identity:Sessions:SlidingLifetime: {}
         Identity:Telegram:IsEnabled: { type: boolean, default: false }
         Identity:Telegram:BotToken: { secret: true }
         Identity:Telegram:BotUserName: {}

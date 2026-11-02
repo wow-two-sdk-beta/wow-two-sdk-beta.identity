@@ -216,6 +216,7 @@ function decodeSignInOptions(value: unknown): Decoded<SignInOptionsDto> {
     theme,
     backgroundUrl: text(body.backgroundUrl) || null,
     isSignUpEnabled: body.isSignUpEnabled === true,
+    isPersistenceOffered: body.isPersistenceOffered === true,
     locale: text(body.locale) ?? 'en',
     locales: strings(body.locales) ?? [],
     methods,

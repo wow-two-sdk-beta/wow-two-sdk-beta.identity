@@ -46,10 +46,10 @@ public sealed class OidcTestClient : IDisposable
         return userId;
     }
 
-    /// <summary>Sign in through the account API with a session cookie.</summary>
-    public async Task SignInAsync(string identifier, string password)
+    /// <summary>Sign in through the account API with a session cookie, asking to stay signed in with <paramref name="isPersistent"/>.</summary>
+    public async Task SignInAsync(string identifier, string password, bool isPersistent = false)
     {
-        using var signedIn = await _http.PostAsJsonAsync("/api/account/sign-in?useCookies=true", new { identifier, password });
+        using var signedIn = await _http.PostAsJsonAsync("/api/account/sign-in?useCookies=true", new { identifier, password, isPersistent });
         signedIn.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
@@ -178,7 +178,8 @@ public sealed class OidcTestClient : IDisposable
 /// <param name="IdentityToken">The ID token.</param>
 /// <param name="RefreshToken">The refresh token.</param>
 /// <param name="ExpiresIn">The access token's lifetime in seconds.</param>
-public sealed record TokenSet(string AccessToken, string IdentityToken, string RefreshToken, int ExpiresIn)
+/// <param name="SessionExpiresIn">The sign-in session's remaining lifetime in seconds (<c>refresh_token_expires_in</c>), or null without one.</param>
+public sealed record TokenSet(string AccessToken, string IdentityToken, string RefreshToken, int ExpiresIn, long? SessionExpiresIn = null)
 {
     /// <summary>Read a successful token response.</summary>
     public static async Task<TokenSet> ReadAsync(HttpResponseMessage response)
@@ -191,6 +192,7 @@ public sealed record TokenSet(string AccessToken, string IdentityToken, string R
             root.GetProperty("access_token").GetString()!,
             root.GetProperty("id_token").GetString()!,
             root.GetProperty("refresh_token").GetString()!,
-            root.GetProperty("expires_in").GetInt32());
+            root.GetProperty("expires_in").GetInt32(),
+            root.TryGetProperty("refresh_token_expires_in", out var sessionEnd) ? sessionEnd.GetInt64() : null);
     }
 }

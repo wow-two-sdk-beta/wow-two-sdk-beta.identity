@@ -1,6 +1,6 @@
 # decisions/
 
-*Last updated: 2026-11-01*
+*Last updated: 2026-11-02*
 
 > Identity's confirmed architecture decisions, newest last; a decision that needs its own record becomes
 > `NNNN-{slug}.md` beside this doc. Decisions spanning capabilities: `wow-two-ws/docs/platform-decisions.md`.
@@ -74,6 +74,7 @@
 | 2026-11-01 | a fixed role catalog: instance `admin`, `support`, `auditor`; organization `owner`, `admin`, `editor`, `viewer`, `billing`; apps add namespaced permissions, never roles; wow2's `operator` becomes `editor` | developer, C3 |
 | 2026-11-01 | external logins are external accounts in every member (`IdentityExternalAccount`, `ExternalAccountService`); the forward-only set keeps `identity_user_logins` and `login_provider` as named, mapped explicitly | naming build |
 | 2026-11-01 | a person's display name lives in `identity_users.display_name` (`005-display-name`, an expand step, not readable by products); the `name` claim takes it first and erasure scrubs it; `admin create` sets it | admin create |
+| 2026-11-02 | a session ends by `Identity:Sessions:Expiration`: `Fixed` takes `Lifetime`, or `ExtendedLifetime` when the sign-in asks to stay signed in (`isPersistent`); `Sliding` takes `SlidingLifetime` after each use and offers no such choice; the cookie, every OIDC refresh chain (named by `refresh_token_expires_in`), each BFF session and a bearer refresh family end with it | developer |
 | 2026-11-01 | `admin create` exits `0` created or present, `1` refused (a handle, an id, an email or a phone held by someone else, or an existing organization the person does not own), `2` failed (usage, an invalid value, the database); it marks the given phone and email confirmed and sets no password | admin create |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum

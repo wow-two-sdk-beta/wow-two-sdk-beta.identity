@@ -67,8 +67,10 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 | `Identity:DataProtection:Certificates:N` | `:0`, secret | the Data Protection ring's certificate bundle; the ring itself lives in the database, wrapped by it |
 | `Identity:Server:Keys:IsEphemeral` | — | `false` by the descriptor's default; a deployed boot refuses `true` |
 | `Identity:Server:Clients:N:{ClientId,ClientSecret,RedirectUris:M,PostSignOutRedirectUris:M,Audience,PermissionNamespace}` | per app | one confidential client; the secret ends in `Secret`, so the vault keeps it; a client sets no look of its own (one look per instance, `Identity:Pages`) |
-| `Identity:Server:{SignInPath,AuthorizationCodeLifetime,AccessTokenLifetime,IdentityTokenLifetime,RefreshTokenLifetime}` | — | defaults `/sign-in`, 60 s, 10 min, 5 min, 12 h |
-| `Identity:Sessions:{Lifetime,ActivityInterval}` | — | defaults 12 h absolute (the cookie's), 5 min |
+| `Identity:Server:{SignInPath,AuthorizationCodeLifetime,AccessTokenLifetime,IdentityTokenLifetime,RefreshTokenLifetime}` | — | defaults `/sign-in`, 60 s, 10 min, 5 min, 12 h (a chain with no session; one under a session ends with it) |
+| `Identity:Sessions:Expiration` | — | `Fixed` (default) or `Sliding`; the session's end is the cookie's, every app's refresh chain's and each BFF session's |
+| `Identity:Sessions:{Lifetime,ExtendedLifetime}` | — | fixed: 12 h from sign-in with a browser-session cookie; 30 days with a lasting cookie when the sign-in asks to stay signed in (`isPersistent`, "Keep me signed in"); an empty `ExtendedLifetime` offers no such choice |
+| `Identity:Sessions:{SlidingLifetime,ActivityInterval}` | — | sliding: each use moves the end this far ahead, at most once per `ActivityInterval`; defaults 7 days, 5 min. Ocharo: `Sliding`, `5.00:00:00` |
 | `Identity:SignInLog:{RetentionDays,CleanupInterval}` | — | defaults 180 days, 1 h |
 | `Identity:SignUp:IsEnabled` | — | `false` by the descriptor's default: `POST /api/account/sign-up` answers `403` and creates nothing, and the first owner comes from `admin create` (*First owner* above); an environment that takes self sign-up sets `true` in Wheelhouse's console |
 

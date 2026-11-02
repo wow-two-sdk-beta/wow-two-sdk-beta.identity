@@ -66,6 +66,7 @@ function passwordChanged() {
             v-if="method.id === SignInMethodId.Password"
             :client-id="request.clientId"
             :forgot-password-href="forgotPasswordHref"
+            :is-persistence-offered="options.isPersistenceOffered"
             @signed-in="continueToReturnUrl"
             @password-change-required="changeRequired"
           />
@@ -73,6 +74,7 @@ function passwordChanged() {
             v-else-if="method.id === SignInMethodId.PhoneCode"
             :client-id="request.clientId"
             :countries="method.countries"
+            :is-persistence-offered="options.isPersistenceOffered"
             @signed-in="continueToReturnUrl"
           />
         </section>

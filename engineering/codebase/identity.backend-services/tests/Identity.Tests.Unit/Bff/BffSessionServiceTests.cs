@@ -108,6 +108,24 @@ public sealed class BffSessionServiceTests
     }
 
     [Fact]
+    public async Task Session_ShouldEndWithTheInstancesSession_AsEachTokenResponseNamesIt()
+    {
+        var service = Service();
+        var tokens = Tokens(expiresIn: TimeSpan.FromMinutes(10));
+        BffSessionService.WriteInstanceEnd(tokens, _time.GetUtcNow().AddDays(5));
+        var session = await service.StartAsync(Person("person-1"), tokens, CancellationToken.None);
+        session.State.ExpiresAt.Should().Be(_time.GetUtcNow().AddDays(5), "the code exchange named the instance session's end");
+
+        _time.Advance(TimeSpan.FromMinutes(9.5));
+        var fiveDays = (long)TimeSpan.FromDays(5).TotalSeconds;
+        _endpoint.Respond(HttpStatusCode.OK, new { access_token = "access-1", refresh_token = "refresh-1", expires_in = 600, refresh_token_expires_in = fiveDays });
+        var slid = await service.ResolveAsync(ReferenceOf(session), CancellationToken.None);
+
+        slid!.State.ExpiresAt.Should().Be(_time.GetUtcNow().AddDays(5), "a sliding instance session moved its end, and the BFF session follows");
+        (await _repository.FindAsync("sid-1"))!.ExpiresAt.Should().Be(slid.State.ExpiresAt);
+    }
+
+    [Fact]
     public async Task Resolve_ShouldEndTheSession_PastItsAbsoluteWindow()
     {
         var service = Service();

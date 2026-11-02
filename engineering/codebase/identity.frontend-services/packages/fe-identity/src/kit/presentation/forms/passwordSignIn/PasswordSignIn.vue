@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
-import { Field, PasswordInput, TextInput } from '@wow-two-beta/fe/presentation/forms';
+import { CheckboxField, Field, PasswordInput, TextInput } from '@wow-two-beta/fe/presentation/forms';
 import { shallowRef } from 'vue';
 import type { PasswordChangeRequiredDto } from '../../../../contracts';
 import type { AccountClient } from '../../../account';
@@ -23,8 +23,17 @@ const props = withDefaults(
     forgotPasswordHref?: string;
     /** The identifier the field starts with. */
     initialIdentifier?: string;
+    /** Whether to offer "Keep me signed in", as the declaration's `isPersistenceOffered` says. */
+    isPersistenceOffered?: boolean;
   }>(),
-  { client: undefined, baseUrl: undefined, clientId: null, forgotPasswordHref: undefined, initialIdentifier: '' },
+  {
+    client: undefined,
+    baseUrl: undefined,
+    clientId: null,
+    forgotPasswordHref: undefined,
+    initialIdentifier: '',
+    isPersistenceOffered: false,
+  },
 );
 
 const emit = defineEmits<{
@@ -42,11 +51,12 @@ const isResent = shallowRef(false);
 const isResending = shallowRef(false);
 
 const form = useAccountForm({
-  defaultValues: { identifier: props.initialIdentifier, password: '' },
+  defaultValues: { identifier: props.initialIdentifier, password: '', isPersistent: false },
   onSubmit: async (values, { signal }) => {
     unconfirmedEmail.value = null;
     isResent.value = false;
-    const result = await client.signIn(values, { clientId: props.clientId, signal });
+    const request = { ...values, isPersistent: props.isPersistenceOffered && values.isPersistent };
+    const result = await client.signIn(request, { clientId: props.clientId, signal });
     if (result.ok) {
       if (result.value) emit('passwordChangeRequired', result.value);
       else emit('signedIn');
@@ -77,6 +87,13 @@ async function resendConfirmation() {
       <Field :label="t('PasswordSignIn.password', 'Password')">
         <PasswordInput v-model="field.value" name="password" autocomplete="current-password" @blur="field.onBlur" />
       </Field>
+    </form.Field>
+    <form.Field v-if="isPersistenceOffered" v-slot="field" name="isPersistent">
+      <CheckboxField
+        v-model="field.value"
+        :label="t('PasswordSignIn.keepSignedIn', 'Keep me signed in')"
+        @blur="field.onBlur"
+      />
     </form.Field>
     <a
       v-if="forgotPasswordHref"

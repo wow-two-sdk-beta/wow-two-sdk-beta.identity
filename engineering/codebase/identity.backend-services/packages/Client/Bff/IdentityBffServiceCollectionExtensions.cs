@@ -33,7 +33,8 @@ public static class IdentityBffServiceCollectionExtensions
     ///   - API requests (<see cref="IdentityBffOptions.ApiPathPrefixes"/>) answer 401 and 403 problems; a page request
     ///     without a session is redirected to <c>{prefix}/sign-in</c>; the session routes sit under <c>/api</c> by
     ///     default, and <c>{prefix}/sign-in</c> and <c>{prefix}/callback</c> still redirect, as a browser navigates to them
-    ///   - the session refreshes its tokens inside <see cref="IdentityBffOptions.SessionLifetime"/>, then ends
+    ///   - the session refreshes its tokens and ends with the instance's sign-in session (<see cref="IdentityBffOptions.SessionLifetime"/>
+    ///     when the instance names no end)
     ///   - unsafe API requests of a session need <c>X-Csrf-Token</c>, bound to the session's <c>sid</c>
     /// </remarks>
     /// <param name="services">The service collection to configure.</param>

@@ -6,10 +6,10 @@ internal sealed record SignInDeclarationInput
     /// <summary>The instance owner's brand name.</summary>
     public required string BrandName { get; init; }
 
-    /// <summary>The theme in effect: the app's, else the instance's.</summary>
+    /// <summary>The instance's theme.</summary>
     public required string Theme { get; init; }
 
-    /// <summary>The background in effect: the app's, else the instance's; null for none.</summary>
+    /// <summary>The instance's background; null for none.</summary>
     public string? BackgroundUrl { get; init; }
 
     /// <summary>Whether anyone may create an account.</summary>
@@ -26,6 +26,9 @@ internal sealed record SignInDeclarationInput
 
     /// <summary>The length of a phone sign-in code (<c>Identity:Otp:CodeLength</c>).</summary>
     public int PhoneCodeLength { get; init; } = 6;
+
+    /// <summary>Whether a sign-in may ask to stay signed in (<c>Identity:Sessions</c>: fixed, with an extended lifetime).</summary>
+    public bool IsPersistenceOffered { get; init; }
 
     /// <summary>Whether a sign-in needs a confirmed email.</summary>
     public bool IsConfirmedEmailRequired { get; init; }

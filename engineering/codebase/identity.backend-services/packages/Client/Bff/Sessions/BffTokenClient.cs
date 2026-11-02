@@ -17,6 +17,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 /// <param name="logger">The logger.</param>
 internal sealed partial class BffTokenClient(IOptionsMonitor<OpenIdConnectOptions> handlerOptions, ILogger<BffTokenClient> logger)
 {
+    /// <summary>The token response parameter in which the instance names, in seconds, when its sign-in session ends.</summary>
+    public const string RefreshTokenExpiresInParameter = "refresh_token_expires_in";
+
     /// <summary>Holds an empty user-info document, so the claim actions only delete the protocol claims.</summary>
     private static readonly JsonElement EmptyUserInfo = JsonDocument.Parse("{}").RootElement;
 
@@ -75,7 +78,7 @@ internal sealed partial class BffTokenClient(IOptionsMonitor<OpenIdConnectOption
     private async Task<BffTokenRefreshResult> ReadAsync(string body, OpenIdConnectOptions options, OpenIdConnectConfiguration configuration)
     {
         string? accessToken, newRefreshToken, identityToken;
-        TimeSpan? lifetime;
+        TimeSpan? lifetime, sessionLifetime;
         try
         {
             using var document = JsonDocument.Parse(body);
@@ -84,6 +87,9 @@ internal sealed partial class BffTokenClient(IOptionsMonitor<OpenIdConnectOption
             newRefreshToken = StringOf(root, "refresh_token");
             identityToken = StringOf(root, "id_token");
             lifetime = root.TryGetProperty("expires_in", out var expiresIn) && expiresIn.TryGetInt64(out var seconds) ? TimeSpan.FromSeconds(seconds) : null;
+            sessionLifetime = root.TryGetProperty(RefreshTokenExpiresInParameter, out var sessionEnd)
+                ? SessionLifetimeOf(sessionEnd.ValueKind == JsonValueKind.String ? sessionEnd.GetString() : sessionEnd.GetRawText())
+                : null;
         }
         catch (JsonException)
         {
@@ -110,11 +116,17 @@ internal sealed partial class BffTokenClient(IOptionsMonitor<OpenIdConnectOption
             Status = BffTokenRefreshStatus.Refreshed,
             AccessToken = accessToken,
             AccessTokenLifetime = lifetime,
+            SessionLifetime = sessionLifetime,
             RefreshToken = newRefreshToken,
             IdentityToken = identityToken,
             Claims = claims,
         };
     }
+
+    /// <summary>The instance session's remaining lifetime from a <see cref="RefreshTokenExpiresInParameter"/> value; null when absent or not a positive whole number.</summary>
+    /// <param name="seconds">The parameter's value.</param>
+    public static TimeSpan? SessionLifetimeOf(string? seconds)
+        => long.TryParse(seconds, NumberStyles.None, CultureInfo.InvariantCulture, out var value) && value > 0 ? TimeSpan.FromSeconds(value) : null;
 
     /// <summary>The person's claims in a refreshed ID token, or null when it fails validation.</summary>
     private async Task<IReadOnlyList<BffSessionClaim>?> ValidateAsync(string identityToken, OpenIdConnectOptions options, OpenIdConnectConfiguration configuration)

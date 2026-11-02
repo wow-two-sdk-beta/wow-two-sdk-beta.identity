@@ -20,7 +20,10 @@ app.MapGroup("/api/orgs/{organizationId:guid}/desks")
 
 - Settings: `Identity:Client` — `Authority`, `ClientId`, `ClientSecret`, `Scopes` (default `openid profile email phone
   offline_access`), `RoutePrefix` (`/api/identity`), `ApiPathPrefixes` (`/api`), `PostSignOutRedirectPath` (`/`),
-  `SessionLifetime` (12 h), `AccessTokenRefreshMargin` (1 min), `CookieName`, `Environment`; code configuration wins.
+  `SessionLifetime` (12 h, only while the instance names no end), `AccessTokenRefreshMargin` (1 min), `CookieName`,
+  `Environment`; code configuration wins.
+- Session end: the BFF session ends with the instance's sign-in session, whose end each token response names
+  (`refresh_token_expires_in`); a sliding instance session moves it, and the cookie is reissued to follow.
 - Add the client at the instance with the redirect URI `{origin}/api/identity/callback` and the post-sign-out URI
   `{origin}/` (`Identity:Server:Clients:N:RedirectUris` and `PostSignOutRedirectUris`).
 - The session routes sit under the API prefix: `session` and `sign-out` answer as API calls (`sign-out` needs

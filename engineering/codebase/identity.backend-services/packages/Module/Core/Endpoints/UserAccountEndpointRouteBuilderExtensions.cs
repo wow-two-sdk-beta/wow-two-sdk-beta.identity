@@ -149,7 +149,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
 
         return result.Status == SignInStatus.PasswordChangeRequired
             ? PasswordChangeRequired(result, http)
-            : await SessionAsync(result, useCookies, http, cancellationToken);
+            : await SessionAsync(result, useCookies, request.IsPersistent, http, cancellationToken);
     }
 
     private static IResult PasskeySignInOptions(HttpContext http)
@@ -164,7 +164,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         if (result.Status == SignInStatus.Failed)
             throw Unauthorized(IdentityErrorCodeConstants.InvalidPasskey, "The passkey could not be verified; try again.").ToException();
 
-        return await SessionAsync(result, useCookies, http, cancellationToken);
+        return await SessionAsync(result, useCookies, request.IsPersistent, http, cancellationToken);
     }
 
     private static async Task<IResult> SendEmailSignInAsync(EmailSignInSendApiRequest request, HttpContext http, CancellationToken cancellationToken)
@@ -210,7 +210,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
             throw (await TwoFactorChallengeAsync(services, signIn, userId, ticket, method, chosen: false, cancellationToken, exposeTicket: true)).ToException();
         }
 
-        return await SessionAsync(result, useCookies, http, cancellationToken);
+        return await SessionAsync(result, useCookies, request.IsPersistent, http, cancellationToken);
     }
 
     private static async Task<IResult> SecondFactorSignInAsync(TwoFactorSignInApiRequest request, bool? useCookies, string? clientId, HttpContext http, CancellationToken cancellationToken)
@@ -234,14 +234,15 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         else
             throw (await TwoFactorChallengeAsync(services, signIn, userId, request.Ticket, method, request.TwoFactorMethod is not null, cancellationToken, exposeTicket: true)).ToException();
 
-        return await SessionAsync(result, useCookies, http, cancellationToken);
+        return await SessionAsync(result, useCookies, request.IsPersistent, http, cancellationToken);
     }
 
     /// <summary>
     /// The session of a successful sign-in: a cookie with <c>useCookies</c>, carrying a new session's <c>sid</c> and
-    /// expiring with it when sessions are registered; else a bearer token pair.
+    /// expiring with it when sessions are registered; else a bearer token pair. <paramref name="isPersistent"/> asks for
+    /// the extended lifetime and a cookie that outlives the browser, where the session settings offer it.
     /// </summary>
-    private static async Task<IResult> SessionAsync(SignInResult result, bool? useCookies, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> SessionAsync(SignInResult result, bool? useCookies, bool isPersistent, HttpContext http, CancellationToken cancellationToken)
     {
         if (!result.IsSuccess)
             throw FailureOf(result.Status).ToException();
@@ -256,9 +257,11 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
                 && await FindAsync(services, result.UserId, cancellationToken) is { } signedIn)
             {
                 var methods = principal.FindAll(AuthenticationMethodConstants.ClaimType).Select(claim => claim.Value);
-                var session = await sessions.StartAsync(signedIn, methods, result.SignInLogEntryId, cancellationToken);
+                var session = await sessions.StartAsync(signedIn, methods, result.SignInLogEntryId, isPersistent, cancellationToken);
                 identity.AddClaim(new Claim(services.GetRequiredService<IdentityCoreOptions>().Claims.SessionIdClaimType, session.Id.ToString()));
+                properties.IssuedUtc = session.CreatedAt;
                 properties.ExpiresUtc = session.ExpiresAt;
+                properties.IsPersistent = sessions.IsCookiePersistent(isPersistent);
             }
 
             await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, properties);
@@ -266,7 +269,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         }
 
         var user = await FindAsync(services, result.UserId, cancellationToken);
-        return Results.Ok(ApiResponse<AccessTokenDto>.Ok(await IssueAsync(services, result.Principal!, user, null, cancellationToken)));
+        return Results.Ok(ApiResponse<AccessTokenDto>.Ok(await IssueAsync(services, result.Principal!, user, null, isPersistent, cancellationToken)));
     }
 
     private static async Task<IResult> RefreshAsync(RefreshAccessApiRequest request, HttpContext http, CancellationToken cancellationToken)
@@ -286,7 +289,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
             throw FailureOf(renewed.Status).ToException();
         }
 
-        return Results.Ok(ApiResponse<AccessTokenDto>.Ok(await IssueAsync(services, renewed.Principal!, redeemed.User, redeemed.Token!.Token, cancellationToken)));
+        return Results.Ok(ApiResponse<AccessTokenDto>.Ok(await IssueAsync(services, renewed.Principal!, redeemed.User, redeemed.Token!.Token, isPersistent: false, cancellationToken)));
     }
 
     /// <summary>
@@ -666,13 +669,19 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         return (user, services.GetRequiredService<UserTwoFactorService>());
     }
 
-    private static async Task<AccessTokenDto> IssueAsync(IServiceProvider services, ClaimsPrincipal principal, IdentityUser? user, string? refreshToken, CancellationToken cancellationToken)
+    private static async Task<AccessTokenDto> IssueAsync(
+        IServiceProvider services,
+        ClaimsPrincipal principal,
+        IdentityUser? user,
+        string? refreshToken,
+        bool isPersistent,
+        CancellationToken cancellationToken)
     {
         var issuer = services.GetService<ITokenIssuer>()
             ?? throw BearerUnsupported("Bearer sign-in is not enabled on this instance; sign in with ?useCookies=true.").ToException();
         var lifetime = services.GetService<JwtTokenIssuerOptions>()?.Lifetime ?? TimeSpan.FromHours(1);
         if (refreshToken is null && user is not null && services.GetService<RefreshTokenService>() is { } refresh)
-            refreshToken = (await refresh.IssueAsync(user, cancellationToken)).Token;
+            refreshToken = (await refresh.IssueAsync(user, isPersistent, cancellationToken)).Token;
 
         return new AccessTokenDto
         {

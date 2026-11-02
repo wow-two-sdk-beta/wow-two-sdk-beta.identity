@@ -15,8 +15,23 @@ describe('password sign-in', () => {
     await flushPromises();
 
     expect(received[0]?.url.search).toBe('?useCookies=true&clientId=desk');
-    expect(received[0]?.body).toEqual({ identifier: 'ann@example.test', password: 'old-password' });
+    expect(received[0]?.body).toEqual({ identifier: 'ann@example.test', password: 'old-password', isPersistent: false });
     expect(wrapper.emitted('signedIn')).toEqual([[]]);
+    expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false);
+  });
+
+  it('keeps the person signed in when the instance offers it and they ask', async () => {
+    const { client, received } = fakeAccountApi({ 'POST /sign-in': noContent });
+    const wrapper = render(PasswordSignIn, { props: { client, isPersistenceOffered: true } });
+
+    expect(wrapper.text()).toContain('Keep me signed in');
+    await wrapper.get('input[name="identifier"]').setValue('ann@example.test');
+    await wrapper.get('input[name="password"]').setValue('old-password');
+    await wrapper.get('input[type="checkbox"]').setValue(true);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received[0]?.body).toEqual({ identifier: 'ann@example.test', password: 'old-password', isPersistent: true });
   });
 
   it('hands over the ticket when the password must change first', async () => {
@@ -104,8 +119,25 @@ describe('phone code sign-in', () => {
     await flushPromises();
 
     expect(received[1]?.url.search).toBe('?useCookies=true&clientId=desk');
-    expect(received[1]?.body).toEqual({ phone: '+998901234567', code: '123456' });
+    expect(received[1]?.body).toEqual({ phone: '+998901234567', code: '123456', isPersistent: false });
+    expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false);
     expect(wrapper.emitted('signedIn')).toEqual([[]]);
+  });
+
+  it('keeps the person signed in from the code step when the instance offers it', async () => {
+    const { client, received } = fakeAccountApi({
+      'POST /phone-sign-in/send': () => Response.json({ data: { isCodeSent: true, telegramLinkUrl: null } }),
+      'POST /phone-sign-in': noContent,
+    });
+    const wrapper = render(PhoneCodeSignIn, { props: { client, countries: ['UZ'], isPersistenceOffered: true } });
+
+    await sendCode(wrapper);
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await wrapper.get('input[type="checkbox"]').setValue(true);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received[1]?.body).toEqual({ phone: '+998901234567', code: '123456', isPersistent: true });
   });
 
   it('opens Telegram first when the phone has no linked chat, then takes the code', async () => {

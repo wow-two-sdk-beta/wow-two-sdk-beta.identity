@@ -25,7 +25,11 @@ public sealed record OidcServerOptions
     /// <summary>Gets or sets how long an ID token stays valid. Default 5 minutes.</summary>
     public TimeSpan IdentityTokenLifetime { get; set; } = TimeSpan.FromMinutes(5);
 
-    /// <summary>Gets or sets the absolute lifetime of a refresh token chain, counted from the sign-in; each use rotates the token without extending it. Default 12 hours.</summary>
+    /// <summary>
+    /// Gets or sets the absolute lifetime of a refresh token chain whose grant names no sign-in session, counted from the
+    /// sign-in; each use rotates the token without extending it. A chain under a session ends with the session
+    /// (<c>Identity:Sessions</c>). Default 12 hours.
+    /// </summary>
     public TimeSpan RefreshTokenLifetime { get; set; } = TimeSpan.FromHours(12);
 
     /// <summary>Gets or sets where the signing and encryption certificates come from (<c>Identity:Server:Keys</c>).</summary>

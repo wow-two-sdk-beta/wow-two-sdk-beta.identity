@@ -51,8 +51,9 @@ public sealed record IdentityBffOptions
     /// <summary>Gets or sets the local path end-session returns the browser to. Default <c>/</c>.</summary>
     public string PostSignOutRedirectPath { get; set; } = "/";
 
-    /// <summary>Gets or sets the absolute session lifetime, counted from the sign-in and never extended; keep it within the
-    /// instance's refresh token window (12 hours by default). Default 12 hours.</summary>
+    /// <summary>Gets or sets the session lifetime from the sign-in when the instance names no end of its own sign-in
+    /// session (<c>refresh_token_expires_in</c>); a wow2 instance names it, and the session then ends with the instance's,
+    /// fixed or sliding (<c>Identity:Sessions</c>). Default 12 hours.</summary>
     public TimeSpan SessionLifetime { get; set; } = TimeSpan.FromHours(12);
 
     /// <summary>Gets or sets how long before the access token expires the session refreshes it. Default 1 minute.</summary>

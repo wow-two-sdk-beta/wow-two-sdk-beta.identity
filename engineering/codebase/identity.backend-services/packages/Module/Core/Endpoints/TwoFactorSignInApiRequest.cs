@@ -17,4 +17,11 @@ public sealed record TwoFactorSignInApiRequest
 
     /// <summary>A recovery code, instead of a second-factor code.</summary>
     public string? RecoveryCode { get; init; }
+
+    /// <summary>
+    /// Whether the person asked to stay signed in ("Keep me signed in"): a fixed session then takes
+    /// <c>Identity:Sessions:ExtendedLifetime</c> and a cookie that outlives the browser; ignored while sessions slide or no
+    /// extended lifetime is set (<c>sign-in-options</c>' <c>isPersistenceOffered</c>).
+    /// </summary>
+    public bool IsPersistent { get; init; }
 }

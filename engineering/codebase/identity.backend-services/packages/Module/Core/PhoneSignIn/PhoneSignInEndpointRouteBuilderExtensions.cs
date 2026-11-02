@@ -92,11 +92,11 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
         if (!result.IsSuccess)
             throw FailureOf(result.Status).ToException();
 
-        return await SessionAsync(result, verified.User!, useCookies, http, cancellationToken);
+        return await SessionAsync(result, verified.User!, useCookies, request.IsPersistent, http, cancellationToken);
     }
 
     /// <summary>The session of a successful sign-in, as <c>sign-in</c> makes it: a cookie carrying a new session's <c>sid</c>, or a bearer token pair.</summary>
-    private static async Task<IResult> SessionAsync(SignInResult result, IdentityUser user, bool? useCookies, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> SessionAsync(SignInResult result, IdentityUser user, bool? useCookies, bool isPersistent, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
         var principal = result.Principal!;
@@ -106,9 +106,11 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
             if (services.GetService<UserSessionService>() is { } sessions && principal.Identity is ClaimsIdentity identity)
             {
                 var methods = principal.FindAll(AuthenticationMethodConstants.ClaimType).Select(claim => claim.Value);
-                var session = await sessions.StartAsync(user, methods, result.SignInLogEntryId, cancellationToken);
+                var session = await sessions.StartAsync(user, methods, result.SignInLogEntryId, isPersistent, cancellationToken);
                 identity.AddClaim(new Claim(services.GetRequiredService<IdentityCoreOptions>().Claims.SessionIdClaimType, session.Id.ToString()));
+                properties.IssuedUtc = session.CreatedAt;
                 properties.ExpiresUtc = session.ExpiresAt;
+                properties.IsPersistent = sessions.IsCookiePersistent(isPersistent);
             }
 
             await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, properties);
@@ -117,7 +119,7 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
 
         var issuer = services.GetRequiredService<ITokenIssuer>();
         var lifetime = services.GetService<JwtTokenIssuerOptions>()?.Lifetime ?? TimeSpan.FromHours(1);
-        var refreshToken = services.GetService<RefreshTokenService>() is { } refresh ? (await refresh.IssueAsync(user, cancellationToken)).Token : null;
+        var refreshToken = services.GetService<RefreshTokenService>() is { } refresh ? (await refresh.IssueAsync(user, isPersistent, cancellationToken)).Token : null;
         return Results.Ok(ApiResponse<AccessTokenDto>.Ok(new AccessTokenDto
         {
             AccessToken = issuer.Issue(principal.Claims, new TokenIssuanceContext { Lifetime = lifetime }),

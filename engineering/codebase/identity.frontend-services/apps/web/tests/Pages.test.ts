@@ -127,6 +127,7 @@ function withOptions(overrides: Partial<SignInOptions>) {
     theme: 'platform',
     backgroundImageUrl: null,
     isSignUpEnabled: true,
+    isPersistenceOffered: false,
     methods: [{ id: SignInMethodId.Password }],
     passwordRules: [],
   };
@@ -222,6 +223,17 @@ describe('sign-in route', () => {
     await signInWithPassword(wrapper);
 
     expect(assign).toHaveBeenCalledWith(authorize);
+  });
+
+  it('offers "Keep me signed in" only where the declaration does', async () => {
+    stubApi();
+    withOptions({ isPersistenceOffered: true });
+    const offered = await renderAt('/sign-in');
+    expect(offered.wrapper.text()).toContain('Keep me signed in');
+
+    withOptions({ isPersistenceOffered: false });
+    const withheld = await renderAt('/sign-in');
+    expect(withheld.wrapper.text()).not.toContain('Keep me signed in');
   });
 
   it('offers no sign-up while the declaration keeps it closed', async () => {

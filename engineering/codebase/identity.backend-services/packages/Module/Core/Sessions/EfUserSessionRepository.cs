@@ -29,8 +29,11 @@ public sealed class EfUserSessionRepository(IdentityDbContext context) : IUserSe
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
-    public Task TouchAsync(Guid id, DateTimeOffset at, CancellationToken cancellationToken = default)
-        => Sessions.Where(s => s.Id == id && s.LastSeenAt < at).ExecuteUpdateAsync(setters => setters.SetProperty(s => s.LastSeenAt, at), cancellationToken);
+    public Task TouchAsync(Guid id, DateTimeOffset at, DateTimeOffset? expiresAt = null, CancellationToken cancellationToken = default)
+        => expiresAt is { } end
+            ? Sessions.Where(s => s.Id == id && s.LastSeenAt < at && s.RevokedAt == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.LastSeenAt, at).SetProperty(s => s.ExpiresAt, s => s.ExpiresAt < end ? end : s.ExpiresAt), cancellationToken)
+            : Sessions.Where(s => s.Id == id && s.LastSeenAt < at).ExecuteUpdateAsync(setters => setters.SetProperty(s => s.LastSeenAt, at), cancellationToken);
 
     /// <inheritdoc />
     public Task SetSecurityStampAsync(Guid id, string? securityStamp, CancellationToken cancellationToken = default)

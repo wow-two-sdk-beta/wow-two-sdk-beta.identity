@@ -16,11 +16,24 @@ app.MapGroup("/api/account").MapUserAccountEndpoints();  // sign-in?useCookies=t
 ```jsonc
 "Identity": {
   "Sessions": {
-    "Lifetime": "12:00:00",              // absolute from sign-in; the cookie expires with it
-    "ActivityInterval": "00:05:00"       // how stale last_seen_at may grow before a request moves it
+    "Expiration": "Fixed",               // Fixed: an absolute end from sign-in; Sliding: an end each use moves
+    "Lifetime": "12:00:00",              // fixed, by default: the cookie ends with it and with the browser
+    "ExtendedLifetime": "30.00:00:00",   // fixed, when the sign-in asks to stay signed in; empty offers no such choice
+    "SlidingLifetime": "7.00:00:00",     // sliding: how long a session lives after its last use (Ocharo: 5 days)
+    "ActivityInterval": "00:05:00"       // how stale last_seen_at may grow before a request moves it (and a sliding end)
   }
 }
 ```
+
+| `Expiration` | A sign-in's session ends | Its cookie | "Keep me signed in" |
+|---|---|---|---|
+| `Fixed` | `Lifetime` after sign-in | ends with the browser too | offered while `ExtendedLifetime` is set: the session then ends `ExtendedLifetime` after sign-in, with a lasting cookie |
+| `Sliding` | `SlidingLifetime` after its last use | lasting, reissued as the end moves | not offered: a used session stays signed in |
+
+- The end covers everything issued under the session: the cookie, every app's OIDC refresh chain (each token response
+  names it as `refresh_token_expires_in`) and so each BFF session, and a bearer sign-in's refresh family.
+- A sliding session has no absolute end: it lives while used at least once per `SlidingLifetime`, until revoked, signed
+  out or ended by a stamp rotation.
 
 | Route | Does |
 |---|---|
@@ -30,11 +43,14 @@ app.MapGroup("/api/account").MapUserAccountEndpoints();  // sign-in?useCookies=t
 
 ## Lifecycle
 
-- Start: the account API's cookie sign-in calls `UserSessionService.StartAsync` with the principal's `amr` values,
-  adds the `sid` claim (`IdentityCoreOptions.Claims.SessionIdClaimType`) and sets the cookie's expiry to the session's.
-  Bearer sign-ins start none: their refresh tokens are the session.
-- Validate: every cookie request that carries a `sid` reads its row (`ValidateAsync`), so a revocation on any replica
-  ends the cookie at once; a request moves `last_seen_at` at most once per `ActivityInterval`.
+- Start: the account API's cookie sign-in calls `UserSessionService.StartAsync` with the principal's `amr` values and
+  the request's `isPersistent`, adds the `sid` claim (`IdentityCoreOptions.Claims.SessionIdClaimType`) and sets the
+  cookie's expiry and persistence to the session's. Bearer sign-ins start none: their refresh family is the session,
+  ending by the same settings.
+- Validate: every cookie request that carries a `sid` reads its row (`FindLiveAsync`), so a revocation on any replica
+  ends the cookie at once; a request moves `last_seen_at` at most once per `ActivityInterval`, and with it a sliding
+  session's end, reissuing the cookie. The OIDC token endpoint validates the same way, so an app's refresh uses the
+  session too.
 - Live means unrevoked, unexpired and stamped with the person's current security stamp. A stamp rotation (password
   change, sign-out everywhere) ends every session; the row is marked `security_stamp` when next seen.
 - End: `RevokeAsync` (one, reason `revoked`; `sign_out` from the sign-out and end-session routes) and `RevokeAllAsync`

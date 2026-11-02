@@ -3,7 +3,7 @@ import { AppErrorFactory, ResultExtensions, type AppError } from '@wow-two-beta/
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
 import { object, phone as phoneRule } from '@wow-two-beta/fe/foundation/validators';
-import { Field, PhoneInput, TextInput } from '@wow-two-beta/fe/presentation/forms';
+import { CheckboxField, Field, PhoneInput, TextInput } from '@wow-two-beta/fe/presentation/forms';
 import { shallowRef } from 'vue';
 import type { AccountClient } from '../../../account';
 import { useAccountClient, useAccountForm, useAccountText } from '../../../account/hooks';
@@ -28,8 +28,17 @@ const props = withDefaults(
     countries?: ReadonlyArray<string>;
     /** The ISO code selected first; the first allowed country when omitted. */
     defaultCountry?: string;
+    /** Whether to offer "Keep me signed in", as the declaration's `isPersistenceOffered` says. */
+    isPersistenceOffered?: boolean;
   }>(),
-  { client: undefined, baseUrl: undefined, clientId: null, countries: undefined, defaultCountry: undefined },
+  {
+    client: undefined,
+    baseUrl: undefined,
+    clientId: null,
+    countries: undefined,
+    defaultCountry: undefined,
+    isPersistenceOffered: false,
+  },
 );
 
 const emit = defineEmits<{
@@ -78,10 +87,10 @@ const phoneForm = useAccountForm({
 });
 
 const codeForm = useAccountForm({
-  defaultValues: { code: '' },
+  defaultValues: { code: '', isPersistent: false },
   onSubmit: async (values, { signal }) => {
     const result = await client.signInWithPhone(
-      { phone: phone.value, code: values.code.trim() },
+      { phone: phone.value, code: values.code.trim(), isPersistent: props.isPersistenceOffered && values.isPersistent },
       { clientId: props.clientId, signal },
     );
     if (result.ok) emit('signedIn');
@@ -178,6 +187,13 @@ function useAnotherPhone() {
           @blur="field.onBlur"
         />
       </Field>
+    </codeForm.Field>
+    <codeForm.Field v-if="isPersistenceOffered" v-slot="field" name="isPersistent">
+      <CheckboxField
+        v-model="field.value"
+        :label="t('PhoneCodeSignIn.keepSignedIn', 'Keep me signed in')"
+        @blur="field.onBlur"
+      />
     </codeForm.Field>
     <FailureAlert :failure="codeForm.state.submitError" />
     <FailureAlert :failure="resendFailure" />

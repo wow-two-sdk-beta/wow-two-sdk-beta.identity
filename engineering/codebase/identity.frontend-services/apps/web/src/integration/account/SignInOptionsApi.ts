@@ -30,6 +30,7 @@ export function toSignInOptions(declaration: SignInOptionsDto): SignInOptions {
     theme: declaration.theme,
     backgroundImageUrl: declaration.backgroundUrl,
     isSignUpEnabled: declaration.isSignUpEnabled,
+    isPersistenceOffered: declaration.isPersistenceOffered,
     methods: declaration.methods.map(toMethod).filter((method): method is SignInMethod => method !== null),
     passwordRules:
       declaration.methods.find((method) => method.id === SignInMethodIdConstants.password)?.passwordRules ?? [],

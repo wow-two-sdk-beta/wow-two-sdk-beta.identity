@@ -142,8 +142,9 @@ public static partial class HostConfiguration
     private static string? OriginOf(OidcServerOptions server) => server.Issuer?.GetLeftPart(UriPartial.Authority);
 
     /// <summary>
-    /// The sign-in session the authorization endpoint reads: the account API's cookie (12 h absolute, as the session
-    /// row, raw 401 for API callers), sealed by the database ring <c>AddDataProtectionRing</c> registers.
+    /// The sign-in session the authorization endpoint reads: the account API's cookie, ending with the session row
+    /// (<c>Identity:Sessions</c>; reissued as a sliding session moves) and answering a raw 401 to API callers, sealed by the
+    /// database ring <c>AddDataProtectionRing</c> registers.
     /// </summary>
     private static WebApplicationBuilder AddSignInSession(this WebApplicationBuilder builder)
     {

@@ -42,6 +42,7 @@ internal static class SignInDeclarationBuilder
             Theme = input.Theme,
             BackgroundUrl = string.IsNullOrEmpty(input.BackgroundUrl) ? null : input.BackgroundUrl,
             IsSignUpEnabled = input.IsSignUpEnabled,
+            IsPersistenceOffered = input.IsPersistenceOffered,
             Locale = locale,
             Locales = SignInLocaleResolver.Locales,
             Methods = methods,

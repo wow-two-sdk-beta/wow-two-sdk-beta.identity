@@ -19,11 +19,12 @@ public interface IUserSessionRepository
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<IReadOnlyList<IdentitySession>> ListUnrevokedAsync(Guid userId, DateTimeOffset at, CancellationToken cancellationToken = default);
 
-    /// <summary>Record a use of the session.</summary>
+    /// <summary>Record a use of the session, and move a live session's end to <paramref name="expiresAt"/> when that is later.</summary>
     /// <param name="id">The session id.</param>
     /// <param name="at">The instant of use.</param>
+    /// <param name="expiresAt">A sliding session's new end; null keeps the end.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task TouchAsync(Guid id, DateTimeOffset at, CancellationToken cancellationToken = default);
+    Task TouchAsync(Guid id, DateTimeOffset at, DateTimeOffset? expiresAt = null, CancellationToken cancellationToken = default);
 
     /// <summary>Bind a still-unrevoked session to a new security stamp, so it outlives the rotation that made the stamp.</summary>
     /// <param name="id">The session id.</param>

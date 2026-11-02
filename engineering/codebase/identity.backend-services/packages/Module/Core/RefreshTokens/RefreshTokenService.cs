@@ -1,6 +1,7 @@
 using System.Buffers.Text;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.RefreshTokens;
 
@@ -11,25 +12,35 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.RefreshTokens;
 /// </summary>
 /// <param name="tokens">The refresh-token repository.</param>
 /// <param name="accounts">The core account service.</param>
-/// <param name="options">The token lifetime.</param>
+/// <param name="options">The token lifetime, when no session settings are registered.</param>
 /// <param name="timeProvider">The clock issuance and expiry use.</param>
 /// <param name="logger">Receives the reuse event.</param>
+/// <param name="sessions">
+/// The session settings, when the sessions slice is registered: a family then ends as a cookie session would — a fixed
+/// family at its first token's end (<see cref="SessionOptions.Lifetime"/>, or <see cref="SessionOptions.ExtendedLifetime"/>
+/// for a sign-in that asked to stay signed in), a sliding one <see cref="SessionOptions.SlidingLifetime"/> after each
+/// rotation. Without them every rotation starts a new <see cref="RefreshTokenOptions.Lifetime"/> window.
+/// </param>
 public sealed class RefreshTokenService(
     IRefreshTokenRepository tokens,
     UserAccountService accounts,
     RefreshTokenOptions options,
     TimeProvider timeProvider,
-    ILogger<RefreshTokenService> logger)
+    ILogger<RefreshTokenService> logger,
+    SessionOptions? sessions = null)
 {
     private const int SecretLength = 32;
 
     /// <summary>Issue a token starting a new family, typically at sign-in.</summary>
     /// <param name="user">The signed-in user.</param>
+    /// <param name="isPersistent">Whether the sign-in asked to stay signed in, for a fixed family's end.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<RefreshTokenModel> IssueAsync(IdentityUser user, CancellationToken cancellationToken = default)
+    public Task<RefreshTokenModel> IssueAsync(IdentityUser user, bool isPersistent = false, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
-        return IssueInFamilyAsync(user, Guid.CreateVersion7(timeProvider.GetUtcNow()), cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var end = now + (sessions?.LifetimeOf(isPersistent) ?? options.Lifetime);
+        return IssueInFamilyAsync(user, Guid.CreateVersion7(now), end, cancellationToken);
     }
 
     /// <summary>Redeem a token: on success it is spent and the result carries its replacement.</summary>
@@ -61,7 +72,7 @@ public sealed class RefreshTokenService(
         {
             Status = RefreshTokenStatus.Succeeded,
             User = user,
-            Token = await IssueInFamilyAsync(user, row.FamilyId, cancellationToken),
+            Token = await IssueInFamilyAsync(user, row.FamilyId, NextEnd(row, now), cancellationToken),
         };
     }
 
@@ -88,7 +99,15 @@ public sealed class RefreshTokenService(
     public Task<int> PurgeExpiredAsync(CancellationToken cancellationToken = default)
         => tokens.DeleteExpiredAsync(timeProvider.GetUtcNow(), cancellationToken);
 
-    private async Task<RefreshTokenModel> IssueInFamilyAsync(IdentityUser user, Guid familyId, CancellationToken cancellationToken)
+    /// <summary>The end of a rotated token: the family's while sessions are fixed, a new window otherwise.</summary>
+    private DateTimeOffset NextEnd(IdentityRefreshToken spent, DateTimeOffset now) => sessions switch
+    {
+        null => now + options.Lifetime,
+        { Expiration: SessionExpiration.Sliding } => now + sessions.SlidingLifetime,
+        _ => spent.ExpiresAt,
+    };
+
+    private async Task<RefreshTokenModel> IssueInFamilyAsync(IdentityUser user, Guid familyId, DateTimeOffset expiresAt, CancellationToken cancellationToken)
     {
         var secret = RandomNumberGenerator.GetBytes(SecretLength);
         var now = timeProvider.GetUtcNow();
@@ -100,7 +119,7 @@ public sealed class RefreshTokenService(
             TokenHash = Convert.ToHexString(SHA256.HashData(secret)),
             SecurityStamp = user.SecurityStamp,
             CreatedAt = now,
-            ExpiresAt = now + options.Lifetime,
+            ExpiresAt = expiresAt,
         };
         await tokens.AddAsync(row, cancellationToken);
         return new RefreshTokenModel { Token = $"{row.Id:N}.{Base64Url.EncodeToString(secret)}", ExpiresAt = row.ExpiresAt };
