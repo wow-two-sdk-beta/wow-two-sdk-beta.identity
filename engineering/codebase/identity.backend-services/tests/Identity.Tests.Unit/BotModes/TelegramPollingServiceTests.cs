@@ -32,7 +32,7 @@ public sealed class TelegramPollingServiceTests
         host.Bot.Sent.Select(m => m.ChatId.Identifier).Should().BeEquivalentTo(new long?[] { 501, 502 }, "the same handler that the webhook uses answered both");
         host.Bot.Polls.First().Offset.Should().BeNull("the first poll takes whatever Telegram holds");
         host.Bot.Polls.Select(p => p.Offset).Should().Contain(12, "the next poll confirms update 11 by asking from 12");
-        host.Bot.Polls.Should().OnlyContain(p => p.AllowedUpdates!.SequenceEqual(new[] { UpdateType.Message }));
+        host.Bot.Polls.Should().OnlyContain(p => p.AllowedUpdates!.SequenceEqual(new[] { UpdateType.Message, UpdateType.CallbackQuery }), "button presses arrive as callback queries");
         host.Bot.Methods.Should().NotContain("deleteWebhook").And.NotContain("setWebhook");
     }
 

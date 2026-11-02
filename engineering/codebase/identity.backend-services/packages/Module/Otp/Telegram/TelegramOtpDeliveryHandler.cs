@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
+using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp.Models;
 
@@ -10,21 +11,26 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Otp.Telegram;
 /// <summary>
 /// Handles <see cref="OtpDeliveryEnvelopeModel"/> deliveries as Telegram bot messages; the delivery address is the chat id.
 /// The metadata key <see cref="TelegramOtpMetadataConstants.RemoveKeyboard"/> also takes away a reply keyboard the bot showed.
+/// Each sent message goes to the <see cref="ITelegramCodeMessageRecorder"/>, when one is registered, due for cleanup when
+/// the code expires.
 /// </summary>
 public sealed class TelegramOtpDeliveryHandler : IOtpDeliveryHandler
 {
     private readonly ITelegramBotClient _botClient;
     private readonly TelegramOtpOptions _telegramOptions;
     private readonly OtpOptions _otpOptions;
+    private readonly ITelegramCodeMessageRecorder? _recorder;
 
     /// <summary>Creates the handler over the consumer-registered bot client and options.</summary>
     /// <param name="botClient">Telegram bot client (consumer-registered, carries the token).</param>
     /// <param name="telegramOptions">Message template and scope display names.</param>
     /// <param name="otpOptions">Source of the code lifetime shown in the message.</param>
+    /// <param name="recorder">Records each sent code message for cleanup; null records nothing.</param>
     public TelegramOtpDeliveryHandler(
         ITelegramBotClient botClient,
         TelegramOtpOptions telegramOptions,
-        OtpOptions otpOptions)
+        OtpOptions otpOptions,
+        ITelegramCodeMessageRecorder? recorder = null)
     {
         ArgumentNullException.ThrowIfNull(botClient);
         ArgumentNullException.ThrowIfNull(telegramOptions);
@@ -32,6 +38,7 @@ public sealed class TelegramOtpDeliveryHandler : IOtpDeliveryHandler
         _botClient = botClient;
         _telegramOptions = telegramOptions;
         _otpOptions = otpOptions;
+        _recorder = recorder;
     }
 
     /// <inheritdoc />
@@ -45,17 +52,20 @@ public sealed class TelegramOtpDeliveryHandler : IOtpDeliveryHandler
         }
 
         var text = envelope.Text ?? FallbackText(envelope);
-
+        Message sent;
         try
         {
             var isKeyboardRemoved = envelope.Metadata?.ContainsKey(TelegramOtpMetadataConstants.RemoveKeyboard) == true;
-            await _botClient.SendMessage(chatId, text, replyMarkup: isKeyboardRemoved ? new ReplyKeyboardRemove() : null, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return new OtpDeliveryResult { IsSuccess = true };
+            sent = await _botClient.SendMessage(chatId, text, replyMarkup: isKeyboardRemoved ? new ReplyKeyboardRemove() : null, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
         catch (RequestException exception)
         {
             return new OtpDeliveryResult { IsSuccess = false, FailureReason = exception.Message };
         }
+
+        if (_recorder is not null)
+            await _recorder.RecordAsync(chatId, sent.Id, envelope.Lifetime ?? _otpOptions.CodeLifetime, envelope.Culture, cancellationToken).ConfigureAwait(false);
+        return new OtpDeliveryResult { IsSuccess = true };
     }
 
     private string FallbackText(OtpDeliveryEnvelopeModel envelope)

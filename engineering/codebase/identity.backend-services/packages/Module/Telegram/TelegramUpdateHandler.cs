@@ -10,10 +10,11 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
 /// <summary>
-/// Handles the bot's webhook updates from private chats. <c>/start {token}</c> attaches the chat to a pending start link
-/// and asks for the person's own contact in the purpose's words; a shared contact whose user is the sender, holding the
-/// link's number or, for a link that names none, any number, completes it once, saves the number's link to the chat and
-/// hands over to the purpose's handler. Everything else is left unanswered.
+/// Handles the bot's updates, from the webhook or polling. <c>/start {token}</c> in a private chat attaches the chat to a
+/// pending start link and asks for the person's own contact in the purpose's words; a shared contact whose user is the
+/// sender, holding the link's number or, for a link that names none, any number, completes it once, saves the number's
+/// link to the chat and hands over to the purpose's handler. A press of a notice's inline button (<c>callback_query</c>)
+/// goes to the <see cref="TelegramCallbackRouter"/>, which always answers it. Everything else is left unanswered.
 /// </summary>
 /// <remarks>
 /// A number a person holds confirmed and already links to another Telegram user (<c>telegram_user_id</c>, stable per
@@ -27,6 +28,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 /// <param name="replier">Sends the bot's texts.</param>
 /// <param name="messages">The person's culture.</param>
 /// <param name="handlers">What follows a completed link, per purpose.</param>
+/// <param name="callbacks">Routes button presses.</param>
 /// <param name="options">The bot; <c>Identity:Telegram</c> reloads live.</param>
 /// <param name="time">The clock expiry is judged against.</param>
 /// <param name="logger">Logs a completed link no handler serves.</param>
@@ -36,11 +38,15 @@ public sealed partial class TelegramUpdateHandler(
     TelegramBotReplier replier,
     TelegramBotMessages messages,
     IEnumerable<ITelegramLinkCompletionHandler> handlers,
+    TelegramCallbackRouter callbacks,
     IOptionsMonitor<TelegramBotOptions> options,
     TimeProvider time,
     ILogger<TelegramUpdateHandler> logger)
 {
     private const string StartCommand = "/start";
+
+    /// <summary>The update types the instance asks Telegram for, by webhook and by polling alike.</summary>
+    internal static readonly UpdateType[] AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery];
 
     /// <summary>Acts on one update.</summary>
     /// <param name="update">The update Telegram posted.</param>
@@ -48,6 +54,12 @@ public sealed partial class TelegramUpdateHandler(
     public async Task HandleAsync(Update update, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(update);
+        if (update.CallbackQuery is { } query)
+        {
+            await callbacks.RouteAsync(query, cancellationToken);
+            return;
+        }
+
         if (update.Message is not { From: { IsBot: false } from, Chat: { Type: ChatType.Private } chat } message)
             return;
 

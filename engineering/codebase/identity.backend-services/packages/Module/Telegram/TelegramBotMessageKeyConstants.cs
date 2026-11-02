@@ -1,6 +1,6 @@
 namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
-/// <summary>Names the texts the bot sends besides codes; <see cref="TelegramBotOptions.Messages"/> overrides them per culture.</summary>
+/// <summary>Names the texts the bot sends besides codes and notices; <see cref="TelegramBotOptions.Messages"/> overrides them per culture.</summary>
 public static class TelegramBotMessageKeyConstants
 {
     /// <summary>Asks the person to share their number with the button, after a valid start link.</summary>
@@ -44,4 +44,16 @@ public static class TelegramBotMessageKeyConstants
     /// the person's organization approves the change.
     /// </summary>
     public const string LinkChangePending = "link-change-pending";
+
+    /// <summary>The one-line stub a code or notice becomes when the sweep can no longer delete it (48 hours or older).</summary>
+    public const string MessageExpired = "message-expired";
+
+    /// <summary>A pressed button is unknown, spent or gone with its message.</summary>
+    public const string ButtonExpired = "button-expired";
+
+    /// <summary>A button was pressed by another Telegram user than the one allowed to.</summary>
+    public const string ButtonNotYours = "button-not-yours";
+
+    /// <summary>A pressed button's action failed.</summary>
+    public const string ButtonFailed = "button-failed";
 }

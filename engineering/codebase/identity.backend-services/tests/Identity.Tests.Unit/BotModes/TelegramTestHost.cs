@@ -5,6 +5,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
+using Telegram.Bot.Types;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
@@ -12,19 +13,20 @@ using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.BotModes;
 
 /// <summary>
-/// The bot's registration over a scripted Telegram, in-memory links, an in-memory record of who holds which number
-/// confirmed and a captured log, with a chosen host environment and no database.
+/// The bot's registration over a scripted Telegram, in-memory links and message ledger, an in-memory record of who holds
+/// which number confirmed and a captured log, with a chosen host environment and no database.
 /// </summary>
 internal sealed class TelegramTestHost : IDisposable
 {
     /// <summary>A bot token that passes the boot check.</summary>
     public const string Token = "123456:TEST-token";
 
-    private TelegramTestHost(ServiceProvider provider, ScriptedTelegramBotClient bot, InMemoryTelegramLinkRepository links, PhoneHolderUserRepository users, CapturedLog log)
+    private TelegramTestHost(ServiceProvider provider, ScriptedTelegramBotClient bot, InMemoryTelegramLinkRepository links, InMemoryTelegramMessageLedger ledger, PhoneHolderUserRepository users, CapturedLog log)
     {
         Provider = provider;
         Bot = bot;
         Links = links;
+        Ledger = ledger;
         Users = users;
         Log = log;
     }
@@ -34,6 +36,9 @@ internal sealed class TelegramTestHost : IDisposable
     public ScriptedTelegramBotClient Bot { get; }
 
     public InMemoryTelegramLinkRepository Links { get; }
+
+    /// <summary>The bot's sent codes and notices, and their buttons.</summary>
+    public InMemoryTelegramMessageLedger Ledger { get; }
 
     /// <summary>Who holds which number confirmed.</summary>
     public PhoneHolderUserRepository Users { get; }
@@ -61,6 +66,7 @@ internal sealed class TelegramTestHost : IDisposable
     {
         var scripted = new ScriptedTelegramBotClient();
         var links = new InMemoryTelegramLinkRepository();
+        var ledger = new InMemoryTelegramMessageLedger();
         var users = new PhoneHolderUserRepository();
         var log = new CapturedLog();
         var collection = new ServiceCollection();
@@ -76,6 +82,7 @@ internal sealed class TelegramTestHost : IDisposable
         if (!withoutBotClient)
             collection.AddSingleton<ITelegramBotClient>(scripted);
         collection.AddSingleton<ITelegramLinkRepository>(links);
+        collection.AddSingleton<ITelegramMessageLedger>(ledger);
         collection.AddSingleton<IUserRepository>(users);
         if (time is not null)
             collection.AddSingleton(time);
@@ -90,7 +97,22 @@ internal sealed class TelegramTestHost : IDisposable
             options.WebhookSecret = "hook-secret";
             bot?.Invoke(options);
         });
-        return new TelegramTestHost(collection.BuildServiceProvider(), scripted, links, users, log);
+        return new TelegramTestHost(collection.BuildServiceProvider(), scripted, links, ledger, users, log);
+    }
+
+    /// <summary>Runs one message sweep in its own scope, as the sweep service does.</summary>
+    /// <returns>How many messages were cleaned up.</returns>
+    public async Task<int> SweepAsync()
+    {
+        await using var scope = Provider.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<TelegramMessageSweeper>().SweepAsync();
+    }
+
+    /// <summary>Hands one update to the handler in its own scope, as the webhook does.</summary>
+    public async Task HandleAsync(Update update)
+    {
+        await using var scope = Provider.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<TelegramUpdateHandler>().HandleAsync(update);
     }
 
     /// <summary>The hosted service of type <typeparamref name="T"/>.</summary>

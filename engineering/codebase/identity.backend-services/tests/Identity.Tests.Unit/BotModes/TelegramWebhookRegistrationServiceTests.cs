@@ -26,7 +26,7 @@ public sealed class TelegramWebhookRegistrationServiceTests
         var set = host.Bot.SetWebhooks.Should().ContainSingle().Which;
         set.Url.Should().Be(Url);
         set.SecretToken.Should().Be("hook-secret");
-        set.AllowedUpdates.Should().Equal(UpdateType.Message);
+        set.AllowedUpdates.Should().Equal(new[] { UpdateType.Message, UpdateType.CallbackQuery }, "button presses arrive as callback queries");
         host.Bot.Methods.Should().Equal("getWebhookInfo", "setWebhook");
     }
 
@@ -34,19 +34,20 @@ public sealed class TelegramWebhookRegistrationServiceTests
     public async Task Start_ShouldCallNothingMore_WhenTheAddressAndUpdatesAlreadyMatch()
     {
         using var host = Deployed();
-        host.Bot.Webhook = new WebhookInfo { Url = Url, AllowedUpdates = [UpdateType.Message] };
+        host.Bot.Webhook = new WebhookInfo { Url = Url, AllowedUpdates = [UpdateType.CallbackQuery, UpdateType.Message] };
 
         await RunAsync(host);
 
-        host.Bot.SetWebhooks.Should().BeEmpty();
+        host.Bot.SetWebhooks.Should().BeEmpty("the order Telegram reports them in does not matter");
         host.Bot.Methods.Should().Equal("getWebhookInfo");
     }
 
     [Theory]
-    [InlineData("https://old.example.test/api/telegram/webhook", "Message", null)]
-    [InlineData(Url, "Message,CallbackQuery", null)]
+    [InlineData("https://old.example.test/api/telegram/webhook", "Message,CallbackQuery", null)]
+    [InlineData(Url, "Message", null)]
+    [InlineData(Url, "Message,CallbackQuery,InlineQuery", null)]
     [InlineData(Url, "", null)]
-    [InlineData(Url, "Message", "Wrong response from the webhook: 401 Unauthorized")]
+    [InlineData(Url, "Message,CallbackQuery", "Wrong response from the webhook: 401 Unauthorized")]
     public async Task Start_ShouldRegister_WhenTheAddressOrUpdatesDifferOrTheSecretWasRefused(string registeredUrl, string registeredUpdates, string? lastError)
     {
         using var host = Deployed();
@@ -66,7 +67,7 @@ public sealed class TelegramWebhookRegistrationServiceTests
     public async Task Start_ShouldLeaveTheWebhookAlone_WhenTheLastDeliveryFailedForAnotherReason()
     {
         using var host = Deployed();
-        host.Bot.Webhook = new WebhookInfo { Url = Url, AllowedUpdates = [UpdateType.Message], LastErrorMessage = "Connection timed out" };
+        host.Bot.Webhook = new WebhookInfo { Url = Url, AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery], LastErrorMessage = "Connection timed out" };
 
         await RunAsync(host);
 

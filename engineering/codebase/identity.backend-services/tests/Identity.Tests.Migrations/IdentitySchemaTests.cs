@@ -42,7 +42,8 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         (await HasColumnAsync(migrator, "identity_users", "display_name")).Should().BeTrue("005-display-name adds the display name");
         (await HasColumnAsync(migrator, "identity_telegram_link_requests", "reference_id")).Should().BeTrue("007-invite-sign-up adds the reference");
         (await migrator.HasTableAsync(Schema, "identity_telegram_link_changes")).Should().BeTrue("008-telegram-link-changes adds the pending changes");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8);
+        (await migrator.HasTableAsync(Schema, "identity_telegram_messages")).Should().BeTrue("009-telegram-messages adds the bot's message ledger");
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
@@ -52,6 +53,11 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         await using var migrator = CreateMigrator(fixture);
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
+
+        (await runner.RollbackAsync(targetOrdinal: 8)).ValueOrThrow().Should().Equal("009-telegram-messages");
+        foreach (var table in SchemaShape.TelegramMessageTables)
+            (await migrator.HasTableAsync(Schema, table)).Should().BeFalse($"rolling 009-telegram-messages back drops {table}");
+        (await migrator.HasTableAsync(Schema, "identity_telegram_link_changes")).Should().BeTrue("the pending changes stay");
 
         (await runner.RollbackAsync(targetOrdinal: 7)).ValueOrThrow().Should().Equal("008-telegram-link-changes");
         (await migrator.HasTableAsync(Schema, "identity_telegram_link_changes")).Should().BeFalse("rolling 008-telegram-link-changes back drops the pending changes");

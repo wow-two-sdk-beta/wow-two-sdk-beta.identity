@@ -13,7 +13,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 /// allows, a known update mode, a webhook secret Telegram accepts (required in webhook mode, checked when given in
 /// polling mode), a webhook address that is an absolute HTTPS URL when given, a positive link lifetime, and on a deployed
 /// boot a configured <c>Identity:Otp:HashKey</c>, which every instance needs to verify the codes another one made, and
-/// the webhook mode, because a deployed instance has a public address and a local run's polling would take its updates.
+/// the webhook mode, because a deployed instance has a public address and a local run's polling would take its updates,
+/// and a notice lifetime that is positive and below 48 hours, so the sweep can still delete a notice.
 /// </summary>
 /// <param name="services">The root provider, to read the OTP options and tell a local run from a deployed boot.</param>
 internal sealed partial class TelegramBotOptionsValidator(IServiceProvider services) : IValidateOptions<TelegramBotOptions>
@@ -45,6 +46,8 @@ internal sealed partial class TelegramBotOptionsValidator(IServiceProvider servi
             problems.Add($"{TelegramBotOptions.SectionName}:{nameof(options.WebhookUrl)} must be an absolute https URL.");
         if (options.LinkLifetime <= TimeSpan.Zero)
             problems.Add($"{TelegramBotOptions.SectionName}:{nameof(options.LinkLifetime)} must be positive.");
+        if (options.NoticeLifetime <= TimeSpan.Zero || options.NoticeLifetime >= TelegramBotLimits.DeleteWindow)
+            problems.Add($"{TelegramBotOptions.SectionName}:{nameof(options.NoticeLifetime)} must be positive and below 48 hours, while Telegram still lets the bot delete a notice.");
         if (!IsLocalRun() && string.IsNullOrWhiteSpace(services.GetService<OtpOptions>()?.HashKey))
             problems.Add($"{OtpOptions.SectionName}:{nameof(OtpOptions.HashKey)} is required on a deployed boot while the bot is on, so every instance verifies the same codes.");
 

@@ -18,6 +18,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 /// <remarks>
 ///   - the address is <see cref="TelegramBotOptions.WebhookUrl"/> (the service host fills it from <c>Identity:Server:Issuer</c>),
 ///     the <c>secret_token</c> is <see cref="TelegramBotOptions.WebhookSecret"/> and the allowed updates are <c>message</c>
+///     and <c>callback_query</c> (<see cref="TelegramUpdateHandler.AllowedUpdates"/>)
 ///   - Telegram never returns the <c>secret_token</c>, so a changed secret cannot be compared: the one signal is the
 ///     <c>401</c> Telegram records when the instance rejects its deliveries, which re-registers on the next start
 ///   - it runs in the background, so a slow or failing Telegram never delays or stops the start; a failure is logged
@@ -31,7 +32,7 @@ internal sealed partial class TelegramWebhookRegistrationService(
     ILogger<TelegramWebhookRegistrationService> logger) : BackgroundService
 {
     /// <summary>The update types the instance asks Telegram for.</summary>
-    internal static readonly UpdateType[] AllowedUpdates = [UpdateType.Message];
+    internal static readonly UpdateType[] AllowedUpdates = TelegramUpdateHandler.AllowedUpdates;
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

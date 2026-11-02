@@ -25,6 +25,10 @@ builder.Services
   `{2}` lifetime minutes. Options also bind from `Identity:Otp:Telegram`.
 - Failures return `OtpDeliveryResult(false, reason)` — `invalid_chat_id` for malformed addresses,
   Telegram API errors pass through as the reason message (a blocked bot is a `403`).
+- Each sent code message goes to the `ITelegramCodeMessageRecorder` when one is registered: `AddTelegramLinks()` records it
+  in the bot's message ledger, due when the code expires (the envelope's `Lifetime`, else `Identity:Otp:CodeLifetime`),
+  and its sweep deletes it then (`../../Telegram/telegram.md` § Message cleanup). A host with its own bot and no recorder
+  records nothing; a failed record is logged and the delivery still succeeds.
 - Registered keyed as the `telegram` channel and additively (`TryAddEnumerable`) beside the other channels.
 - The runtime always talks to the real Bot API; tests swap `ITelegramBotClient` for a fake of their own.
 - Codes to a phone number without a bot chat: the `telegram-gateway` channel (`Otp/TelegramGateway`).

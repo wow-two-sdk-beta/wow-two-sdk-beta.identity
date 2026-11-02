@@ -3,13 +3,14 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore;
 using WoW.Two.Sdk.Beta.Be.Foundation.Naming;
+using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>
 /// The Module's own context over the identity schema in PostgreSQL: 11 account tables, OpenIddict's four
 /// <c>identity_oidc_*</c> tables, the sessions, sign-in log and Data Protection key tables, the one-time code and
-/// Telegram link tables, and the invitation, sign-up and picture tables, mapped only. The embedded
+/// Telegram link and message tables, and the invitation, sign-up and picture tables, mapped only. The embedded
 /// SQL migration set <see cref="IdentityDatabaseOptions.MigrationSetName"/> creates and evolves them; EF never does.
 /// </summary>
 /// <remarks>
@@ -109,6 +110,12 @@ public sealed class IdentityDbContext : AppDbContextBase
 
     /// <summary>Telegram link changes waiting for an organization's owner or admin (<c>identity_telegram_link_changes</c>).</summary>
     public DbSet<IdentityTelegramLinkChange> TelegramLinkChanges => Set<IdentityTelegramLinkChange>();
+
+    /// <summary>The bot's sent codes and notices waiting for cleanup (<c>identity_telegram_messages</c>).</summary>
+    public DbSet<IdentityTelegramMessage> TelegramMessages => Set<IdentityTelegramMessage>();
+
+    /// <summary>The inline buttons on those messages, by token digest (<c>identity_telegram_callbacks</c>).</summary>
+    public DbSet<IdentityTelegramCallback> TelegramCallbacks => Set<IdentityTelegramCallback>();
 
     /// <summary>Invitations into organizations (<c>identity_invitations</c>).</summary>
     public DbSet<IdentityInvitation> Invitations => Set<IdentityInvitation>();
@@ -404,7 +411,10 @@ public sealed class IdentityDbContext : AppDbContextBase
         });
     }
 
-    /// <summary>Maps one-time codes, Telegram links and the bot's start links (<c>004-phone-sign-in</c>), and the pending link changes (<c>008-telegram-link-changes</c>).</summary>
+    /// <summary>
+    /// Maps one-time codes, Telegram links and the bot's start links (<c>004-phone-sign-in</c>), the pending link changes
+    /// (<c>008-telegram-link-changes</c>), and the bot's message ledger and its buttons (<c>009-telegram-messages</c>).
+    /// </summary>
     private static void MapPhoneSignIn(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<IdentityOtpCode>(code =>
@@ -458,6 +468,32 @@ public sealed class IdentityDbContext : AppDbContextBase
             change.HasIndex(c => c.RequestedAt);
             change.Property(c => c.BotUserName).HasMaxLength(64);
             change.Property(c => c.PhoneNumber).HasMaxLength(32);
+        });
+
+        // 009-telegram-messages: the sent codes and notices the sweep cleans up, and their buttons.
+        modelBuilder.Entity<IdentityTelegramMessage>(message =>
+        {
+            message.ToTable("identity_telegram_messages");
+            message.HasKey(m => m.Id);
+            message.Property(m => m.Id).ValueGeneratedNever();
+            message.HasIndex(m => new { m.BotUserName, m.ChatId, m.MessageId }).IsUnique();
+            message.HasIndex(m => new { m.UserId, m.Kind });
+            message.HasIndex(m => m.DeleteAt);
+            message.Property(m => m.BotUserName).HasMaxLength(64);
+            message.Property(m => m.Kind).HasMaxLength(64);
+            message.Property(m => m.Culture).HasMaxLength(16);
+        });
+
+        modelBuilder.Entity<IdentityTelegramCallback>(callback =>
+        {
+            callback.ToTable("identity_telegram_callbacks");
+            callback.HasKey(c => c.Id);
+            callback.Property(c => c.Id).ValueGeneratedNever();
+            callback.HasIndex(c => c.TokenHash).IsUnique();
+            callback.HasIndex(c => c.MessageRecordId);
+            callback.Property(c => c.TokenHash).HasMaxLength(64);
+            callback.Property(c => c.Action).HasMaxLength(64);
+            callback.Property(c => c.Payload).HasMaxLength(256);
         });
     }
 

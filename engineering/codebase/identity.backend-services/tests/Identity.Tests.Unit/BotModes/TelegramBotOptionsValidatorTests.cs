@@ -81,6 +81,25 @@ public sealed class TelegramBotOptionsValidatorTests
         Validate("Development", bot => bot.UpdateMode = (TelegramUpdateMode)7).Failures.Should().Contain(failure => failure.Contains("UpdateMode"));
     }
 
+    [Theory]
+    [InlineData("00:00:00")]
+    [InlineData("-00:05:00")]
+    [InlineData("2.00:00:00")]
+    [InlineData("3.00:00:00")]
+    public void NoticeLifetime_ShouldBeRefused_UnlessPositiveAndBelow48Hours(string lifetime)
+    {
+        var result = Validate("Development", bot => bot.NoticeLifetime = TimeSpan.Parse(lifetime, System.Globalization.CultureInfo.InvariantCulture));
+
+        result.Failures.Should().ContainSingle().Which.Should().Contain("NoticeLifetime").And.Contain("48 hours");
+    }
+
+    [Fact]
+    public void NoticeLifetime_ShouldDefaultToADay_AndAcceptJustBelow48Hours()
+    {
+        new TelegramBotOptions().NoticeLifetime.Should().Be(TimeSpan.FromDays(1));
+        Validate("Development", bot => bot.NoticeLifetime = TimeSpan.FromHours(48) - TimeSpan.FromSeconds(1)).Succeeded.Should().BeTrue();
+    }
+
     [Fact]
     public void Validator_ShouldAskNothing_WhileTheBotIsOff()
     {

@@ -60,7 +60,9 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 - `006-invitations` adds `identity_invitations`; `007-invite-sign-up` adds `identity_sign_up_requests` (sign-ups waiting
   for the bot, `InviteSignUp/`), `identity_profile_pictures` (one WebP per person, `ProfilePictures/`) and a nullable
   number plus `reference_id` on start links; `008-telegram-link-changes` adds `identity_telegram_link_changes` (a known
-  number re-shared from another Telegram account, waiting for a manager's approval). None is published to products.
+  number re-shared from another Telegram account, waiting for a manager's approval); `009-telegram-messages` adds
+  `identity_telegram_messages` (the bot's sent codes and notices until the sweep cleans them up) and
+  `identity_telegram_callbacks` (their inline buttons by token digest; `../Telegram/`). None is published to products.
 - The SQL owns the schema: `../Migrations/Postgres/NNN-name/{Apply,Rollback}.sql`, embedded and run as the be sdk
   migration set `identity` (history `identity_migration_history`, its own advisory lock). EF only maps.
 - Names are pinned in the model, whatever the host's naming convention: snake_case columns, `pk_{table}`,

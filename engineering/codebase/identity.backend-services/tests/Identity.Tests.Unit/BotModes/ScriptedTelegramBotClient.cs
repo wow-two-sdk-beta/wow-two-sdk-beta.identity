@@ -11,8 +11,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.BotModes;
 
 /// <summary>
 /// A bot client that plays Telegram for the update modes: it hands out the updates it is given as <c>getUpdates</c> does
-/// (confirming those below the offset), fails polls on cue, reports and records the webhook, and keeps what the bot sends.
-/// Nothing leaves the process.
+/// (confirming those below the offset), fails polls on cue, reports and records the webhook, and keeps what the bot sends,
+/// deletes, edits and answers, failing chats and edits on cue. Nothing leaves the process.
 /// </summary>
 internal sealed class ScriptedTelegramBotClient : ITelegramBotClient
 {
@@ -31,6 +31,24 @@ internal sealed class ScriptedTelegramBotClient : ITelegramBotClient
 
     /// <summary>Every request's method name, in order.</summary>
     public ConcurrentQueue<string> Methods { get; } = new();
+
+    /// <summary>Every <c>deleteMessages</c> call, in order.</summary>
+    public ConcurrentQueue<DeleteMessagesRequest> Deletions { get; } = new();
+
+    /// <summary>Every <c>editMessageText</c> call, in order.</summary>
+    public ConcurrentQueue<EditMessageTextRequest> TextEdits { get; } = new();
+
+    /// <summary>Every <c>editMessageReplyMarkup</c> call, in order.</summary>
+    public ConcurrentQueue<EditMessageReplyMarkupRequest> MarkupEdits { get; } = new();
+
+    /// <summary>Every <c>answerCallbackQuery</c> call, in order.</summary>
+    public ConcurrentQueue<AnswerCallbackQueryRequest> Answers { get; } = new();
+
+    /// <summary>Chats whose <c>sendMessage</c> and <c>deleteMessages</c> throw the given failure.</summary>
+    public ConcurrentDictionary<long, Exception> ChatFailures { get; } = new();
+
+    /// <summary>Messages, by chat and id, whose edits throw the given failure.</summary>
+    public ConcurrentDictionary<(long ChatId, int MessageId), Exception> EditFailures { get; } = new();
 
     /// <summary>Failures the next polls throw, one each, before any poll succeeds.</summary>
     public ConcurrentQueue<Exception> PollFailures { get; } = new();
@@ -88,6 +106,8 @@ internal sealed class ScriptedTelegramBotClient : ITelegramBotClient
         switch (request)
         {
             case SendMessageRequest message:
+                if (ChatFailures.TryGetValue(message.ChatId.Identifier ?? 0, out var refusal))
+                    throw refusal;
                 Sent.Enqueue(message);
                 response = new Message
                 {
@@ -113,6 +133,28 @@ internal sealed class ScriptedTelegramBotClient : ITelegramBotClient
                     throw setFailure;
                 SetWebhooks.Enqueue(set);
                 Webhook = new WebhookInfo { Url = set.Url, AllowedUpdates = set.AllowedUpdates?.ToArray() };
+                response = true;
+                break;
+            case DeleteMessagesRequest delete:
+                Deletions.Enqueue(delete);
+                if (ChatFailures.TryGetValue(delete.ChatId.Identifier ?? 0, out var deleteFailure))
+                    throw deleteFailure;
+                response = true;
+                break;
+            case EditMessageTextRequest edit:
+                TextEdits.Enqueue(edit);
+                if (EditFailures.TryGetValue((edit.ChatId.Identifier ?? 0, edit.MessageId), out var editFailure))
+                    throw editFailure;
+                response = new Message { Id = edit.MessageId, Date = DateTime.UtcNow, Chat = new Chat { Id = edit.ChatId.Identifier ?? 0, Type = ChatType.Private }, Text = edit.Text };
+                break;
+            case EditMessageReplyMarkupRequest markup:
+                MarkupEdits.Enqueue(markup);
+                if (EditFailures.TryGetValue((markup.ChatId.Identifier ?? 0, markup.MessageId), out var markupFailure))
+                    throw markupFailure;
+                response = new Message { Id = markup.MessageId, Date = DateTime.UtcNow, Chat = new Chat { Id = markup.ChatId.Identifier ?? 0, Type = ChatType.Private } };
+                break;
+            case AnswerCallbackQueryRequest answer:
+                Answers.Enqueue(answer);
                 response = true;
                 break;
             default:

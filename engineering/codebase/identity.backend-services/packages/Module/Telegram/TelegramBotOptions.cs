@@ -44,6 +44,12 @@ public sealed record TelegramBotOptions
     public TimeSpan LinkLifetime { get; set; } = TimeSpan.FromMinutes(15);
 
     /// <summary>
+    /// Gets or sets how long a notice (<see cref="ITelegramNoticeSender"/>) stays in its chat before the sweep deletes it.
+    /// Default 1 day; positive and below 48 hours, the window in which Telegram lets the bot delete its own messages.
+    /// </summary>
+    public TimeSpan NoticeLifetime { get; set; } = TimeSpan.FromDays(1);
+
+    /// <summary>
     /// Gets the bot's own wording by culture, then by key (<see cref="TelegramBotMessageKeyConstants"/>); configured texts
     /// win over the built-in <c>en</c>, <c>ru</c> and <c>uz</c> ones.
     /// </summary>

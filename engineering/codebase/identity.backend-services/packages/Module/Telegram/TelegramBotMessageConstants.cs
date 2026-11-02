@@ -22,6 +22,10 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.InvitationMismatch] = "This invitation is for another phone number.",
                 [TelegramBotMessageKeyConstants.CountryNotAllowed] = "Phone numbers from this country cannot sign up here.",
                 [TelegramBotMessageKeyConstants.LinkChangePending] = "This number is linked to another Telegram account. An admin of your organization must approve the change; then start again from the sign-in page.",
+                [TelegramBotMessageKeyConstants.MessageExpired] = "This message has expired.",
+                [TelegramBotMessageKeyConstants.ButtonExpired] = "This button no longer works.",
+                [TelegramBotMessageKeyConstants.ButtonNotYours] = "This button is not for you.",
+                [TelegramBotMessageKeyConstants.ButtonFailed] = "Something went wrong. Check your account page.",
             },
             ["ru"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -38,6 +42,10 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.InvitationMismatch] = "Это приглашение для другого номера телефона.",
                 [TelegramBotMessageKeyConstants.CountryNotAllowed] = "Номера из этой страны не могут зарегистрироваться здесь.",
                 [TelegramBotMessageKeyConstants.LinkChangePending] = "Этот номер привязан к другому аккаунту Telegram. Администратор вашей организации должен одобрить изменение; затем начните заново со страницы входа.",
+                [TelegramBotMessageKeyConstants.MessageExpired] = "Срок действия этого сообщения истёк.",
+                [TelegramBotMessageKeyConstants.ButtonExpired] = "Эта кнопка больше не действует.",
+                [TelegramBotMessageKeyConstants.ButtonNotYours] = "Эта кнопка не для вас.",
+                [TelegramBotMessageKeyConstants.ButtonFailed] = "Что-то пошло не так. Проверьте страницу аккаунта.",
             },
             ["uz"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -54,6 +62,10 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.InvitationMismatch] = "Bu taklifnoma boshqa telefon raqami uchun.",
                 [TelegramBotMessageKeyConstants.CountryNotAllowed] = "Bu davlat raqamlari bilan bu yerda ro'yxatdan o'tib bo'lmaydi.",
                 [TelegramBotMessageKeyConstants.LinkChangePending] = "Bu raqam boshqa Telegram akkauntiga bog'langan. Tashkilotingiz administratori o'zgarishni tasdiqlashi kerak; so'ng kirish sahifasidan qaytadan boshlang.",
+                [TelegramBotMessageKeyConstants.MessageExpired] = "Bu xabarning amal qilish muddati tugagan.",
+                [TelegramBotMessageKeyConstants.ButtonExpired] = "Bu tugma endi ishlamaydi.",
+                [TelegramBotMessageKeyConstants.ButtonNotYours] = "Bu tugma siz uchun emas.",
+                [TelegramBotMessageKeyConstants.ButtonFailed] = "Nimadir xato ketdi. Akkaunt sahifangizni tekshiring.",
             },
         };
 }

@@ -32,7 +32,7 @@ internal sealed partial class TelegramPollingService(
     TelegramPollingSchedule schedule,
     ILogger<TelegramPollingService> logger) : BackgroundService
 {
-    private static readonly UpdateType[] AllowedUpdates = [UpdateType.Message];
+    private static readonly UpdateType[] AllowedUpdates = TelegramUpdateHandler.AllowedUpdates;
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

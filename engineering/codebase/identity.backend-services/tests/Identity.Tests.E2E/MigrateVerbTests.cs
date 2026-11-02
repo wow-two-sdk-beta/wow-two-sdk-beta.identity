@@ -18,7 +18,7 @@ namespace Identity.Tests.E2E;
 public sealed class MigrateVerbTests : IAsyncLifetime
 {
     /// <summary>Every migration the identity set carries, in apply order.</summary>
-    private static readonly string[] Migrations = ["001-accounts", "002-oidc", "003-spine", "004-phone-sign-in", "005-display-name", "006-invitations", "007-invite-sign-up", "008-telegram-link-changes"];
+    private static readonly string[] Migrations = ["001-accounts", "002-oidc", "003-spine", "004-phone-sign-in", "005-display-name", "006-invitations", "007-invite-sign-up", "008-telegram-link-changes", "009-telegram-messages"];
 
     private string _connectionString = "";
     private WebApplication _app = null!;
@@ -100,7 +100,7 @@ public sealed class MigrateVerbTests : IAsyncLifetime
         (await verbs.AssertExitAsync(1, "check")).Result.Sets.Should().ContainSingle().Which.State.Should().Be(MigrationLevelState.Behind);
 
         var reapplied = await verbs.AssertExitAsync(0, "apply");
-        Identity(reapplied.Result).Applied.Select(label => label.Label).Should().Equal("003-spine", "004-phone-sign-in", "005-display-name", "006-invitations", "007-invite-sign-up", "008-telegram-link-changes");
+        Identity(reapplied.Result).Applied.Select(label => label.Label).Should().Equal("003-spine", "004-phone-sign-in", "005-display-name", "006-invitations", "007-invite-sign-up", "008-telegram-link-changes", "009-telegram-messages");
     }
 
     [Fact]
