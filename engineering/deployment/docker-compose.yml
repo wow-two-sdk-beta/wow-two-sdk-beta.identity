@@ -136,7 +136,8 @@ services:
       Identity__SignUp__Mode: Open
     volumes:
       - identity-keys:/data
-    mem_limit: 256m
+    # As deploy.yml: four concurrent 19 MiB password hashes beside the runtime.
+    mem_limit: 512m
 
 volumes:
   database:

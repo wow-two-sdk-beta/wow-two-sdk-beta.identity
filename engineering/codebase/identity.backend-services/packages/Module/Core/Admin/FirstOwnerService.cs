@@ -14,6 +14,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Admin;
 /// <remarks>
 ///   - the person is found by the given id, email or confirmed phone; two of them naming different people, or a person
 ///     holding other contacts or another id than given, is refused
+///   - a person found by email alone whose email is unconfirmed is refused: anyone can sign up with an address they do
+///     not hold, so only a confirmed email, a confirmed phone or the person's id (<c>--user-id</c>) names an owner
 ///   - the organization is found by its handle; a handle or an id already held by another organization is refused, and so
 ///     is an existing organization whose owners do not include the person
 ///   - a new person holds the given phone and email confirmed and no password: they sign in by phone, or set a password
@@ -138,6 +140,10 @@ public sealed class FirstOwnerService(
             return (person, $"Person {person.Id} exists with another email.");
         if (phone is not null && !(person.IsPhoneNumberConfirmed && string.Equals(person.PhoneNumber, phone, StringComparison.Ordinal)))
             return (person, $"Person {person.Id} exists with another phone.");
+
+        // A sign-up with someone else's address is not proof: only the id or a confirmed contact names the owner.
+        if (byId is null && byPhone is null && !person.IsEmailConfirmed)
+            return (person, $"Person {person.Id} holds '{email}' unconfirmed, so it may not be theirs; confirm the email first, or name them with --user-id.");
 
         return (person, null);
     }

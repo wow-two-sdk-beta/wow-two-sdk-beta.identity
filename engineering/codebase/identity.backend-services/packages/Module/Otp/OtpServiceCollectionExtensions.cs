@@ -29,6 +29,9 @@ public static class OtpServiceCollectionExtensions
                 .Validate(o => o.DefaultSpec.IsValid, "OtpOptions needs a CodeLength of 4–12, a known CodeKind and a positive CodeLifetime.")
                 .Validate(o => o.MaxAttempts > 0, "OtpOptions.MaxAttempts must be positive.")
                 .Validate(o => o.RateLimitWindow >= TimeSpan.Zero, "OtpOptions.RateLimitWindow must not be negative.")
+                .Validate(o => o.OriginRateLimitWindow >= TimeSpan.Zero, "OtpOptions.OriginRateLimitWindow must not be negative.")
+                .Validate(o => o.MaxSubjectFailures > 0, "OtpOptions.MaxSubjectFailures must be positive.")
+                .Validate(o => o.SubjectFailureWindow > TimeSpan.Zero, "OtpOptions.SubjectFailureWindow must be positive.")
                 .Validate(o => !string.IsNullOrWhiteSpace(o.Messages.DefaultCulture), "OtpOptions.Messages.DefaultCulture must not be empty.")
                 .Validate(o => IsUsableKey(o.HashKey), "OtpOptions.HashKey must be base64 or base64url of at least 32 bytes when set."));
         services.TryAddSingleton(TimeProvider.System);

@@ -50,6 +50,8 @@ public sealed class OidcHost : IAsyncDisposable
             ["Identity:Server:Clients:0:PermissionNamespace"] = PermissionNamespace,
             ["Identity:Organizations:Roles:owner:0"] = "e2e:deploy",
             ["Identity:Organizations:Roles:owner:1"] = "logs:read",
+            // One shared host signs many people in within a minute from one address; the credential limit has its own tests.
+            ["RateLimits:Policies:identity-credentials:PermitLimit"] = "1000",
         };
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
             values[key] = value;

@@ -31,6 +31,26 @@ app.MapGroup("/api/orgs/{organizationId:guid}/desks")
 - The cookie carries only the session reference; the tokens and claims live in `IBffSessionRepository` (the
   distributed cache by default), keyed on the instance's `sid`, encrypted with Data Protection. Several instances
   share a distributed cache and a Data Protection key ring.
+- A sign-in callback that fails lands back at `returnUrl` with `signInError=callback_failed`; for 10 s after it the
+  sign-in route and page redirects answer a 401 problem (`code` `SignInFailed`) instead of starting the sign-in again,
+  so a misconfigured client ends at an error rather than in a redirect loop.
+
+## Deployed hosts: persist the sessions and the key ring
+
+The defaults (`AddDistributedMemoryCache`, `AddDataProtection` with no key store) hold for a local run only: every
+restart or deploy forgets the sessions and the keys, so every cookie, CSRF token and sign-in in flight stops working
+and everyone signs in again. A deployed host registers both before `AddIdentityBff`:
+
+```csharp
+builder.Services.AddStackExchangeRedisCache(o => o.Configuration = redisConnection);   // or any shared IDistributedCache
+builder.Services.AddDataProtection()
+    .SetApplicationName("ocharo")                                                     // one name across instances
+    .PersistKeysToDbContext<AppDbContext>();                                          // or PersistKeysToStackExchangeRedis, a volume
+builder.Services.AddIdentityBff();
+```
+
+- A deployed boot (`DEPLOY_ENVIRONMENT` set) logs a warning for each one still on its default; it never refuses to boot.
+- Protect the persisted ring at rest (`ProtectKeysWithCertificate`) where the store is shared.
 - API requests answer 401, 403 and 404 RFC 7807 problems with a `code`; page requests are redirected to sign in.
 
 Namespace: `WoW.Two.Sdk.Beta.Be.Identity.Bff`.

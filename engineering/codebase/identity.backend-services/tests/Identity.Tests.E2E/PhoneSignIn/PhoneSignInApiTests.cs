@@ -74,7 +74,8 @@ public sealed class PhoneSignInApiTests(IdentityApiFixture fixture)
                 logged[^1].UserId.Should().Be(person.Id);
             }
 
-            host.Clock.Advance(TimeSpan.FromSeconds(10));
+            // Past the 30 s resend window the number's start link opened.
+            host.Clock.Advance(TimeSpan.FromSeconds(31));
             var linked = await SendAsync(client, Phone);
             linked.GetProperty("isCodeSent").GetBoolean().Should().BeTrue("the number is linked now");
             linked.GetProperty("telegramLinkUrl").ValueKind.Should().Be(JsonValueKind.Null);

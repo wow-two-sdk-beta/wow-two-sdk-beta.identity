@@ -2,6 +2,7 @@ using System.Net;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.JsonWebTokens;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 namespace Identity.Tests.E2E.Oidc;
@@ -57,6 +58,28 @@ public sealed class OidcSessionLifetimeTests
         server.Host.Clock.Advance(TimeSpan.FromDays(6));
         using var idle = await client.RefreshAsync(renewed.RefreshToken);
         idle.StatusCode.Should().Be(HttpStatusCode.BadRequest, "a session left unused past SlidingLifetime has ended");
+    }
+
+    [Fact]
+    public async Task AuthTime_ShouldStayTheSignInTime_ThoughASlidingSessionReissuedTheCookie()
+    {
+        await using var server = new OidcHost(new Dictionary<string, string?>
+        {
+            ["Identity:Sessions:Expiration"] = "Sliding",
+            ["Identity:Sessions:SlidingLifetime"] = "5.00:00:00",
+        });
+        using var client = server.CreateClient();
+        await client.SignUpAndSignInAsync($"auth-time-{Guid.NewGuid():N}@example.test", Password);
+        var signedInAt = server.Host.Clock.GetUtcNow();
+
+        // Used two days on, the sliding session moves its end and the cookie is reissued with a new issue time.
+        server.Host.Clock.Advance(TimeSpan.FromDays(2));
+        (await client.Http.GetAsync("/api/account/manage/info")).StatusCode.Should().Be(HttpStatusCode.OK);
+        server.Host.Clock.Advance(TimeSpan.FromDays(2));
+        var tokens = await client.SignInToAppAsync();
+
+        new JsonWebToken(tokens.IdentityToken).GetPayloadValue<long>("auth_time")
+            .Should().BeCloseTo(signedInAt.ToUnixTimeSeconds(), 2, "auth_time is when the person signed in, not when the cookie was last reissued");
     }
 
     [Fact]

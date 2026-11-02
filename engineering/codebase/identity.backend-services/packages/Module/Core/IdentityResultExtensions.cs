@@ -34,8 +34,8 @@ public static class IdentityResultExtensions
         IdentityErrorCodeConstants.PasswordMismatch => "currentPassword",
         _ when code.StartsWith("Password", StringComparison.Ordinal) => "password",
         IdentityErrorCodeConstants.UserAlreadyHasPassword => "password",
-        IdentityErrorCodeConstants.DuplicateEmail => "email",
-        IdentityErrorCodeConstants.UserNameRequired or IdentityErrorCodeConstants.DuplicateUserName => "userName",
+        IdentityErrorCodeConstants.DuplicateEmail or IdentityErrorCodeConstants.InvalidEmail => "email",
+        IdentityErrorCodeConstants.UserNameRequired or IdentityErrorCodeConstants.DuplicateUserName or IdentityErrorCodeConstants.InvalidUserName => "userName",
         IdentityErrorCodeConstants.InvalidToken or PasswordChangeErrorCodeConstants.InvalidLink => "token",
         PasswordChangeErrorCodeConstants.InvalidCode => "code",
         IdentityErrorCodeConstants.InvalidAuthenticatorCode

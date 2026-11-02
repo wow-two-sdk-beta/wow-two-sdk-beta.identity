@@ -9,7 +9,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 /// Binds the session cookie to the server-side session: a sign-in stores the session and leaves the cookie its
 /// reference, each request resolves (and refreshes) the session behind it and reissues the cookie when the session's end
 /// moved, a sign-out removes it; API requests answer
-/// 401 and 403 problems where a page request is redirected to the sign-in route.
+/// 401 and 403 problems where a page request is redirected to the sign-in route, unless a code callback failed moments
+/// ago (<see cref="BffSignInFailure"/>), when it answers the 401 problem too.
 /// </summary>
 /// <param name="sessions">The session service.</param>
 /// <param name="options">The BFF options.</param>
@@ -80,6 +81,10 @@ internal sealed class BffCookieEvents(BffSessionService sessions, IOptions<Ident
         ArgumentNullException.ThrowIfNull(context);
         if (BffRequestMatcher.IsApi(context.Request, options.Value))
             return BffProblemWriter.WriteAsync(context.HttpContext, StatusCodes.Status401Unauthorized, BffErrorCodeConstants.SignInRequired, "Sign in to continue.");
+
+        // A callback failed moments ago: answer the error rather than start the sign-in that failed again.
+        if (BffSignInFailure.IsRecent(context.HttpContext, options.Value))
+            return BffSignInFailure.WriteAsync(context.HttpContext);
 
         context.Response.Redirect(context.RedirectUri);
         return Task.CompletedTask;

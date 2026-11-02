@@ -1,4 +1,5 @@
 using System.Globalization;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp.Models;
@@ -10,10 +11,16 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.PhoneSignIn;
 /// <summary>
 /// Provides sign-in by phone with a code the instance's Telegram bot sends. A number linked to a chat gets its code at
 /// once; any other gets a start link, and the bot sends the code once the person shares that number as their own
-/// contact. Both answer the same for known and unknown numbers. A verified code signs in the person holding the number
-/// confirmed, or creates them while sign-up is on. Numbers outside <c>Identity:Phone:AllowedCountries</c> are refused,
-/// and sending is rate-limited per number and per origin by <c>Identity:Otp:RateLimitWindow</c>.
+/// contact. Whether an account holds the number changes neither answer, but the two answers differ, so a send tells a
+/// number linked to the bot from one that is not. A verified code signs in the person holding the number confirmed, or
+/// creates them while sign-up is on. Numbers outside <c>Identity:Phone:AllowedCountries</c> are refused, and sending is
+/// rate-limited per number by <c>Identity:Otp:RateLimitWindow</c> and per origin by <c>Identity:Otp:OriginRateLimitWindow</c>.
 /// </summary>
+/// <remarks>
+///   - a code that could not be delivered is discarded, so nothing the person never received waits to be guessed
+///   - a locked-out person's code is refused before it is checked, so it stays unspent for after the lockout
+///   - wrong codes share the number's failure budget (<c>Identity:Otp:MaxSubjectFailures</c>) across every code sent
+/// </remarks>
 /// <param name="users">Finds the person holding a confirmed number.</param>
 /// <param name="accounts">Creates a person on the first sign-in.</param>
 /// <param name="otp">Creates and spends the codes.</param>
@@ -22,6 +29,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.PhoneSignIn;
 /// <param name="otpOptions">The code's shape and lifetime.</param>
 /// <param name="phones">The number rules and the allowed countries.</param>
 /// <param name="telegram">The number's chat and start links.</param>
+/// <param name="lockout">The lockout slice; null skips the check before the code is spent.</param>
 public sealed class UserPhoneSignInService(
     IUserRepository users,
     UserAccountService accounts,
@@ -30,7 +38,8 @@ public sealed class UserPhoneSignInService(
     IOtpMessageFormatter formatter,
     OtpOptions otpOptions,
     PhoneNumberPolicy phones,
-    TelegramLinkService telegram)
+    TelegramLinkService telegram,
+    UserLockoutService? lockout = null)
 {
     /// <summary>The OTP scope of phone sign-in codes.</summary>
     public const string CodeScope = UserPhoneService.SignInScope;
@@ -76,7 +85,7 @@ public sealed class UserPhoneSignInService(
     /// <summary>
     /// Creates a sign-in code for <paramref name="phoneNumber"/> and sends it to <paramref name="chatId"/>:
     /// <see cref="PhoneSignInStatus.CodeSent"/>, <see cref="PhoneSignInStatus.RateLimited"/>, or
-    /// <see cref="PhoneSignInStatus.LinkRequired"/> when the chat refused it.
+    /// <see cref="PhoneSignInStatus.LinkRequired"/> when the chat refused it, and the code is discarded.
     /// </summary>
     /// <param name="phoneNumber">The number in E.164.</param>
     /// <param name="chatId">The number's linked chat.</param>
@@ -112,13 +121,20 @@ public sealed class UserPhoneSignInService(
             },
             cancellationToken);
 
-        return PhoneSignInResult.Of(delivered.IsSuccess ? PhoneSignInStatus.CodeSent : PhoneSignInStatus.LinkRequired, phoneNumber);
+        if (delivered.IsSuccess)
+            return PhoneSignInResult.Of(PhoneSignInStatus.CodeSent, phoneNumber);
+
+        // The chat refused it (the bot was blocked): no code the person never saw stays open to guessing.
+        if (created.CodeId is { } codeId)
+            await otp.DiscardAsync(codeId, cancellationToken);
+        return PhoneSignInResult.Of(PhoneSignInStatus.LinkRequired, phoneNumber);
     }
 
     /// <summary>
     /// Spends <paramref name="code"/> for <paramref name="phoneNumber"/> and returns the person holding the number
     /// confirmed; with none, creates one holding it confirmed while <paramref name="isSignUpAllowed"/>, else
-    /// <see cref="PhoneSignInStatus.SignUpClosed"/>.
+    /// <see cref="PhoneSignInStatus.SignUpClosed"/>. A locked-out person answers <see cref="PhoneSignInStatus.LockedOut"/>
+    /// before the code is checked, so it is not spent.
     /// </summary>
     /// <param name="phoneNumber">The number as typed.</param>
     /// <param name="code">The code the bot sent.</param>
@@ -131,10 +147,14 @@ public sealed class UserPhoneSignInService(
             return PhoneSignInResult.Of(PhoneSignInStatus.InvalidNumber);
         if (!phones.IsAllowed(phone))
             return PhoneSignInResult.Of(PhoneSignInStatus.CountryNotAllowed, phone);
+
+        var known = await users.FindByConfirmedPhoneNumberAsync(phone, cancellationToken);
+        if (known is not null && lockout?.IsLockedOut(known) == true)
+            return new PhoneSignInResult { Status = PhoneSignInStatus.LockedOut, PhoneNumber = phone, User = known };
         if (string.IsNullOrWhiteSpace(code) || !(await otp.VerifyAsync(phone, code.Trim(), CodeScope, cancellationToken)).IsSuccess)
             return PhoneSignInResult.Of(PhoneSignInStatus.InvalidCode, phone);
 
-        if (await users.FindByConfirmedPhoneNumberAsync(phone, cancellationToken) is { } known)
+        if (known is not null)
             return new PhoneSignInResult { Status = PhoneSignInStatus.Verified, PhoneNumber = phone, User = known };
         if (!isSignUpAllowed)
             return PhoneSignInResult.Of(PhoneSignInStatus.SignUpClosed, phone);

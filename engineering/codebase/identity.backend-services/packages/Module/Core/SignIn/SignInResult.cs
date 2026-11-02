@@ -26,6 +26,13 @@ public sealed record SignInResult
     /// <summary>Whether the typed password matched its hash but breaks the current rules; set on a <see cref="SignInStatus.RequiresTwoFactor"/> result, so the sign-in finishes as <see cref="SignInStatus.PasswordChangeRequired"/> after the second factor.</summary>
     public bool IsPasswordChangeRequired { get; init; }
 
+    /// <summary>
+    /// The precondition a <see cref="SignInStatus.NotAllowed"/> result missed, as a sign-in log reason:
+    /// <see cref="SignInLog.SignInReasonConstants.UnconfirmedEmail"/> or <see cref="SignInLog.SignInReasonConstants.UnconfirmedPhone"/>;
+    /// null for every other status.
+    /// </summary>
+    public string? UnmetPrecondition { get; init; }
+
     /// <summary>The sign-in log row this attempt wrote; null without the sign-in log slice, or when the write failed.</summary>
     /// <remarks>A cookie sign-in passes it to <c>UserSessionService.StartAsync</c>, so the row names the session it started.</remarks>
     public long? SignInLogEntryId { get; init; }

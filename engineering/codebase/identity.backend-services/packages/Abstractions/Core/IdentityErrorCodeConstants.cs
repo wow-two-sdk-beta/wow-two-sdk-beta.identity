@@ -87,8 +87,20 @@ public static class IdentityErrorCodeConstants
     /// <summary>The identifier (user name or email) or password is wrong, or the account does not exist.</summary>
     public const string SignInFailed = "SignInFailed";
 
-    /// <summary>The credentials were right but the email or phone is not confirmed yet.</summary>
+    /// <summary>The credentials were right but sign-in is refused, where neither <see cref="EmailConfirmationRequired"/> nor <see cref="PhoneConfirmationRequired"/> names why.</summary>
     public const string SignInNotAllowed = "SignInNotAllowed";
+
+    /// <summary>The credentials were right but the email is not confirmed yet, while sign-in requires it; a new confirmation email can help.</summary>
+    public const string EmailConfirmationRequired = "EmailConfirmationRequired";
+
+    /// <summary>The credentials were right but the phone number is not confirmed yet, while sign-in requires it.</summary>
+    public const string PhoneConfirmationRequired = "PhoneConfirmationRequired";
+
+    /// <summary>The email address is malformed or longer than 320 characters.</summary>
+    public const string InvalidEmail = "InvalidEmail";
+
+    /// <summary>The user name is longer than 256 characters.</summary>
+    public const string InvalidUserName = "InvalidUserName";
 
     /// <summary>The instance takes no self sign-up: an admin adds every account.</summary>
     public const string SignUpClosed = "SignUpClosed";

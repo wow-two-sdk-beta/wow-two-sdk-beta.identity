@@ -45,10 +45,10 @@ app.MapOidcServerEndpoints();
 | Path | Served by | Does |
 |---|---|---|
 | `/.well-known/openid-configuration` · `/.well-known/jwks` | OpenIddict | discovery (code flow, S256, the claims below) and the signing keys |
-| `/connect/authorize` | pass-through | reads the cookie session; none, `prompt=login` or an exceeded `max_age` redirects to `SignInPath?returnUrl=…` (without `prompt` and `max_age`), `prompt=none` answers `login_required`; ties the grant to the session's `sid` |
-| `/connect/token` | pass-through | code and refresh grants only; re-checks the person (exists, not locked out, same stamp) and the session behind the grant, and writes fresh claims |
+| `/connect/authorize` | pass-through | reads the cookie session; none, `prompt=login` or an exceeded `max_age` redirects to `SignInPath?returnUrl=…`, where the return URL trades `prompt` and `max_age` for `fresh_sign_in`, the request's instant sealed with Data Protection: back from the sign-in page, the request passes only for a session signed in after it (a missing or forged marker asks again). `prompt=none` answers `login_required`; ties the grant to the session's `sid` |
+| `/connect/token` | pass-through | code and refresh grants only; re-checks the person (exists, same stamp) and the session behind the grant, and writes fresh claims; a lockout does not end a grant |
 | `/connect/userinfo` | pass-through | the current profile and organization claims for the access token, while its session lives |
-| `/connect/endsession` | pass-through | ends the cookie and its session; with `id_token_hint`, revokes the app's authorizations and tokens for that person; returns to the validated `post_logout_redirect_uri` |
+| `/connect/endsession` | pass-through | with a valid `id_token_hint`, ends the cookie and its session (when they are the hint's person) and revokes the app's authorizations and tokens for that person; a `POST` from this origin (`Sec-Fetch-Site: same-origin`, or a matching `Origin`) ends the cookie and its session without a hint; anything else, such as a bare `GET` another site sends, ends nothing; every case returns to the validated `post_logout_redirect_uri` |
 
 ## Claims
 
@@ -61,7 +61,7 @@ app.MapOidcServerEndpoints();
 | `name` | with `profile` | with `profile` | the user name |
 | `email`, `email_verified` | with `email` | with `email` | the account |
 | `amr` | ✓ | ✓ | how the session signed in (`pwd`, `hwk`, `otp`, `mfa`; `AuthenticationMethodConstants`), an array |
-| `auth_time` | ✓ | — | when the session signed in |
+| `auth_time` | ✓ | — | when the session signed in: the session row's start, which a sliding reissue of the cookie never moves (the cookie's issue time on a host without sessions) |
 | `org_id` | ✓ | ✓ | the active organization |
 | `org_role` | ✓ | ✓ | `{org}:{role}` in the active organization |
 | `org_permission` | ✓ | ✓ | `{org}:{permission}` per permission of that role, kept to the client's namespace, an array |

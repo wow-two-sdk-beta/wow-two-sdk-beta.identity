@@ -151,15 +151,56 @@ public sealed class BffSessionServiceTests
         (await service.ResolveAsync(ReferenceOf(session), CancellationToken.None)).Should().BeNull();
     }
 
-    private BffSessionService Service()
+    [Fact]
+    public async Task Refresh_ShouldSaveTheRotatedTokens_EvenWhenTheBrowserLeavesMidRefresh()
+    {
+        var service = Service();
+        var session = await service.StartAsync(Person("person-1"), Tokens(expiresIn: TimeSpan.FromMinutes(10)), CancellationToken.None);
+        using var request = new CancellationTokenSource();
+        _endpoint.Respond(HttpStatusCode.OK, new { access_token = "access-1", refresh_token = "refresh-1", expires_in = 600 });
+        _endpoint.OnSend = request.Cancel;
+
+        _time.Advance(TimeSpan.FromMinutes(9.5));
+        await service.ResolveAsync(ReferenceOf(session), request.Token);
+        _endpoint.OnSend = null;
+
+        var resolved = await service.ResolveAsync(ReferenceOf(session), CancellationToken.None);
+        resolved!.State.RefreshToken.Should().Be("refresh-1", "the instance spent refresh-0 as it answered, so its successor must be kept");
+        _endpoint.Calls.Should().Be(1, "the saved tokens need no second refresh");
+    }
+
+    [Fact]
+    public async Task Refresh_ShouldFetchANewSigningKey_WhenTheInstanceRotatedIt()
+    {
+        var rotated = new RsaSecurityKey(RSA.Create(2048)) { KeyId = "rotated-key" };
+        var manager = new RotatingConfigurationManager(Configuration(_key), Configuration(_key, rotated));
+        var service = Service(manager);
+        var session = await service.StartAsync(Person("person-1"), Tokens(expiresIn: TimeSpan.FromMinutes(10)), CancellationToken.None);
+        _endpoint.Respond(HttpStatusCode.OK, new { access_token = "access-1", refresh_token = "refresh-1", expires_in = 600, id_token = IdToken("person-1", "Alice", rotated) });
+
+        _time.Advance(TimeSpan.FromMinutes(9.5));
+        var refreshed = await service.ResolveAsync(ReferenceOf(session), CancellationToken.None);
+
+        refreshed.Should().NotBeNull("a signing-key rotation at the instance must not sign every session out");
+        refreshed!.State.AccessToken.Should().Be("access-1");
+        manager.Refreshes.Should().Be(1, "the unknown key asked discovery once for the new key set");
+    }
+
+    private static OpenIdConnectConfiguration Configuration(params SecurityKey[] keys)
     {
         var configuration = new OpenIdConnectConfiguration { Issuer = Issuer, TokenEndpoint = "https://id.example.test/connect/token" };
-        configuration.SigningKeys.Add(_key);
+        foreach (var key in keys)
+            configuration.SigningKeys.Add(key);
+        return configuration;
+    }
+
+    private BffSessionService Service(IConfigurationManager<OpenIdConnectConfiguration>? manager = null)
+    {
         var handler = new OpenIdConnectOptions
         {
             ClientId = ClientId,
             ClientSecret = "test-only-secret",
-            ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration),
+            ConfigurationManager = manager ?? new StaticConfigurationManager<OpenIdConnectConfiguration>(Configuration(_key)),
             Backchannel = new HttpClient(_endpoint),
             MapInboundClaims = false,
         };
@@ -191,7 +232,7 @@ public sealed class BffSessionServiceTests
         return properties;
     }
 
-    private string IdToken(string subject, string name) => new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
+    private string IdToken(string subject, string name, SecurityKey? key = null) => new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
     {
         Issuer = Issuer,
         Audience = ClientId,
@@ -199,7 +240,7 @@ public sealed class BffSessionServiceTests
         NotBefore = DateTime.UtcNow,
         Expires = DateTime.UtcNow.AddMinutes(5),
         Claims = new Dictionary<string, object> { ["sub"] = subject, ["sid"] = "sid-1", ["name"] = name },
-        SigningCredentials = new SigningCredentials(_key, SecurityAlgorithms.RsaSha256),
+        SigningCredentials = new SigningCredentials(key ?? _key, SecurityAlgorithms.RsaSha256),
     });
 
     private static BffSessionReference ReferenceOf(BffSession session)
@@ -215,6 +256,9 @@ public sealed class BffSessionServiceTests
 
         public string LastForm { get; private set; } = string.Empty;
 
+        /// <summary>Runs as the request arrives, such as the browser leaving mid-refresh.</summary>
+        public Action? OnSend { get; set; }
+
         public void Respond(HttpStatusCode status, object body)
         {
             _status = status;
@@ -225,8 +269,19 @@ public sealed class BffSessionServiceTests
         {
             Calls++;
             LastForm = await request.Content!.ReadAsStringAsync(cancellationToken);
+            OnSend?.Invoke();
             return new HttpResponseMessage(_status) { Content = new StringContent(_body, System.Text.Encoding.UTF8, "application/json") };
         }
+    }
+
+    /// <summary>Discovery whose key set changes once a refresh is asked for, as after the instance rotates its signing key.</summary>
+    private sealed class RotatingConfigurationManager(OpenIdConnectConfiguration before, OpenIdConnectConfiguration after) : IConfigurationManager<OpenIdConnectConfiguration>
+    {
+        public int Refreshes { get; private set; }
+
+        public Task<OpenIdConnectConfiguration> GetConfigurationAsync(CancellationToken cancel) => Task.FromResult(Refreshes > 0 ? after : before);
+
+        public void RequestRefresh() => Refreshes++;
     }
 
     /// <summary>An options monitor over one instance.</summary>

@@ -30,7 +30,8 @@ first, then the Telegram chat a confirmed phone is linked to.
 ```jsonc
 "Identity": {
   "Otp": {
-    "CodeLength": 6, "CodeKind": "Numeric", "CodeLifetime": "00:05:00", "RateLimitWindow": "00:00:30", "MaxAttempts": 5,
+    "CodeLength": 6, "CodeKind": "Numeric", "CodeLifetime": "00:05:00", "RateLimitWindow": "00:00:30",
+    "OriginRateLimitWindow": "00:00:05", "MaxAttempts": 5, "MaxSubjectFailures": 10, "SubjectFailureWindow": "01:00:00",
     "Messages": {
       "AppName": "Acme",
       "Templates": { "ru": { "two-factor.sms": "Код {app}: {code}", "subject": "Ваш код {app}" } }
@@ -60,5 +61,11 @@ var verified = await otp.VerifyAsync(user.Id, typedCode, "phone-confirmation", c
 - Creation returns the code; the caller delivers, because only it knows the address behind the subject.
 - An envelope without `Text` falls back to the handler's own wording (SMS/Telegram `MessageTemplate`, else the formatter).
 - Failure reasons: `RateLimited` · `Expired` · `InvalidCode` · `MaxAttemptsReached`.
+- Limits: one code per subject and scope per `RateLimitWindow` (30 s, the resend window), one per origin per
+  `OriginRateLimitWindow` (5 s, short because many people share a carrier's address), `MaxAttempts` wrong tries per code,
+  and `MaxSubjectFailures` wrong tries per subject across all its codes within `SubjectFailureWindow`: past that budget no
+  code is issued or verified, so asking for a new code buys no fresh guesses.
+- A new code retires the subject's older ones (their expiry moves to now), so spending it never revives them;
+  `DiscardAsync(created.CodeId)` removes a code whose delivery failed.
 - Two-factor sign-in over these channels: `Identity/Core/TwoFactor`.
 - The runtime ships no fake channel or sink: local runs use a real dev mailbox (or a local mail sink) and a dev bot; fakes live in the test projects.

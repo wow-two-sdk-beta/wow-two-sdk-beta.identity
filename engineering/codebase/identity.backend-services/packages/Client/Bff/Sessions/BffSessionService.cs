@@ -24,6 +24,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 ///     <see cref="IdentityBffOptions.SessionLifetime"/> after the sign-in
 ///   - it also ends when the instance refuses the refresh, or when the access token ran out with no refresh token; an
 ///     unreachable instance keeps it
+///   - a refresh and the save of its tokens run apart from the request, bounded by <see cref="RefreshTimeout"/>: the
+///     instance rotates the refresh token as it answers, so a browser that leaves mid-refresh must not strand the new one
 /// </remarks>
 /// <param name="repository">The session store.</param>
 /// <param name="protector">The payload protector.</param>
@@ -44,6 +46,9 @@ internal sealed partial class BffSessionService(
 
     /// <summary>The sign-in property holding the instance session's end, from the code exchange's token response.</summary>
     private const string InstanceEndItem = ".bff.instance_session_end";
+
+    /// <summary>How long one refresh may take, the save of its tokens excluded; past it the session keeps its tokens.</summary>
+    public static readonly TimeSpan RefreshTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>Holds the gates that serialize one session's refreshes in this process, striped by <c>sid</c>.</summary>
     private readonly SemaphoreSlim[] _gates = [.. Enumerable.Range(0, 32).Select(_ => new SemaphoreSlim(1, 1))];
@@ -131,7 +136,7 @@ internal sealed partial class BffSessionService(
         {
             // Another request of this session may have refreshed while this one waited.
             session = await LoadLiveAsync(reference, cancellationToken);
-            return session is null || !NeedsRefresh(session.State) ? session : await RefreshAsync(session, cancellationToken);
+            return session is null || !NeedsRefresh(session.State) ? session : await RefreshAsync(session);
         }
         finally
         {
@@ -193,17 +198,34 @@ internal sealed partial class BffSessionService(
         return new BffSession { SessionId = reference.SessionId, State = state };
     }
 
-    private async Task<BffSession?> RefreshAsync(BffSession session, CancellationToken cancellationToken)
+    /// <summary>
+    /// Refresh the session's tokens on a token of its own, never the request's: the instance spends the old refresh token
+    /// as it answers, so the new one is saved even when the browser left meanwhile.
+    /// </summary>
+    private async Task<BffSession?> RefreshAsync(BffSession session)
     {
         var state = session.State;
         if (state.RefreshToken is not { } refreshToken)
-            return await EndWithAsync(session.SessionId, "access token ran out without a refresh token", cancellationToken);
+            return await EndWithAsync(session.SessionId, "access token ran out without a refresh token", CancellationToken.None);
 
-        var refreshed = await tokens.RefreshAsync(refreshToken, cancellationToken);
+        BffTokenRefreshResult refreshed;
+        using (var timeout = new CancellationTokenSource(RefreshTimeout, time))
+        {
+            try
+            {
+                refreshed = await tokens.RefreshAsync(refreshToken, timeout.Token);
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+            {
+                LogRefreshTimedOut(logger);
+                return session;
+            }
+        }
+
         switch (refreshed.Status)
         {
             case BffTokenRefreshStatus.Rejected:
-                return await EndWithAsync(session.SessionId, "refresh refused", cancellationToken);
+                return await EndWithAsync(session.SessionId, "refresh refused", CancellationToken.None);
             case BffTokenRefreshStatus.Unavailable:
                 return session;
         }
@@ -212,7 +234,7 @@ internal sealed partial class BffSessionService(
         var subject = state.Claims.FirstOrDefault(claim => claim.Type == JwtRegisteredClaimNames.Sub)?.Value;
         var renewedSubject = refreshed.Claims?.FirstOrDefault(claim => claim.Type == JwtRegisteredClaimNames.Sub)?.Value;
         if (refreshed.Claims is not null && !string.Equals(subject, renewedSubject, StringComparison.Ordinal))
-            return await EndWithAsync(session.SessionId, "refresh named another person", cancellationToken);
+            return await EndWithAsync(session.SessionId, "refresh named another person", CancellationToken.None);
 
         var now = time.GetUtcNow();
         var renewed = session with
@@ -227,7 +249,8 @@ internal sealed partial class BffSessionService(
                 ExpiresAt = refreshed.SessionLifetime is { } remaining ? now + remaining : state.ExpiresAt,
             },
         };
-        await SaveAsync(renewed, cancellationToken);
+        // The instance already rotated the refresh token: the save must land whatever became of the request.
+        await SaveAsync(renewed, CancellationToken.None);
         LogRefreshed(logger);
         return renewed;
     }
@@ -260,4 +283,7 @@ internal sealed partial class BffSessionService(
 
     [LoggerMessage(EventId = 7403, Level = LogLevel.Information, Message = "BFF session ended: {Reason}")]
     private static partial void LogEnded(ILogger logger, string reason);
+
+    [LoggerMessage(EventId = 7404, Level = LogLevel.Warning, Message = "BFF session refresh timed out; the session keeps its tokens")]
+    private static partial void LogRefreshTimedOut(ILogger logger);
 }

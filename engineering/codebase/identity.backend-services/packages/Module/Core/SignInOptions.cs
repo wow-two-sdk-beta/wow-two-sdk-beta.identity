@@ -7,7 +7,10 @@ public sealed record SignInOptions
     /// <summary>The host configuration section.</summary>
     public const string SectionName = "Identity:SignIn";
 
-    /// <summary>Refuse sign-in until the email is confirmed. Default false.</summary>
+    /// <summary>
+    /// Refuse sign-in until the email is confirmed; an account with no email but a confirmed phone (a phone sign-in's
+    /// person) meets it through its phone. Default false.
+    /// </summary>
     public bool IsConfirmedEmailRequired { get; set; }
 
     /// <summary>Refuse sign-in until the phone number is confirmed. Default false.</summary>

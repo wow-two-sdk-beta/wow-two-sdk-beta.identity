@@ -55,7 +55,8 @@ app.MapTelegramWebhook();                     // POST /api/telegram/webhook
   `telegram` verified channel, after the email source, so password-change codes and links reach Telegram when there is no
   confirmed email or the email fails. It lists nothing while the bot is off.
 - A start link is `https://t.me/{BotUserName}?start={token}` with 32 random characters; only the token's SHA-256 is stored,
-  and the link expires after `LinkLifetime`. Making one is rate-limited per number and per origin by `Identity:Otp:RateLimitWindow`.
+  and the link expires after `LinkLifetime`. Making one is rate-limited per number by `Identity:Otp:RateLimitWindow` (30 s) and per origin by
+  `Identity:Otp:OriginRateLimitWindow` (5 s).
 - The bot's own texts (welcome, share prompt, mismatch, expired) come in `en`, `ru` and `uz`; `Identity:Telegram:Messages:{culture}:{key}`
   overrides them.
 - Boot check, failing closed while the bot is on: a token of `{bot id}:{secret}`, a user name Telegram allows, a known mode,

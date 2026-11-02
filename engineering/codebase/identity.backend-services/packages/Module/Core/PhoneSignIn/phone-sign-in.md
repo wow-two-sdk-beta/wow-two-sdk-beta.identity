@@ -31,10 +31,17 @@ app.MapTelegramWebhook();                                    // POST /api/telegr
 
 - Both routes answer `404` (`PhoneSignInUnavailable`) while `Identity:Telegram:IsEnabled` is off; the bot, its webhook
   and the routes are registered either way.
-- Known and unknown numbers answer alike; `400` `InvalidPhoneNumber` or `PhoneCountryNotAllowed`, `429`
-  `PhoneCodeRateLimited` when a code or link went out moments ago for the number or the address (`Identity:Otp:RateLimitWindow`).
-- Codes are single-use, limited to `Identity:Otp:MaxAttempts` wrong tries, and stored only as keyed digests
-  (`identity_otp_codes`); a wrong, spent or expired code is `401` `InvalidPhoneCode`.
+- Whether an account holds a number changes neither answer of `send`, but a number linked to the bot gets its code
+  (`isCodeSent` true) where any other gets a start link, so `send` tells linked numbers apart; `400` `InvalidPhoneNumber`
+  or `PhoneCountryNotAllowed`, `429` `PhoneCodeRateLimited` when a code or link went out within 30 s for the number
+  (`Identity:Otp:RateLimitWindow`) or 5 s from the address (`Identity:Otp:OriginRateLimitWindow`), or the number spent its
+  failure budget.
+- Codes are single-use, limited to `Identity:Otp:MaxAttempts` wrong tries each and to `Identity:Otp:MaxSubjectFailures`
+  (10) wrong tries per number across all its codes within `Identity:Otp:SubjectFailureWindow` (1 h), and stored only as
+  keyed digests (`identity_otp_codes`); a wrong, spent, superseded or expired code is `401` `InvalidPhoneCode`. A new code
+  retires the older ones, and a code the chat refused is discarded.
+- A locked-out person answers `429` `LockedOut` before the code is checked, so the code stays unspent.
+- Both routes take the per-address `identity-credentials` rate-limit policy (`../Endpoints/endpoints.md`).
 - A verified code signs in with `amr` `otp` and sign-in log method `phone_code`; lockout and preconditions still apply,
   and a second factor answers `401` with the ticket for `sign-in/two-factor`.
 - A first sign-in creates the person, holding the number confirmed, only while `Identity:SignUp:Mode` is `Open` or the

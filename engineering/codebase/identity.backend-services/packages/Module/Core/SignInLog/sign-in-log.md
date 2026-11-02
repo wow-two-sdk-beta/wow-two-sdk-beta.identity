@@ -27,7 +27,7 @@ identity.AddArgon2Passwords().AddLockout().AddSignIn().AddSignInLog(o => o.Reten
 | `subject_masked` | the typed identifier as a hint: `a***@example.com`, `+998*******45`, `al***` |
 | `method` | `password`, `passkey`, `email_link`, `email_code`, `external`, or `2fa:{method}` (`2fa:authenticator`, `2fa:sms`, `2fa:recovery_code`) |
 | `client_id` | the OIDC client the sign-in serves, when the hosted pages pass `?clientId=` |
-| `result` · `reason` | `succeeded`, `failed`, `locked_out`, `not_allowed`, `two_factor_required` · `unknown_account`, `wrong_password`, `wrong_code`, `invalid_passkey`, `invalid_ticket`, `invalid_link_or_code`, `locked_out`, `lockout_started`, `unconfirmed_email`, `unconfirmed_phone` |
+| `result` · `reason` | `succeeded`, `failed`, `locked_out`, `not_allowed`, `two_factor_required` · `unknown_account`, `wrong_password`, `no_password`, `wrong_code`, `invalid_passkey`, `invalid_ticket`, `invalid_link_or_code`, `locked_out`, `lockout_started`, `unconfirmed_email`, `unconfirmed_phone` |
 | `ip_masked` · `user_agent` | the network (IPv4 /24, IPv6 /48) · the user agent, cut to 256 characters |
 | `session_id` | the session a successful cookie sign-in started |
 | `trace_id` | the request's W3C trace id |

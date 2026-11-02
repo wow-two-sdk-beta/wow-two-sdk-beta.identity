@@ -50,20 +50,24 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
     /// (message key <c>BearerSignInUnsupported</c>) on a host without JWT issuance or refresh tokens, such as a cookie-only
     /// instance. With the password change slice registered, <c>manage/password/confirmation</c>, <c>manage/password</c> and
     /// <c>password/change</c> map too. Failures surface as problem details, translated when error translation is enabled.
+    /// Every route that checks a credential or sends a code or link takes the per-address
+    /// <see cref="AccountRateLimitPolicyConstants.Credentials"/> policy (<c>429</c> past it). <c>sign-up</c>,
+    /// <c>resend-confirmation-email</c> and <c>forgot-password</c> take an optional <c>returnUrl</c>, kept when it is a local
+    /// path, which the emailed link carries back as <c>&amp;returnUrl=</c>.
     /// </summary>
     /// <param name="endpoints">The route builder or group.</param>
     public static IEndpointRouteBuilder MapUserAccountEndpoints(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        endpoints.MapPost("/sign-up", SignUpAsync);
-        endpoints.MapPost("/sign-in", SignInAsync);
+        endpoints.MapPost("/sign-up", SignUpAsync).LimitCredentials(endpoints);
+        endpoints.MapPost("/sign-in", SignInAsync).LimitCredentials(endpoints);
         endpoints.MapPost("/refresh", RefreshAsync);
         endpoints.MapPost("/sign-out", SignOutAsync);
         endpoints.MapGet("/confirm-email", ConfirmEmailAsync);
-        endpoints.MapPost("/resend-confirmation-email", ResendConfirmationAsync);
-        endpoints.MapPost("/forgot-password", ForgotPasswordAsync);
-        endpoints.MapPost("/reset-password", ResetPasswordAsync);
+        endpoints.MapPost("/resend-confirmation-email", ResendConfirmationAsync).LimitCredentials(endpoints);
+        endpoints.MapPost("/forgot-password", ForgotPasswordAsync).LimitCredentials(endpoints);
+        endpoints.MapPost("/reset-password", ResetPasswordAsync).LimitCredentials(endpoints);
         endpoints.MapGet("/manage/info", InfoAsync).RequireAuthorization();
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserPasswordChangeService)) == true)
@@ -82,7 +86,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
             endpoints.MapPost("/manage/2fa/preferred", SetPreferredMethodAsync).RequireAuthorization();
             endpoints.MapPost("/manage/2fa/methods/{method}/send", SendMethodCodeAsync).RequireAuthorization();
             endpoints.MapPost("/manage/2fa/methods/{method}/enable", EnableMethodAsync).RequireAuthorization();
-            endpoints.MapPost("/sign-in/two-factor", SecondFactorSignInAsync);
+            endpoints.MapPost("/sign-in/two-factor", SecondFactorSignInAsync).LimitCredentials(endpoints);
         }
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserPersonalDataService)) == true)
@@ -93,14 +97,14 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserEmailSignInService)) == true)
         {
-            endpoints.MapPost("/email-sign-in/send", SendEmailSignInAsync);
-            endpoints.MapPost("/email-sign-in", EmailSignInAsync);
+            endpoints.MapPost("/email-sign-in/send", SendEmailSignInAsync).LimitCredentials(endpoints);
+            endpoints.MapPost("/email-sign-in", EmailSignInAsync).LimitCredentials(endpoints);
         }
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserPasskeyService)) == true)
         {
             endpoints.MapPost("/passkeys/sign-in/options", PasskeySignInOptions);
-            endpoints.MapPost("/passkeys/sign-in", PasskeySignInAsync);
+            endpoints.MapPost("/passkeys/sign-in", PasskeySignInAsync).LimitCredentials(endpoints);
             endpoints.MapGet("/manage/passkeys", ListPasskeysAsync).RequireAuthorization();
             endpoints.MapPost("/manage/passkeys/options", PasskeyCreationOptionsAsync).RequireAuthorization();
             endpoints.MapPost("/manage/passkeys", AddPasskeyAsync).RequireAuthorization();
@@ -145,7 +149,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         if (!created.IsSuccess)
             throw created.ToValidationError().ToException();
 
-        var isConfirmationSent = await SendConfirmationAsync(services, user, cancellationToken);
+        var isConfirmationSent = await SendConfirmationAsync(services, user, request.ReturnUrl, cancellationToken);
         return Results.Ok(ApiResponse<SignedUpAccountDto>.Ok(new SignedUpAccountDto { UserId = IdOf(user), IsConfirmationSent = isConfirmationSent }));
     }
 
@@ -268,7 +272,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
     private static async Task<IResult> SessionAsync(SignInResult result, bool? useCookies, bool isPersistent, HttpContext http, CancellationToken cancellationToken)
     {
         if (!result.IsSuccess)
-            throw FailureOf(result.Status).ToException();
+            throw FailureOf(result).ToException();
 
         var services = http.RequestServices;
         if (useCookies == true)
@@ -309,7 +313,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         if (!renewed.IsSuccess)
         {
             await refresh.RevokeAsync(redeemed.Token!.Token, cancellationToken);
-            throw FailureOf(renewed.Status).ToException();
+            throw FailureOf(renewed).ToException();
         }
 
         return Results.Ok(ApiResponse<AccessTokenDto>.Ok(await IssueAsync(services, renewed.Principal!, redeemed.User, redeemed.Token!.Token, isPersistent: false, cancellationToken)));
@@ -353,7 +357,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         var services = http.RequestServices;
         var user = await services.GetRequiredService<UserAccountService>().FindByEmailAsync(request.Email, cancellationToken);
         if (user is { IsEmailConfirmed: false })
-            await SendConfirmationAsync(services, user, cancellationToken);
+            await SendConfirmationAsync(services, user, request.ReturnUrl, cancellationToken);
 
         return Results.NoContent();
     }
@@ -365,7 +369,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         if (user is not null && services.GetService<UserAccountMailService>() is { } mail)
         {
             var token = services.GetRequiredService<UserPasswordService>().IssuePasswordResetToken(user);
-            await mail.SendPasswordResetAsync(user, token, cancellationToken);
+            await mail.SendPasswordResetAsync(user, token, AccountReturnUrl.LocalOrNull(request.ReturnUrl), cancellationToken);
         }
 
         return Results.NoContent();
@@ -714,23 +718,38 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         };
     }
 
-    private static async Task<bool> SendConfirmationAsync(IServiceProvider services, IdentityUser user, CancellationToken cancellationToken)
+    private static async Task<bool> SendConfirmationAsync(IServiceProvider services, IdentityUser user, string? returnUrl, CancellationToken cancellationToken)
         => services.GetService<UserEmailService>() is { } emails
             && services.GetService<UserAccountMailService>() is { } mail
-            && await mail.SendConfirmationAsync(user, emails.IssueConfirmationToken(user), cancellationToken);
+            && await mail.SendConfirmationAsync(user, emails.IssueConfirmationToken(user), AccountReturnUrl.LocalOrNull(returnUrl), cancellationToken);
 
     private static async Task<IdentityUser?> FindAsync(IServiceProvider services, string? id, CancellationToken cancellationToken)
         => TryParseKey(id, out var key)
             ? await services.GetRequiredService<UserAccountService>().FindByIdAsync(key, cancellationToken)
             : null;
 
-    private static AppError FailureOf(SignInStatus status) => status switch
+    private static AppError FailureOf(SignInResult result) => result.Status switch
     {
         SignInStatus.LockedOut => AppError.Of(AppErrorType.TooManyRequests, "The account is temporarily locked out.", MessageKey(IdentityErrorCodeConstants.LockedOut)),
-        SignInStatus.NotAllowed => AppError.Of(AppErrorType.Forbidden, "Confirm your email or phone to sign in.", MessageKey(IdentityErrorCodeConstants.SignInNotAllowed)),
+        SignInStatus.NotAllowed => NotAllowedError(result.UnmetPrecondition),
         SignInStatus.RequiresTwoFactor => Unauthorized(IdentityErrorCodeConstants.TwoFactorRequired, "Enter your two-factor code."),
         SignInStatus.PasswordChangeRequired => CodedError(AppErrorType.Forbidden, "Change your password to sign in.", PasswordChangeErrorCodeConstants.ChangeRequired),
         _ => Unauthorized(IdentityErrorCodeConstants.SignInFailed, "The user name, email or password is incorrect."),
+    };
+
+    /// <summary>
+    /// The <c>403</c> a refused sign-in precondition answers, its code in <c>identityCode</c>: <c>EmailConfirmationRequired</c>
+    /// for an unconfirmed email (a new confirmation email helps), <c>PhoneConfirmationRequired</c> for an unconfirmed phone,
+    /// and <c>SignInNotAllowed</c> for any other refusal.
+    /// </summary>
+    /// <param name="unmetPrecondition">The result's <see cref="SignInResult.UnmetPrecondition"/>.</param>
+    internal static AppError NotAllowedError(string? unmetPrecondition) => unmetPrecondition switch
+    {
+        SignInReasonConstants.UnconfirmedEmail
+            => CodedError(AppErrorType.Forbidden, "Confirm your email to sign in: open the link we emailed you.", IdentityErrorCodeConstants.EmailConfirmationRequired),
+        SignInReasonConstants.UnconfirmedPhone
+            => CodedError(AppErrorType.Forbidden, "Confirm your phone number to sign in.", IdentityErrorCodeConstants.PhoneConfirmationRequired),
+        _ => CodedError(AppErrorType.Forbidden, "Confirm your email or phone to sign in.", IdentityErrorCodeConstants.SignInNotAllowed),
     };
 
     /// <summary>Refuses, before any credential is checked, a bearer sign-in on a host that cannot issue bearer tokens.</summary>

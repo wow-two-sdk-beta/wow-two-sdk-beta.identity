@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -36,6 +37,9 @@ public static class IdentityBffServiceCollectionExtensions
     ///   - the session refreshes its tokens and ends with the instance's sign-in session (<see cref="IdentityBffOptions.SessionLifetime"/>
     ///     when the instance names no end)
     ///   - unsafe API requests of a session need <c>X-Csrf-Token</c>, bound to the session's <c>sid</c>
+    ///   - the defaults keep sessions in the in-memory distributed cache and the key ring in the process's own folder, enough
+    ///     for a local run only: a deployed host registers a shared <c>IDistributedCache</c> and a persisted key ring, or every
+    ///     restart signs everyone out; a deployed boot (<c>DEPLOY_ENVIRONMENT</c> set) logs a warning for each one missing
     /// </remarks>
     /// <param name="services">The service collection to configure.</param>
     /// <param name="configure">Code configuration, applied after the host section, so it wins.</param>
@@ -60,6 +64,7 @@ public static class IdentityBffServiceCollectionExtensions
         services.TryAddSingleton<BffCsrfTokenService>();
         services.TryAddTransient<BffCookieEvents>();
         services.TryAddTransient<BffOpenIdConnectEvents>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, BffStorageCheck>());
 
         services.AddAuthentication(authentication =>
             {

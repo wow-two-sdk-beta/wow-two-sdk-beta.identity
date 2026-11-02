@@ -1,3 +1,4 @@
+using System.Net.Mail;
 using WoW.Two.Sdk.Beta.Be.Foundation.Naming;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
@@ -12,9 +13,17 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 /// <param name="time">The clock new ids take their instant from.</param>
 public sealed class UserAccountService(IUserRepository repository, IdentityCoreOptions options, TimeProvider time)
 {
+    /// <summary>The longest user name the store keeps.</summary>
+    public const int UserNameMaxLength = 256;
+
+    /// <summary>The longest email the store keeps.</summary>
+    public const int EmailMaxLength = 320;
+
     /// <summary>
-    /// Create a user: assign a uuid v7 id when it has none, normalize keys, stamp security/concurrency, enforce unique
-    /// user name (and email when required), then persist.
+    /// Create a user: check the user name and email fit the store, assign a uuid v7 id when it has none, normalize keys,
+    /// stamp security/concurrency, enforce unique user name (and email when required), then persist. A user name over
+    /// <see cref="UserNameMaxLength"/> characters or an email that is no plain address of at most
+    /// <see cref="EmailMaxLength"/> characters is refused before anything persists.
     /// </summary>
     /// <param name="user">The user to create.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -23,6 +32,10 @@ public sealed class UserAccountService(IUserRepository repository, IdentityCoreO
         ArgumentNullException.ThrowIfNull(user);
         if (string.IsNullOrWhiteSpace(user.UserName))
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.UserNameRequired, "A user name is required.");
+        if (user.UserName.Length > UserNameMaxLength)
+            return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidUserName, $"User names must be at most {UserNameMaxLength} characters.", IdentityUserExtensions.Param("MaxLength", UserNameMaxLength));
+        if (user.Email is not null && !IsEmailAddress(user.Email))
+            return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidEmail, "Enter a valid email address.");
 
         if (user.Id == Guid.Empty)
             user.Id = Guid.CreateVersion7(time.GetUtcNow());
@@ -104,6 +117,18 @@ public sealed class UserAccountService(IUserRepository repository, IdentityCoreO
     /// <param name="cancellationToken">Cancellation token.</param>
     public Task<IdentityUser?> FindByEmailAsync(string email, CancellationToken cancellationToken = default)
         => repository.FindByNormalizedEmailAsync(email.ToCanonical() ?? string.Empty, cancellationToken);
+
+    /// <summary>
+    /// Whether <paramref name="email"/> is one plain address of at most <see cref="EmailMaxLength"/> characters: no display
+    /// name, no whitespace or control character, so a mail library builds a message to it.
+    /// </summary>
+    /// <param name="email">The candidate address.</param>
+    public static bool IsEmailAddress(string? email)
+        => !string.IsNullOrWhiteSpace(email)
+            && email.Length <= EmailMaxLength
+            && !email.Any(c => char.IsWhiteSpace(c) || char.IsControl(c))
+            && MailAddress.TryCreate(email, out var address)
+            && string.Equals(address.Address, email, StringComparison.Ordinal);
 
     private static void ApplyNormalization(IdentityUser user)
     {

@@ -41,4 +41,26 @@ public interface IUserRepository
     /// <param name="phoneNumber">The phone number, compared exactly (store E.164).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<IdentityUser?> FindByConfirmedPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Count one failed attempt on the stored row in place, and start a lockout window ending at
+    /// <paramref name="lockoutEnd"/> once the count reaches <paramref name="maxFailedAttempts"/> (the count then restarts):
+    /// concurrent failures each count and exactly one of them locks. Nothing is counted while lockout is off for the user.
+    /// <paramref name="user"/> takes the stored count and end afterwards without being marked changed, and the write never
+    /// fails on the row's concurrency stamp.
+    /// </summary>
+    /// <param name="user">The user who failed to authenticate.</param>
+    /// <param name="maxFailedAttempts">The count that starts a lockout window.</param>
+    /// <param name="lockoutEnd">The end of the window this attempt would start.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Whether this attempt started the lockout window.</returns>
+    Task<bool> CountFailedAttemptAsync(IdentityUser user, int maxFailedAttempts, DateTimeOffset lockoutEnd, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Clear the stored failed-attempt count in place; <paramref name="user"/> takes it without being marked changed, and the
+    /// write never fails on the row's concurrency stamp.
+    /// </summary>
+    /// <param name="user">The user who authenticated.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task ResetFailedAttemptsAsync(IdentityUser user, CancellationToken cancellationToken = default);
 }

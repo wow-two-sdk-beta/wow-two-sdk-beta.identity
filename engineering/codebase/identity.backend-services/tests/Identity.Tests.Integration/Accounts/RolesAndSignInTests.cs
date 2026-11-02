@@ -8,6 +8,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.ExternalAccounts;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.SignInLog;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.TwoFactor;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.UserClaims;
@@ -123,6 +124,93 @@ public sealed class RolesAndSignInTests
 
         result.Status.Should().Be(SignInStatus.NotAllowed);
         result.Principal.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PasswordSignIn_ShouldAnswerAPasswordlessAccountAsUnknown_AndNeverLockItOut()
+    {
+        await using var host = CreateHost(o => o.Lockout.MaxFailedAttempts = 2);
+        await using var scope = host.Scope();
+        var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
+        var phoneUser = new IdentityUser { UserName = "+998901234567", PhoneNumber = "+998901234567", IsPhoneNumberConfirmed = true };
+        (await scope.ServiceProvider.GetRequiredService<UserAccountService>().CreateAsync(phoneUser)).IsSuccess.Should().BeTrue();
+
+        for (var attempt = 0; attempt < 5; attempt++)
+            (await signIn.PasswordSignInAsync("+998901234567", "guess")).Status.Should().Be(SignInStatus.Failed, "an account without a password has nothing to guess");
+
+        var stored = await host.ReloadAsync(phoneUser.Id);
+        stored.AccessFailedCount.Should().Be(0, "no failed attempt counted");
+        stored.LockoutEnd.Should().BeNull();
+        (await signIn.SignInAsync(stored, [AuthenticationMethodConstants.OneTimePassword])).IsSuccess.Should().BeTrue("their phone sign-in still works");
+    }
+
+    [Fact]
+    public async Task Renew_ShouldPassALockout_SinceItGuardsNewCredentialAttemptsOnly()
+    {
+        await using var host = CreateHost(o => o.Lockout.MaxFailedAttempts = 2);
+        await using var scope = host.Scope();
+        var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
+        var user = new IdentityUser { UserName = "rita", Email = "rita@example.test" };
+        await scope.ServiceProvider.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(user, Password);
+
+        (await signIn.PasswordSignInAsync("rita", "wrong")).Status.Should().Be(SignInStatus.Failed);
+        (await signIn.PasswordSignInAsync("rita", "wrong")).Status.Should().Be(SignInStatus.LockedOut);
+
+        (await signIn.RenewAsync(await host.ReloadAsync(user.Id))).IsSuccess.Should().BeTrue("someone else's wrong guesses must not end the person's sessions");
+        (await signIn.PasswordSignInAsync("rita", Password)).Status.Should().Be(SignInStatus.LockedOut, "a new password attempt still waits for the window");
+    }
+
+    [Fact]
+    public async Task NotAllowed_ShouldNameTheUnmetPrecondition_AndLetAPhoneOnlyPersonMeetTheEmailOne()
+    {
+        await using var host = CreateHost(o =>
+        {
+            o.SignIn.IsConfirmedEmailRequired = true;
+            o.SignIn.IsConfirmedPhoneNumberRequired = false;
+        });
+        await using var scope = host.Scope();
+        var signIn = scope.ServiceProvider.GetRequiredService<SignInService>();
+        var emailUser = new IdentityUser { UserName = "sara", Email = "sara@example.test" };
+        await scope.ServiceProvider.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(emailUser, Password);
+        var phoneUser = new IdentityUser { UserName = "+998907654321", PhoneNumber = "+998907654321", IsPhoneNumberConfirmed = true };
+        await scope.ServiceProvider.GetRequiredService<UserAccountService>().CreateAsync(phoneUser);
+
+        (await signIn.PasswordSignInAsync("sara", Password)).UnmetPrecondition.Should().Be(SignInReasonConstants.UnconfirmedEmail);
+        var byPhone = await signIn.SignInAsync(phoneUser, [AuthenticationMethodConstants.OneTimePassword], SignInMethodConstants.PhoneCode);
+        byPhone.IsSuccess.Should().BeTrue("a phone sign-in's person has no email to confirm; the phone proves them");
+        (await signIn.RenewAsync(phoneUser)).IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task NotAllowed_ShouldNameAnUnconfirmedPhone()
+    {
+        await using var host = CreateHost(o => o.SignIn.IsConfirmedPhoneNumberRequired = true);
+        await using var scope = host.Scope();
+        var user = new IdentityUser { UserName = "tom", Email = "tom@example.test", PhoneNumber = "+998901112233" };
+        await scope.ServiceProvider.GetRequiredService<UserPasswordService>().CreateWithPasswordAsync(user, Password);
+
+        var result = await scope.ServiceProvider.GetRequiredService<SignInService>().PasswordSignInAsync("tom", Password);
+
+        result.Status.Should().Be(SignInStatus.NotAllowed);
+        result.UnmetPrecondition.Should().Be(SignInReasonConstants.UnconfirmedPhone);
+    }
+
+    [Fact]
+    public async Task Create_ShouldRefuseAMalformedEmailAndAnOverlongUserName_BeforeAnyWrite()
+    {
+        await using var host = CreateHost();
+        await using var scope = host.Scope();
+        var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService>();
+
+        (await accounts.CreateAsync(new IdentityUser { UserName = "spaced", Email = "a b@c.com" })).Errors
+            .Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidEmail);
+        (await accounts.CreateAsync(new IdentityUser { UserName = "named", Email = "Name <named@example.test>" })).Errors
+            .Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidEmail);
+        (await accounts.CreateAsync(new IdentityUser { UserName = new string('u', 257), Email = "long@example.test" })).Errors
+            .Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.InvalidUserName);
+        (await accounts.CreateAsync(new IdentityUser { UserName = "fine", Email = "fine@example.test" })).IsSuccess.Should().BeTrue();
+        IdentityResultExtensions.FieldOf(IdentityErrorCodeConstants.InvalidEmail).Should().Be("email");
+        (await accounts.FindByNameAsync("spaced")).Should().BeNull("nothing persisted");
     }
 
     [Fact]

@@ -3,7 +3,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Otp;
 /// <summary>
 /// Provides one-time-code creation and verification. The store receives digests only (<see cref="OtpCodeHasher"/>);
 /// every verification first claims an attempt, so the attempt limit holds across instances, and a success spends the
-/// code conditionally, so it verifies once.
+/// code conditionally, so it verifies once. A new code retires the subject's older ones, and its wrong attempts across codes
+/// share one budget (<see cref="OtpOptions.MaxSubjectFailures"/> per <see cref="OtpOptions.SubjectFailureWindow"/>), so
+/// asking for a new code never buys fresh guesses.
 /// </summary>
 public sealed class OtpService : IOtpService
 {
@@ -55,16 +57,16 @@ public sealed class OtpService : IOtpService
 
         var subjectHash = _hasher.Subject(subject);
         var originHash = string.IsNullOrWhiteSpace(origin) ? null : _hasher.Origin(origin);
-        var rateLimited = await _store
-            .HasRecentAsync(subjectHash, scope, originHash, _options.RateLimitWindow, cancellationToken)
-            .ConfigureAwait(false);
-        if (rateLimited)
+        if (await IsLimitedAsync(subjectHash, scope, originHash, cancellationToken).ConfigureAwait(false))
         {
             return OtpCreationResult.Failed(OtpFailureReason.RateLimited);
         }
 
         var code = _codeGenerator.Generate(spec);
         var now = _timeProvider.GetUtcNow();
+
+        // The new code replaces every older one: none of them verifies again, even once the new one is spent.
+        await _store.RetirePendingAsync(subjectHash, scope, now, cancellationToken).ConfigureAwait(false);
         var record = new OtpRecord
         {
             Id = Guid.CreateVersion7(now),
@@ -79,7 +81,7 @@ public sealed class OtpService : IOtpService
         };
 
         await _store.SaveAsync(record, cancellationToken).ConfigureAwait(false);
-        return OtpCreationResult.Succeeded(code, record.ExpiresAt);
+        return OtpCreationResult.Succeeded(code, record.ExpiresAt, record.Id);
     }
 
     /// <inheritdoc />
@@ -88,8 +90,12 @@ public sealed class OtpService : IOtpService
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
         var originHash = string.IsNullOrWhiteSpace(origin) ? null : _hasher.Origin(origin);
-        return _store.HasRecentAsync(_hasher.Subject(subject), scope, originHash, _options.RateLimitWindow, cancellationToken);
+        return IsLimitedAsync(_hasher.Subject(subject), scope, originHash, cancellationToken);
     }
+
+    /// <inheritdoc />
+    public Task DiscardAsync(Guid codeId, CancellationToken cancellationToken = default)
+        => _store.DeleteAsync(codeId, cancellationToken);
 
     /// <inheritdoc />
     public async Task<OtpVerificationResult> VerifyAsync(string subject, string code, string scope, CancellationToken cancellationToken = default)
@@ -102,13 +108,19 @@ public sealed class OtpService : IOtpService
         }
 
         var subjectHash = _hasher.Subject(subject);
+        if (await IsPastFailureBudgetAsync(subjectHash, scope, cancellationToken).ConfigureAwait(false))
+        {
+            return OtpVerificationResult.Failed(OtpFailureReason.MaxAttemptsReached);
+        }
+
+        // Every older code was retired when the latest was made, so once that is spent no earlier one comes back.
         var record = await _store.FindLatestPendingAsync(subjectHash, scope, cancellationToken).ConfigureAwait(false);
         if (record is null)
         {
             return OtpVerificationResult.Failed(OtpFailureReason.InvalidCode);
         }
 
-        if (_timeProvider.GetUtcNow() > record.ExpiresAt)
+        if (_timeProvider.GetUtcNow() >= record.ExpiresAt)
         {
             return OtpVerificationResult.Failed(OtpFailureReason.Expired);
         }
@@ -127,5 +139,23 @@ public sealed class OtpService : IOtpService
         return await _store.TryConsumeAsync(record.Id, cancellationToken).ConfigureAwait(false)
             ? OtpVerificationResult.Succeeded()
             : OtpVerificationResult.Failed(OtpFailureReason.InvalidCode);
+    }
+
+    /// <summary>
+    /// Whether a new code must wait: one for the subject went out within <see cref="OtpOptions.RateLimitWindow"/>, one from
+    /// the origin within <see cref="OtpOptions.OriginRateLimitWindow"/>, or the subject spent its failure budget.
+    /// </summary>
+    private async Task<bool> IsLimitedAsync(string subjectHash, string scope, string? originHash, CancellationToken cancellationToken)
+        => await _store.HasRecentAsync(subjectHash, scope, null, _options.RateLimitWindow, cancellationToken).ConfigureAwait(false)
+            || (originHash is not null
+                && await _store.HasRecentAsync(subjectHash, scope, originHash, _options.OriginRateLimitWindow, cancellationToken).ConfigureAwait(false))
+            || await IsPastFailureBudgetAsync(subjectHash, scope, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Whether the subject's wrong attempts across its codes of <paramref name="scope"/> reached <see cref="OtpOptions.MaxSubjectFailures"/> within the window.</summary>
+    private async Task<bool> IsPastFailureBudgetAsync(string subjectHash, string scope, CancellationToken cancellationToken)
+    {
+        var since = _timeProvider.GetUtcNow() - _options.SubjectFailureWindow;
+        var failures = await _store.CountFailedAttemptsAsync(subjectHash, scope, since, cancellationToken).ConfigureAwait(false);
+        return failures >= _options.MaxSubjectFailures;
     }
 }

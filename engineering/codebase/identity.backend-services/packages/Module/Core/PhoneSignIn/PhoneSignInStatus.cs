@@ -26,4 +26,7 @@ public enum PhoneSignInStatus
 
     /// <summary>The code verified, no account holds the number, and sign-up is off.</summary>
     SignUpClosed,
+
+    /// <summary>The person holding the number is locked out; the code was not checked, so it is not spent.</summary>
+    LockedOut,
 }

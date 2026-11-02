@@ -4,6 +4,11 @@
 
 OWASP 2024 baseline parameters: m=19MiB, t=4, p=1.
 
+Each hash holds its 19 MiB while it runs, so one hasher (a singleton) runs at most four at once
+(`DefaultMaxConcurrentHashes`); the rest wait up to 5 s for a slot, then fail with a `429` application error, so a burst
+of sign-ins cannot run a small container out of memory. `new Argon2PasswordHasher<T>(maxConcurrentHashes, queueTimeout)`
+sets another bound; size the container for that many hashes beside the runtime.
+
 ## Install
 
 ```

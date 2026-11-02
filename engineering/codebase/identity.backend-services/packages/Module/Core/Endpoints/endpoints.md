@@ -47,13 +47,23 @@ app.MapGroup("/api/account").MapUserAccountEndpoints();
 - With `.AddSessions()`, a cookie sign-in starts a session: the cookie carries its `sid` and expires with it.
 - Every sign-in route takes an optional `?clientId=` (the OIDC client the hosted pages serve), which the sign-in log
   records with each attempt (`.AddSignInLog()`, `../SignInLog/sign-in-log.md`).
-- Lockout answers `429`, an unconfirmed account `403`, wrong credentials and a missing second factor `401`.
+- Lockout answers `429`, an unconfirmed account `403`, wrong credentials and a missing second factor `401`. The `403`
+  names the refused precondition in `identityCode`: `EmailConfirmationRequired` (a new confirmation email helps),
+  `PhoneConfirmationRequired`, else `SignInNotAllowed`.
+- Every route that checks a credential or sends a code or link (`sign-in`, `sign-in/two-factor`, `sign-up`,
+  `resend-confirmation-email`, `forgot-password`, `reset-password`, the password change, email, passkey and phone sign-in
+  routes) takes the per-address `identity-credentials` policy: 30 requests a minute, sliding, then `429`. A host tunes it
+  under the be sdk's `RateLimits:Policies:identity-credentials`, which replaces the default.
+- `sign-up`, `resend-confirmation-email` and `forgot-password` take an optional `returnUrl`; a local path (one leading
+  `/`, no `//`, no scheme or backslash) rides in the emailed link as `&returnUrl=`, anything else is dropped.
+- `sign-up` refuses an email that is no plain address of at most 320 characters (`InvalidEmail`) and a user name over 256
+  (`InvalidUserName`) with `400`, before anything persists.
 - Sign-up is by invitation only by default (`SignUpOptions.Mode` `Invite`): `sign-up` answers `403` (message key
   `SignUpClosed`) and creates nothing unless it carries a pending invitation's `invitationToken`; `Open`, in code or in
   the host section `Identity:SignUp`, takes anyone. An admin's code path (`UserAccountService`) still creates accounts,
   and sign-in is unaffected. With invitations registered, `GET invitations/{token}` previews a link and
   `POST invitations/{token}/accept` adds the signed-in person (`../Invitations/invitations.md`).
-- Refresh renews without a second factor but re-checks lockout and confirmation; a refused renewal revokes the token.
+- Refresh renews without a second factor or a lockout check but re-checks confirmation; a refused renewal revokes the token.
 - Without an `IEmailBroker` or a link template, emails are skipped and `isConfirmationSent` is false.
 - A host with no JWT issuance (`ITokenIssuer`) or refresh slice is cookie-only: a bearer sign-in (any sign-in route without
   `?useCookies=true`) and `refresh` answer `400` (`BearerSignInUnsupported`) before any credential is checked.

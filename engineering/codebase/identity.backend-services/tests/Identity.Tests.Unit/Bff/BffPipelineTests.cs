@@ -154,6 +154,23 @@ public sealed class BffPipelineTests
         again.StatusCode.Should().Be(HttpStatusCode.OK, "logging out without a session needs no header");
     }
 
+    [Fact]
+    public async Task FailedCallback_ShouldLandBackMarked_AndHoldTheNextSignInBack()
+    {
+        await using var host = await BffTestHost.StartAsync();
+
+        using var callback = await host.Client.GetAsync("/api/identity/callback?code=stolen&state=forged");
+        using var page = await host.Client.GetAsync("/desk");
+        using var signIn = await host.Client.GetAsync("/api/identity/sign-in?returnUrl=%2Fdesk");
+
+        callback.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        callback.Headers.Location!.ToString().Should().Be("/?signInError=callback_failed");
+        page.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "a page no longer redirects into the sign-in that just failed");
+        (await CodeOf(page)).Should().Be(BffErrorCodeConstants.SignInFailed);
+        signIn.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "the sign-in route holds back for a few seconds rather than loop");
+        (await CodeOf(signIn)).Should().Be(BffErrorCodeConstants.SignInFailed);
+    }
+
     private static async Task<JsonElement> SessionAsync(BffTestHost host)
     {
         using var document = JsonDocument.Parse(await host.Client.GetStringAsync("/api/identity/session"));

@@ -32,23 +32,26 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
     /// <remarks>
     ///   - <c>send</c> takes <c>{ phone }</c> and answers <c>{ isCodeSent, telegramLinkUrl }</c>: a linked number's code
     ///     goes to Telegram at once (<c>isCodeSent</c> true); any other number gets the start link to open, and the code
-    ///     follows the shared contact. Known and unknown numbers answer alike; <c>400</c> for a malformed number or one
-    ///     outside the allowed countries, <c>429</c> when a code or link went out moments ago for the number or address;
-    ///     failures carry their code in the problem's <c>identityCode</c>
+    ///     follows the shared contact. Whether an account holds the number changes neither answer, but the answer does tell
+    ///     a number linked to the bot from one that is not; <c>400</c> for a malformed number or one outside the allowed
+    ///     countries, <c>429</c> when a code or link went out moments ago for the number or address, or the number spent
+    ///     its failure budget; failures carry their code in the problem's <c>identityCode</c>
     ///   - <c>phone-sign-in</c> takes <c>{ phone, code }</c> and signs in as <c>sign-in</c> does: a cookie with
     ///     <c>?useCookies=true</c> (<c>204</c>), else a bearer token pair; <c>amr</c> <c>otp</c>, sign-in log method
     ///     <c>phone_code</c>, optional <c>?clientId=</c>. A first sign-in creates the person while <c>Identity:SignUp:Mode</c>
     ///     is <c>Open</c> or the request carries a pending invitation's <c>invitationToken</c>, else <c>403</c> (message key
     ///     <c>SignUpClosed</c>); with a token the person, new or known, joins its organization with its role; a wrong code is
     ///     <c>401</c> (<c>InvalidPhoneCode</c>); a second factor answers <c>401</c> with the ticket for <c>sign-in/two-factor</c>;
-    ///     a bearer sign-in on a cookie-only instance is <c>400</c> (<c>BearerSignInUnsupported</c>) before the code is spent
+    ///     a bearer sign-in on a cookie-only instance is <c>400</c> (<c>BearerSignInUnsupported</c>) and a locked-out person
+    ///     <c>429</c> (<c>LockedOut</c>), both before the code is spent
+    ///   - both routes take the per-address <see cref="AccountRateLimitPolicyConstants.Credentials"/> policy
     /// </remarks>
     /// <param name="endpoints">The account API's route group.</param>
     public static IEndpointRouteBuilder MapPhoneSignInEndpoints(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        endpoints.MapPost("/phone-sign-in/send", SendAsync);
-        endpoints.MapPost("/phone-sign-in", SignInAsync);
+        endpoints.MapPost("/phone-sign-in/send", SendAsync).LimitCredentials(endpoints);
+        endpoints.MapPost("/phone-sign-in", SignInAsync).LimitCredentials(endpoints);
         return endpoints;
     }
 
@@ -101,6 +104,9 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
             case PhoneSignInStatus.SignUpClosed:
                 await RecordRefusalAsync(services, verified.PhoneNumber, SignInReasonConstants.UnknownAccount, cancellationToken);
                 throw CodedError(AppErrorType.Forbidden, "Sign-up is by invitation only; ask an admin for a link.", IdentityErrorCodeConstants.SignUpClosed).ToException();
+            case PhoneSignInStatus.LockedOut:
+                await RecordRefusalAsync(services, verified.PhoneNumber, SignInReasonConstants.LockedOut, cancellationToken, SignInResultConstants.LockedOut, verified.User?.Id);
+                throw LockedOut().ToException();
             case not PhoneSignInStatus.Verified:
                 throw NumberError(verified.Status).ToException();
         }
@@ -110,7 +116,7 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
         if (result is { Status: SignInStatus.RequiresTwoFactor, TwoFactorTicket: { } ticket })
             throw TwoFactorChallenge(result.UserId, ticket, result.TwoFactorMethod ?? TwoFactorMethodNameConstants.Authenticator).ToException();
         if (!result.IsSuccess)
-            throw FailureOf(result.Status).ToException();
+            throw FailureOf(result).ToException();
 
         return await SessionAsync(result, verified.User!, useCookies, request.IsPersistent, http, cancellationToken);
     }
@@ -156,11 +162,15 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
             : throw CodedError(AppErrorType.NotFound, "Phone sign-in is off on this instance.", PhoneSignInErrorCodeConstants.PhoneSignInUnavailable).ToException();
     }
 
-    private static async Task RecordRefusalAsync(IServiceProvider services, string? phone, string reason, CancellationToken cancellationToken)
+    private static async Task RecordRefusalAsync(
+        IServiceProvider services, string? phone, string reason, CancellationToken cancellationToken, string result = SignInResultConstants.Failed, Guid? userId = null)
     {
         if (services.GetService<SignInLogService>() is { } log)
-            await log.RecordAsync(new SignInAttempt { Method = SignInMethodConstants.PhoneCode, Result = SignInResultConstants.Failed, Reason = reason, Subject = phone }, cancellationToken);
+            await log.RecordAsync(new SignInAttempt { Method = SignInMethodConstants.PhoneCode, Result = result, Reason = reason, Subject = phone, UserId = userId }, cancellationToken);
     }
+
+    private static AppError LockedOut()
+        => CodedError(AppErrorType.TooManyRequests, "The account is temporarily locked out.", IdentityErrorCodeConstants.LockedOut);
 
     private static AppError NumberError(PhoneSignInStatus status) => status == PhoneSignInStatus.CountryNotAllowed
         ? CodedError(AppErrorType.Validation, "Phone numbers from this country cannot sign in here.", PhoneSignInErrorCodeConstants.PhoneCountryNotAllowed)
@@ -180,10 +190,10 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
         return AppError.Of(AppErrorType.Unauthorized, "Enter your two-factor code.", metadata);
     }
 
-    private static AppError FailureOf(SignInStatus status) => status switch
+    private static AppError FailureOf(SignInResult result) => result.Status switch
     {
-        SignInStatus.LockedOut => CodedError(AppErrorType.TooManyRequests, "The account is temporarily locked out.", IdentityErrorCodeConstants.LockedOut),
-        SignInStatus.NotAllowed => CodedError(AppErrorType.Forbidden, "Confirm your email or phone to sign in.", IdentityErrorCodeConstants.SignInNotAllowed),
+        SignInStatus.LockedOut => LockedOut(),
+        SignInStatus.NotAllowed => UserAccountEndpointRouteBuilderExtensions.NotAllowedError(result.UnmetPrecondition),
         _ => CodedError(AppErrorType.Unauthorized, "The sign-in could not be completed.", IdentityErrorCodeConstants.SignInFailed),
     };
 

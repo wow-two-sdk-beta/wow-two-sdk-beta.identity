@@ -28,8 +28,12 @@ await signIn.TwoFactorSignInAsync(userId, ticket, code);          // or Recovery
 
 ## Notes
 
-- Unknown identifiers spend one hash verification, so response time does not reveal which accounts exist.
+- Unknown identifiers spend one hash verification, so response time does not reveal which accounts exist; an account
+  without a password (a phone or passkey person) answers the same way and counts no failed attempt (log reason `no_password`).
 - Wrong passwords and wrong second factors both count toward lockout; the failure count resets only on success.
+- `RenewAsync` (refresh) re-checks the preconditions but not a lockout, which guards new credential attempts only.
+- A `NotAllowed` result names its precondition in `UnmetPrecondition` (`unconfirmed_email`, `unconfirmed_phone`); an
+  account with no email but a confirmed phone meets `IsConfirmedEmailRequired` through its phone.
 - A user with `IsTwoFactorEnabled` always gets `RequiresTwoFactor`, even when the two-factor slice is absent.
 - The two-factor ticket is a purpose token (5 minutes by default) bound to the user and stamp.
 - `SignInAsync(user)` completes external-account and passwordless flows with the same lockout and precondition checks;

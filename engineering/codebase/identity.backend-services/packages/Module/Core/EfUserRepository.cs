@@ -101,4 +101,67 @@ public sealed class EfUserRepository : IUserRepository
     /// <inheritdoc />
     public Task<IdentityUser?> FindByConfirmedPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default)
         => Users.FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber && u.IsPhoneNumberConfirmed, cancellationToken);
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Two conditional updates: the increment, then the lock of a row whose count reached the limit, which only one
+    /// concurrent attempt can still find. Neither touches the concurrency stamp, so a parallel request's save of the same
+    /// account is not refused.
+    /// </remarks>
+    public async Task<bool> CountFailedAttemptAsync(IdentityUser user, int maxFailedAttempts, DateTimeOffset lockoutEnd, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        var userId = user.Id;
+        var isCounted = await Users
+            .Where(u => u.Id == userId && u.IsLockoutEnabled)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount + 1), cancellationToken) == 1;
+        if (!isCounted)
+            return false;
+
+        var isLocked = await Users
+            .Where(u => u.Id == userId && u.AccessFailedCount >= maxFailedAttempts)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(u => u.AccessFailedCount, 0)
+                .SetProperty(u => u.LockoutEnd, lockoutEnd), cancellationToken) == 1;
+        await ReloadLockoutAsync(user, cancellationToken);
+        return isLocked;
+    }
+
+    /// <inheritdoc />
+    public async Task ResetFailedAttemptsAsync(IdentityUser user, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        var userId = user.Id;
+        await Users
+            .Where(u => u.Id == userId && u.AccessFailedCount != 0)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(u => u.AccessFailedCount, 0), cancellationToken);
+        await ReloadLockoutAsync(user, cancellationToken);
+    }
+
+    /// <summary>Copy the stored count and lockout end onto <paramref name="user"/> as unchanged values, so no later save writes them back.</summary>
+    private async Task ReloadLockoutAsync(IdentityUser user, CancellationToken cancellationToken)
+    {
+        var userId = user.Id;
+        var stored = await Users.AsNoTracking()
+            .Where(u => u.Id == userId)
+            .Select(u => new { u.AccessFailedCount, u.LockoutEnd })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (stored is null)
+            return;
+
+        var entry = _context.Entry(user);
+        if (entry.State == EntityState.Detached)
+        {
+            user.AccessFailedCount = stored.AccessFailedCount;
+            user.LockoutEnd = stored.LockoutEnd;
+            return;
+        }
+
+        var count = entry.Property(u => u.AccessFailedCount);
+        count.CurrentValue = count.OriginalValue = stored.AccessFailedCount;
+        count.IsModified = false;
+        var end = entry.Property(u => u.LockoutEnd);
+        end.CurrentValue = end.OriginalValue = stored.LockoutEnd;
+        end.IsModified = false;
+    }
 }

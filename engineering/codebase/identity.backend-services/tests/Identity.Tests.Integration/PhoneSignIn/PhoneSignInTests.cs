@@ -10,6 +10,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.OneTimeCodes;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PhoneSignIn;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
@@ -94,7 +95,7 @@ public sealed class PhoneSignInTests
         tracked.IsPhoneNumberConfirmed = true;
         await accounts.UpdateAsync(tracked);
         await LinkAsync(services, bot);
-        host.Time.Advance(TimeSpan.FromSeconds(10));
+        host.Time.Advance(TimeSpan.FromSeconds(31));
 
         var sent = await services.GetRequiredService<UserPhoneSignInService>().SendAsync(Phone, Address);
 
@@ -130,12 +131,39 @@ public sealed class PhoneSignInTests
         var services = scope.ServiceProvider;
         await LinkAsync(services, bot);
         bot.BlockedChats[ChatId] = true;
-        host.Time.Advance(TimeSpan.FromSeconds(10));
+        host.Time.Advance(TimeSpan.FromSeconds(31));
 
         var sent = await services.GetRequiredService<UserPhoneSignInService>().SendAsync(Phone, Address);
 
         sent.Status.Should().Be(PhoneSignInStatus.LinkRequired);
         sent.TelegramLinkUrl.Should().StartWith("https://t.me/Ocharo_Bot?start=");
+        var now = host.Time.GetUtcNow();
+        (await services.GetRequiredService<IdentityDbContext>().OtpCodes.AsNoTracking().CountAsync(c => c.ConsumedAt == null && c.ExpiresAt > now))
+            .Should().Be(0, "the undelivered code was discarded, and the code before it retired");
+    }
+
+    [Fact]
+    public async Task LockedOutPerson_ShouldBeRefusedBeforeTheCodeIsSpent()
+    {
+        var bot = new FakeTelegramBotClient();
+        await using var host = CreateHost(bot, identity => identity.AddLockout());
+        var person = await host.CreateUserAsync("mira");
+        await using var scope = host.Scope();
+        var services = scope.ServiceProvider;
+        var accounts = services.GetRequiredService<UserAccountService>();
+        var tracked = (await accounts.FindByIdAsync(person.Id))!;
+        tracked.PhoneNumber = Phone;
+        tracked.IsPhoneNumberConfirmed = true;
+        await accounts.UpdateAsync(tracked);
+        await LinkAsync(services, bot);
+        var code = bot.LastCode(ChatId);
+        await services.GetRequiredService<UserLockoutService>().LockUntilAsync(tracked, host.Time.GetUtcNow().AddMinutes(2));
+        var phoneSignIn = services.GetRequiredService<UserPhoneSignInService>();
+
+        (await phoneSignIn.VerifyAsync(Phone, code, isSignUpAllowed: false)).Status.Should().Be(PhoneSignInStatus.LockedOut);
+
+        host.Time.Advance(TimeSpan.FromMinutes(2) + TimeSpan.FromSeconds(1));
+        (await phoneSignIn.VerifyAsync(Phone, code, isSignUpAllowed: false)).Status.Should().Be(PhoneSignInStatus.Verified, "the refused attempt left the code unspent");
     }
 
     [Fact]
@@ -206,8 +234,8 @@ public sealed class PhoneSignInTests
         bot.LastCode(ChatId).Should().HaveLength(6);
     }
 
-    private static AccountsHost CreateHost(FakeTelegramBotClient bot) => AccountsHost.Create(
-        identity => identity
+    private static AccountsHost CreateHost(FakeTelegramBotClient bot, Action<IdentityBuilder>? slices = null) => AccountsHost.Create(
+        identity => (slices is null ? identity : Apply(identity, slices))
             .AddSignIn()
             .AddDatabaseOtpStore()
             .AddPhoneSignIn(
@@ -229,6 +257,12 @@ public sealed class PhoneSignInTests
             services.RemoveAll<ITelegramBotClient>();
             services.AddSingleton<ITelegramBotClient>(bot);
         });
+
+    private static IdentityBuilder Apply(IdentityBuilder identity, Action<IdentityBuilder> slices)
+    {
+        slices(identity);
+        return identity;
+    }
 
     private static ServiceProvider CreateInstance(IdentityTestDatabase database, TimeProvider time)
     {

@@ -3,18 +3,50 @@ using Konscious.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using WoW.Two.Sdk.Beta.Be.Foundation.Errors;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.PasswordHashing.Argon2;
 
 /// <summary>Argon2id password hasher (OWASP-recommended); implements <see cref="IPasswordHasher{TUser}"/> so it slots into ASP.NET Core Identity.</summary>
 /// <typeparam name="TUser">User type (any class).</typeparam>
+/// <remarks>
+/// Each hash holds 19 MiB while it runs, so at most <see cref="DefaultMaxConcurrentHashes"/> run at once per hasher (one
+/// per process, as a singleton): the rest wait up to <see cref="DefaultQueueTimeout"/> for a slot, then fail with a
+/// <c>429</c> application error rather than let a burst of sign-ins run the process out of memory.
+/// </remarks>
 public sealed class Argon2PasswordHasher<TUser> : IPasswordHasher<TUser> where TUser : class
 {
+    /// <summary>The hashes that run at once by default; four hold about 76 MiB.</summary>
+    public const int DefaultMaxConcurrentHashes = 4;
+
+    /// <summary>How long a hash waits for a free slot by default before it fails with a <c>429</c>.</summary>
+    public static readonly TimeSpan DefaultQueueTimeout = TimeSpan.FromSeconds(5);
+
     private const int SaltSize = 16;
     private const int HashSize = 32;
     private const int Iterations = 4;        // OWASP 2024 baseline
     private const int MemoryKb = 19_456;     // 19 MiB
     private const int Parallelism = 1;
+
+    private readonly SemaphoreSlim _slots;
+    private readonly TimeSpan _queueTimeout;
+
+    /// <summary>Create the hasher with <see cref="DefaultMaxConcurrentHashes"/> slots and <see cref="DefaultQueueTimeout"/>.</summary>
+    public Argon2PasswordHasher()
+        : this(DefaultMaxConcurrentHashes, DefaultQueueTimeout)
+    {
+    }
+
+    /// <summary>Create the hasher with its own bound on concurrent hashes.</summary>
+    /// <param name="maxConcurrentHashes">The hashes that run at once; at least 1.</param>
+    /// <param name="queueTimeout">How long a hash waits for a free slot before it fails with a <c>429</c>; zero fails at once.</param>
+    public Argon2PasswordHasher(int maxConcurrentHashes, TimeSpan queueTimeout)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxConcurrentHashes, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(queueTimeout, TimeSpan.Zero);
+        _slots = new SemaphoreSlim(maxConcurrentHashes, maxConcurrentHashes);
+        _queueTimeout = queueTimeout;
+    }
 
     /// <inheritdoc />
     public string HashPassword(TUser user, string password)
@@ -63,19 +95,35 @@ public sealed class Argon2PasswordHasher<TUser> : IPasswordHasher<TUser> where T
         }
     }
 
-    private static byte[] HashCore(string password, byte[] salt)
+    private byte[] HashCore(string password, byte[] salt)
         => HashCore(password, salt, MemoryKb, Iterations, Parallelism, HashSize);
 
-    private static byte[] HashCore(string password, byte[] salt, int memoryKb, int iterations, int parallelism, int hashSize)
+    private byte[] HashCore(string password, byte[] salt, int memoryKb, int iterations, int parallelism, int hashSize)
     {
-        using var argon = new Argon2id(System.Text.Encoding.UTF8.GetBytes(password))
+        // The hasher's contract is synchronous, so the wait is too; it holds a thread, never the 19 MiB.
+        if (!_slots.Wait(_queueTimeout))
         {
-            Salt = salt,
-            DegreeOfParallelism = parallelism,
-            MemorySize = memoryKb,
-            Iterations = iterations,
-        };
-        return argon.GetBytes(hashSize);
+            throw AppError.Of(
+                AppErrorType.TooManyRequests,
+                "Too many passwords are being checked at once; try again in a moment.",
+                new Dictionary<string, object?>(StringComparer.Ordinal) { ["retryAfter"] = "5" }).ToException();
+        }
+
+        try
+        {
+            using var argon = new Argon2id(System.Text.Encoding.UTF8.GetBytes(password))
+            {
+                Salt = salt,
+                DegreeOfParallelism = parallelism,
+                MemorySize = memoryKb,
+                Iterations = iterations,
+            };
+            return argon.GetBytes(hashSize);
+        }
+        finally
+        {
+            _slots.Release();
+        }
     }
 
     /// <summary>Reads <c>m=…,t=…,p=…</c>, bounding each value so a stored hash cannot demand unbounded work.</summary>

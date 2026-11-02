@@ -15,11 +15,15 @@ public sealed record OtpCreationResult
     /// <summary>When the code stops verifying (present on success).</summary>
     public DateTimeOffset? ExpiresAt { get; init; }
 
+    /// <summary>The stored code's id (present on success); pass it to <see cref="IOtpService.DiscardAsync"/> when delivery fails.</summary>
+    public Guid? CodeId { get; init; }
+
     /// <summary>Successful creation carrying the generated <paramref name="code"/>.</summary>
     /// <param name="code">The generated code.</param>
     /// <param name="expiresAt">When the code stops verifying.</param>
-    public static OtpCreationResult Succeeded(string code, DateTimeOffset? expiresAt = null)
-        => new() { IsSuccess = true, Code = code, FailureReason = null, ExpiresAt = expiresAt };
+    /// <param name="codeId">The stored code's id.</param>
+    public static OtpCreationResult Succeeded(string code, DateTimeOffset? expiresAt = null, Guid? codeId = null)
+        => new() { IsSuccess = true, Code = code, FailureReason = null, ExpiresAt = expiresAt, CodeId = codeId };
 
     /// <summary>Failed creation with a <paramref name="reason"/>.</summary>
     /// <param name="reason">The failure reason.</param>

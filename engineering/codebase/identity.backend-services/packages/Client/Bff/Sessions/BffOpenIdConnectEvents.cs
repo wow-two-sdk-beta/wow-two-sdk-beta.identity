@@ -1,17 +1,20 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 
 /// <summary>
 /// Keeps the end the instance names for the sign-in session (<c>refresh_token_expires_in</c>), so the BFF session ends with
 /// it, and handles a failed code callback (a refused sign-in, a replayed or expired callback) by sending the browser back
-/// to its return URL, signed out.
+/// to its return URL, signed out, with <c>signInError=callback_failed</c>; the failure holds the next sign-in back for a
+/// few seconds (<see cref="BffSignInFailure"/>), so a callback that keeps failing ends at an error, not in a redirect loop.
 /// </summary>
 /// <param name="time">The clock the end is counted from.</param>
+/// <param name="options">The BFF options.</param>
 /// <param name="logger">The logger.</param>
-internal sealed partial class BffOpenIdConnectEvents(TimeProvider time, ILogger<BffOpenIdConnectEvents> logger) : OpenIdConnectEvents
+internal sealed partial class BffOpenIdConnectEvents(TimeProvider time, IOptions<IdentityBffOptions> options, ILogger<BffOpenIdConnectEvents> logger) : OpenIdConnectEvents
 {
     /// <inheritdoc />
     public override Task TokenResponseReceived(TokenResponseReceivedContext context)
@@ -28,7 +31,7 @@ internal sealed partial class BffOpenIdConnectEvents(TimeProvider time, ILogger<
     {
         ArgumentNullException.ThrowIfNull(context);
         LogRemoteFailure(logger, context.Failure?.GetType().Name ?? "unknown", context.Failure?.Message ?? string.Empty);
-        context.Response.Redirect(BffReturnUrl.Normalize(context.Properties?.RedirectUri));
+        context.Response.Redirect(BffSignInFailure.Mark(context.HttpContext, options.Value, BffReturnUrl.Normalize(context.Properties?.RedirectUri)));
         context.HandleResponse();
         return Task.CompletedTask;
     }

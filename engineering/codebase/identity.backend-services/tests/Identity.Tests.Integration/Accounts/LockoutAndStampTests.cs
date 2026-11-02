@@ -47,6 +47,46 @@ public sealed class LockoutAndStampTests
     }
 
     [Fact]
+    public async Task Lockout_ShouldCountEveryConcurrentFailure_WithoutFailingOnTheConcurrencyStamp()
+    {
+        await using var host = AccountsHost.Create(identity => identity.AddLockout(), o => o.Lockout.MaxFailedAttempts = 20);
+        var user = await host.CreateUserAsync("kim");
+
+        // Each attempt loads the account in its own request, as parallel sign-ins do, before any of them writes.
+        var scopes = Enumerable.Range(0, 6).Select(_ => host.Scope()).ToList();
+        var loaded = new List<(UserLockoutService Lockout, IdentityUser User)>();
+        foreach (var scope in scopes)
+            loaded.Add((scope.ServiceProvider.GetRequiredService<UserLockoutService>(), (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id))!));
+
+        var locked = await Task.WhenAll(loaded.Select(attempt => attempt.Lockout.RecordFailedAttemptAsync(attempt.User)));
+        foreach (var scope in scopes)
+            await scope.DisposeAsync();
+
+        locked.Should().AllBeEquivalentTo(false);
+        (await host.ReloadAsync(user.Id)).AccessFailedCount.Should().Be(6, "every wrong attempt counts, none is lost to a stale read");
+    }
+
+    [Fact]
+    public async Task Lockout_ShouldLetExactlyOneConcurrentAttemptStartTheWindow()
+    {
+        await using var host = AccountsHost.Create(identity => identity.AddLockout(), o => o.Lockout.MaxFailedAttempts = 3);
+        var user = await host.CreateUserAsync("lee");
+        var scopes = Enumerable.Range(0, 3).Select(_ => host.Scope()).ToList();
+        var loaded = new List<(UserLockoutService Lockout, IdentityUser User)>();
+        foreach (var scope in scopes)
+            loaded.Add((scope.ServiceProvider.GetRequiredService<UserLockoutService>(), (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(user.Id))!));
+
+        var locked = await Task.WhenAll(loaded.Select(attempt => attempt.Lockout.RecordFailedAttemptAsync(attempt.User)));
+        foreach (var scope in scopes)
+            await scope.DisposeAsync();
+
+        locked.Count(isLocked => isLocked).Should().Be(1);
+        var stored = await host.ReloadAsync(user.Id);
+        stored.LockoutEnd.Should().Be(host.Time.GetUtcNow() + TimeSpan.FromMinutes(5));
+        stored.AccessFailedCount.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Lockout_ShouldNeverCountAUserWithLockoutDisabled()
     {
         await using var host = AccountsHost.Create(identity => identity.AddLockout(), o =>

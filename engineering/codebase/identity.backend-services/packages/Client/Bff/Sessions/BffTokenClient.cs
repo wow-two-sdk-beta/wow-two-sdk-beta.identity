@@ -5,13 +5,15 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 
 /// <summary>
 /// Provides the refresh grant against the instance's token endpoint, over the OpenID Connect handler's discovery and
 /// back-channel, and validates the new ID token as the handler validated the first one: signature against the JWKS,
-/// issuer, audience and lifetime.
+/// issuer, audience and lifetime. A token signed by a key the cached JWKS lacks (the instance rotated its signing key)
+/// asks discovery for a refresh and is checked once more against the new keys, as the handler itself does.
 /// </summary>
 /// <param name="handlerOptions">The OpenID Connect handler's options.</param>
 /// <param name="logger">The logger.</param>
@@ -71,11 +73,11 @@ internal sealed partial class BffTokenClient(IOptionsMonitor<OpenIdConnectOption
                 return BffTokenRefreshResult.Unavailable;
             }
 
-            return await ReadAsync(body, options, configuration);
+            return await ReadAsync(body, options, configuration, cancellationToken);
         }
     }
 
-    private async Task<BffTokenRefreshResult> ReadAsync(string body, OpenIdConnectOptions options, OpenIdConnectConfiguration configuration)
+    private async Task<BffTokenRefreshResult> ReadAsync(string body, OpenIdConnectOptions options, OpenIdConnectConfiguration configuration, CancellationToken cancellationToken)
     {
         string? accessToken, newRefreshToken, identityToken;
         TimeSpan? lifetime, sessionLifetime;
@@ -106,7 +108,17 @@ internal sealed partial class BffTokenClient(IOptionsMonitor<OpenIdConnectOption
         IReadOnlyList<BffSessionClaim>? claims = null;
         if (identityToken is not null)
         {
-            claims = await ValidateAsync(identityToken, options, configuration);
+            try
+            {
+                claims = await ValidateAsync(identityToken, options, configuration, cancellationToken);
+            }
+            catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or IOException)
+            {
+                // Discovery could not be refreshed for a new signing key: the instance's trouble, not the session's.
+                LogUnavailable(logger, exception.GetType().Name);
+                return BffTokenRefreshResult.Unavailable;
+            }
+
             if (claims is null)
                 return BffTokenRefreshResult.Rejected;
         }
@@ -128,16 +140,25 @@ internal sealed partial class BffTokenClient(IOptionsMonitor<OpenIdConnectOption
     public static TimeSpan? SessionLifetimeOf(string? seconds)
         => long.TryParse(seconds, NumberStyles.None, CultureInfo.InvariantCulture, out var value) && value > 0 ? TimeSpan.FromSeconds(value) : null;
 
-    /// <summary>The person's claims in a refreshed ID token, or null when it fails validation.</summary>
-    private async Task<IReadOnlyList<BffSessionClaim>?> ValidateAsync(string identityToken, OpenIdConnectOptions options, OpenIdConnectConfiguration configuration)
+    /// <summary>
+    /// The person's claims in a refreshed ID token, or null when it fails validation. A key-not-found failure refreshes
+    /// discovery once and validates again, so a signing-key rotation at the instance does not end every session.
+    /// </summary>
+    private async Task<IReadOnlyList<BffSessionClaim>?> ValidateAsync(
+        string identityToken, OpenIdConnectOptions options, OpenIdConnectConfiguration configuration, CancellationToken cancellationToken)
     {
-        var parameters = options.TokenValidationParameters.Clone();
-        if (!string.IsNullOrEmpty(configuration.Issuer))
-            parameters.ValidIssuers = [.. parameters.ValidIssuers ?? [], configuration.Issuer];
-        parameters.IssuerSigningKeys = [.. parameters.IssuerSigningKeys ?? [], .. configuration.SigningKeys];
-        parameters.ValidAudience ??= options.ClientId;
+        var result = await options.TokenHandler.ValidateTokenAsync(identityToken, ParametersOf(options, configuration));
+        if (result.Exception is SecurityTokenSignatureKeyNotFoundException && options.ConfigurationManager is { } manager)
+        {
+            manager.RequestRefresh();
+            var refreshed = await manager.GetConfigurationAsync(cancellationToken);
+            if (!ReferenceEquals(refreshed, configuration))
+            {
+                LogSigningKeysRefreshed(logger);
+                result = await options.TokenHandler.ValidateTokenAsync(identityToken, ParametersOf(options, refreshed));
+            }
+        }
 
-        var result = await options.TokenHandler.ValidateTokenAsync(identityToken, parameters);
         if (!result.IsValid || result.ClaimsIdentity is not { } identity)
         {
             LogInvalidIdentityToken(logger, result.Exception?.GetType().Name ?? "invalid");
@@ -149,6 +170,17 @@ internal sealed partial class BffTokenClient(IOptionsMonitor<OpenIdConnectOption
             action.Run(EmptyUserInfo, identity, options.ClaimsIssuer ?? BffAuthenticationSchemeConstants.OpenIdConnect);
 
         return [.. identity.Claims.Select(ToSessionClaim)];
+    }
+
+    /// <summary>The handler's validation parameters with the issuer, signing keys and audience of <paramref name="configuration"/>.</summary>
+    private static TokenValidationParameters ParametersOf(OpenIdConnectOptions options, OpenIdConnectConfiguration configuration)
+    {
+        var parameters = options.TokenValidationParameters.Clone();
+        if (!string.IsNullOrEmpty(configuration.Issuer))
+            parameters.ValidIssuers = [.. parameters.ValidIssuers ?? [], configuration.Issuer];
+        parameters.IssuerSigningKeys = [.. parameters.IssuerSigningKeys ?? [], .. configuration.SigningKeys];
+        parameters.ValidAudience ??= options.ClientId;
+        return parameters;
     }
 
     /// <summary>The stored form of <paramref name="claim"/>.</summary>
@@ -183,4 +215,7 @@ internal sealed partial class BffTokenClient(IOptionsMonitor<OpenIdConnectOption
 
     [LoggerMessage(EventId = 7413, Level = LogLevel.Warning, Message = "BFF session refresh returned an ID token that failed validation ({Reason}); the session ends")]
     private static partial void LogInvalidIdentityToken(ILogger logger, string reason);
+
+    [LoggerMessage(EventId = 7414, Level = LogLevel.Information, Message = "BFF refreshed the instance's signing keys for a refreshed ID token signed by a new key")]
+    private static partial void LogSigningKeysRefreshed(ILogger logger);
 }

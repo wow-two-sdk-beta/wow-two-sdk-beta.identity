@@ -4,6 +4,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 /// Holds the <c>UserAccounts:Emails</c> configuration section: the links and texts of confirmation and password-reset
 /// emails, and of passwordless sign-in links and codes. A missing link template sends no email of that kind; placeholders
 /// are <c>{userId}</c>, <c>{email}</c>, <c>{token}</c> (URL-escaped) in links, <c>{link}</c> and <c>{code}</c> in bodies.
+/// A confirmation or reset asked with a local <c>returnUrl</c> adds <c>returnUrl=</c> (URL-escaped) to the link's query.
 /// </summary>
 public sealed record UserAccountEmailSettings
 {

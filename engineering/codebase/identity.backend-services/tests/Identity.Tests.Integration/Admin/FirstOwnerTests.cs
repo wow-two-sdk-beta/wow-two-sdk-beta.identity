@@ -128,6 +128,10 @@ public sealed class FirstOwnerTests
         (await CreateAsync(host, Request with { UserId = Guid.CreateVersion7() })).Error.Should().Contain($"belongs to person {UserId}");
         (await CreateAsync(host, Request with { Email = "ziyoda@example.test" })).Error.Should().Contain("different people");
         (await CreateAsync(host, Request with { PhoneNumber = "+998907654321" })).Error.Should().Contain("another phone");
+        var unconfirmed = await CreateAsync(host, Request with { UserId = null, PhoneNumber = null, Email = "ziyoda@example.test" });
+        unconfirmed.Status.Should().Be(FirstOwnerStatus.Refused);
+        unconfirmed.Error.Should().Contain($"Person {stranger.Id} holds 'ziyoda@example.test' unconfirmed");
+        await ConfirmEmailAsync(host, stranger.Id);
         var notOwner = await CreateAsync(host, Request with { UserId = null, PhoneNumber = null, Email = "ziyoda@example.test" });
         notOwner.Status.Should().Be(FirstOwnerStatus.Refused);
         notOwner.Error.Should().Contain($"Person {stranger.Id} is not an owner");
@@ -137,6 +141,21 @@ public sealed class FirstOwnerTests
         await using var scope = host.Scope();
         var organizations = scope.ServiceProvider.GetRequiredService<OrganizationService>();
         (await organizations.ListMembersAsync((await organizations.FindBySlugAsync("ocharo"))!)).Should().ContainSingle("a refused run changes nothing");
+    }
+
+    [Fact]
+    public async Task Create_ShouldRefuseToAdoptASignUpWithTheOwnersUnconfirmedEmail_UnlessNamedById()
+    {
+        await using var host = CreateHost();
+        var squatter = await host.CreateUserAsync("squatter", Email);
+
+        var refused = await CreateAsync(host, Request with { UserId = null, PhoneNumber = null });
+
+        refused.Status.Should().Be(FirstOwnerStatus.Refused, "anyone can sign up with an address they do not hold");
+        refused.Error.Should().Contain("unconfirmed").And.Contain("--user-id");
+        await using (var scope = host.Scope())
+            (await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Organizations.AnyAsync()).Should().BeFalse("a refused run creates nothing");
+        (await CreateAsync(host, Request with { UserId = squatter.Id, PhoneNumber = null })).Status.Should().Be(FirstOwnerStatus.Created, "the operator named the person by id");
     }
 
     [Theory]
@@ -157,6 +176,15 @@ public sealed class FirstOwnerTests
         result.Error.Should().Contain(expected);
         await using var scope = host.Scope();
         (await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Users.AnyAsync()).Should().BeFalse();
+    }
+
+    private static async Task ConfirmEmailAsync(AccountsHost host, Guid userId)
+    {
+        await using var scope = host.Scope();
+        var accounts = scope.ServiceProvider.GetRequiredService<UserAccountService>();
+        var user = (await accounts.FindByIdAsync(userId))!;
+        user.IsEmailConfirmed = true;
+        await accounts.UpdateAsync(user);
     }
 
     private static AccountsHost CreateHost() => AccountsHost.Create(identity => identity

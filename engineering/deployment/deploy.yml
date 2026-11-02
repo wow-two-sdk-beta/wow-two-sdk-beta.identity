@@ -62,7 +62,9 @@ services:
       - codebase/identity.backend-services/**
       - codebase/identity.frontend-services/**
     health: /health
-    memory: 256m
+    # Each password check holds a 19 MiB Argon2id hash; the hasher runs four at once and queues the rest, so 512m leaves
+    # the runtime, EF and OpenIddict their room beside a full set of hashes.
+    memory: 512m
     # Typed keys (since pipelines v0.10.0): Wheelhouse checks each saved value against its type; a required key joins
     # settings.required. The service needs the target's PostgreSQL database: Wheelhouse fills the connection string
     # from it, and the name ends in ConnectionString, so the value stays in its vault. The OIDC server pins its issuer

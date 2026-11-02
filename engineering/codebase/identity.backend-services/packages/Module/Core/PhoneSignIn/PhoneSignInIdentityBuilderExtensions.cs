@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
 using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
@@ -11,7 +12,8 @@ public static class PhoneSignInIdentityBuilderExtensions
     /// <summary>
     /// Registers <see cref="UserPhoneSignInService"/> over the phone slice (<c>AddPhoneNumbers</c>) and the bot
     /// (<c>AddTelegramLinks</c>), and sends the pending code when a phone sign-in's start link completes. It runs while
-    /// <c>Identity:Telegram:IsEnabled</c> is on; map its routes with <c>MapPhoneSignInEndpoints</c> and the bot's with
+    /// <c>Identity:Telegram:IsEnabled</c> is on; map its routes with <c>MapPhoneSignInEndpoints</c>, which take the credential
+    /// rate-limit policy (<see cref="AccountRateLimitPolicyConstants.Credentials"/>), and the bot's with
     /// <c>MapTelegramWebhook</c>. Hosts with several instances add <c>AddDatabaseOtpStore</c> and one
     /// <c>Identity:Otp:HashKey</c>.
     /// </summary>
@@ -24,6 +26,7 @@ public static class PhoneSignInIdentityBuilderExtensions
         builder.AddPhoneNumbers(phones).AddTelegramLinks(telegram);
         builder.Services.TryAddScoped<UserPhoneSignInService>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<ITelegramLinkCompletionHandler, PhoneSignInTelegramLinkHandler>());
+        builder.Services.AddAccountRateLimit();
         return builder;
     }
 }

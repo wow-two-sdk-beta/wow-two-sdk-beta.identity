@@ -11,7 +11,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 /// <summary>
 /// Provides the bot's phone links: the chat a number is linked to, and start links that link one. A start link is
 /// <c>https://t.me/{bot}?start={token}</c> with 32 random characters; only the token's SHA-256 is stored, and making one
-/// is rate-limited per number and per origin by <see cref="OtpOptions.RateLimitWindow"/>.
+/// is rate-limited per number by <see cref="OtpOptions.RateLimitWindow"/> and per origin by <see cref="OtpOptions.OriginRateLimitWindow"/>.
 /// </summary>
 /// <param name="repository">The links and start links.</param>
 /// <param name="hasher">Keys the origin as the OTP store does.</param>
@@ -36,17 +36,21 @@ public sealed class TelegramLinkService(
     public async Task<long?> FindChatAsync(string phoneNumber, CancellationToken cancellationToken = default)
         => (await repository.FindLinkAsync(options.CurrentValue.NormalizedBotUserName, phoneNumber, cancellationToken))?.ChatId;
 
-    /// <summary>Whether a start link was made within the window for <paramref name="phoneNumber"/> or from <paramref name="origin"/>.</summary>
+    /// <summary>
+    /// Whether a start link was made for <paramref name="phoneNumber"/> within <see cref="OtpOptions.RateLimitWindow"/>, or
+    /// from <paramref name="origin"/> within the shorter <see cref="OtpOptions.OriginRateLimitWindow"/>.
+    /// </summary>
     /// <param name="phoneNumber">The number in E.164.</param>
     /// <param name="origin">Where the request came from; null checks the number only.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    public Task<bool> IsRateLimitedAsync(string phoneNumber, string? origin, CancellationToken cancellationToken = default)
-        => repository.HasRecentRequestAsync(
-            options.CurrentValue.NormalizedBotUserName,
-            phoneNumber,
-            OriginHashOf(origin),
-            time.GetUtcNow() - otp.RateLimitWindow,
-            cancellationToken);
+    public async Task<bool> IsRateLimitedAsync(string phoneNumber, string? origin, CancellationToken cancellationToken = default)
+    {
+        var bot = options.CurrentValue.NormalizedBotUserName;
+        var now = time.GetUtcNow();
+        return await repository.HasRecentRequestAsync(bot, phoneNumber, null, now - otp.RateLimitWindow, cancellationToken)
+            || (OriginHashOf(origin) is { } originHash
+                && await repository.HasRecentRequestAsync(bot, phoneNumber, originHash, now - otp.OriginRateLimitWindow, cancellationToken));
+    }
 
     /// <summary>Makes a start link for <paramref name="phoneNumber"/>; the shared contact must hold that number.</summary>
     /// <param name="phoneNumber">The number in E.164.</param>

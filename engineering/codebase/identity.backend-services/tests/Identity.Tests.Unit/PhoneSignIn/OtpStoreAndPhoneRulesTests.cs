@@ -72,6 +72,72 @@ public sealed class OtpStoreAndPhoneRulesTests
     }
 
     [Fact]
+    public async Task Verify_ShouldShareOneFailureBudgetAcrossCodes_SoANewCodeBringsNoFreshGuesses()
+    {
+        var (provider, time) = CreateOtp(o =>
+        {
+            o.RateLimitWindow = TimeSpan.Zero;
+            o.MaxAttempts = 5;
+            o.MaxSubjectFailures = 7;
+        });
+        await using var _provider = provider;
+        await using var scope = provider.CreateAsyncScope();
+        var otp = scope.ServiceProvider.GetRequiredService<IOtpService>();
+
+        var first = await otp.CreateAsync(Phone, Scope);
+        for (var attempt = 0; attempt < 5; attempt++)
+            (await otp.VerifyAsync(Phone, WrongFor(first.Code!), Scope)).IsSuccess.Should().BeFalse();
+        time.Advance(TimeSpan.FromSeconds(1));
+        var second = await otp.CreateAsync(Phone, Scope);
+        second.IsSuccess.Should().BeTrue("five failures stay inside the budget of seven");
+        (await otp.VerifyAsync(Phone, WrongFor(second.Code!), Scope)).FailureReason.Should().Be(OtpFailureReason.InvalidCode);
+        (await otp.VerifyAsync(Phone, WrongFor(second.Code!), Scope)).FailureReason.Should().Be(OtpFailureReason.InvalidCode);
+
+        (await otp.VerifyAsync(Phone, second.Code!, Scope)).FailureReason.Should().Be(OtpFailureReason.MaxAttemptsReached, "seven wrong guesses across both codes spent the budget");
+        time.Advance(TimeSpan.FromSeconds(1));
+        (await otp.CreateAsync(Phone, Scope)).FailureReason.Should().Be(OtpFailureReason.RateLimited, "no new code is issued past the budget");
+        (await otp.IsRateLimitedAsync(Phone, Scope, origin: null)).Should().BeTrue();
+
+        time.Advance(TimeSpan.FromHours(1) + TimeSpan.FromSeconds(1));
+        var fresh = await otp.CreateAsync(Phone, Scope);
+        fresh.IsSuccess.Should().BeTrue("the failures left the window");
+        (await otp.VerifyAsync(Phone, fresh.Code!, Scope)).IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Verify_ShouldTakeOnlyTheLatestCode_SoASupersededCodeNeverComesBack()
+    {
+        var (provider, time) = CreateOtp(o => o.RateLimitWindow = TimeSpan.Zero);
+        await using var _provider = provider;
+        await using var scope = provider.CreateAsyncScope();
+        var otp = scope.ServiceProvider.GetRequiredService<IOtpService>();
+
+        var older = await otp.CreateAsync(Phone, Scope);
+        time.Advance(TimeSpan.FromSeconds(1));
+        var newer = await otp.CreateAsync(Phone, Scope);
+        (await otp.VerifyAsync(Phone, newer.Code!, Scope)).IsSuccess.Should().BeTrue();
+
+        if (older.Code != newer.Code)
+            (await otp.VerifyAsync(Phone, older.Code!, Scope)).IsSuccess.Should().BeFalse("spending the newer code must not revive the one it replaced");
+    }
+
+    [Fact]
+    public async Task Discard_ShouldRemoveAnUndeliveredCode()
+    {
+        var (provider, _) = CreateOtp();
+        await using var _provider = provider;
+        await using var scope = provider.CreateAsyncScope();
+        var otp = scope.ServiceProvider.GetRequiredService<IOtpService>();
+
+        var created = await otp.CreateAsync(Phone, Scope);
+        created.CodeId.Should().NotBeNull();
+        await otp.DiscardAsync(created.CodeId!.Value);
+
+        (await otp.VerifyAsync(Phone, created.Code!, Scope)).FailureReason.Should().Be(OtpFailureReason.InvalidCode, "a discarded code is gone");
+        (await otp.IsRateLimitedAsync(Phone, Scope, origin: null)).Should().BeFalse("nothing went out, so nothing holds the next send back");
+    }
+
+    [Fact]
     public async Task HashKey_ShouldBeShared_SoAnotherProcessVerifiesTheCode()
     {
         const string key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
@@ -194,6 +260,8 @@ public sealed class OtpStoreAndPhoneRulesTests
             return [.. exception.Failures];
         }
     }
+
+    private static string WrongFor(string code) => code == "000000" ? "111111" : "000000";
 
     private static PhoneNumberPolicy Policy(Action<PhoneOptions>? configure)
     {

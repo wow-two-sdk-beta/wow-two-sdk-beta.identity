@@ -24,6 +24,12 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
 ///     the caller names for a sign-in completed elsewhere; a renewal records none
 ///   - with the sign-in log slice, every attempt it judges is recorded, whatever its outcome, and the result carries the
 ///     row's id; a renewal is not an attempt
+///   - an account without a password answers a password attempt as an unknown identifier does: the same hash work, and
+///     no failed attempt counted, so nobody can lock out a phone or passkey user by guessing a password they never had
+///   - a lockout refuses new sign-ins only; a renewal of an existing session passes it, so failed guesses by someone else
+///     never end the person's sessions
+///   - a refused precondition names itself in <see cref="SignInResult.UnmetPrecondition"/>; an account without an email
+///     but with a confirmed phone (a phone sign-in's person) meets the confirmed-email precondition through its phone
 /// </remarks>
 public sealed class SignInService
 {
@@ -126,6 +132,13 @@ public sealed class SignInService
         var passwords = _passwords ?? throw new NotSupportedException("Password sign-in needs the password slice; call .AddArgon2Passwords().");
         const string method = SignInMethodConstants.Password;
 
+        // No password to guess: answer as an unknown identifier, in the same time, and count nothing toward a lockout.
+        if (!passwords.HasPassword(user))
+        {
+            SpendDecoyVerification(password);
+            return await LogAsync(FailedResult, method, user, subject, SignInReasonConstants.NoPassword, cancellationToken);
+        }
+
         if (_lockout?.IsLockedOut(user) == true)
             return await LogAsync(LockedOutResult, method, user, subject, SignInReasonConstants.LockedOut, cancellationToken);
 
@@ -227,26 +240,23 @@ public sealed class SignInService
             return await LogAsync(FailedResult, method, null, null, SignInReasonConstants.InvalidPasskey, cancellationToken);
         if (_lockout?.IsLockedOut(user) == true)
             return await LogAsync(LockedOutResult, method, user, null, SignInReasonConstants.LockedOut, cancellationToken);
-        if (UnmetPrecondition(user) is not null)
-            return await LogAsync(new SignInResult { Status = SignInStatus.NotAllowed, UserId = IdOf(user) }, method, user, null, null, cancellationToken);
+        if (UnmetPrecondition(user) is { } unmet)
+            return await LogAsync(NotAllowed(user, unmet), method, user, null, null, cancellationToken);
 
         return await LogAsync(await SucceedAsync(user, PasskeyMethods, cancellationToken), method, user, null, null, cancellationToken);
     }
 
     /// <summary>
-    /// Renew the session of a user who already completed sign-in (refresh-token redemption): lockout and preconditions
-    /// apply again, the second factor does not.
+    /// Renew the session of a user who already completed sign-in (refresh-token redemption): the preconditions apply
+    /// again; a lockout and the second factor do not, since a lockout guards new credential attempts only.
     /// </summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<SignInResult> RenewAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
-        if (_lockout?.IsLockedOut(user) == true)
-            return LockedOutResult;
-        if ((_options.IsConfirmedEmailRequired && !user.IsEmailConfirmed)
-            || (_options.IsConfirmedPhoneNumberRequired && !user.IsPhoneNumberConfirmed))
-            return new SignInResult { Status = SignInStatus.NotAllowed, UserId = IdOf(user) };
+        if (UnmetPrecondition(user) is { } unmet)
+            return NotAllowed(user, unmet);
 
         return new SignInResult
         {
@@ -357,8 +367,8 @@ public sealed class SignInService
 
     private async Task<SignInResult> CompleteFirstFactorAsync(IdentityUser user, IReadOnlyCollection<string> methods, CancellationToken cancellationToken)
     {
-        if (UnmetPrecondition(user) is not null)
-            return new SignInResult { Status = SignInStatus.NotAllowed, UserId = IdOf(user) };
+        if (UnmetPrecondition(user) is { } unmet)
+            return NotAllowed(user, unmet);
 
         if (user.IsTwoFactorEnabled)
         {
@@ -391,11 +401,19 @@ public sealed class SignInService
         return new SignInResult { Status = SignInStatus.Succeeded, UserId = IdOf(user), Principal = principal };
     }
 
-    /// <summary>The sign-in precondition <paramref name="user"/> misses, as a log reason; null when every one is met.</summary>
+    /// <summary>
+    /// The sign-in precondition <paramref name="user"/> misses, as a log reason; null when every one is met. An account
+    /// with no email but a confirmed phone meets the confirmed-email precondition through its phone: a phone sign-in's
+    /// person has no email to confirm.
+    /// </summary>
     private string? UnmetPrecondition(IdentityUser user)
-        => _options.IsConfirmedEmailRequired && !user.IsEmailConfirmed ? SignInReasonConstants.UnconfirmedEmail
+        => _options.IsConfirmedEmailRequired && !user.IsEmailConfirmed && !(string.IsNullOrEmpty(user.Email) && user.IsPhoneNumberConfirmed)
+            ? SignInReasonConstants.UnconfirmedEmail
             : _options.IsConfirmedPhoneNumberRequired && !user.IsPhoneNumberConfirmed ? SignInReasonConstants.UnconfirmedPhone
             : null;
+
+    private static SignInResult NotAllowed(IdentityUser user, string unmet)
+        => new() { Status = SignInStatus.NotAllowed, UserId = IdOf(user), UnmetPrecondition = unmet };
 
     /// <summary>Records the attempt in the sign-in log, when registered, and returns the result carrying the row's id.</summary>
     /// <param name="result">The outcome.</param>
@@ -422,7 +440,7 @@ public sealed class SignInService
                     SignInStatus.PasswordChangeRequired => SignInResultConstants.PasswordChangeRequired,
                     _ => SignInResultConstants.Failed,
                 },
-                Reason = reason ?? (result.Status == SignInStatus.NotAllowed && user is not null ? UnmetPrecondition(user) : null),
+                Reason = reason ?? result.UnmetPrecondition,
                 UserId = user?.Id,
                 Subject = subject,
             },

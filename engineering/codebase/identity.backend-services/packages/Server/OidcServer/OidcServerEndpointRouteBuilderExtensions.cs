@@ -1,8 +1,11 @@
+using System.Globalization;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,8 +28,18 @@ public static class OidcServerEndpointRouteBuilderExtensions
     /// </summary>
     public const string RefreshTokenExpiresInParameter = "refresh_token_expires_in";
 
-    /// <summary>The parameters dropped from the return URL, so the sign-in it leads back to is not asked for again.</summary>
-    private static readonly HashSet<string> FreshSignInParameters = new(StringComparer.Ordinal) { Parameters.Prompt, Parameters.MaxAge };
+    /// <summary>
+    /// The return URL parameter that replaces <c>prompt=login</c> and <c>max_age</c> on the way to the sign-in page: the
+    /// instant the fresh sign-in was asked for, sealed with Data Protection, so the request it leads back to passes only
+    /// for a session signed in after it.
+    /// </summary>
+    public const string FreshSignInParameter = "fresh_sign_in";
+
+    /// <summary>The Data Protection purpose that seals <see cref="FreshSignInParameter"/>.</summary>
+    private const string FreshSignInPurpose = "WoW.Two.Sdk.Beta.Be.Identity.OidcServer.FreshSignIn.v1";
+
+    /// <summary>The parameters dropped from the return URL, so the sign-in it leads back to is not asked for again; the sealed marker stands in for them.</summary>
+    private static readonly HashSet<string> FreshSignInParameters = new(StringComparer.Ordinal) { Parameters.Prompt, Parameters.MaxAge, FreshSignInParameter };
 
     /// <summary>
     /// Map the endpoints OpenIddict validates and hands to our logic: <see cref="OidcServerPathConstants.Authorization"/>
@@ -53,24 +66,31 @@ public static class OidcServerEndpointRouteBuilderExtensions
         var request = RequestOf(http);
         var services = http.RequestServices;
         var time = services.GetService<TimeProvider>() ?? TimeProvider.System;
+        var now = time.GetUtcNow();
         var session = await http.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-        var user = session.Succeeded ? await FindPersonAsync(services, session.Principal!, sessionClaims: true, time, cancellationToken) : null;
-        var authenticatedAt = session.Properties?.IssuedUtc;
+        var user = session.Succeeded ? await FindPersonAsync(services, session.Principal!, sessionClaims: true, cancellationToken) : null;
+        var sessionId = session.Principal is { } cookie ? SessionIdOf(cookie, services.GetRequiredService<IdentityCoreOptions>().Claims.SessionIdClaimType) : null;
+        (bool IsLive, DateTimeOffset? At) signedIn = user is null ? (false, null) : await AuthenticatedAtAsync(services, user, sessionId, session.Properties, cancellationToken);
+        var authenticatedAt = signedIn.At;
+        if (!signedIn.IsLive)
+            user = null;
 
-        // prompt=login and an exceeded max_age ask for a fresh sign-in; max_age=0 always does.
+        // prompt=login and an exceeded max_age ask for a fresh sign-in, max_age=0 always; the sealed marker of an earlier
+        // such request, back from the sign-in page, asks for a session signed in after it was made.
+        var protector = services.GetRequiredService<IDataProtectionProvider>().CreateProtector(FreshSignInPurpose);
         var stale = request.HasPromptValue(PromptValues.Login)
-            || (request.MaxAge is { } maxAge && (authenticatedAt is not { } at || time.GetUtcNow() - at > TimeSpan.FromSeconds(maxAge)));
+            || (request.MaxAge is { } maxAge && (authenticatedAt is not { } at || now - at > TimeSpan.FromSeconds(maxAge)))
+            || (HasParameter(request, FreshSignInParameter) && !IsSignedInAfter(authenticatedAt, ReadFreshSignIn(protector, request)));
         if (user is null || stale)
         {
             return request.HasPromptValue(PromptValues.None)
                 ? Forbid(Errors.LoginRequired, "The person is not signed in.")
-                : Results.Redirect(await SignInUrlAsync(http, services.GetRequiredService<OidcServerOptions>().SignInPath));
+                : Results.Redirect(await SignInUrlAsync(http, services.GetRequiredService<OidcServerOptions>().SignInPath, stale ? protector.Protect(SealFreshSignIn(now)) : null));
         }
 
         var applications = services.GetRequiredService<IOpenIddictApplicationManager>();
         var client = await OidcClientProfile.FindAsync(applications, request.ClientId, cancellationToken)
             ?? throw new InvalidOperationException("The validated authorization request names no registered client.");
-        var sessionId = SessionIdOf(session.Principal!, services.GetRequiredService<IdentityCoreOptions>().Claims.SessionIdClaimType);
         var identity = OidcClaimMapper.CreateIdentity(
             client,
             request.GetScopes(),
@@ -101,7 +121,7 @@ public static class OidcServerEndpointRouteBuilderExtensions
         var services = http.RequestServices;
         var time = services.GetService<TimeProvider>() ?? TimeProvider.System;
         var grant = await http.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-        var user = grant.Principal is { } sealedPrincipal ? await FindPersonAsync(services, sealedPrincipal, sessionClaims: false, time, cancellationToken) : null;
+        var user = grant.Principal is { } sealedPrincipal ? await FindPersonAsync(services, sealedPrincipal, sessionClaims: false, cancellationToken) : null;
         var client = await OidcClientProfile.FindAsync(services.GetRequiredService<IOpenIddictApplicationManager>(), request.ClientId, cancellationToken);
         if (user is null || client is null)
             return Forbid(Errors.InvalidGrant, "The sign-in behind this grant is no longer valid.");
@@ -148,9 +168,8 @@ public static class OidcServerEndpointRouteBuilderExtensions
     private static async Task<IResult> UserInfoAsync(HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
-        var time = services.GetService<TimeProvider>() ?? TimeProvider.System;
         var token = await http.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-        var user = token.Principal is { } accessToken ? await FindPersonAsync(services, accessToken, sessionClaims: false, time, cancellationToken) : null;
+        var user = token.Principal is { } accessToken ? await FindPersonAsync(services, accessToken, sessionClaims: false, cancellationToken) : null;
         var clientId = token.Principal?.GetPresenters().FirstOrDefault() ?? token.Principal?.GetClaim(Claims.ClientId);
         var client = await OidcClientProfile.FindAsync(services.GetRequiredService<IOpenIddictApplicationManager>(), clientId, cancellationToken);
         if (user is null || client is null || !await IsSessionLiveAsync(services, token.Principal!, user, cancellationToken))
@@ -165,32 +184,45 @@ public static class OidcServerEndpointRouteBuilderExtensions
         return Results.Ok(OidcClaimMapper.ToUserInfo(principal));
     }
 
+    /// <summary>
+    /// Ends the sign-in only when the request proves it comes from the person's own app or page: a valid
+    /// <c>id_token_hint</c> (OpenIddict refuses an invalid one), or a <c>POST</c> from this origin. Anything else, such as a
+    /// bare <c>GET</c> another site's link or image sends with the cookie, only redirects, so no site can sign the person out.
+    /// </summary>
     private static async Task<IResult> EndSessionAsync(HttpContext http, CancellationToken cancellationToken)
     {
         var request = RequestOf(http);
         var services = http.RequestServices;
+        var hint = await http.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        var subject = hint.Principal?.GetClaim(Claims.Subject);
+        if (subject is null && !IsSameOriginPost(http))
+            return Results.SignOut(new AuthenticationProperties { RedirectUri = "/" }, [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
+
         if (await services.GetRequiredService<IAuthenticationSchemeProvider>().GetSchemeAsync(CookieAuthenticationDefaults.AuthenticationScheme) is not null)
         {
-            // The cookie's session ends first, and with it every grant issued under it.
+            // The cookie's session ends first, and with it every grant issued under it; a hint naming someone else leaves it.
             var cookie = await http.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             var claims = services.GetRequiredService<IdentityCoreOptions>().Claims;
-            if (cookie.Principal is { } signedIn
-                && services.GetService<UserSessionService>() is { } sessions
-                && SessionIdOf(signedIn, claims.SessionIdClaimType) is { } sid
-                && Guid.TryParse(signedIn.FindFirst(claims.UserIdClaimType)?.Value, out var userId))
-                await sessions.RevokeAsync(userId, sid, SessionRevokeReasonConstants.SignOut, cancellationToken);
+            var cookieUserId = cookie.Principal?.FindFirst(claims.UserIdClaimType)?.Value;
+            if (subject is null || cookieUserId is null || string.Equals(subject, cookieUserId, StringComparison.OrdinalIgnoreCase))
+            {
+                if (cookie.Principal is { } signedIn
+                    && services.GetService<UserSessionService>() is { } sessions
+                    && SessionIdOf(signedIn, claims.SessionIdClaimType) is { } sid
+                    && Guid.TryParse(cookieUserId, out var userId))
+                    await sessions.RevokeAsync(userId, sid, SessionRevokeReasonConstants.SignOut, cancellationToken);
 
-            await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            }
         }
 
         // With an id_token_hint, the app's tokens for that person end too: its refresh tokens stop working at once.
-        var hint = await http.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-        if (hint.Principal?.GetClaim(Claims.Subject) is { } subject)
+        if (subject is not null)
         {
             var applications = services.GetRequiredService<IOpenIddictApplicationManager>();
             var authorizations = services.GetRequiredService<IOpenIddictAuthorizationManager>();
             var tokens = services.GetRequiredService<IOpenIddictTokenManager>();
-            foreach (var clientId in hint.Principal.GetAudiences().Concat(hint.Principal.GetPresenters()).Append(request.ClientId).OfType<string>().Distinct(StringComparer.Ordinal))
+            foreach (var clientId in hint.Principal!.GetAudiences().Concat(hint.Principal!.GetPresenters()).Append(request.ClientId).OfType<string>().Distinct(StringComparer.Ordinal))
             {
                 if (await applications.FindByClientIdAsync(clientId, cancellationToken) is not { } application
                     || await applications.GetIdAsync(application, cancellationToken) is not { } applicationId)
@@ -206,10 +238,12 @@ public static class OidcServerEndpointRouteBuilderExtensions
     }
 
     /// <summary>
-    /// The person a session or a sealed grant names, while they may still sign in: the account exists, is not locked out
-    /// and carries the same security stamp. A session names them by the Module's claim type, a grant by <c>sub</c>.
+    /// The person a session or a sealed grant names, while their sign-in still holds: the account exists and carries the
+    /// same security stamp. A session names them by the Module's claim type, a grant by <c>sub</c>. A lockout is no reason
+    /// to end it: it refuses new credential attempts only, so failed guesses by someone else never sign the person out of
+    /// their apps; ending sessions takes a stamp rotation or a session revocation.
     /// </summary>
-    private static async Task<IdentityUser?> FindPersonAsync(IServiceProvider services, ClaimsPrincipal principal, bool sessionClaims, TimeProvider time, CancellationToken cancellationToken)
+    private static async Task<IdentityUser?> FindPersonAsync(IServiceProvider services, ClaimsPrincipal principal, bool sessionClaims, CancellationToken cancellationToken)
     {
         var claims = services.GetRequiredService<IdentityCoreOptions>().Claims;
         var id = principal.FindFirst(sessionClaims ? claims.UserIdClaimType : Claims.Subject)?.Value;
@@ -217,12 +251,64 @@ public static class OidcServerEndpointRouteBuilderExtensions
             || await services.GetRequiredService<UserAccountService>().FindByIdAsync(userId, cancellationToken) is not { } user)
             return null;
 
-        if (user.LockoutEnd is { } lockoutEnd && lockoutEnd > time.GetUtcNow())
-            return null;
-
         var stamp = principal.FindFirst(claims.SecurityStampClaimType)?.Value;
         return stamp is null || string.Equals(stamp, user.SecurityStamp, StringComparison.Ordinal) ? user : null;
     }
+
+    /// <summary>
+    /// When the cookie's person signed in: the sign-in session's start, which no sliding reissue moves, or the cookie's
+    /// issue time on a host without sessions or for a cookie without <c>sid</c>. Not live when the session ended.
+    /// </summary>
+    private static async Task<(bool IsLive, DateTimeOffset? AuthenticatedAt)> AuthenticatedAtAsync(
+        IServiceProvider services, IdentityUser user, Guid? sessionId, AuthenticationProperties? cookie, CancellationToken cancellationToken)
+    {
+        if (sessionId is not { } sid || services.GetService<UserSessionService>() is not { } sessions)
+            return (true, cookie?.IssuedUtc);
+
+        return await sessions.FindLiveAsync(sid, user.Id, cancellationToken) is { } live ? (true, live.CreatedAt) : (false, null);
+    }
+
+    /// <summary>Whether the request is a <c>POST</c> a page of this origin sent: <c>Sec-Fetch-Site: same-origin</c>, or else an <c>Origin</c> equal to this one.</summary>
+    private static bool IsSameOriginPost(HttpContext http)
+    {
+        var request = http.Request;
+        if (!HttpMethods.IsPost(request.Method))
+            return false;
+        if (request.Headers["Sec-Fetch-Site"].ToString() is { Length: > 0 } site)
+            return string.Equals(site, "same-origin", StringComparison.OrdinalIgnoreCase);
+
+        var origin = request.Headers.Origin.ToString();
+        return origin.Length > 0 && string.Equals(origin, $"{request.Scheme}://{request.Host}", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasParameter(OpenIddictRequest request, string name) => request.GetParameter(name) is not null;
+
+    /// <summary>The instant a valid <see cref="FreshSignInParameter"/> names, or null when it is missing, forged or unreadable.</summary>
+    private static DateTimeOffset? ReadFreshSignIn(IDataProtector protector, OpenIddictRequest request)
+    {
+        if ((string?)request.GetParameter(FreshSignInParameter) is not { Length: > 0 } sealedValue)
+            return null;
+
+        try
+        {
+            return long.TryParse(protector.Unprotect(sealedValue), NumberStyles.None, CultureInfo.InvariantCulture, out var ticks)
+                ? new DateTimeOffset(ticks, TimeSpan.Zero)
+                : null;
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+    }
+
+    private static string SealFreshSignIn(DateTimeOffset at) => at.UtcTicks.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Whether the session signed in no earlier than the second the fresh sign-in was asked for; <c>auth_time</c> counts in
+    /// whole seconds, and a stored session start keeps microseconds only. A missing session or marker never passes.
+    /// </summary>
+    private static bool IsSignedInAfter(DateTimeOffset? signedInAt, DateTimeOffset? askedAt)
+        => signedInAt is { } at && askedAt is { } asked && at.ToUnixTimeSeconds() >= asked.ToUnixTimeSeconds();
 
     /// <summary>
     /// Whether the sign-in session a grant or token names is still live; a principal without <c>sid</c> (issued before
@@ -246,14 +332,19 @@ public static class OidcServerEndpointRouteBuilderExtensions
     private static Guid? SessionIdOf(ClaimsPrincipal principal, string claimType)
         => Guid.TryParse(principal.FindFirst(claimType)?.Value, out var sid) ? sid : null;
 
-    /// <summary>The sign-in page's URL, returning to this authorization request without the parameters that asked for a fresh sign-in.</summary>
-    private static async Task<string> SignInUrlAsync(HttpContext http, string signInPath)
+    /// <summary>
+    /// The sign-in page's URL, returning to this authorization request without the parameters that asked for a fresh sign-in;
+    /// <paramref name="freshSignIn"/>, when the request asked for one, rides back as <see cref="FreshSignInParameter"/>.
+    /// </summary>
+    private static async Task<string> SignInUrlAsync(HttpContext http, string signInPath, string? freshSignIn)
     {
         IEnumerable<KeyValuePair<string, StringValues>> parameters = http.Request.HasFormContentType
             ? await http.Request.ReadFormAsync(http.RequestAborted)
             : http.Request.Query;
-        var returnUrl = http.Request.PathBase + http.Request.Path
-            + QueryString.Create(parameters.Where(parameter => !FreshSignInParameters.Contains(parameter.Key)));
+        var kept = parameters.Where(parameter => !FreshSignInParameters.Contains(parameter.Key)).ToList();
+        if (freshSignIn is not null)
+            kept.Add(new KeyValuePair<string, StringValues>(FreshSignInParameter, freshSignIn));
+        var returnUrl = http.Request.PathBase + http.Request.Path + QueryString.Create(kept);
         return $"{signInPath}?returnUrl={Uri.EscapeDataString(returnUrl)}";
     }
 

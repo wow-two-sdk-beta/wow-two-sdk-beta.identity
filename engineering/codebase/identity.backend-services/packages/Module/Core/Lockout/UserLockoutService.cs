@@ -7,6 +7,10 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
 /// <see cref="LockoutOptions.MaxFailedAttempts"/> is reached, and lock or unlock explicitly. A user with lockout
 /// disabled is never counted or locked.
 /// </summary>
+/// <remarks>
+/// A lockout refuses new credential attempts only: the account's existing sessions, refresh tokens and app grants keep
+/// working through it, so failed guesses by someone else never sign the person out. Rotate the security stamp to end them.
+/// </remarks>
 /// <param name="repository">The core user store.</param>
 /// <param name="options">Identity options carrying the lockout rules.</param>
 /// <param name="timeProvider">The clock lockout windows are measured against.</param>
@@ -25,7 +29,11 @@ public sealed class UserLockoutService(
         return user.IsLockedOutAt(timeProvider.GetUtcNow());
     }
 
-    /// <summary>Count one failed attempt; the attempt that reaches the maximum starts a lockout window.</summary>
+    /// <summary>
+    /// Count one failed attempt; the attempt that reaches the maximum starts a lockout window. The count is a single
+    /// conditional write on the stored row, so concurrent wrong attempts each count, and a parallel save of the same
+    /// account never fails the request.
+    /// </summary>
     /// <param name="user">The user who failed to authenticate.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Whether this attempt locked the account.</returns>
@@ -35,20 +43,15 @@ public sealed class UserLockoutService(
         if (!user.IsLockoutEnabled)
             return false;
 
-        user.AccessFailedCount++;
-        var locked = user.AccessFailedCount >= options.Lockout.MaxFailedAttempts;
-        if (locked)
-        {
-            user.LockoutEnd = timeProvider.GetUtcNow() + options.Lockout.DefaultLockout;
-            user.AccessFailedCount = 0;
-            logger.UserLockedOut(user.Id.ToString(), user.LockoutEnd.Value);
-        }
+        var end = timeProvider.GetUtcNow() + options.Lockout.DefaultLockout;
+        var isLocked = await repository.CountFailedAttemptAsync(user, options.Lockout.MaxFailedAttempts, end, cancellationToken);
+        if (isLocked)
+            logger.UserLockedOut(user.Id.ToString(), end);
 
-        await repository.UpdateAsync(user, cancellationToken);
-        return locked;
+        return isLocked;
     }
 
-    /// <summary>Clear the failed-attempt count after a successful authentication.</summary>
+    /// <summary>Clear the failed-attempt count after a successful authentication, in place on the stored row.</summary>
     /// <param name="user">The user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task ResetFailedAttemptsAsync(IdentityUser user, CancellationToken cancellationToken = default)
@@ -57,8 +60,7 @@ public sealed class UserLockoutService(
         if (user.AccessFailedCount == 0)
             return;
 
-        user.AccessFailedCount = 0;
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.ResetFailedAttemptsAsync(user, cancellationToken);
     }
 
     /// <summary>Lock the account until <paramref name="end"/>, or unlock it with null. Existing sessions stay valid.</summary>

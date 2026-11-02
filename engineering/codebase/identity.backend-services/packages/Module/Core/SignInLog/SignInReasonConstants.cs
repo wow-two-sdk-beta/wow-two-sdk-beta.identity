@@ -9,6 +9,9 @@ public static class SignInReasonConstants
     /// <summary>The password did not match.</summary>
     public const string WrongPassword = "wrong_password";
 
+    /// <summary>The account has no password to match (it signs in by phone, passkey or another provider); no lockout is counted.</summary>
+    public const string NoPassword = "no_password";
+
     /// <summary>The second-factor code did not match.</summary>
     public const string WrongCode = "wrong_code";
 

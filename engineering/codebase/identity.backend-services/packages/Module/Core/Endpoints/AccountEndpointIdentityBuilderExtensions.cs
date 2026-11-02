@@ -11,8 +11,8 @@ public static class AccountEndpointIdentityBuilderExtensions
 {
     /// <summary>
     /// Register <see cref="UserAccountMailService"/> with <see cref="UserAccountEmailSettings"/> bound live from
-    /// the container's <c>UserAccounts:Emails</c> section, and <see cref="SignUpOptions"/>; map the API with
-    /// <c>MapUserAccountEndpoints</c>.
+    /// the container's <c>UserAccounts:Emails</c> section, <see cref="SignUpOptions"/>, and the credential routes' rate-limit
+    /// policy (<see cref="AccountRateLimitPolicyConstants.Credentials"/>); map the API with <c>MapUserAccountEndpoints</c>.
     /// </summary>
     /// <param name="builder">The identity builder.</param>
     /// <param name="signUp">Optional sign-up mode, by invitation only by default; the host section <c>Identity:SignUp</c> is applied last.</param>
@@ -36,6 +36,7 @@ public static class AccountEndpointIdentityBuilderExtensions
             signUp,
             options => options.Validate(o => Enum.IsDefined(o.Mode), "Identity:SignUp:Mode must be Invite or Open."));
         services.TryAddScoped<UserAccountMailService>();
+        services.AddAccountRateLimit();
         return builder;
     }
 }

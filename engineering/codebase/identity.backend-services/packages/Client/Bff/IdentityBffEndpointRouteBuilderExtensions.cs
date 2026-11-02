@@ -22,7 +22,8 @@ public static class IdentityBffEndpointRouteBuilderExtensions
     ///   - <c>GET /session</c>: <c>{ data: { isAuthenticated, person, organization, permissions, csrfToken, expiresAt } }</c>,
     ///     or <c>{ data: { isAuthenticated: false } }</c> without a session; never cached
     ///   - <c>GET /sign-in?returnUrl=</c>: 302 to the instance's authorize endpoint, back at <c>returnUrl</c> (local paths only,
-    ///     else <c>/</c>) once signed in
+    ///     else <c>/</c>) once signed in; a failed callback lands at <c>returnUrl</c> with <c>signInError=callback_failed</c>,
+    ///     and for a few seconds after it this route answers a <c>401</c> problem (<c>SignInFailed</c>) instead of redirecting
     ///   - <c>POST /sign-out</c>: with a session, needs <c>X-Csrf-Token</c>, ends it here and answers
     ///     <c>{ data: { endSessionUrl } }</c>, the instance's end-session URL the SPA sends the browser to
     /// The code callback (<c>/callback</c>) is the OpenID Connect handler's own. Map them behind <c>UseIdentityBff</c>.
@@ -50,10 +51,12 @@ public static class IdentityBffEndpointRouteBuilderExtensions
         return Results.Ok(ApiResponse<BffSessionDto>.Ok(BffSessionMapper.ToDto(session.Principal!, csrf.Create(reference.SessionId), expiresAt)));
     }
 
-    private static IResult SignIn(string? returnUrl)
-        => Results.Challenge(
-            new AuthenticationProperties { RedirectUri = BffReturnUrl.Normalize(returnUrl) },
-            [BffAuthenticationSchemeConstants.OpenIdConnect]);
+    private static IResult SignIn(string? returnUrl, HttpContext http, IOptions<IdentityBffOptions> options)
+        => BffSignInFailure.IsRecent(http, options.Value)
+            ? BffSignInFailure.Result()
+            : Results.Challenge(
+                new AuthenticationProperties { RedirectUri = BffReturnUrl.Normalize(returnUrl) },
+                [BffAuthenticationSchemeConstants.OpenIdConnect]);
 
     private static async Task<IResult> EndSessionAsync(
         HttpContext http,
