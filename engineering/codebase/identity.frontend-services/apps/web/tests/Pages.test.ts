@@ -128,6 +128,7 @@ function withOptions(overrides: Partial<SignInOptions>) {
     backgroundImageUrl: null,
     signUpMode: 'open',
     isPersistenceOffered: false,
+    isEmailEnabled: true,
     methods: [{ id: SignInMethodId.Password }],
     passwordRules: [],
   };
@@ -148,14 +149,38 @@ function declarationWith(passwordRules: unknown) {
 
 const authorize = '/connect/authorize?client_id=desk&response_type=code&state=s1';
 
+const consoleAdmin = () => Response.json({ data: { userId: 'u1', name: 'Lola Karimova', roles: ['admin'] } });
+
 describe('console route', () => {
-  it('shows the running versions and links the hosted pages', async () => {
-    stubApi();
+  it('shows the signed-in admin, the running versions and links the hosted pages', async () => {
+    stubApi({ 'GET /api/console/session': consoleAdmin });
     const { wrapper } = await renderAt('/');
 
     expect(wrapper.get('[aria-label="App version"]').text()).toBe('app test');
     expect(wrapper.get('[aria-label="API version"]').text()).toBe('api 0.1.4+abc1234');
+    expect(wrapper.get('[aria-label="Signed in"]').text()).toBe('Signed in as Lola Karimova · admin');
     expect(wrapper.findAll('a').map((link) => link.attributes('href'))).toContain('/sign-in');
+  });
+
+  it('sends a signed-out visitor to sign in, coming back to the console', async () => {
+    stubApi({ 'GET /api/console/session': unauthorized });
+    const { wrapper, router } = await renderAt('/');
+
+    // The sign-in page returns to the console by default.
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/sign-in'));
+    await flushPromises();
+    expect(wrapper.findAll('h1').map((heading) => heading.text())).toEqual(['Sign in']);
+  });
+
+  it('tells a person without an instance role and shows nothing else', async () => {
+    stubApi({
+      'GET /api/console/session': () =>
+        Response.json({ status: 403 }, { status: 403, headers: { 'Content-Type': 'application/problem+json' } }),
+    });
+    const { wrapper } = await renderAt('/');
+
+    expect(wrapper.text()).toContain('This account has no console access.');
+    expect(wrapper.find('[aria-labelledby="hosted-heading"]').exists()).toBe(false);
   });
 });
 
@@ -464,7 +489,7 @@ describe('hosted layout', () => {
   });
 
   it('serves the console without the card', async () => {
-    stubApi();
+    stubApi({ 'GET /api/console/session': consoleAdmin });
     const { wrapper } = await renderAt('/');
 
     expect(wrapper.find('.hosted-card').exists()).toBe(false);
@@ -510,6 +535,20 @@ describe('password pages', () => {
 
     expect(wrapper.text()).toContain('We sent you a link to change the password.');
     expect(wrapper.find('input[type="password"]').exists()).toBe(false);
+  });
+
+  it('offers no password change on a phone-only instance', async () => {
+    const [, phone] = instanceDeclaration.methods;
+    stubApi({
+      'GET /api/account/sign-in-options': () =>
+        Response.json({ data: { ...instanceDeclaration, isEmailEnabled: false, methods: [phone] } }),
+      'GET /api/account/manage/info': () => Response.json({ data: { userId: 'u1', userName: '+998901234567' } }),
+    });
+    const { wrapper } = await renderAt('/account/security');
+
+    expect(wrapper.text()).toContain('+998901234567');
+    expect(wrapper.find('[aria-labelledby="password-heading"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('there is no password to change');
   });
 
   it('confirms an email from its link', async () => {
@@ -777,20 +816,31 @@ describe('password rules from the declaration', () => {
     expect(received.filter((request) => request.method === 'POST')).toHaveLength(0);
   });
 
-  it('keeps only the required checks when the declaration lists no password method', async () => {
+  it('offers the phone method, not the email form, when an open declaration lists no password method', async () => {
     const [, phone] = instanceDeclaration.methods;
-    const received = stubApi({
+    stubApi({
       'GET /api/account/sign-in-options': () => Response.json({ data: { ...instanceDeclaration, methods: [phone] } }),
-      'POST /api/account/sign-up': () => Response.json({ data: { userId: 'u1' } }),
     });
     const { wrapper } = await renderAt('/sign-up');
 
-    await wrapper.get('input[name="email"]').setValue('ann@example.test');
-    await wrapper.get('input[name="password"]').setValue('x');
-    await wrapper.get('form').trigger('submit');
-    await flushPromises();
+    expect(wrapper.find('input[name="email"]').exists()).toBe(false);
+    expect(wrapper.find('input[name="password"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('+998');
+  });
 
-    expect(received.at(-1)?.body).toEqual({ email: 'ann@example.test', password: 'x' });
+  it('asks for no email on a phone-only instance: no forgot-password link and no email form', async () => {
+    const [password, phone] = instanceDeclaration.methods;
+    stubApi({
+      'GET /api/account/sign-in-options': () =>
+        Response.json({ data: { ...instanceDeclaration, isEmailEnabled: false, methods: [password, phone] } }),
+    });
+    const { wrapper, router } = await renderAt('/sign-in');
+
+    expect(wrapper.find('section[aria-label="Password"]').exists()).toBe(true);
+    expect(wrapper.findAll('a').map((link) => link.text())).not.toContain('Forgot your password?');
+    await router.push('/sign-up');
+    await flushPromises();
+    expect(wrapper.find('input[name="email"]').exists()).toBe(false);
   });
 
   it('keeps only the required checks while the declaration fails to load', async () => {

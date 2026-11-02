@@ -21,7 +21,8 @@ public sealed class IdentityBuilder
 
     /// <summary>
     /// Register the roles slice: <see cref="RoleService"/>, <see cref="UserRoleService"/> and their repositories over
-    /// <see cref="IdentityDbContext"/>. Principals then carry role claims.
+    /// <see cref="IdentityDbContext"/>, and <see cref="InstanceRoleService"/> for the instance role catalog. Principals then
+    /// carry role claims.
     /// </summary>
     public IdentityBuilder AddRoles()
     {
@@ -29,6 +30,7 @@ public sealed class IdentityBuilder
         Services.TryAddScoped<IUserRoleRepository, EfUserRoleRepository>();
         Services.TryAddScoped<RoleService>();
         Services.TryAddScoped<UserRoleService>();
+        Services.TryAddScoped<InstanceRoleService>();
         Services.TryAddEnumerable(ServiceDescriptor.Scoped<IPersonalDataExporter, RolePersonalDataExporter>());
         return this;
     }

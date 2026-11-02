@@ -12,6 +12,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SecurityStamps;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
@@ -33,6 +34,9 @@ public static partial class HostConfiguration
 
     /// <summary>The organization management API's mount point: members and invitations, for each organization's owners and admins.</summary>
     internal const string OrganizationsPath = "/api/organizations";
+
+    /// <summary>The console's authorization policy: a signed-in person holding an instance role.</summary>
+    internal const string ConsolePolicy = "identity-console";
 
     /// <summary>The service's root settings section: <c>config check</c> refuses every key under it that no settings record binds.</summary>
     internal const string RootSection = "Identity";
@@ -61,6 +65,9 @@ public static partial class HostConfiguration
     ///     answers it for every app
     ///   - who signs up comes from <c>Identity:SignUp:Mode</c> (<c>Invite</c> by default); invitation links last
     ///     <c>Identity:Invitations:Lifetime</c> and lead to the hosted sign-up page
+    ///   - password sign-in and email come from <c>Identity:Methods:Password</c> and <c>Identity:Methods:Email</c>, both on by
+    ///     default; a phone-only instance turns both off
+    ///   - the instance roles (<c>admin</c>, <c>support</c>, <c>auditor</c>) gate the console and never enter an app's tokens
     /// </remarks>
     private static WebApplicationBuilder AddIdentityModule(this WebApplicationBuilder builder)
     {
@@ -79,6 +86,7 @@ public static partial class HostConfiguration
             .AddSignInLog()
             .AddOrganizations()
             .AddInvitations()
+            .AddRoles()
             .AddAccountEndpoints()
             .AddSignInDeclaration()
             .AddOidcServer()
@@ -157,7 +165,8 @@ public static partial class HostConfiguration
     /// <summary>
     /// The sign-in session the authorization endpoint reads: the account API's cookie, ending with the session row
     /// (<c>Identity:Sessions</c>; reissued as a sliding session moves) and answering a raw 401 to API callers, sealed by the
-    /// database ring <c>AddDataProtectionRing</c> registers.
+    /// database ring <c>AddDataProtectionRing</c> registers; and the console's gate, <see cref="ConsolePolicy"/>: any instance
+    /// role (<c>admin</c>, <c>support</c>, <c>auditor</c>), which the cookie carries as role claims from the sign-in on.
     /// </summary>
     private static WebApplicationBuilder AddSignInSession(this WebApplicationBuilder builder)
     {
@@ -168,7 +177,8 @@ public static partial class HostConfiguration
             options.IsExpirationSliding = false;
             options.Mode = AuthChallengeMode.Api;
         });
-        builder.Services.AddAuthorization();
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy(ConsolePolicy, policy => policy.RequireAuthenticatedUser().RequireRole(InstanceRoleConstants.All));
         return builder;
     }
 

@@ -23,4 +23,7 @@ public sealed record FirstOwnerRequest
 
     /// <summary>Gets the owner's id to keep, such as a product's existing key; null assigns a uuid v7.</summary>
     public Guid? UserId { get; init; }
+
+    /// <summary>Gets the instance role the owner also holds, such as <c>admin</c> for the console; null gives none.</summary>
+    public string? InstanceRole { get; init; }
 }

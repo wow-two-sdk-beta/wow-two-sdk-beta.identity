@@ -25,7 +25,7 @@ public sealed class IdentityInvitation
     /// <summary>The email, lower case, that alone may redeem it; null when it does not name one.</summary>
     public string? Email { get; set; }
 
-    /// <summary>The owner or admin who made it.</summary>
+    /// <summary>The owner or admin who made it; <see cref="Guid.Empty"/> for one the host CLI made (<c>admin invite</c>).</summary>
     public Guid CreatedByUserId { get; set; }
 
     /// <summary>When it was made (UTC).</summary>

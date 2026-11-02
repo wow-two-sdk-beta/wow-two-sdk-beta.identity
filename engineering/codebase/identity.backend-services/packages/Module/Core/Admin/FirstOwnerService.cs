@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Foundation.Naming;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Admin;
 
@@ -21,18 +22,22 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Admin;
 ///   - a new person holds the given phone and email confirmed and no password: they sign in by phone, or set a password
 ///     through the reset link, which proves the email first
 ///   - a new person's user name is the email, else the phone, else a generated one when that is taken
+///   - a requested instance role (<c>--role admin</c>) is given to the owner, created or present, seeding its row; giving it
+///     to a present owner answers <see cref="FirstOwnerStatus.Created"/>, holding it already <see cref="FirstOwnerStatus.Present"/>
 /// </remarks>
 /// <param name="accounts">Creates and finds people.</param>
 /// <param name="users">Finds the person holding a confirmed phone.</param>
 /// <param name="organizations">Creates and finds organizations and reads roles.</param>
 /// <param name="options">The owner role.</param>
 /// <param name="phones">The allowed countries; null when the phone slice is not registered, which allows every known country.</param>
+/// <param name="instanceRoles">The instance roles; null when the roles slice is not registered, which refuses a requested role.</param>
 public sealed class FirstOwnerService(
     UserAccountService accounts,
     IUserRepository users,
     OrganizationService organizations,
     IOptionsMonitor<OrganizationOptions> options,
-    PhoneNumberPolicy? phones = null)
+    PhoneNumberPolicy? phones = null,
+    InstanceRoleService? instanceRoles = null)
 {
     /// <summary>Creates the organization and its owner, or reports that both exist; see <see cref="FirstOwnerService"/>.</summary>
     /// <param name="request">The organization and the owner.</param>
@@ -65,7 +70,7 @@ public sealed class FirstOwnerService(
 
             var role = await organizations.GetRoleAsync(organization, person, cancellationToken);
             return string.Equals(role, options.CurrentValue.OwnerRole, StringComparison.OrdinalIgnoreCase)
-                ? new FirstOwnerResult { Status = FirstOwnerStatus.Present, OrganizationId = organization.Id, UserId = person.Id }
+                ? await GrantAsync(new FirstOwnerResult { Status = FirstOwnerStatus.Present, OrganizationId = organization.Id, UserId = person.Id }, person, request, cancellationToken)
                 : FirstOwnerResult.Refused($"Person {person.Id} is not an owner of '{slug}'; members are managed in the console.", organization.Id, person.Id);
         }
 
@@ -85,7 +90,7 @@ public sealed class FirstOwnerService(
         if (!made.IsSuccess)
             return FirstOwnerResult.Refused(made.Errors[0].Description, userId: person.Id) with { IsOwnerCreated = isOwnerCreated };
 
-        return new FirstOwnerResult
+        var result = new FirstOwnerResult
         {
             Status = FirstOwnerStatus.Created,
             OrganizationId = newOrganization.Id,
@@ -93,6 +98,22 @@ public sealed class FirstOwnerService(
             IsOrganizationCreated = true,
             IsOwnerCreated = isOwnerCreated,
         };
+        return await GrantAsync(result, person, request, cancellationToken);
+    }
+
+    /// <summary>Gives the owner the requested instance role, keeping <paramref name="result"/>; a refused grant refuses the run, the organization and owner kept.</summary>
+    private async Task<FirstOwnerResult> GrantAsync(FirstOwnerResult result, IdentityUser person, FirstOwnerRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.InstanceRole))
+            return result;
+
+        var grant = await instanceRoles!.GrantAsync(person, request.InstanceRole, cancellationToken);
+        if (!grant.IsSuccess)
+            return result with { Status = FirstOwnerStatus.Refused, Error = grant.Result.Errors[0].Description };
+
+        // A role given to a present owner is still a change, reported as one.
+        var status = grant.IsGranted && result.Status == FirstOwnerStatus.Present ? FirstOwnerStatus.Created : result.Status;
+        return result with { Status = status, InstanceRole = grant.Role, IsInstanceRoleGranted = grant.IsGranted };
     }
 
     /// <summary>The first problem of the request on its own, or null; the phone in E.164 and the trimmed email.</summary>
@@ -108,6 +129,10 @@ public sealed class FirstOwnerService(
             return $"The owner needs a display name of 1–{IdentityDbContext.DisplayNameMaxLength} characters.";
         if (email is null && string.IsNullOrWhiteSpace(request.PhoneNumber))
             return "The owner needs a phone, an email or both.";
+        if (!string.IsNullOrWhiteSpace(request.InstanceRole) && InstanceRoleConstants.Find(request.InstanceRole) is null)
+            return $"'{request.InstanceRole}' is not an instance role; use {string.Join(", ", InstanceRoleConstants.All)}.";
+        if (!string.IsNullOrWhiteSpace(request.InstanceRole) && instanceRoles is null)
+            return "An instance role needs the roles slice: call AddRoles().";
         if (email is not null && (!MailAddress.TryCreate(email, out var address) || address.Address != email))
             return $"'{email}' is not an email address.";
         if (!string.IsNullOrWhiteSpace(request.PhoneNumber))

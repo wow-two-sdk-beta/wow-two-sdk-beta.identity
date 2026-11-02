@@ -42,7 +42,7 @@ public sealed class InvitationService(
     /// <param name="phoneNumber">The phone number that alone may redeem it, as typed; null for none.</param>
     /// <param name="email">The email that alone may redeem it; null for none.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<InvitationCreateResult> CreateAsync(
+    public Task<InvitationCreateResult> CreateAsync(
         IdentityOrganization organization,
         IdentityUser creator,
         string? role,
@@ -50,8 +50,29 @@ public sealed class InvitationService(
         string? email,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(organization);
         ArgumentNullException.ThrowIfNull(creator);
+        return CreateAsync(organization, creator.Id, role, phoneNumber, email, cancellationToken);
+    }
+
+    /// <summary>
+    /// Make an invitation into <paramref name="organization"/> with <paramref name="role"/> on behalf of
+    /// <paramref name="creatorId"/>, such as <see cref="Guid.Empty"/> for the host CLI (<c>admin invite</c>).
+    /// </summary>
+    /// <param name="organization">The organization.</param>
+    /// <param name="creatorId">Who makes it; the caller checks that they may.</param>
+    /// <param name="role">The role the person joins with, one of the organization roles.</param>
+    /// <param name="phoneNumber">The phone number that alone may redeem it, as typed; null for none.</param>
+    /// <param name="email">The email that alone may redeem it; null for none.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<InvitationCreateResult> CreateAsync(
+        IdentityOrganization organization,
+        Guid creatorId,
+        string? role,
+        string? phoneNumber,
+        string? email,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(organization);
         if (organizations.FindRole(role) is not { } resolved)
             return Refused(IdentityUserExtensions.Failure(IdentityErrorCodeConstants.UnknownOrganizationRole, $"Role '{role}' is not configured for organizations.", IdentityUserExtensions.Param("Role", role)));
 
@@ -73,7 +94,7 @@ public sealed class InvitationService(
             TokenHash = HashOf(token),
             PhoneNumber = phone,
             Email = address,
-            CreatedByUserId = creator.Id,
+            CreatedByUserId = creatorId,
             CreatedAt = now,
             ExpiresAt = now + options.CurrentValue.Lifetime,
         };

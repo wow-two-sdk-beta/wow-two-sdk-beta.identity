@@ -38,12 +38,20 @@ public sealed record AdminCreateResult
     [JsonPropertyOrder(6)]
     public bool IsOwnerCreated { get; init; }
 
-    /// <summary>Gets why the run was refused or failed; absent otherwise.</summary>
+    /// <summary>Gets the instance role the owner holds by this run's <c>--role</c>; absent when none was asked.</summary>
     [JsonPropertyOrder(7)]
+    public string? InstanceRole { get; init; }
+
+    /// <summary>Gets whether this run gave the owner <see cref="InstanceRole"/>.</summary>
+    [JsonPropertyOrder(8)]
+    public bool IsInstanceRoleGranted { get; init; }
+
+    /// <summary>Gets why the run was refused or failed; absent otherwise.</summary>
+    [JsonPropertyOrder(9)]
     public string? Error { get; init; }
 
     /// <summary>Gets the run's wall time in milliseconds.</summary>
-    [JsonPropertyOrder(8)]
+    [JsonPropertyOrder(10)]
     public long DurationMs { get; init; }
 
     /// <summary>Renders the result as compact camelCase JSON; absent fields are left out.</summary>
@@ -72,7 +80,8 @@ public sealed record AdminCreateResult
     }
 }
 
-/// <summary>The source-generated JSON of <see cref="AdminCreateResult"/>.</summary>
+/// <summary>The source-generated JSON of <see cref="AdminCreateResult"/> and <see cref="AdminInviteResult"/>.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AdminCreateResult))]
+[JsonSerializable(typeof(AdminInviteResult))]
 internal sealed partial class AdminJsonContext : JsonSerializerContext;

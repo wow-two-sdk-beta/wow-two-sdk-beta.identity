@@ -5,16 +5,22 @@ using Microsoft.Extensions.DependencyInjection;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Admin;
 
 /// <summary>
-/// Answers <c>app admin create</c> from a host's own services: creates the instance's first organization and its owner
-/// (<see cref="FirstOwnerService"/>), non-interactive and idempotent. It never takes a password: the owner signs in by phone,
-/// or sets one through the reset link.
+/// Answers <c>app admin create</c> and <c>app admin invite</c> from a host's own services, non-interactive: <c>create</c>
+/// makes the instance's first organization and its owner (<see cref="FirstOwnerService"/>), idempotent, optionally giving
+/// the owner an instance role; <c>invite</c> makes one invitation into an organization (<see cref="AdminInvitationService"/>).
+/// Neither takes a password: people sign in by phone, or set one through the reset link.
 /// </summary>
 /// <remarks>
 ///   - <c>admin create --slug ocharo --name Ocharo [--organization-id &lt;uuid&gt;] --display-name "Lola Karimova"
-///     [--phone +998901234567] [--email owner@example.com] [--user-id &lt;uuid&gt;]</c>; the owner needs a phone, an email or both
-///   - exits <c>0</c> created or present · <c>1</c> refused (the handle, an id, the email or the phone belongs to someone
-///     else) · <c>2</c> failed (a usage error, an invalid value or an unreachable database); the last stdout line is one
-///     <c>admin-result {json}</c> line, the human report goes to stderr
+///     [--phone +998901234567] [--email owner@example.com] [--user-id &lt;uuid&gt;] [--role admin]</c>; the owner needs a
+///     phone, an email or both; <c>--role</c> takes an instance role, such as <c>admin</c> for the console
+///   - create exits <c>0</c> created or present · <c>1</c> refused (the handle, an id, the email or the phone belongs to
+///     someone else) · <c>2</c> failed (a usage error, an invalid value or an unreachable database)
+///   - <c>admin invite --organization &lt;handle or uuid&gt; --role owner [--phone +998901234567]</c>; each run makes a new
+///     invitation, whose link the result line carries
+///   - invite exits <c>0</c> created · <c>1</c> refused (no such organization) · <c>2</c> failed (a usage error, a role
+///     outside the catalog, an invalid phone or an unreachable database)
+///   - the last stdout line is one <c>admin-result {json}</c> line, the human report goes to stderr
 ///   - starts no listener and no hosted service; the schema must be current (<c>migrate</c> first)
 ///   - the service host dispatches it as a host verb: <c>verbs.AddHostVerb(AdminCommand.Name, …)</c>
 /// </remarks>
@@ -23,18 +29,24 @@ public static class AdminCommand
     /// <summary>Holds the command's name: the first argument that selects it.</summary>
     public const string Name = "admin";
 
-    /// <summary>Holds the one verb: <c>create</c>.</summary>
+    /// <summary>Holds the verb that makes the first organization and its owner: <c>create</c>.</summary>
     public const string CreateVerb = "create";
 
-    /// <summary>Holds the usage line printed for any other arguments.</summary>
-    public const string Usage = "usage: admin create --slug <handle> --name <organization name> [--organization-id <uuid>] "
-        + "--display-name <owner's name> [--phone <E.164>] [--email <address>] [--user-id <uuid>]";
+    /// <summary>Holds the verb that makes an invitation: <c>invite</c>.</summary>
+    public const string InviteVerb = "invite";
 
-    private static readonly string[] Options = ["--slug", "--name", "--organization-id", "--display-name", "--phone", "--email", "--user-id"];
+    /// <summary>Holds the usage lines printed for any other arguments.</summary>
+    public const string Usage = "usage: admin create --slug <handle> --name <organization name> [--organization-id <uuid>] "
+        + "--display-name <owner's name> [--phone <E.164>] [--email <address>] [--user-id <uuid>] [--role <instance role>]"
+        + "\n       admin invite --organization <handle or uuid> --role <organization role> [--phone <E.164>]";
+
+    private static readonly string[] CreateOptions = ["--slug", "--name", "--organization-id", "--display-name", "--phone", "--email", "--user-id", "--role"];
+
+    private static readonly string[] InviteOptions = ["--organization", "--role", "--phone"];
 
     /// <summary>Runs one invocation over a built host's services, writing the human report to <paramref name="error"/> and the result line last to <paramref name="output"/>.</summary>
     /// <param name="services">The built host's root provider; never started, never disposed.</param>
-    /// <param name="arguments">The arguments after <c>admin</c>: <c>create</c> and its options.</param>
+    /// <param name="arguments">The arguments after <c>admin</c>: <c>create</c> or <c>invite</c> and its options.</param>
     /// <param name="output">Standard output: the result line only.</param>
     /// <param name="error">Standard error: the human report.</param>
     /// <param name="ct">Token to cancel the operation.</param>
@@ -47,32 +59,25 @@ public static class AdminCommand
         ArgumentNullException.ThrowIfNull(error);
 
         var clock = Stopwatch.StartNew();
-        AdminCreateResult result;
-        if (Parse(arguments, out var request) is { } usage)
+        string line;
+        int exit;
+        if (arguments is [InviteVerb, ..])
         {
-            result = Failed(usage + Environment.NewLine + Usage);
+            var result = await InviteAsync(services, arguments, ct) with { DurationMs = clock.ElapsedMilliseconds };
+            WriteHuman(result, error);
+            (line, exit) = (result.ToResultLine(), result.Exit);
         }
         else
         {
-            try
-            {
-                await using var scope = services.CreateAsyncScope();
-                var owner = scope.ServiceProvider.GetService<FirstOwnerService>()
-                    ?? throw new InvalidOperationException("admin create needs the organizations slice: call AddOrganizations().");
-                result = Map(await owner.CreateAsync(request!, ct));
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException || !ct.IsCancellationRequested)
-            {
-                result = Failed($"{exception.GetType().Name}: {exception.Message}");
-            }
+            var result = await CreateAsync(services, arguments, ct) with { DurationMs = clock.ElapsedMilliseconds };
+            WriteHuman(result, error);
+            (line, exit) = (result.ToResultLine(), result.Exit);
         }
 
-        result = result with { DurationMs = clock.ElapsedMilliseconds };
-        WriteHuman(result, error);
-        await output.WriteLineAsync(result.ToResultLine()).ConfigureAwait(false);
+        await output.WriteLineAsync(line).ConfigureAwait(false);
         await output.FlushAsync(ct).ConfigureAwait(false);
         await error.FlushAsync(ct).ConfigureAwait(false);
-        return result.Exit;
+        return exit;
     }
 
     /// <summary>Reads <c>create</c> and its options into a request; the problem when the arguments make none.</summary>
@@ -81,28 +86,8 @@ public static class AdminCommand
         request = null;
         if (arguments.Count == 0 || !string.Equals(arguments[0], CreateVerb, StringComparison.Ordinal))
             return arguments.Count == 0 ? "missing verb" : $"unknown verb '{arguments[0]}'";
-
-        var rest = arguments.Skip(1).ToList();
-        var values = new Dictionary<string, string>(StringComparer.Ordinal);
-        for (var i = 0; i < rest.Count; i++)
-        {
-            var argument = rest[i];
-            var split = argument.IndexOf('=', StringComparison.Ordinal);
-            var option = split > 0 ? argument[..split] : argument;
-            if (!Options.Contains(option, StringComparer.Ordinal))
-                return $"unknown option '{option}'";
-
-            string value;
-            if (split > 0)
-                value = argument[(split + 1)..];
-            else if (i + 1 < rest.Count && !rest[i + 1].StartsWith("--", StringComparison.Ordinal))
-                value = rest[++i];
-            else
-                return $"{option} needs a value";
-
-            if (!values.TryAdd(option, value))
-                return $"{option} is given twice";
-        }
+        if (ReadOptions(arguments, CreateOptions, out var values) is { } problem)
+            return problem;
 
         foreach (var required in new[] { "--slug", "--name", "--display-name" })
         {
@@ -122,7 +107,60 @@ public static class AdminCommand
             PhoneNumber = values.GetValueOrDefault("--phone"),
             Email = values.GetValueOrDefault("--email"),
             UserId = userId,
+            InstanceRole = values.GetValueOrDefault("--role"),
         };
+        return null;
+    }
+
+    /// <summary>Reads <c>invite</c> and its options into a request; the problem when the arguments make none.</summary>
+    internal static string? ParseInvite(IReadOnlyList<string> arguments, out AdminInvitationRequest? request)
+    {
+        request = null;
+        if (arguments.Count == 0 || !string.Equals(arguments[0], InviteVerb, StringComparison.Ordinal))
+            return arguments.Count == 0 ? "missing verb" : $"unknown verb '{arguments[0]}'";
+        if (ReadOptions(arguments, InviteOptions, out var values) is { } problem)
+            return problem;
+
+        foreach (var required in new[] { "--organization", "--role" })
+        {
+            if (!values.ContainsKey(required))
+                return $"{required} is required";
+        }
+
+        request = new AdminInvitationRequest
+        {
+            Organization = values["--organization"],
+            Role = values["--role"],
+            PhoneNumber = values.GetValueOrDefault("--phone"),
+        };
+        return null;
+    }
+
+    /// <summary>Reads the options after the verb, in <c>--name value</c> or <c>--name=value</c> form; the problem when one is unknown, bare or repeated.</summary>
+    private static string? ReadOptions(IReadOnlyList<string> arguments, string[] options, out Dictionary<string, string> values)
+    {
+        var rest = arguments.Skip(1).ToList();
+        values = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var i = 0; i < rest.Count; i++)
+        {
+            var argument = rest[i];
+            var split = argument.IndexOf('=', StringComparison.Ordinal);
+            var option = split > 0 ? argument[..split] : argument;
+            if (!options.Contains(option, StringComparer.Ordinal))
+                return $"unknown option '{option}'";
+
+            string value;
+            if (split > 0)
+                value = argument[(split + 1)..];
+            else if (i + 1 < rest.Count && !rest[i + 1].StartsWith("--", StringComparison.Ordinal))
+                value = rest[++i];
+            else
+                return $"{option} needs a value";
+
+            if (!values.TryAdd(option, value))
+                return $"{option} is given twice";
+        }
+
         return null;
     }
 
@@ -136,6 +174,42 @@ public static class AdminCommand
 
         id = parsed;
         return true;
+    }
+
+    private static async Task<AdminCreateResult> CreateAsync(IServiceProvider services, IReadOnlyList<string> arguments, CancellationToken ct)
+    {
+        if (Parse(arguments, out var request) is { } usage)
+            return new AdminCreateResult { Exit = 2, Status = "failed", Error = usage + Environment.NewLine + Usage };
+
+        try
+        {
+            await using var scope = services.CreateAsyncScope();
+            var owner = scope.ServiceProvider.GetService<FirstOwnerService>()
+                ?? throw new InvalidOperationException("admin create needs the organizations slice: call AddOrganizations().");
+            return Map(await owner.CreateAsync(request!, ct));
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            return new AdminCreateResult { Exit = 2, Status = "failed", Error = $"{exception.GetType().Name}: {exception.Message}" };
+        }
+    }
+
+    private static async Task<AdminInviteResult> InviteAsync(IServiceProvider services, IReadOnlyList<string> arguments, CancellationToken ct)
+    {
+        if (ParseInvite(arguments, out var request) is { } usage)
+            return new AdminInviteResult { Exit = 2, Status = "failed", Error = usage + Environment.NewLine + Usage };
+
+        try
+        {
+            await using var scope = services.CreateAsyncScope();
+            var invitations = scope.ServiceProvider.GetService<AdminInvitationService>()
+                ?? throw new InvalidOperationException("admin invite needs the invitations slice: call AddInvitations().");
+            return Map(await invitations.CreateAsync(request!, ct));
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            return new AdminInviteResult { Exit = 2, Status = "failed", Error = $"{exception.GetType().Name}: {exception.Message}" };
+        }
     }
 
     private static AdminCreateResult Map(FirstOwnerResult owner) => new()
@@ -157,10 +231,33 @@ public static class AdminCommand
         UserId = owner.UserId,
         IsOrganizationCreated = owner.IsOrganizationCreated,
         IsOwnerCreated = owner.IsOwnerCreated,
+        InstanceRole = owner.InstanceRole,
+        IsInstanceRoleGranted = owner.IsInstanceRoleGranted,
         Error = owner.Error,
     };
 
-    private static AdminCreateResult Failed(string message) => new() { Exit = 2, Status = "failed", Error = message };
+    private static AdminInviteResult Map(AdminInvitationResult invitation) => new()
+    {
+        Exit = invitation.Status switch
+        {
+            AdminInvitationStatus.Created => 0,
+            AdminInvitationStatus.Refused => 1,
+            _ => 2,
+        },
+        Status = invitation.Status switch
+        {
+            AdminInvitationStatus.Created => "created",
+            AdminInvitationStatus.Refused => "refused",
+            _ => "failed",
+        },
+        OrganizationId = invitation.OrganizationId,
+        InvitationId = invitation.InvitationId,
+        Role = invitation.Role,
+        Link = invitation.Link,
+        Token = invitation.Link is null ? invitation.Token : null,
+        ExpiresAt = invitation.ExpiresAt,
+        Error = invitation.Error,
+    };
 
     private static void WriteHuman(AdminCreateResult result, TextWriter error)
     {
@@ -170,6 +267,18 @@ public static class AdminCommand
             error.WriteLine($"  organization {organizationId}: {(result.IsOrganizationCreated ? "created" : "present")}");
         if (result.UserId is { } userId)
             error.WriteLine($"  owner        {userId}: {(result.IsOwnerCreated ? "created" : "present")}");
+        if (result.InstanceRole is { } role)
+            error.WriteLine($"  role         {role}: {(result.IsInstanceRoleGranted ? "granted" : "held")}");
+        if (result.Error is { } message)
+            error.WriteLine($"  {message}");
+    }
+
+    private static void WriteHuman(AdminInviteResult result, TextWriter error)
+    {
+        var mark = result.Exit == 0 ? "✓" : "✗";
+        error.WriteLine($"{mark} admin invite: {result.Status} (exit {result.Exit.ToString(CultureInfo.InvariantCulture)})");
+        if (result.InvitationId is { } invitationId)
+            error.WriteLine($"  invitation   {invitationId}: {result.Role}, until {result.ExpiresAt:u}");
         if (result.Error is { } message)
             error.WriteLine($"  {message}");
     }

@@ -18,6 +18,12 @@ public sealed record FirstOwnerResult
     /// <summary>Gets whether this run created the owner.</summary>
     public bool IsOwnerCreated { get; init; }
 
+    /// <summary>Gets the instance role the owner holds by this run's request, in the catalog's spelling; null when none was asked.</summary>
+    public string? InstanceRole { get; init; }
+
+    /// <summary>Gets whether this run gave the owner <see cref="InstanceRole"/>; false when they held it already.</summary>
+    public bool IsInstanceRoleGranted { get; init; }
+
     /// <summary>Gets why a run was refused or invalid; null otherwise.</summary>
     public string? Error { get; init; }
 

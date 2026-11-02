@@ -5,6 +5,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Admin;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 using WoW.Two.Sdk.Beta.Be.Identity.Tests.Accounts;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.Admin;
@@ -187,9 +188,49 @@ public sealed class FirstOwnerTests
         await accounts.UpdateAsync(user);
     }
 
-    private static AccountsHost CreateHost() => AccountsHost.Create(identity => identity
-        .AddOrganizations()
-        .AddPhoneNumbers(phones => phones.AllowedCountries = ["UZ"]));
+    [Fact]
+    public async Task Create_ShouldGiveTheOwnerTheInstanceRole_SeedingIt_AndAnswerPresentOnceHeld()
+    {
+        await using var host = CreateHost(withRoles: true);
+
+        var created = await CreateAsync(host, Request with { InstanceRole = "Admin" });
+
+        created.Should().BeEquivalentTo(new { Status = FirstOwnerStatus.Created, InstanceRole = "admin", IsInstanceRoleGranted = true }, options => options.ExcludingMissingMembers());
+        (await RolesOfAsync(host)).Should().Equal("admin");
+
+        var rerun = await CreateAsync(host, Request with { InstanceRole = "admin" });
+        rerun.Should().BeEquivalentTo(new { Status = FirstOwnerStatus.Present, InstanceRole = "admin", IsInstanceRoleGranted = false }, options => options.ExcludingMissingMembers());
+
+        var support = await CreateAsync(host, Request with { InstanceRole = "support" });
+        support.Should().BeEquivalentTo(new { Status = FirstOwnerStatus.Created, IsOrganizationCreated = false, IsOwnerCreated = false, IsInstanceRoleGranted = true }, options => options.ExcludingMissingMembers());
+        (await RolesOfAsync(host)).Should().Equal("admin", "support");
+    }
+
+    [Fact]
+    public async Task Create_ShouldRefuseARoleOutsideTheCatalog_OrWithoutTheRolesSlice_BeforeAnyWrite()
+    {
+        await using var withRoles = CreateHost(withRoles: true);
+        (await CreateAsync(withRoles, Request with { InstanceRole = "owner" })).Should().BeEquivalentTo(new { Status = FirstOwnerStatus.Invalid }, options => options.ExcludingMissingMembers());
+
+        await using var withoutRoles = CreateHost();
+        (await CreateAsync(withoutRoles, Request with { InstanceRole = "admin" })).Error.Should().Contain("AddRoles");
+        await using var scope = withoutRoles.Scope();
+        (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(UserId)).Should().BeNull("an invalid request writes nothing");
+    }
+
+    private static async Task<IReadOnlyList<string>> RolesOfAsync(AccountsHost host)
+    {
+        await using var scope = host.Scope();
+        var owner = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(UserId))!;
+        return await scope.ServiceProvider.GetRequiredService<InstanceRoleService>().GetAsync(owner);
+    }
+
+    private static AccountsHost CreateHost(bool withRoles = false) => AccountsHost.Create(identity =>
+    {
+        identity.AddOrganizations().AddPhoneNumbers(phones => phones.AllowedCountries = ["UZ"]);
+        if (withRoles)
+            identity.AddRoles();
+    });
 
     private static async Task<FirstOwnerResult> CreateAsync(AccountsHost host, FirstOwnerRequest request)
     {

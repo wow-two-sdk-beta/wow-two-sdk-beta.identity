@@ -1,4 +1,4 @@
-import { createAppRouter, lazyPage, lazyRoute, RouterHistoryMode, type RouteConfig } from '@wow-two-beta/fe/router';
+import { createAppRouter, lazyPage, RouterHistoryMode, type RouteConfig } from '@wow-two-beta/fe/router';
 import { HostedPageRouteConstants } from '@wow-two-beta/fe-identity/contracts';
 import {
   hostedHref,
@@ -21,7 +21,12 @@ export const routes: RouteConfig = [
     path: '/',
     id: 'console',
     handle: { title: 'Console' },
-    lazy: lazyRoute(() => import('../../presentation/console/pages/ConsolePage.vue')),
+    lazy: lazyPage(
+      () => import('../../presentation/console/pages/ConsolePage.vue'),
+      (route, router) => ({
+        onSignInRequired: () => void router.replace(hostedHref(pages.signIn, route.fullPath)),
+      }),
+    ),
   },
   {
     id: 'hosted',
