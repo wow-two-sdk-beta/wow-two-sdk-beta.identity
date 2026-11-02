@@ -9,6 +9,9 @@ public sealed record BffPersonDto
     /// <summary>Gets the display name (<c>name</c>), or null without the <c>profile</c> scope.</summary>
     public required string? Name { get; init; }
 
+    /// <summary>Gets the link to the person's picture (<c>picture</c>), or null for a person without one or without the <c>profile</c> scope.</summary>
+    public string? Picture { get; init; }
+
     /// <summary>Gets the email address, or null for a person without one or without the <c>email</c> scope.</summary>
     public required string? Email { get; init; }
 

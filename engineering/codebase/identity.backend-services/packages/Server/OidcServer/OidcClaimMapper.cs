@@ -1,18 +1,20 @@
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.ProfilePictures;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 
 /// <summary>
 /// The one place that turns a person into token claims and sends each claim to its tokens: <c>sub</c>, <c>sid</c>,
-/// <c>name</c>, <c>email</c>, <c>email_verified</c>, <c>phone_number</c>, <c>phone_number_verified</c>, <c>amr</c>,
+/// <c>name</c>, <c>picture</c> (under <c>profile</c>, a versioned link to the person's kept picture), <c>email</c>, <c>email_verified</c>, <c>phone_number</c>, <c>phone_number_verified</c>, <c>amr</c>,
 /// <c>auth_time</c>, and <c>org_id</c>, <c>org_role</c>, <c>org_permission</c> for one active organization.
 /// </summary>
 /// <remarks>
@@ -28,12 +30,18 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 /// </remarks>
 /// <param name="core">Identity options carrying the stamp claim type.</param>
 /// <param name="organizations">The organizations slice; null emits no organization claims.</param>
-internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationService? organizations = null)
+/// <param name="pictures">The profile picture store; null emits no <c>picture</c> claim.</param>
+/// <param name="pictureOptions">The picture link template; without one no <c>picture</c> claim is issued.</param>
+internal sealed class OidcClaimMapper(
+    IdentityCoreOptions core,
+    OrganizationService? organizations = null,
+    IProfilePictureStore? pictures = null,
+    IOptionsMonitor<ProfilePictureOptions>? pictureOptions = null)
 {
     /// <summary>The claim types this mapper owns; a refresh replaces every one of them.</summary>
     private static readonly string[] PersonClaimTypes =
     [
-        Claims.Subject, Claims.Name, Claims.Email, Claims.EmailVerified, Claims.PhoneNumber, Claims.PhoneNumberVerified,
+        Claims.Subject, Claims.Name, Claims.Picture, Claims.Email, Claims.EmailVerified, Claims.PhoneNumber, Claims.PhoneNumberVerified,
         OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Role, OrganizationClaimTypeConstants.Permission,
     ];
 
@@ -86,6 +94,11 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
         SetArrayClaim(identity, Claims.AuthenticationMethodReference, ReadValues(identity, Claims.AuthenticationMethodReference));
         if (organizations is not null)
             SetOrganizationClaims(identity, await organizations.ListForUserAsync(user, cancellationToken), organizations.GetPermissions, client.PermissionNamespace, preferred);
+        if (pictures is not null && pictureOptions?.CurrentValue is { LinkTemplate: not null } rules
+            && await pictures.FindVersionAsync(user.Id, cancellationToken) is { } version)
+        {
+            identity.SetClaim(Claims.Picture, rules.LinkOf(user.Id, version));
+        }
 
         identity.SetDestinations(GetDestinations);
         return new ClaimsPrincipal(identity);
@@ -212,7 +225,7 @@ internal sealed class OidcClaimMapper(IdentityCoreOptions core, OrganizationServ
         {
             Claims.Subject or SessionClaimTypeConstants.SessionId or Claims.AuthenticationMethodReference => both,
             OrganizationClaimTypeConstants.Id or OrganizationClaimTypeConstants.Role or OrganizationClaimTypeConstants.Permission => both,
-            Claims.Name => claim.Subject?.HasScope(Scopes.Profile) == true ? both : [],
+            Claims.Name or Claims.Picture => claim.Subject?.HasScope(Scopes.Profile) == true ? both : [],
             Claims.Email or Claims.EmailVerified => claim.Subject?.HasScope(Scopes.Email) == true ? both : [],
             Claims.PhoneNumber or Claims.PhoneNumberVerified => claim.Subject?.HasScope(Scopes.Phone) == true ? both : [],
             Claims.AuthenticationTime => [Destinations.IdentityToken],

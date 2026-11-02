@@ -21,6 +21,10 @@ public sealed class EfInvitationRepository(IdentityDbContext context) : IInvitat
         => Invitations.AsNoTracking().FirstOrDefaultAsync(i => i.TokenHash == tokenHash, cancellationToken);
 
     /// <inheritdoc />
+    public Task<IdentityInvitation?> FindByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => Invitations.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, cancellationToken);
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<IdentityInvitation>> ListAsync(Guid organizationId, CancellationToken cancellationToken = default)
         => await Invitations.AsNoTracking().Where(i => i.OrganizationId == organizationId).OrderByDescending(i => i.CreatedAt).ToListAsync(cancellationToken);
 

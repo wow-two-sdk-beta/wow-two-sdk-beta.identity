@@ -16,6 +16,11 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.LinkExpired] = "This link has expired or was already used. Start again from the sign-in page.",
                 [TelegramBotMessageKeyConstants.Welcome] = "Start from the sign-in page: it sends you here with a link.",
                 [TelegramBotMessageKeyConstants.CodeRecentlySent] = "A code was sent moments ago. Ask for a new one on the sign-in page.",
+                [TelegramBotMessageKeyConstants.SignUpSharePrompt] = "Tap the button below to share your phone number and finish signing up.",
+                [TelegramBotMessageKeyConstants.SignUpDone] = "Your number is verified. Go back to the sign-up page: it continues on its own.",
+                [TelegramBotMessageKeyConstants.SignUpFailed] = "This invitation can no longer be used. Ask for a new link.",
+                [TelegramBotMessageKeyConstants.InvitationMismatch] = "This invitation is for another phone number.",
+                [TelegramBotMessageKeyConstants.CountryNotAllowed] = "Phone numbers from this country cannot sign up here.",
             },
             ["ru"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -26,6 +31,11 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.LinkExpired] = "Ссылка устарела или уже использована. Начните заново со страницы входа.",
                 [TelegramBotMessageKeyConstants.Welcome] = "Начните со страницы входа: она направит вас сюда по ссылке.",
                 [TelegramBotMessageKeyConstants.CodeRecentlySent] = "Код был отправлен только что. Запросите новый на странице входа.",
+                [TelegramBotMessageKeyConstants.SignUpSharePrompt] = "Нажмите кнопку ниже, чтобы отправить свой номер телефона и завершить регистрацию.",
+                [TelegramBotMessageKeyConstants.SignUpDone] = "Ваш номер подтверждён. Вернитесь на страницу регистрации: она продолжит сама.",
+                [TelegramBotMessageKeyConstants.SignUpFailed] = "Это приглашение больше нельзя использовать. Попросите новую ссылку.",
+                [TelegramBotMessageKeyConstants.InvitationMismatch] = "Это приглашение для другого номера телефона.",
+                [TelegramBotMessageKeyConstants.CountryNotAllowed] = "Номера из этой страны не могут зарегистрироваться здесь.",
             },
             ["uz"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -36,6 +46,11 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.LinkExpired] = "Havola eskirgan yoki allaqachon ishlatilgan. Kirish sahifasidan qaytadan boshlang.",
                 [TelegramBotMessageKeyConstants.Welcome] = "Kirish sahifasidan boshlang: u sizni havola orqali shu yerga yuboradi.",
                 [TelegramBotMessageKeyConstants.CodeRecentlySent] = "Kod hozirgina yuborildi. Kirish sahifasida yangisini so'rang.",
+                [TelegramBotMessageKeyConstants.SignUpSharePrompt] = "Telefon raqamingizni yuborib, ro'yxatdan o'tishni yakunlash uchun quyidagi tugmani bosing.",
+                [TelegramBotMessageKeyConstants.SignUpDone] = "Raqamingiz tasdiqlandi. Ro'yxatdan o'tish sahifasiga qayting: u o'zi davom etadi.",
+                [TelegramBotMessageKeyConstants.SignUpFailed] = "Bu taklifnomadan endi foydalanib bo'lmaydi. Yangi havola so'rang.",
+                [TelegramBotMessageKeyConstants.InvitationMismatch] = "Bu taklifnoma boshqa telefon raqami uchun.",
+                [TelegramBotMessageKeyConstants.CountryNotAllowed] = "Bu davlat raqamlari bilan bu yerda ro'yxatdan o'tib bo'lmaydi.",
             },
         };
 }

@@ -24,6 +24,7 @@ internal static class BffSessionMapper
             {
                 Sub = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? string.Empty,
                 Name = principal.FindFirst(JwtRegisteredClaimNames.Name)?.Value,
+                Picture = principal.FindFirst(JwtRegisteredClaimNames.Picture)?.Value,
                 Email = principal.FindFirst(JwtRegisteredClaimNames.Email)?.Value,
                 PhoneNumber = principal.FindFirst(JwtRegisteredClaimNames.PhoneNumber)?.Value,
             },

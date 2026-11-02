@@ -1,5 +1,6 @@
 import type { SignInRuleDto, SignUpMode } from '@wow-two-beta/fe-identity/contracts';
 import type { SignInMethod } from './SignInMethod';
+import type { SignUpProfile } from './SignUpProfile';
 
 /** Represents how the hosted pages look and sign people in, for the instance, one look for every client. */
 export interface SignInOptions {
@@ -19,4 +20,6 @@ export interface SignInOptions {
   readonly methods: ReadonlyArray<SignInMethod>;
   /** The rules a new password meets on sign-up, reset and change, in the request's locale; empty without a password method. */
   readonly passwordRules: ReadonlyArray<SignInRuleDto>;
+  /** What an invitation sign-up by phone asks for beside the phone: a name and a picture, each off, optional or required. */
+  readonly signUpProfile: SignUpProfile;
 }

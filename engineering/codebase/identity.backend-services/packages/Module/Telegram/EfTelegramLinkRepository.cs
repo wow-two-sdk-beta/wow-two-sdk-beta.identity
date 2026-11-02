@@ -58,12 +58,16 @@ public sealed class EfTelegramLinkRepository(IdentityDbContext context) : ITeleg
         => Links.Where(l => l.PhoneNumber == phoneNumber).ExecuteDeleteAsync(cancellationToken);
 
     /// <inheritdoc />
-    public Task<bool> HasRecentRequestAsync(string botUserName, string phoneNumber, string? originHash, DateTimeOffset since, CancellationToken cancellationToken = default)
+    public Task<bool> HasRecentRequestAsync(string botUserName, string? phoneNumber, string? originHash, DateTimeOffset since, CancellationToken cancellationToken = default)
     {
         var recent = Requests.AsNoTracking().Where(r => r.BotUserName == botUserName && r.CreatedAt >= since);
-        return originHash is null
-            ? recent.AnyAsync(r => r.PhoneNumber == phoneNumber, cancellationToken)
-            : recent.AnyAsync(r => r.PhoneNumber == phoneNumber || r.OriginHash == originHash, cancellationToken);
+        return (phoneNumber, originHash) switch
+        {
+            (null, null) => Task.FromResult(false),
+            (null, _) => recent.AnyAsync(r => r.OriginHash == originHash, cancellationToken),
+            (_, null) => recent.AnyAsync(r => r.PhoneNumber == phoneNumber, cancellationToken),
+            _ => recent.AnyAsync(r => r.PhoneNumber == phoneNumber || r.OriginHash == originHash, cancellationToken),
+        };
     }
 
     /// <inheritdoc />

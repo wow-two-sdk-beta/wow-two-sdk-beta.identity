@@ -30,6 +30,9 @@ public sealed class TelegramLinkService(
     /// <summary>Whether the bot runs.</summary>
     public bool IsEnabled => options.CurrentValue.IsEnabled;
 
+    /// <summary>How long a start link works (<c>Identity:Telegram:LinkLifetime</c>).</summary>
+    public TimeSpan LinkLifetime => options.CurrentValue.LinkLifetime;
+
     /// <summary>The chat <paramref name="phoneNumber"/> is linked to on the current bot, or null.</summary>
     /// <param name="phoneNumber">The number in E.164.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
@@ -40,14 +43,14 @@ public sealed class TelegramLinkService(
     /// Whether a start link was made for <paramref name="phoneNumber"/> within <see cref="OtpOptions.RateLimitWindow"/>, or
     /// from <paramref name="origin"/> within the shorter <see cref="OtpOptions.OriginRateLimitWindow"/>.
     /// </summary>
-    /// <param name="phoneNumber">The number in E.164.</param>
+    /// <param name="phoneNumber">The number in E.164; null checks the origin only, as for a link the contact names the number of.</param>
     /// <param name="origin">Where the request came from; null checks the number only.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    public async Task<bool> IsRateLimitedAsync(string phoneNumber, string? origin, CancellationToken cancellationToken = default)
+    public async Task<bool> IsRateLimitedAsync(string? phoneNumber, string? origin, CancellationToken cancellationToken = default)
     {
         var bot = options.CurrentValue.NormalizedBotUserName;
         var now = time.GetUtcNow();
-        return await repository.HasRecentRequestAsync(bot, phoneNumber, null, now - otp.RateLimitWindow, cancellationToken)
+        return (phoneNumber is not null && await repository.HasRecentRequestAsync(bot, phoneNumber, null, now - otp.RateLimitWindow, cancellationToken))
             || (OriginHashOf(origin) is { } originHash
                 && await repository.HasRecentRequestAsync(bot, phoneNumber, originHash, now - otp.OriginRateLimitWindow, cancellationToken));
     }
@@ -58,9 +61,24 @@ public sealed class TelegramLinkService(
     /// <param name="origin">Where the request came from, for rate limiting; null when unknown.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>The <c>t.me</c> URL to open.</returns>
-    public async Task<string> CreateStartLinkAsync(string phoneNumber, string purpose, string? origin, CancellationToken cancellationToken = default)
+    public Task<string> CreateStartLinkAsync(string phoneNumber, string purpose, string? origin, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(phoneNumber);
+        return CreateStartLinkAsync(phoneNumber, purpose, referenceId: null, origin, cancellationToken);
+    }
+
+    /// <summary>
+    /// Makes a start link for <paramref name="purpose"/> carrying <paramref name="referenceId"/>; the shared contact must hold
+    /// <paramref name="phoneNumber"/>, or, when it is null, names the number itself.
+    /// </summary>
+    /// <param name="phoneNumber">The number in E.164, or null for the contact to name it.</param>
+    /// <param name="purpose">What completing it leads to, one of <see cref="TelegramLinkPurposeConstants"/>.</param>
+    /// <param name="referenceId">The record the purpose completes, such as an invitation sign-up; null for none.</param>
+    /// <param name="origin">Where the request came from, for rate limiting; null when unknown.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The <c>t.me</c> URL to open.</returns>
+    public async Task<string> CreateStartLinkAsync(string? phoneNumber, string purpose, Guid? referenceId, string? origin, CancellationToken cancellationToken = default)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
 
         var current = options.CurrentValue;
@@ -74,6 +92,7 @@ public sealed class TelegramLinkService(
                 Purpose = purpose,
                 BotUserName = current.NormalizedBotUserName,
                 PhoneNumber = phoneNumber,
+                ReferenceId = referenceId,
                 OriginHash = OriginHashOf(origin),
                 CreatedAt = now,
                 ExpiresAt = now + current.LinkLifetime,

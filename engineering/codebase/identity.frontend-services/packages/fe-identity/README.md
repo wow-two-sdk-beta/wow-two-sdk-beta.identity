@@ -28,8 +28,8 @@ sources. Messages resolve through the fe sdk `LocaleProvider` under `IdentityKit
 
 | Export | Holds |
 |---|---|
-| `./contracts` | the account API's request and answer shapes, the sign-in declaration (`SignInOptionsDto`, `SignInMethodIdConstants`), `AccountRouteConstants`, `HostedPageRouteConstants`, `IdentityErrorCodeConstants`, `PasswordChangeConfirmationType` |
-| `./kit` | `createAccountClient` (with `getSignInOptions`), `readIdentityCode`, `readTwoFactorChallenge`, `passwordRule`, `codeRule`; `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm` |
+| `./contracts` | the account API's request and answer shapes, the sign-in declaration (`SignInOptionsDto`, `SignInMethodIdConstants`, `SignUpProfileDto`, `ProfileFieldMode`), `AccountRouteConstants`, `HostedPageRouteConstants`, `IdentityErrorCodeConstants`, `InviteSignUpStatus`, `PasswordChangeConfirmationType` |
+| `./kit` | `createAccountClient` (with `getSignInOptions`, `startInviteSignUp`, `getInviteSignUpStatus`), `readIdentityCode`, `readTwoFactorChallenge`, `passwordRule`, `codeRule`, `inspectPicture`; `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `InviteSignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm` |
 
 - `getSignInOptions({ clientId, locale })` reads `GET /api/account/sign-in-options`: the hosted pages' look, whether
   sign-up is open, and each enabled method in layout order with its fields and fe sdk rules, the messages in the
@@ -39,6 +39,11 @@ sources. Messages resolve through the fe sdk `LocaleProvider` under `IdentityKit
 - `PhoneCodeSignIn` shows an "Open Telegram" step when the phone has no linked chat; the bot sends the code once the
   person shares the contact. Its `codeRules`, the declared `code` field's rules, block a code of the wrong length
   before it spends an attempt.
+- `InviteSignUpForm` signs a person up through an invitation link with no code typed: the name and picture the
+  declaration's `signUpProfile` asks for, then "Verify phone in Telegram". Sharing the contact with the bot proves the
+  phone; the form polls every 2 s and emits `signedUp` once the session is set, or `signInRequired` when the person must
+  sign in, such as with a second factor. A picture is checked before it is sent: type, size and, where the browser
+  decodes it, its sides.
 - `PasswordSignIn` and `PhoneCodeSignIn` continue to a second-factor step, a code or a recovery code, when the account
   has one (`TwoFactorRequired`), and emit `signedIn` after it.
 - `SignUpForm`, `ForgotPasswordForm` and `PasswordSignIn` (its confirmation resend) take a `returnUrl`, a local path the

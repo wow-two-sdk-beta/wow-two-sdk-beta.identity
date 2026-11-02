@@ -56,11 +56,12 @@ export const routes: RouteConfig = [
         handle: { title: 'Sign up' },
         lazy: lazyPage(
           () => import('../../presentation/account/pages/SignUpPage.vue'),
-          (route) => ({
+          (route, router) => ({
             request: readSignInRequest(route.query),
             invitationToken: readInvitationToken(route.query),
             selfHref: route.fullPath,
             onContinue: (url: string) => hostedNavigation.assign(url),
+            onNavigate: (path: string) => void router.push(path),
           }),
         ),
       },

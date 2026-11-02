@@ -27,4 +27,36 @@ export const IdentityErrorCodeConstants = {
   invitationNotFound: 'InvitationNotFound',
   /** `400`: the invitation names neither a valid phone number nor a valid email where one was given. */
   invalidInvitationIdentifier: 'InvalidInvitationIdentifier',
+  /** `409`, or an invitation sign-up's `failureCode`: the invitation is past its end. */
+  invitationExpired: 'InvitationExpired',
+  /** `409`, or an invitation sign-up's `failureCode`: the invitation was already redeemed. */
+  invitationAccepted: 'InvitationAccepted',
+  /** `409`, or an invitation sign-up's `failureCode`: an owner or admin withdrew the invitation. */
+  invitationRevoked: 'InvitationRevoked',
+  /** An invitation sign-up's `failureCode`: the invitation names another phone number than the one shared. */
+  invitationIdentifierMismatch: 'InvitationIdentifierMismatch',
+  /** `400`: the sign-up asks for a name and none was given. */
+  displayNameRequired: 'DisplayNameRequired',
+  /** `400`: the name is longer than the service keeps. */
+  displayNameTooLong: 'DisplayNameTooLong',
+  /** `400`: the sign-up asks for a picture and none was given. */
+  pictureRequired: 'PictureRequired',
+  /** `400`: the picture is empty or larger than `pictureRules.maxBytes`. */
+  pictureTooLarge: 'PictureTooLarge',
+  /** `400`: the picture is not one of `pictureRules.acceptedTypes`, judged by its leading bytes. */
+  pictureUnsupportedType: 'PictureUnsupportedType',
+  /** `400`: a side of the picture is shorter than `pictureRules.minDimension`. */
+  pictureTooSmall: 'PictureTooSmall',
+  /** `400`: a side of the picture is longer than `pictureRules.maxDimension`. */
+  pictureTooBig: 'PictureTooBig',
+  /** `400`: the picture starts like an accepted type but does not decode. */
+  pictureUnreadable: 'PictureUnreadable',
+  /** `404`: the instance has no phone sign-in, so an invitation sign-up cannot verify a phone. */
+  phoneSignInUnavailable: 'PhoneSignInUnavailable',
+  /** `429`: too many phone verifications started in a short time. */
+  phoneCodeRateLimited: 'PhoneCodeRateLimited',
+  /** `404`: no invitation sign-up is bound to this browser, or it is gone. */
+  signUpVerificationNotFound: 'SignUpVerificationNotFound',
+  /** An invitation sign-up's `failureCode`: the shared phone number is outside the instance's allowed countries. */
+  phoneCountryNotAllowed: 'PhoneCountryNotAllowed',
 } as const;

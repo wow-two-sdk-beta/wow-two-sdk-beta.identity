@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.OneTimeCodes;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.InviteSignUp;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PhoneSignIn;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.ProfilePictures;
 using WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
@@ -21,6 +23,9 @@ public static partial class HostConfiguration
     ///     <c>Identity:Telegram:WebhookUrl</c> names another address, or by polling (<c>Polling</c>), which only a local run allows
     ///   - the code key comes from <c>Identity:Otp:HashKey</c>, which a deployed boot requires while the bot is on
     ///   - the allowed countries come from <c>Identity:Phone:AllowedCountries</c>; empty allows every country the list knows
+    ///   - an invitation's sign-up page asks for the profile <c>Identity:SignUp:Profile</c> names, its picture under
+    ///     <c>Identity:ProfilePictures</c>, then verifies the phone through the bot with no code typed; pictures live in the
+    ///     identity database and reach apps as the <c>picture</c> claim, a link on the issuer's origin
     ///   - a local run signs in by phone through a dev bot of its own (<c>identity.local.env</c> or
     ///     <c>appsettings.Local.json</c>), never a fake one: fakes live in the test projects
     /// </remarks>
@@ -28,7 +33,9 @@ public static partial class HostConfiguration
     {
         var identity = new IdentityBuilder(builder.Services)
             .AddDatabaseOtpStore()
-            .AddPhoneSignIn();
+            .AddPhoneSignIn()
+            .AddProfilePictures()
+            .AddInviteSignUp();
         identity.Services.AddOptions<TelegramBotOptions>().PostConfigure<OidcServerOptions>((telegram, server) =>
         {
             // Telegram delivers to HTTPS only, so a plain-HTTP issuer (a local check) derives no address.
@@ -41,7 +48,7 @@ public static partial class HostConfiguration
     /// <summary>Maps the phone sign-in routes under <see cref="AccountPath"/> and the bot's webhook.</summary>
     private static WebApplication MapPhoneSignInByTelegram(this WebApplication app)
     {
-        app.MapGroup(AccountPath).MapPhoneSignInEndpoints();
+        app.MapGroup(AccountPath).MapPhoneSignInEndpoints().MapInviteSignUpEndpoints();
         app.MapTelegramWebhook(TelegramWebhookEndpointRouteBuilderExtensions.DefaultPattern);
         return app;
     }

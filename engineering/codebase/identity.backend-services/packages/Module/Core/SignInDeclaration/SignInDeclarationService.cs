@@ -4,6 +4,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PhoneSignIn;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.ProfilePictures;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 
@@ -13,7 +14,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 /// Provides the sign-in declaration from the live settings, as the routes it describes read them: the password method
 /// while the password and sign-in slices are registered and <c>Identity:Methods:Password</c> is on, email while
 /// <c>Identity:Methods:Email</c> is on, the phone code while the Telegram bot is on
-/// (<c>Identity:Telegram:IsEnabled</c>), sign-up from <c>Identity:SignUp:Mode</c>, the verifications from
+/// (<c>Identity:Telegram:IsEnabled</c>), sign-up from <c>Identity:SignUp:Mode</c> and its profile fields from
+/// <c>Identity:SignUp:Profile</c> (a picture only while profile pictures are registered), the verifications from
 /// <c>Identity:SignIn</c>, and the instance's one look from <c>Identity:Pages</c>.
 /// </summary>
 /// <param name="services">The request's services, for the slices a registration may leave out.</param>
@@ -37,12 +39,15 @@ public sealed class SignInDeclarationService(
         var instance = pages.CurrentValue;
         var signIn = identity.SignIn;
         var methods = services.GetService<IOptionsMonitor<SignInMethodOptions>>()?.CurrentValue ?? new SignInMethodOptions();
+        var signUp = services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue;
         var input = new SignInDeclarationInput
         {
             BrandName = instance.BrandName,
             Theme = instance.Theme,
             BackgroundUrl = Filled(instance.BackgroundUrl),
-            SignUpMode = services.GetService<IOptionsMonitor<SignUpOptions>>()?.CurrentValue.Mode ?? SignUpMode.Invite,
+            SignUpMode = signUp?.Mode ?? SignUpMode.Invite,
+            SignUpProfile = signUp?.Profile ?? new SignUpProfileOptions(),
+            PictureRules = services.GetService<IOptionsMonitor<ProfilePictureOptions>>()?.CurrentValue,
             IsPersistenceOffered = services.GetService<Sessions.SessionOptions>()?.IsPersistenceOffered == true,
             Password = methods.Password.IsEnabled && IsPasswordSignInOn() ? identity.Password : null,
             IsEmailEnabled = methods.Email.IsEnabled,

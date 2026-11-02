@@ -13,6 +13,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.EmailSignIn;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passkeys;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.ProfilePictures;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.RefreshTokens;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
@@ -58,7 +59,8 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
     /// <see cref="AccountRateLimitPolicyConstants.Credentials"/> policy (<c>429</c> past it). <c>sign-up</c>,
     /// <c>resend-confirmation-email</c> and <c>forgot-password</c> take an optional <c>returnUrl</c>, kept when it is a local
     /// path, which the emailed link carries back as <c>&amp;returnUrl=</c>. A route whose method <see cref="SignInMethodOptions"/>
-    /// turns off answers <c>404</c> (message key <c>SignInMethodOff</c>).
+    /// turns off answers <c>404</c> (message key <c>SignInMethodOff</c>). With profile pictures registered,
+    /// <c>pictures/{userId}</c> serves each person's picture anonymously.
     /// </summary>
     /// <param name="endpoints">The route builder or group.</param>
     public static IEndpointRouteBuilder MapUserAccountEndpoints(this IEndpointRouteBuilder endpoints)
@@ -115,6 +117,9 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
             endpoints.MapPost("/manage/passkeys", AddPasskeyAsync).RequireAuthorization();
             endpoints.MapDelete("/manage/passkeys/{id:guid}", RemovePasskeyAsync).RequireAuthorization();
         }
+
+        if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(IProfilePictureStore)) == true)
+            endpoints.MapProfilePictureEndpoint();
 
         if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(UserSessionService)) == true)
         {

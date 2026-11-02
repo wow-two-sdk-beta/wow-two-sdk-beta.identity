@@ -15,6 +15,7 @@ const declarationRequests: URL[] = [];
 afterEach(() => {
   for (const wrapper of wrappers.splice(0)) wrapper.unmount();
   declarationRequests.splice(0);
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -74,7 +75,8 @@ function stubApi(answers: Record<string, Answer> = {}) {
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input), 'http://localhost');
       const method = (init?.method ?? 'GET').toUpperCase();
-      const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+      const body =
+        typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body instanceof FormData ? init.body : undefined;
       if (url.pathname === '/api/account/sign-in-options') {
         declarationRequests.push(url);
         const declaration = answers['GET /api/account/sign-in-options'];
@@ -121,6 +123,18 @@ async function signInWithPassword(wrapper: ReturnType<typeof mount>) {
   await flushPromises();
 }
 
+/** An invitation sign-up that asks for nothing beside the phone. */
+const noProfile: SignInOptions['signUpProfile'] = {
+  displayName: 'off',
+  picture: 'off',
+  pictureRules: {
+    acceptedTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    maxBytes: 5_242_880,
+    minDimension: 256,
+    maxDimension: 4096,
+  },
+};
+
 function withOptions(overrides: Partial<SignInOptions>) {
   const base: SignInOptions = {
     brandName: 'Identity',
@@ -131,6 +145,7 @@ function withOptions(overrides: Partial<SignInOptions>) {
     isEmailEnabled: true,
     methods: [{ id: SignInMethodId.Password }],
     passwordRules: [],
+    signUpProfile: noProfile,
   };
   vi.spyOn(signInOptionsApi, 'get').mockResolvedValue(ResultExtensions.ok({ ...base, ...overrides }));
 }
@@ -756,6 +771,66 @@ describe('sign-up route', () => {
 
     expect(wrapper.text()).toContain(message);
     expect(wrapper.find('form').exists()).toBe(false);
+  });
+
+  describe('by phone', () => {
+    const telegramLink = 'https://t.me/identity_bot?start=su-1';
+
+    /** Opens an invitation link on a phone-only instance that asks for a name, ready to verify the phone. */
+    async function openPhoneInvitation(status: Record<string, unknown>) {
+      const received = stubApi({
+        'GET /api/account/manage/info': unauthorized,
+        'GET /api/account/invitations/tok-1': () => Response.json({ data: { ...pending, emailHint: null } }),
+        'POST /api/account/invitations/tok-1/sign-up': () =>
+          Response.json({ data: { telegramLinkUrl: telegramLink, expiresAt: '2099-01-01T00:00:00Z' } }),
+        'GET /api/account/invitations/sign-up/status': () =>
+          Response.json({ data: { failureCode: null, isSignedIn: false, ...status } }),
+      });
+      vi.spyOn(window, 'open').mockReturnValue(null);
+      withOptions({
+        signUpMode: 'invite',
+        isEmailEnabled: false,
+        methods: [{ id: SignInMethodId.PhoneCode, countries: ['UZ'], codeRules: [] }],
+        signUpProfile: { ...noProfile, displayName: 'required' },
+      });
+      const rendered = await renderAt(`/sign-up?invitation=tok-1&returnUrl=${encodeURIComponent(authorize)}`);
+      return { received, ...rendered };
+    }
+
+    async function verifyInTelegram(wrapper: ReturnType<typeof mount>) {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+      await wrapper.get('input[name="displayName"]').setValue('Lola');
+      await wrapper.get('section[aria-label="Phone"] form').trigger('submit');
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(2000);
+    }
+
+    it('asks for the declared profile and verifies the phone in Telegram, then continues signed in', async () => {
+      const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
+      const { wrapper, received } = await openPhoneInvitation({ status: 'completed', isSignedIn: true });
+
+      expect(wrapper.find('input[name="phone"]').exists()).toBe(false);
+      expect(wrapper.find('input[name="code"]').exists()).toBe(false);
+      expect(wrapper.findAll('button').map((button) => button.text())).toContain('Verify phone in Telegram');
+      await verifyInTelegram(wrapper);
+
+      const started = received.find((request) => request.method === 'POST');
+      expect(started?.url.pathname).toBe('/api/account/invitations/tok-1/sign-up');
+      expect(started?.url.search).toBe('?clientId=desk');
+      expect((started?.body as FormData).get('displayName')).toBe('Lola');
+      expect(window.open).toHaveBeenCalledWith(telegramLink, '_blank', 'noopener,noreferrer');
+      expect(assign).toHaveBeenCalledWith(authorize);
+    });
+
+    it('sends a person with a second factor to sign in, keeping the return URL', async () => {
+      const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
+      const { wrapper, router } = await openPhoneInvitation({ status: 'completed', isSignedIn: false });
+
+      await verifyInTelegram(wrapper);
+
+      expect(router.currentRoute.value.fullPath).toBe(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
+      expect(assign).not.toHaveBeenCalled();
+    });
   });
 
   it('says a link naming no invitation is not valid', async () => {

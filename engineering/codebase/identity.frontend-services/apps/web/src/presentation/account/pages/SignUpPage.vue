@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { HostedPageRouteConstants, SignUpMode, type InvitationStatus } from '@wow-two-beta/fe-identity/contracts';
-import { PhoneCodeSignIn, SignUpForm } from '@wow-two-beta/fe-identity/kit';
+import { InviteSignUpForm, PhoneCodeSignIn, SignUpForm } from '@wow-two-beta/fe-identity/kit';
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { AlertSimple } from '@wow-two-beta/fe/presentation/feedback';
 import { DividerLayout } from '@wow-two-beta/fe/presentation/layout';
@@ -11,9 +11,10 @@ import HostedPage from '../../common/layout/HostedPage.vue';
 
 /**
  * Creates an account. With an invitation link's token it names the organization and role the link carries, then offers
- * the instance's methods carrying the token, or, to someone signed in, joining at once. Without one it offers the email
- * form while sign-up is open and the instance takes emails, the phone method on an open phone-only instance; by
- * invitation only, it says so.
+ * the instance's methods carrying the token, or, to someone signed in, joining at once. The phone method there asks
+ * for the declared profile and verifies the phone in Telegram with no code typed, continuing signed in. Without a
+ * token it offers the email form while sign-up is open and the instance takes emails, the phone method on an open
+ * phone-only instance; by invitation only, it says so.
  */
 defineOptions({ name: 'SignUpPage' });
 
@@ -26,6 +27,8 @@ const props = defineProps<{
   selfHref: string;
   /** Leaves for the return URL, which may be a server route. */
   onContinue: (url: string) => void;
+  /** Opens another hosted page in the app. */
+  onNavigate: (path: string) => void;
 }>();
 
 const { options, failure: optionsFailure } = useHostedOptions();
@@ -82,6 +85,11 @@ function continueToReturnUrl() {
   props.onContinue(props.request.returnUrl);
 }
 
+/** Sends a person who joined but has a second factor to sign in, continuing to the return URL after. */
+function signInToContinue() {
+  props.onNavigate(signInHref);
+}
+
 async function join() {
   if (!props.invitationToken) return;
   isJoining.value = true;
@@ -120,13 +128,13 @@ async function join() {
                 :invitation-token="invitationToken"
                 :return-url="returnUrl"
               />
-              <PhoneCodeSignIn
+              <InviteSignUpForm
                 v-else-if="method.id === SignInMethodId.PhoneCode"
-                :client-id="request.clientId"
-                :countries="method.countries"
-                :code-rules="method.codeRules"
                 :invitation-token="invitationToken"
-                @signed-in="continueToReturnUrl"
+                :profile="options.signUpProfile"
+                :client-id="request.clientId"
+                @signed-up="continueToReturnUrl"
+                @sign-in-required="signInToContinue"
               />
             </section>
           </template>

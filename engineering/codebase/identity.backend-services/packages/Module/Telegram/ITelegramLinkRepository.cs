@@ -23,11 +23,11 @@ public interface ITelegramLinkRepository
 
     /// <summary>Whether a start link of the bot was made since <paramref name="since"/> for the number or from the origin.</summary>
     /// <param name="botUserName">The bot's normalized user name.</param>
-    /// <param name="phoneNumber">The number in E.164.</param>
+    /// <param name="phoneNumber">The number in E.164; null checks the origin only.</param>
     /// <param name="originHash">The origin's digest; null checks the number only.</param>
     /// <param name="since">The window's start.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    Task<bool> HasRecentRequestAsync(string botUserName, string phoneNumber, string? originHash, DateTimeOffset since, CancellationToken cancellationToken = default);
+    Task<bool> HasRecentRequestAsync(string botUserName, string? phoneNumber, string? originHash, DateTimeOffset since, CancellationToken cancellationToken = default);
 
     /// <summary>Saves a new start link, pruning those a day past their expiry.</summary>
     /// <param name="request">The start link.</param>

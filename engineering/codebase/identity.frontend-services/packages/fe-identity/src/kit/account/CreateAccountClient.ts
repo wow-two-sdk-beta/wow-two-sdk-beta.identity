@@ -8,6 +8,10 @@ import {
   type EmailAddressApiRequest,
   type InvitationPreviewDto,
   type InvitationStatus,
+  type InviteSignUpApiRequest,
+  type InviteSignUpStartedDto,
+  InviteSignUpStatus,
+  type InviteSignUpStatusDto,
   type PasswordChangeApiRequest,
   type PasswordChangeConfirmationApiRequest,
   type PasswordChangeConfirmationDto,
@@ -16,6 +20,8 @@ import {
   type PhoneSignInApiRequest,
   type PhoneSignInSendApiRequest,
   type PhoneSignInSentDto,
+  ProfileFieldMode,
+  type ProfilePictureRulesDto,
   type ResetPasswordApiRequest,
   type SignInApiRequest,
   type SignInFieldDto,
@@ -25,6 +31,7 @@ import {
   type SignUpApiRequest,
   type SignedUpAccountDto,
   SignUpMode,
+  type SignUpProfileDto,
   type TwoFactorSignInApiRequest,
 } from '../../contracts';
 
@@ -75,6 +82,23 @@ export interface AccountClient {
   getInvitation(token: string, signal?: AbortSignal): Promise<Result<InvitationPreviewDto, ApiFailure>>;
   /** Adds the signed-in person to the invitation's organization with its role. */
   acceptInvitation(token: string, signal?: AbortSignal): Promise<Result<void, ApiFailure>>;
+  /**
+   * Starts an invitation sign-up with the profile the declaration's `signUpProfile` asks for, sent as
+   * `multipart/form-data` with each part only when given. Answers the bot's start link, where sharing the contact proves
+   * the phone, and binds the attempt to this browser by an HttpOnly cookie; `getInviteSignUpStatus` follows it. A refusal
+   * carries its `identityCode`: `400` for a missing or unfit name or picture, `404` `InvitationNotFound` or
+   * `PhoneSignInUnavailable`, `409` for an expired, used or withdrawn invitation, `429` `PhoneCodeRateLimited`.
+   */
+  startInviteSignUp(
+    token: string,
+    request: InviteSignUpApiRequest,
+    options?: AccountSignInOptions,
+  ): Promise<Result<InviteSignUpStartedDto, ApiFailure>>;
+  /**
+   * Reads where the invitation sign-up this browser started stands. The first `completed` answer with `isSignedIn` set
+   * the session cookie; `404` `SignUpVerificationNotFound` when no attempt is bound to the browser.
+   */
+  getInviteSignUpStatus(options?: AccountSignInOptions): Promise<Result<InviteSignUpStatusDto, ApiFailure>>;
   /**
    * Signs in with an identifier and password: `null` once the session cookie is set, or the ticket of a required
    * password change, which sets no session. An account with a second factor answers `401` `TwoFactorRequired`
@@ -164,6 +188,38 @@ function decodeInvitation(value: unknown): Decoded<InvitationPreviewDto> {
   });
 }
 
+/** Whether `value` is a link the page may open: the bot's `https:` start link, or a `tg:` deep link. */
+function isTelegramLink(value: unknown): value is string {
+  if (typeof value !== 'string' || value === '') return false;
+  try {
+    return ['https:', 'tg:'].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
+function decodeInviteSignUpStarted(value: unknown): Decoded<InviteSignUpStartedDto> {
+  const body = record(value);
+  if (!body || !isTelegramLink(body.telegramLinkUrl)) return protocolFailure();
+  return ResultExtensions.ok({
+    telegramLinkUrl: body.telegramLinkUrl,
+    expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : '',
+  });
+}
+
+const inviteSignUpStatuses = Object.values(InviteSignUpStatus);
+
+function decodeInviteSignUpStatus(value: unknown): Decoded<InviteSignUpStatusDto> {
+  const body = record(value);
+  const status = inviteSignUpStatuses.find((known) => known === body?.status);
+  if (!body || !status) return protocolFailure();
+  return ResultExtensions.ok({
+    status,
+    failureCode: typeof body.failureCode === 'string' && body.failureCode !== '' ? body.failureCode : null,
+    isSignedIn: body.isSignedIn === true,
+  });
+}
+
 function decodeAccountInfo(value: unknown): Decoded<AccountInfoDto> {
   const body = record(value);
   if (body && typeof body.userId === 'string') {
@@ -242,6 +298,47 @@ function decodeMethod(value: unknown): SignInMethodDto | null {
   return { id, channels: strings(body.channels) ?? [], fields, passwordRules };
 }
 
+/** What a picture upload accepts when the declaration names nothing: the service's defaults. */
+const defaultPictureRules: ProfilePictureRulesDto = {
+  acceptedTypes: ['image/jpeg', 'image/png', 'image/webp'],
+  maxBytes: 5_242_880,
+  minDimension: 256,
+  maxDimension: 4096,
+};
+
+const profileFieldModes = Object.values(ProfileFieldMode);
+
+/** Reads a profile field mode whatever its case; `off` for anything else. */
+function fieldMode(value: unknown): ProfileFieldMode {
+  const mode = typeof value === 'string' ? value.toLowerCase() : null;
+  return profileFieldModes.find((known) => known === mode) ?? ProfileFieldMode.Off;
+}
+
+function positive(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function decodePictureRules(value: unknown): ProfilePictureRulesDto {
+  const body = record(value);
+  const types = strings(body?.acceptedTypes)?.filter((type) => type !== '') ?? [];
+  return {
+    acceptedTypes: types.length > 0 ? types : [...defaultPictureRules.acceptedTypes],
+    maxBytes: positive(body?.maxBytes, defaultPictureRules.maxBytes),
+    minDimension: positive(body?.minDimension, defaultPictureRules.minDimension),
+    maxDimension: positive(body?.maxDimension, defaultPictureRules.maxDimension),
+  };
+}
+
+/** Reads what an invitation sign-up asks for; an absent or unknown part asks for nothing, with the default rules. */
+function decodeSignUpProfile(value: unknown): SignUpProfileDto {
+  const body = record(value);
+  return {
+    displayName: fieldMode(body?.displayName),
+    picture: fieldMode(body?.picture),
+    pictureRules: decodePictureRules(body?.pictureRules),
+  };
+}
+
 function decodeSignInOptions(value: unknown): Decoded<SignInOptionsDto> {
   const body = record(value);
   const brandName = text(body?.brandName);
@@ -264,7 +361,19 @@ function decodeSignInOptions(value: unknown): Decoded<SignInOptionsDto> {
       isConfirmedPhoneNumberRequired: requirements?.isConfirmedPhoneNumberRequired === true,
       isSecondFactorRequired: requirements?.isSecondFactorRequired === true,
     },
+    signUpProfile: decodeSignUpProfile(body.signUpProfile),
   });
+}
+
+/** Builds an invitation sign-up's multipart body: each profile part only when given. */
+function inviteSignUpBody(request: InviteSignUpApiRequest): FormData {
+  const body = new FormData();
+  if (request.displayName != null) body.append('displayName', request.displayName);
+  if (request.picture != null) {
+    const name = request.picture instanceof File && request.picture.name ? request.picture.name : 'picture';
+    body.append('picture', request.picture, name);
+  }
+  return body;
 }
 
 /**
@@ -305,6 +414,8 @@ export function createAccountClient(options: AccountClientOptions = {}): Account
   });
   const send = (path: string, body: unknown, signal?: AbortSignal) =>
     client.post(path, { body, response: 'empty', signal });
+  const clientQuery = (clientId?: string | null) =>
+    clientId ? { [AccountRouteConstants.clientIdParameter]: clientId } : {};
 
   return {
     getSignInOptions: ({ clientId, locale, signal } = {}) =>
@@ -327,6 +438,17 @@ export function createAccountClient(options: AccountClientOptions = {}): Account
       client.post(`${AccountRouteConstants.invitations}/${encodeURIComponent(token)}/accept`, {
         response: 'empty',
         signal,
+      }),
+    startInviteSignUp: (token, request, { clientId, signal } = {}) =>
+      client.post(
+        `${AccountRouteConstants.invitations}/${encodeURIComponent(token)}${AccountRouteConstants.invitationSignUp}`,
+        { query: clientQuery(clientId), body: inviteSignUpBody(request), signal, decode: decodeInviteSignUpStarted },
+      ),
+    getInviteSignUpStatus: ({ clientId, signal } = {}) =>
+      client.get(AccountRouteConstants.invitationSignUpStatus, {
+        query: clientQuery(clientId),
+        signal,
+        decode: decodeInviteSignUpStatus,
       }),
     async signIn(request, { clientId, signal } = {}) {
       const answered = await client.post(AccountRouteConstants.signIn, {

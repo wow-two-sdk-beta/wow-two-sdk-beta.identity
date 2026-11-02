@@ -56,6 +56,28 @@ const declaration: SignInOptionsDto = {
     isConfirmedPhoneNumberRequired: true,
     isSecondFactorRequired: false,
   },
+  signUpProfile: {
+    displayName: 'required',
+    picture: 'optional',
+    pictureRules: {
+      acceptedTypes: ['image/jpeg', 'image/png'],
+      maxBytes: 2_097_152,
+      minDimension: 128,
+      maxDimension: 2048,
+    },
+  },
+};
+
+/** What an invitation sign-up asks for when the declaration says nothing: no field, the service's default rules. */
+const noProfile = {
+  displayName: 'off',
+  picture: 'off',
+  pictureRules: {
+    acceptedTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    maxBytes: 5_242_880,
+    minDimension: 256,
+    maxDimension: 4096,
+  },
 };
 
 describe('sign-in declaration', () => {
@@ -100,7 +122,42 @@ describe('sign-in declaration', () => {
           isConfirmedPhoneNumberRequired: false,
           isSecondFactorRequired: false,
         },
+        signUpProfile: noProfile,
       },
+    });
+  });
+
+  it.each([
+    ['unknown modes and no rules', { displayName: 'sometimes', picture: 3 }],
+    ['rules out of range', { pictureRules: { acceptedTypes: [], maxBytes: -1, minDimension: '256', maxDimension: 0 } }],
+    ['no profile object', 'required'],
+  ])('reads a sign-up profile with %s as asking for nothing, with the default rules', async (_case, signUpProfile) => {
+    const { client } = fakeAccountApi({
+      'GET /sign-in-options': () => Response.json({ data: { ...declaration, signUpProfile } }),
+    });
+
+    const result = await client.getSignInOptions();
+
+    expect(result.ok && result.value.signUpProfile).toEqual(noProfile);
+  });
+
+  it('reads the profile modes whatever their case, keeping each declared rule', async () => {
+    const { client } = fakeAccountApi({
+      'GET /sign-in-options': () =>
+        Response.json({
+          data: {
+            ...declaration,
+            signUpProfile: { displayName: 'Optional', picture: 'REQUIRED', pictureRules: { maxBytes: 1024 } },
+          },
+        }),
+    });
+
+    const result = await client.getSignInOptions();
+
+    expect(result.ok && result.value.signUpProfile).toEqual({
+      displayName: 'optional',
+      picture: 'required',
+      pictureRules: { ...noProfile.pictureRules, maxBytes: 1024 },
     });
   });
 

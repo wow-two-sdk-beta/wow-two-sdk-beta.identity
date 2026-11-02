@@ -12,6 +12,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.ProfilePictures;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SecurityStamps;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
@@ -134,8 +135,9 @@ public static partial class HostConfiguration
     /// <summary>
     /// Points the links the account emails carry at the hosted pages on the instance's own origin (that of
     /// <c>Identity:Server:Issuer</c>), unless a setting already names them: <c>/confirm-email</c> and <c>/reset-password</c>,
-    /// the change page <c>/change-password#token=…</c> and the invitation link <c>/sign-up?invitation=…</c>. With no issuer
-    /// there is no origin, and no link.
+    /// the change page <c>/change-password#token=…</c>, the invitation link <c>/sign-up?invitation=…</c> and the
+    /// <c>picture</c> claim's <c>/api/account/pictures/{userId}?v={version}</c>. With no issuer there is no origin, and no
+    /// link.
     /// </summary>
     private static IServiceCollection AddAccountPageLinks(this IServiceCollection services)
     {
@@ -156,6 +158,11 @@ public static partial class HostConfiguration
         {
             if (OriginOf(server) is { } origin)
                 options.LinkTemplate ??= origin + "/sign-up?invitation={token}";
+        });
+        services.AddOptions<ProfilePictureOptions>().PostConfigure<OidcServerOptions>((options, server) =>
+        {
+            if (OriginOf(server) is { } origin)
+                options.LinkTemplate ??= origin + AccountPath + "/pictures/{userId}?v={version}";
         });
         return services;
     }

@@ -142,6 +142,18 @@ public sealed class InvitationService(
         return new InvitationLookup { Invitation = invitation, Organization = organization, Status = StatusOf(invitation) };
     }
 
+    /// <summary>The invitation with <paramref name="id"/>, with its organization and where it stands; null when none has it.</summary>
+    /// <param name="id">The invitation.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<InvitationLookup?> FindByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var invitation = await invitations.FindByIdAsync(id, cancellationToken);
+        if (invitation is null || await organizations.FindByIdAsync(invitation.OrganizationId, cancellationToken) is not { } organization)
+            return null;
+
+        return new InvitationLookup { Invitation = invitation, Organization = organization, Status = StatusOf(invitation) };
+    }
+
     /// <summary>Where <paramref name="invitation"/> stands now.</summary>
     /// <param name="invitation">The invitation.</param>
     public InvitationStatus StatusOf(IdentityInvitation invitation)

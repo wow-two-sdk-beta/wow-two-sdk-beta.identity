@@ -35,7 +35,11 @@ public static class AccountEndpointIdentityBuilderExtensions
         services.AddModuleOptions(
             SignUpOptions.SectionName,
             signUp,
-            options => options.Validate(o => Enum.IsDefined(o.Mode), "Identity:SignUp:Mode must be Invite or Open."));
+            options => options
+                .Validate(o => Enum.IsDefined(o.Mode), "Identity:SignUp:Mode must be Invite or Open.")
+                .Validate(
+                    o => Enum.IsDefined(o.Profile.DisplayName) && Enum.IsDefined(o.Profile.Picture),
+                    "Identity:SignUp:Profile:DisplayName and :Picture must be Off, Optional or Required."));
         services.AddModuleOptions(SignInMethodOptions.SectionName, methods, _ => { });
         services.TryAddScoped<UserAccountMailService>();
         services.AddAccountRateLimit();

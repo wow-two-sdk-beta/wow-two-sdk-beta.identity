@@ -16,4 +16,10 @@ public sealed record TelegramLinkCompletion
 
     /// <summary>The person's Telegram language, as a culture, for the wording of what follows.</summary>
     public required CultureInfo Culture { get; init; }
+
+    /// <summary>The Telegram user who shared the contact.</summary>
+    public long TelegramUserId { get; init; }
+
+    /// <summary>The record the link was made for, such as an invitation sign-up; null for none.</summary>
+    public Guid? ReferenceId { get; init; }
 }

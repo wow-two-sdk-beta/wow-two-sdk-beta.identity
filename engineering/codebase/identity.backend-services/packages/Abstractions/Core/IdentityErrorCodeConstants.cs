@@ -179,4 +179,34 @@ public static class IdentityErrorCodeConstants
 
     /// <summary>The role is not one of the instance role catalog.</summary>
     public const string UnknownInstanceRole = "UnknownInstanceRole";
+
+    /// <summary>The sign-up asks for a name (<c>Identity:SignUp:Profile:DisplayName</c> <c>Required</c>) and none was given.</summary>
+    public const string DisplayNameRequired = "DisplayNameRequired";
+
+    /// <summary>The name is longer than 120 characters.</summary>
+    public const string DisplayNameTooLong = "DisplayNameTooLong";
+
+    /// <summary>The sign-up asks for a picture (<c>Identity:SignUp:Profile:Picture</c> <c>Required</c>) and none was given.</summary>
+    public const string PictureRequired = "PictureRequired";
+
+    /// <summary>The picture is empty or larger than <c>Identity:ProfilePictures:MaxUploadBytes</c>.</summary>
+    public const string PictureTooLarge = "PictureTooLarge";
+
+    /// <summary>The picture is not one of the accepted types, judged by its leading bytes: JPEG, PNG or WebP by default.</summary>
+    public const string PictureUnsupportedType = "PictureUnsupportedType";
+
+    /// <summary>A side of the picture is shorter than <c>Identity:ProfilePictures:MinDimension</c>.</summary>
+    public const string PictureTooSmall = "PictureTooSmall";
+
+    /// <summary>A side of the picture is longer than <c>Identity:ProfilePictures:MaxDimension</c>.</summary>
+    public const string PictureTooBig = "PictureTooBig";
+
+    /// <summary>The picture starts like an accepted type but does not decode.</summary>
+    public const string PictureUnreadable = "PictureUnreadable";
+
+    /// <summary>No invitation sign-up is bound to this browser, or it is gone.</summary>
+    public const string SignUpVerificationNotFound = "SignUpVerificationNotFound";
+
+    /// <summary>The verified phone number is outside the instance's allowed countries.</summary>
+    public const string PhoneCountryNotAllowed = "PhoneCountryNotAllowed";
 }

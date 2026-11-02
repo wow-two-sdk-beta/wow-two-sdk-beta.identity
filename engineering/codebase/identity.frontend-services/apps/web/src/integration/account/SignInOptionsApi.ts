@@ -36,6 +36,11 @@ export function toSignInOptions(declaration: SignInOptionsDto): SignInOptions {
     methods: declaration.methods.map(toMethod).filter((method): method is SignInMethod => method !== null),
     passwordRules:
       declaration.methods.find((method) => method.id === SignInMethodIdConstants.password)?.passwordRules ?? [],
+    signUpProfile: {
+      displayName: declaration.signUpProfile.displayName,
+      picture: declaration.signUpProfile.picture,
+      pictureRules: declaration.signUpProfile.pictureRules,
+    },
   };
 }
 

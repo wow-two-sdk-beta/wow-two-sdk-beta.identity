@@ -13,6 +13,11 @@ public interface IInvitationRepository
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<IdentityInvitation?> FindByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default);
 
+    /// <summary>The invitation with the id, or null.</summary>
+    /// <param name="id">The invitation.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<IdentityInvitation?> FindByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
     /// <summary>The organization's invitations, newest first.</summary>
     /// <param name="organizationId">The organization.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

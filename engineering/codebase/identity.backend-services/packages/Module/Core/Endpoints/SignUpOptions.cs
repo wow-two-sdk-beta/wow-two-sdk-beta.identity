@@ -17,4 +17,33 @@ public sealed record SignUpOptions
 
     /// <summary>Gets whether anyone may create an account without an invitation.</summary>
     public bool IsOpen => Mode == SignUpMode.Open;
+
+    /// <summary>Gets the profile fields an invitation sign-up asks for (<c>Identity:SignUp:Profile</c>), each off by default.</summary>
+    public SignUpProfileOptions Profile { get; } = new();
+}
+
+/// <summary>
+/// Holds the profile fields an invitation sign-up asks for beside the phone the bot verifies; the declaration carries them
+/// so the hosted pages and <c>fe-identity</c> render them.
+/// </summary>
+public sealed record SignUpProfileOptions
+{
+    /// <summary>Gets or sets whether the sign-up asks for the name the person goes by (<c>Identity:SignUp:Profile:DisplayName</c>). Default off.</summary>
+    public ProfileFieldMode DisplayName { get; set; } = ProfileFieldMode.Off;
+
+    /// <summary>Gets or sets whether the sign-up asks for a profile picture (<c>Identity:SignUp:Profile:Picture</c>), under <c>Identity:ProfilePictures</c>. Default off.</summary>
+    public ProfileFieldMode Picture { get; set; } = ProfileFieldMode.Off;
+}
+
+/// <summary>Refers to whether a sign-up asks for a profile field.</summary>
+public enum ProfileFieldMode
+{
+    /// <summary>The field is not asked for.</summary>
+    Off,
+
+    /// <summary>The field is asked for and may be left empty.</summary>
+    Optional,
+
+    /// <summary>The field is asked for and must be given.</summary>
+    Required,
 }

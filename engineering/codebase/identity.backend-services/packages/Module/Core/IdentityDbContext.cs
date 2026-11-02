@@ -110,6 +110,12 @@ public sealed class IdentityDbContext : AppDbContextBase
     /// <summary>Invitations into organizations (<c>identity_invitations</c>).</summary>
     public DbSet<IdentityInvitation> Invitations => Set<IdentityInvitation>();
 
+    /// <summary>Sign-ups browsers started from invitations (<c>identity_sign_up_requests</c>).</summary>
+    public DbSet<IdentitySignUpRequest> SignUpRequests => Set<IdentitySignUpRequest>();
+
+    /// <summary>People's profile pictures (<c>identity_profile_pictures</c>).</summary>
+    public DbSet<IdentityProfilePicture> ProfilePictures => Set<IdentityProfilePicture>();
+
     /// <inheritdoc />
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -268,6 +274,27 @@ public sealed class IdentityDbContext : AppDbContextBase
             invitation.Property(i => i.TokenHash).HasMaxLength(64);
             invitation.Property(i => i.PhoneNumber).HasMaxLength(32);
             invitation.Property(i => i.Email).HasMaxLength(256);
+        });
+
+        modelBuilder.Entity<IdentitySignUpRequest>(request =>
+        {
+            request.ToTable("identity_sign_up_requests");
+            request.HasKey(r => r.Id);
+            request.Property(r => r.Id).ValueGeneratedNever();
+            request.HasIndex(r => r.ExpiresAt);
+            request.Property(r => r.DisplayName).HasMaxLength(DisplayNameMaxLength);
+            request.Property(r => r.BrowserSecretHash).HasMaxLength(64);
+            request.Property(r => r.ClientId).HasMaxLength(100);
+            request.Property(r => r.FailureCode).HasMaxLength(64);
+        });
+
+        modelBuilder.Entity<IdentityProfilePicture>(picture =>
+        {
+            picture.ToTable("identity_profile_pictures");
+            picture.HasKey(p => p.UserId);
+            picture.Property(p => p.UserId).ValueGeneratedNever();
+            picture.Property(p => p.ContentType).HasMaxLength(64);
+            picture.Property(p => p.Version).HasMaxLength(64);
         });
     }
 

@@ -1,5 +1,6 @@
 using System.Globalization;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.ProfilePictures;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 using static WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration.SignInRuleCodeConstants;
 
@@ -45,6 +46,7 @@ internal static class SignInDeclarationBuilder
             SignUpMode = input.SignUpMode == SignUpMode.Open ? "open" : "invite",
             IsPersistenceOffered = input.IsPersistenceOffered,
             IsEmailEnabled = input.IsEmailEnabled,
+            SignUpProfile = SignUpProfile(input),
             Locale = locale,
             Locales = SignInLocaleResolver.Locales,
             Methods = methods,
@@ -144,6 +146,30 @@ internal static class SignInDeclarationBuilder
                 Rule(Required, Text(SignInDeclarationTextConstants.CodeRequired, locale)),
                 Rule(Length, Text(SignInDeclarationTextConstants.CodeLength, locale, ("Length", codeLength)), ("length", codeLength), ("unit", CharactersUnit))),
         ],
+    };
+
+    private static SignUpProfileDto SignUpProfile(SignInDeclarationInput input)
+    {
+        var rules = input.PictureRules ?? new ProfilePictureOptions();
+        return new SignUpProfileDto
+        {
+            DisplayName = ModeOf(input.SignUpProfile.DisplayName),
+            Picture = input.PictureRules is null ? ModeOf(ProfileFieldMode.Off) : ModeOf(input.SignUpProfile.Picture),
+            PictureRules = new PictureRulesDto
+            {
+                AcceptedTypes = [.. rules.AcceptedTypes.Select(type => type.ToLowerInvariant())],
+                MaxBytes = rules.MaxUploadBytes,
+                MinDimension = rules.MinDimension,
+                MaxDimension = rules.MaxDimension,
+            },
+        };
+    }
+
+    private static string ModeOf(ProfileFieldMode mode) => mode switch
+    {
+        ProfileFieldMode.Optional => "optional",
+        ProfileFieldMode.Required => "required",
+        _ => "off",
     };
 
     private static SignInFieldDto Field(string name, string kind, params SignInRuleDto[] rules)

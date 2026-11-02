@@ -40,6 +40,9 @@ public sealed record SignInOptionsDto
     /// </summary>
     public bool IsEmailEnabled { get; init; } = true;
 
+    /// <summary>The profile fields an invitation sign-up asks for beside the phone, with the picture's rules.</summary>
+    public required SignUpProfileDto SignUpProfile { get; init; }
+
     /// <summary>The enabled sign-in methods, in the order the pages lay them out (<see cref="SignInMethodIdConstants"/>).</summary>
     public required IReadOnlyList<SignInMethodDto> Methods { get; init; }
 

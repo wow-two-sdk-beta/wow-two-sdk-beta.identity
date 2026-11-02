@@ -71,6 +71,19 @@ public sealed class OidcNameAndPhoneClaimTests
     }
 
     [Fact]
+    public void Picture_ShouldTravelUnderTheProfileScopeOnly()
+    {
+        var withProfile = OidcClaimMapper.CreateIdentity(Client, [Scopes.OpenId, Scopes.Profile], [], authenticatedAt: null);
+        var without = OidcClaimMapper.CreateIdentity(Client, [Scopes.OpenId, Scopes.Phone], [], authenticatedAt: null);
+        const string link = "https://id.example.test/api/account/pictures/0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5c?v=abc";
+        withProfile.SetClaim(Claims.Picture, link);
+        without.SetClaim(Claims.Picture, link);
+
+        OidcClaimMapper.GetDestinations(withProfile.FindFirst(Claims.Picture)!).Should().BeEquivalentTo(Destinations.AccessToken, Destinations.IdentityToken);
+        OidcClaimMapper.GetDestinations(without.FindFirst(Claims.Picture)!).Should().BeEmpty("without the profile scope the picture stays out of the tokens");
+    }
+
+    [Fact]
     public void UserInfo_ShouldAnswerThePhoneAndItsVerificationAsABoolean()
     {
         var user = new IdentityUser { Id = Guid.CreateVersion7(), UserName = Phone, PhoneNumber = Phone, IsPhoneNumberConfirmed = true };

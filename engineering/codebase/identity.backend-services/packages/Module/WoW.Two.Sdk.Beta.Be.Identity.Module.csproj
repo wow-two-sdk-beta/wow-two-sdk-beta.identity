@@ -21,6 +21,8 @@
     <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore.Models" />
     <PackageReference Include="Otp.NET" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
     <PackageReference Include="Telegram.Bot" />
   </ItemGroup>
 

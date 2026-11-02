@@ -61,10 +61,13 @@ internal sealed class InMemoryTelegramLinkRepository : ITelegramLinkRepository
     }
 
     /// <inheritdoc />
-    public Task<bool> HasRecentRequestAsync(string botUserName, string phoneNumber, string? originHash, DateTimeOffset since, CancellationToken cancellationToken = default)
+    public Task<bool> HasRecentRequestAsync(string botUserName, string? phoneNumber, string? originHash, DateTimeOffset since, CancellationToken cancellationToken = default)
     {
         lock (_gate)
-            return Task.FromResult(_requests.Any(r => r.BotUserName == botUserName && r.CreatedAt >= since && (r.PhoneNumber == phoneNumber || (originHash is not null && r.OriginHash == originHash))));
+        {
+            return Task.FromResult(_requests.Any(r => r.BotUserName == botUserName && r.CreatedAt >= since
+                && ((phoneNumber is not null && r.PhoneNumber == phoneNumber) || (originHash is not null && r.OriginHash == originHash))));
+        }
     }
 
     /// <inheritdoc />

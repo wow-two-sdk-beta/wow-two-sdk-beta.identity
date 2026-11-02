@@ -11,9 +11,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
 /// <summary>
 /// Handles the bot's webhook updates from private chats. <c>/start {token}</c> attaches the chat to a pending start link
-/// and asks for the person's own contact; a shared contact whose user is the sender and whose number is the link's
-/// completes it once, saves the number's link to the chat and hands over to the purpose's handler. Everything else is
-/// left unanswered.
+/// and asks for the person's own contact in the purpose's words; a shared contact whose user is the sender, holding the
+/// link's number or, for a link that names none, any number, completes it once, saves the number's link to the chat and
+/// hands over to the purpose's handler. Everything else is left unanswered.
 /// </summary>
 /// <param name="repository">The links and start links.</param>
 /// <param name="replier">Sends the bot's texts.</param>
@@ -79,7 +79,8 @@ public sealed partial class TelegramUpdateHandler(
         }
 
         await repository.AttachAsync(request.Id, chatId, telegramUserId, cancellationToken);
-        await ReplyAsync(chatId, TelegramBotMessageKeyConstants.SharePrompt, culture, ShareKeyboard(culture), cancellationToken);
+        var prompt = HandlerOf(request.Purpose)?.SharePromptKey ?? TelegramBotMessageKeyConstants.SharePrompt;
+        await ReplyAsync(chatId, prompt, culture, ShareKeyboard(culture), cancellationToken);
     }
 
     private async Task OnContactAsync(Contact contact, long chatId, long telegramUserId, CultureInfo culture, CancellationToken cancellationToken)
@@ -99,9 +100,13 @@ public sealed partial class TelegramUpdateHandler(
             return;
         }
 
-        if (!string.Equals(PhoneNumberPolicy.NormalizeContact(contact.PhoneNumber), request.PhoneNumber, StringComparison.Ordinal))
+        // A link the contact names the number of takes the contact's; any other must hold the link's own.
+        var handler = HandlerOf(request.Purpose);
+        var phone = PhoneNumberPolicy.NormalizeContact(contact.PhoneNumber);
+        if (phone is null || (request.PhoneNumber is not null && !string.Equals(phone, request.PhoneNumber, StringComparison.Ordinal)))
         {
-            await ReplyAsync(chatId, TelegramBotMessageKeyConstants.NumberMismatch, culture, new ReplyKeyboardRemove(), cancellationToken);
+            var mismatch = handler?.NumberMismatchKey ?? TelegramBotMessageKeyConstants.NumberMismatch;
+            await ReplyAsync(chatId, mismatch, culture, new ReplyKeyboardRemove(), cancellationToken);
             return;
         }
 
@@ -113,15 +118,22 @@ public sealed partial class TelegramUpdateHandler(
             {
                 Id = Guid.CreateVersion7(now),
                 BotUserName = BotUserName,
-                PhoneNumber = request.PhoneNumber,
+                PhoneNumber = phone,
                 ChatId = chatId,
                 TelegramUserId = telegramUserId,
                 LinkedAt = now,
             },
             cancellationToken);
 
-        var completion = new TelegramLinkCompletion { Purpose = request.Purpose, PhoneNumber = request.PhoneNumber, ChatId = chatId, Culture = culture };
-        var handler = handlers.FirstOrDefault(h => string.Equals(h.Purpose, request.Purpose, StringComparison.Ordinal));
+        var completion = new TelegramLinkCompletion
+        {
+            Purpose = request.Purpose,
+            PhoneNumber = phone,
+            ChatId = chatId,
+            Culture = culture,
+            TelegramUserId = telegramUserId,
+            ReferenceId = request.ReferenceId,
+        };
         if (handler is null)
         {
             LogNoHandler(logger, request.Purpose);
@@ -130,6 +142,9 @@ public sealed partial class TelegramUpdateHandler(
 
         await handler.HandleAsync(completion, cancellationToken);
     }
+
+    private ITelegramLinkCompletionHandler? HandlerOf(string purpose)
+        => handlers.FirstOrDefault(h => string.Equals(h.Purpose, purpose, StringComparison.Ordinal));
 
     private Task ReplyAsync(long chatId, string key, CultureInfo culture, ReplyMarkup? keyboard, CancellationToken cancellationToken)
         => replier.ReplyAsync(chatId, key, culture, keyboard, cancellationToken);

@@ -1,6 +1,7 @@
 import type { SignInMethodDto } from './SignInMethodDto';
 import type { SignInRequirementsDto } from './SignInRequirementsDto';
 import type { SignUpMode } from './SignUpMode';
+import type { SignUpProfileDto } from './SignUpProfileDto';
 
 /**
  * Mirrors `SignInOptionsDto` of the be contract, the sign-in declaration `GET sign-in-options` answers: the hosted pages'
@@ -33,4 +34,6 @@ export interface SignInOptionsDto {
   readonly methods: ReadonlyArray<SignInMethodDto>;
   /** The verifications a sign-in needs. */
   readonly requirements: SignInRequirementsDto;
+  /** The profile fields an invitation sign-up asks for beside the phone, and what a picture upload accepts. */
+  readonly signUpProfile: SignUpProfileDto;
 }

@@ -30,6 +30,17 @@ export const AccountRouteConstants = {
   phoneSignIn: '/phone-sign-in',
   /** `GET`, anonymous: an invitation link's preview, `/invitations/{token}`; `POST` `/invitations/{token}/accept` adds the signed-in person. */
   invitations: '/invitations',
+  /**
+   * `POST`, anonymous, `multipart/form-data`: the segment after `/invitations/{token}` that starts an invitation sign-up
+   * with the profile it asks for (`displayName`, `picture`), `?clientId=`. Answers the bot's start link and binds the
+   * attempt to the browser by an HttpOnly cookie.
+   */
+  invitationSignUp: '/sign-up',
+  /**
+   * `GET`, anonymous: where the invitation sign-up the browser's cookie names stands, `?clientId=`. The first
+   * `completed` answer sets the session cookie.
+   */
+  invitationSignUpStatus: '/invitations/sign-up/status',
   /** `POST`: ends the cookie's session. */
   signOut: '/sign-out',
   /** `GET`, anonymous: the sign-in declaration, the look and the enabled methods with their rules; `?clientId=`, `?locale=`. */

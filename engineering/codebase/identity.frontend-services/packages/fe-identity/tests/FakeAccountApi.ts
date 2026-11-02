@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import { createAccountClient } from '../src/kit';
 
-/** One request the fake API received: its method, path with query, and parsed JSON body. */
+/** One request the fake API received: its method, path with query, and parsed JSON body or multipart form. */
 export interface ReceivedRequest {
   readonly method: string;
   readonly url: URL;
@@ -26,7 +26,8 @@ export function fakeAccountApi(answers: Record<string, Answer>) {
   const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
     const url = new URL(String(input));
     const method = (init?.method ?? 'GET').toUpperCase();
-    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+    const body =
+      typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body instanceof FormData ? init.body : undefined;
     const request = { method, url, body };
     received.push(request);
     const answer = answers[`${method} ${url.pathname.replace('/api/account', '')}`];

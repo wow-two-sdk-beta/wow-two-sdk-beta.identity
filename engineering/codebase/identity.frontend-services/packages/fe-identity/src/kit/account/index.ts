@@ -7,4 +7,14 @@ export {
   type SignInOptionsQuery,
 } from './CreateAccountClient';
 export { useAccountText, type AccountClientSource, type AccountText } from './hooks';
-export { codeRule, passwordRule, passwordRuleMessages, type PasswordAccount } from './validation';
+export {
+  codeRule,
+  displayNameMaxLength,
+  inspectPicture,
+  passwordRule,
+  passwordRuleMessages,
+  type PasswordAccount,
+  type PictureIssue,
+  type PictureSize,
+  type PictureSizeReader,
+} from './validation';

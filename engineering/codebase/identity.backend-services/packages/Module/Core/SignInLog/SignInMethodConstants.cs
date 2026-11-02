@@ -18,6 +18,9 @@ public static class SignInMethodConstants
     /// <summary>A single-use code sent to a phone number's linked channel, such as the instance's Telegram bot.</summary>
     public const string PhoneCode = "phone_code";
 
+    /// <summary>A phone proven by sharing its Telegram contact with the instance's bot, as an invitation sign-up does.</summary>
+    public const string PhoneContact = "phone_contact";
+
     /// <summary>A sign-in completed elsewhere, such as an external provider.</summary>
     public const string External = "external";
 

@@ -1,4 +1,5 @@
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.ProfilePictures;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignInDeclaration;
 
@@ -22,6 +23,12 @@ internal sealed record SignInDeclarationInput
 
     /// <summary>Whether the instance takes emails: sign-up by email, confirmation and reset links (<c>Identity:Methods:Email</c>).</summary>
     public bool IsEmailEnabled { get; init; } = true;
+
+    /// <summary>The profile fields an invitation sign-up asks for (<c>Identity:SignUp:Profile</c>).</summary>
+    public SignUpProfileOptions SignUpProfile { get; init; } = new();
+
+    /// <summary>The picture rules while profile pictures are registered; null asks for no picture.</summary>
+    public ProfilePictureOptions? PictureRules { get; init; }
 
     /// <summary>Whether an email signs in where a user name is expected.</summary>
     public bool IsEmailIdentifierAllowed { get; init; } = true;
