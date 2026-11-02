@@ -43,12 +43,25 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
   The descriptor's `configCheck:` item (`[dotnet, Identity.Api.dll, config, check]`, `2m`) is live in `deploy.yml`:
   pipelines `v0.15.0` is the first release that accepts the key.
 - First owner: the image answers `dotnet Identity.Api.dll admin create --slug <handle> --name <organization name>
-  --display-name <owner's name> [--phone <E.164>] [--email <address>] [--organization-id <uuid>] [--user-id <uuid>]`
-  after `migrate`: it builds the host without serving and creates the instance's first organization and its owner with
-  the `owner` role, or reports that both exist (exit `0` created or present, `1` refused when the handle, an id, the
-  email or the phone belongs to someone else, `2` failed), and prints one `admin-result` line last. It never takes a
-  password: the owner signs in by phone or sets one through the reset link. Preset ids keep a product's existing keys
-  (Desk's organization id). Members are managed elsewhere.
+  --display-name <owner's name> [--phone <E.164>] [--email <address>] [--organization-id <uuid>] [--user-id <uuid>]
+  [--role admin]` after `migrate`: it builds the host without serving and creates the instance's first organization and
+  its owner with the `owner` role, or reports that both exist (exit `0` created or present, `1` refused when the
+  handle, an id, the email or the phone belongs to someone else, `2` failed: usage, an invalid value, the database), and
+  prints one `admin-result` line last. `--role` also gives the owner an instance role (`admin`, `support`,
+  `auditor`), which opens the console; a rerun adding it answers `created` with `isInstanceRoleGranted: true`. It never
+  takes a password: the owner signs in by phone or sets one through the reset link. Preset ids keep a product's existing
+  keys (Desk's organization id).
+- First invitation: `dotnet Identity.Api.dll admin invite --organization <handle or uuid> --role <organization role>
+  [--phone <E.164>]` makes one invitation (any catalog role, `owner` included; `--phone` binds it to that number),
+  recorded as made by the host. Exit `0` created, `1` refused (no such organization), `2` failed (usage, a role outside
+  the catalog, an invalid phone, the database). The last line is `admin-result {"verb":"invite","exit":0,
+  "status":"created","organizationId":…,"invitationId":…,"role":"owner","link":"https://<issuer>/sign-up?invitation=<token>",
+  "expiresAt":…}`; the link carries the secret token, so it goes to the invitee only. Without `Identity:Server:Issuer`
+  the line carries `token` instead of `link`. Each run makes a new invitation; other members are invited from an
+  organization's owners and admins.
+- Console: `/` serves the console to a person signed in with an instance role; `GET /api/console/session` answers `401`
+  signed out, `403` without an instance role. The console signs in through the hosted pages, by phone on a phone-only
+  instance.
 - Placement: Ocharo's instance is a service of Ocharo's own `deploy.yml`, the image pinned by tag, its set in Ocharo's
   database; wow2's shared instance is a Wheelhouse product of its own. A product pinning it declares its keys as in
   [Pinning the instance](#pinning-the-instance).
@@ -72,6 +85,8 @@ The packages ship separately, from `publish-packages.yml` (`engineering/scripts/
 | `Identity:Sessions:{SlidingLifetime,ActivityInterval}` | — | sliding: each use moves the end this far ahead, at most once per `ActivityInterval`; defaults 7 days, 5 min. Ocharo: `Sliding`, `5.00:00:00` |
 | `Identity:SignInLog:{RetentionDays,CleanupInterval}` | — | defaults 180 days, 1 h |
 | `Identity:SignUp:Mode` | — | `Invite` by the descriptor's default: `POST /api/account/sign-up` and a first phone sign-in answer `403` and create nothing unless they carry a pending invitation's `invitationToken`, and the first owner comes from `admin create` (*First owner* above); `Open` takes self sign-up. Ocharo: `Invite` |
+| `Identity:Methods:Password:IsEnabled` | — | `true` by default; `false` turns password sign-in, sign-up, forgot and reset password and the change routes into `404` (`SignInMethodOff`) and drops the password method from the hosted pages. Ocharo: `false` |
+| `Identity:Methods:Email:IsEnabled` | — | `true` by default; `false` refuses sign-up by email, confirmation and reset links and email sign-in (`404`), and the hosted pages ask for no email. Ocharo: `false` while hosted email waits (OQ-2) |
 | `Identity:Invitations:Lifetime` | — | default 7 days: how long an invitation link redeems; the link is `{issuer origin}/sign-up?invitation={token}` (`Identity:Invitations:LinkTemplate` overrides it) |
 
 - Each certificate value is one PEM bundle (certificate, then its unencrypted PKCS#8 private key) from `keys generate`;

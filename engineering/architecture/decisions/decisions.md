@@ -69,7 +69,7 @@
 | 2026-11-01 | the hosted pages take one look per instance (`Identity:Pages:{BrandName,Theme,BackgroundUrl}`), as an instance serves one product; no per-client look | developer |
 | 2026-11-01 | no test mode, fake channel or message sink in the runtime; dev and local flows use real dev accounts and bots; fakes live in test projects | developer |
 | 2026-11-01 | every route and member says sign in, sign up and sign out: `/api/account/{sign-in,sign-up,sign-out}`, a BFF's `/api/identity/{session,sign-in,sign-out,callback}` | developer |
-| 2026-11-01 | the host CLI creates the first admin only (`admin create`); members are managed elsewhere | developer |
+| 2026-11-01 | the host CLI creates the first admin only (`admin create`); members are managed elsewhere (widened 2026-11-02 by `admin invite`) | developer |
 | 2026-11-01 | the flows other apps need ship and deploy first, then Ocharo goes live on them; the console comes after | developer |
 | 2026-11-01 | a fixed role catalog: instance `admin`, `support`, `auditor`; organization `owner`, `admin`, `editor`, `viewer`, `billing`; apps add namespaced permissions, never roles; wow2's `operator` becomes `editor` | developer, C3 |
 | 2026-11-01 | external logins are external accounts in every member (`IdentityExternalAccount`, `ExternalAccountService`); the forward-only set keeps `identity_user_logins` and `login_provider` as named, mapped explicitly | naming build |
@@ -85,6 +85,10 @@
 | 2026-11-02 | the Module's `identity-credentials` rate-limit policy (30 per minute per address) covers every sign-in, sign-up, reset and phone route; Argon2 runs 4 hashes at once and answers 429 after 5 s queued | bug sweep #2, #3 |
 | 2026-11-02 | end-session revokes only with a valid `id_token_hint` or a same-origin POST; `prompt=login` and `max_age` hold through a sealed `fresh_sign_in` marker; `auth_time` is the session's start | bug sweep #10, #11 |
 | 2026-11-02 | a deployed BFF on the in-memory session cache or an unpersisted key ring logs a warning at boot; products register a shared `IDistributedCache` and a persisted key ring | bug sweep #5 |
+| 2026-11-02 | `Identity:Methods:Password` and `Identity:Methods:Email` (`IsEnabled`, on by default) switch password and email: a route whose method is off answers `404` `SignInMethodOff`, and the declaration and hosted pages leave it out; Ocharo's instance is phone-only (both off) while hosted email waits (OQ-2) | developer, cutover #10 |
+| 2026-11-02 | the console signs in through the hosted pages as every person does: on Ocharo's instance the phone and the bot's Telegram code; a TOTP or passkey step comes when others get console access (OQ-1) | developer |
+| 2026-11-02 | instance roles sit in `identity_roles`, seeded on the first grant; `admin create --role <instance role>` gives one to the owner, idempotently; any instance role opens the console (policy `identity-console`, `GET /api/console/session`); role claims never enter app tokens | cutover #11 |
+| 2026-11-02 | the host CLI also makes invitations (`admin invite --organization --role [--phone]`): any catalog role, `owner` included, recorded as made by `Guid.Empty`; exit `0` created, `1` no such organization, `2` failed; the last line carries the link (widens the 2026-11-01 "first admin only") | developer, cutover #12 |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).
