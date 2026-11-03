@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Backlog
 
-*Last updated: 2026-11-02*
+*Last updated: 2026-11-03*
 
 Every unbuilt item, grouped; top of each group = next. Shipped work lives in [`version-track/`](version-track/).
 Shape: wow-two-ws/conventions/planning/version-track/version-track.md
@@ -27,6 +27,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | trusted devices and contacts | feature | slice 1 in v0.5 iteration 10 ([spec](../../product/features/trusted-contacts.md)); left: a new device or Telegram change waiting for a contact's confirmation (developer, 2026-11-03); revoking a contact ending bearer sign-ins made through them; the contact mark surviving a second factor; the contact's bot message in the account's language |
 | open sign-up | feature | C13: the person joins as a guest (no organization role) through an email-first form that turns into sign-in or sign-up |
 | hosted pages layout | product | C14: what the developer names; with the console layout review below |
+| code input as boxes | product | every code form takes the fe sdk's `PinInput`, one box per digit, instead of one text field: `PhoneCodeSignIn`, `InviteSignUpForm`, `SecondFactorForm` (TOTP; recovery codes stay text) and `ChangePasswordForm`; the pinned `@wow-two-beta/fe` 0.0.40 ships it (developer, 2026-11-03) |
 | invitation use limits | feature | a link for a number of people or none, beside today's single use; accept after signing in from the invitation page |
 | I18 back-channel sign-out | feature | member removal signs every app out at once |
 | app access check | feature | refuse sign-in and tokens for an app missing from the member's `app_access` (Q61) |
@@ -48,6 +49,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | Item | Type | Notes |
 |---|---|---|
 | I21 admin API | feature | members, sessions, sign-in log, registered apps |
+| role permissions in the console | feature | an admin changes what each organization role may do, per app and per action, at runtime; today `Identity:Organizations:Roles:{role}` adds namespaced permissions (`desk:orders:edit`) instance-wide from deploy config; the role catalog stays fixed, so only the 2026-11-01 C3 row's "settings add permissions only" changes (developer, 2026-11-03) |
 | custom sign-up fields | feature | after G3: any profile field with its type, rules and labels in `Identity:SignUp:Profile`, beyond today's name and picture (developer, 2026-11-02) |
 | profile self-service | feature | after G3: a person edits their name and picture from the account page |
 | pictures on File Storage | feature | after G3: an `IProfilePictureStore` adapter over File Storage, with image variants; the database store stays the default |
