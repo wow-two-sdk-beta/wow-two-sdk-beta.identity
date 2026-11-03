@@ -17,4 +17,7 @@ public sealed record SignInAttempt
 
     /// <summary>The identifier as typed (user name, email or phone); stored masked, never in full.</summary>
     public string? Subject { get; init; }
+
+    /// <summary>The trusted contact the attempt went through; null takes <see cref="SignInLogService.TrustedContactUserId"/>.</summary>
+    public Guid? TrustedContactUserId { get; init; }
 }

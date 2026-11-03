@@ -24,6 +24,9 @@ public sealed record SessionModel
     /// <summary>The browser's user agent at sign-in.</summary>
     public string? UserAgent { get; init; }
 
+    /// <summary>The trusted contact the sign-in went through; null for a sign-in by the person's own means.</summary>
+    public Guid? TrustedContactUserId { get; init; }
+
     /// <summary>The model of <paramref name="session"/>.</summary>
     /// <param name="session">The row.</param>
     public static SessionModel From(IdentitySession session)
@@ -38,6 +41,7 @@ public sealed record SessionModel
             AuthenticationMethods = session.AuthenticationMethods,
             IpMasked = session.IpMasked,
             UserAgent = session.UserAgent,
+            TrustedContactUserId = session.TrustedContactUserId,
         };
     }
 }

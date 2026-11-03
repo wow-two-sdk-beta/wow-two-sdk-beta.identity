@@ -18,6 +18,9 @@ public sealed record PhoneSignInResult
     /// <summary>Whether this step created <see cref="User"/>.</summary>
     public bool IsUserCreated { get; init; }
 
+    /// <summary>The trusted contact whose code proved <see cref="User"/>; null when the number's own chat received it.</summary>
+    public Guid? TrustedContactUserId { get; init; }
+
     /// <summary>A result with <paramref name="status"/> only.</summary>
     /// <param name="status">How the step ended.</param>
     /// <param name="phoneNumber">The number in E.164, when read.</param>

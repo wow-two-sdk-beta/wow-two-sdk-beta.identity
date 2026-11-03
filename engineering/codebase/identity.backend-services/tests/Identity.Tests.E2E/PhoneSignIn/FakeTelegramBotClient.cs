@@ -18,6 +18,12 @@ internal sealed partial class FakeTelegramBotClient : ITelegramBotClient
     /// <summary>Every message the bot sent, in order.</summary>
     public ConcurrentQueue<SendMessageRequest> Sent { get; } = new();
 
+    /// <summary>Every text edit the bot made, in order, such as a notice whose button was pressed.</summary>
+    public ConcurrentQueue<EditMessageTextRequest> TextEdits { get; } = new();
+
+    /// <summary>Every answer to a button press, in order.</summary>
+    public ConcurrentQueue<AnswerCallbackQueryRequest> Answers { get; } = new();
+
     /// <summary>Chats that refuse messages with Telegram's 403.</summary>
     public ConcurrentDictionary<long, bool> BlockedChats { get; } = new();
 
@@ -49,8 +55,25 @@ internal sealed partial class FakeTelegramBotClient : ITelegramBotClient
     /// <inheritdoc />
     public Task<TResponse> SendRequest<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
     {
-        if (request is not SendMessageRequest message)
-            throw new NotSupportedException($"The fake bot sends messages only, not {request.MethodName}.");
+        switch (request)
+        {
+            case EditMessageTextRequest edit:
+                TextEdits.Enqueue(edit);
+                object edited = new Message { Id = edit.MessageId, Date = DateTime.UtcNow, Chat = new Chat { Id = edit.ChatId.Identifier ?? 0, Type = ChatType.Private }, Text = edit.Text };
+                return Task.FromResult((TResponse)edited);
+            case EditMessageReplyMarkupRequest markup:
+                object unmarked = new Message { Id = markup.MessageId, Date = DateTime.UtcNow, Chat = new Chat { Id = markup.ChatId.Identifier ?? 0, Type = ChatType.Private } };
+                return Task.FromResult((TResponse)unmarked);
+            case AnswerCallbackQueryRequest answer:
+                Answers.Enqueue(answer);
+                return Task.FromResult((TResponse)(object)true);
+            case DeleteMessagesRequest:
+                return Task.FromResult((TResponse)(object)true);
+            case not SendMessageRequest:
+                throw new NotSupportedException($"The fake bot does not play {request.MethodName}.");
+        }
+
+        var message = (SendMessageRequest)request;
 
         var chatId = message.ChatId.Identifier ?? 0;
         if (BlockedChats.ContainsKey(chatId))

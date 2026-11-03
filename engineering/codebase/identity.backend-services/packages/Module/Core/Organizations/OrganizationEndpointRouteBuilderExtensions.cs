@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using WoW.Two.Sdk.Beta.Be.Foundation.Errors;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.TrustedContacts;
 using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 using WoW.Two.Sdk.Beta.Be.Web.Contracts;
 
@@ -70,6 +71,9 @@ public static class OrganizationEndpointRouteBuilderExtensions
         IReadOnlySet<string> pending = changes is null
             ? new HashSet<string>(StringComparer.Ordinal)
             : await changes.FindPendingNumbersAsync([.. found.Select(member => ConfirmedPhoneOf(member.User)).OfType<string>().Distinct(StringComparer.Ordinal)], cancellationToken);
+        var contacts = http.RequestServices.GetService<TrustedContactService>() is { } trusted
+            ? await trusted.ContactsOfAsync([.. found.Select(member => member.User.Id)], cancellationToken)
+            : new Dictionary<Guid, IReadOnlyList<IdentityUser>>();
         var members = found.Select(member => new OrganizationMemberDto
         {
             UserId = member.User.Id,
@@ -80,6 +84,10 @@ public static class OrganizationEndpointRouteBuilderExtensions
             Role = member.Membership.Role,
             JoinedAt = member.Membership.CreatedAt,
             HasPendingTelegramChange = ConfirmedPhoneOf(member.User) is { } phone && pending.Contains(phone),
+            IsPhoneConfirmed = ConfirmedPhoneOf(member.User) is not null,
+            TrustedContacts = contacts.TryGetValue(member.User.Id, out var trustedBy)
+                ? [.. trustedBy.Select(contact => new MemberTrustedContactDto { UserId = contact.Id, DisplayName = TrustedContactService.NameOf(contact) })]
+                : [],
         }).ToList();
 
         return Results.Ok(ApiResponse<IReadOnlyList<OrganizationMemberDto>>.Ok(members));
@@ -135,7 +143,17 @@ public static class OrganizationEndpointRouteBuilderExtensions
     {
         var manager = await ManagerOfAsync(organizationId, principal, http, cancellationToken);
         var invitations = http.RequestServices.GetRequiredService<InvitationService>();
-        var created = await invitations.CreateAsync(manager.Organization, manager.Caller, request.Role, request.PhoneNumber, request.Email, cancellationToken);
+        if (request.TrustedContactUserId is not null)
+        {
+            var trusted = http.RequestServices.GetService<TrustedContactService>();
+            var check = trusted is null
+                ? IdentityUserExtensions.Failure(TrustedContactErrorCodeConstants.TrustedContactsOff, "Trusted contacts are off on this instance.")
+                : await trusted.CheckInvitationContactAsync(manager.Organization, manager.Caller, request.TrustedContactUserId, cancellationToken);
+            if (!check.IsSuccess)
+                throw TrustedContactErrorOf(check).ToException();
+        }
+
+        var created = await invitations.CreateAsync(manager.Organization, manager.Caller, request.Role, request.PhoneNumber, request.Email, request.TrustedContactUserId, cancellationToken);
         if (!created.IsSuccess)
             throw InvitationErrors.Of(created.Result).ToException();
 
@@ -206,7 +224,18 @@ public static class OrganizationEndpointRouteBuilderExtensions
         ExpiresAt = invitation.ExpiresAt,
         AcceptedAt = invitation.AcceptedAt,
         AcceptedByUserId = invitation.AcceptedByUserId,
+        TrustedContactUserId = invitation.TrustedContactUserId,
     };
+
+    /// <summary>The error a refused trusted contact answers with: <c>404</c> while they are off, else <c>400</c>.</summary>
+    private static AppError TrustedContactErrorOf(IdentityResult refusal)
+    {
+        var error = refusal.Errors[0];
+        return InvitationErrors.Coded(
+            error.Code == TrustedContactErrorCodeConstants.TrustedContactsOff ? AppErrorType.NotFound : AppErrorType.Validation,
+            error.Description,
+            error.Code);
+    }
 
     /// <summary>The organization an owner or admin acts on, with the services and the caller.</summary>
     private sealed record Manager(OrganizationService Organizations, IdentityOrganization Organization, IdentityUser Caller);

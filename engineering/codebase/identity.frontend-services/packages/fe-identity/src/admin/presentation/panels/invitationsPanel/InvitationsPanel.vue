@@ -14,8 +14,8 @@ import InvitationRow from './InvitationRow.vue';
 
 /**
  * Lists an organization's invitations with where each stands, for its owners and admins: makes a link with any catalog
- * role and an optional phone number, shows that link once with a copy button, and revokes a pending one; a refusal shows
- * in the panel.
+ * role, an optional phone number and an optional trusted contact (the signed-in person, or a member with a confirmed
+ * phone), shows that link once with a copy button, and revokes a pending one; a refusal shows in the panel.
  */
 defineOptions({ name: 'InvitationsPanel' });
 
@@ -31,8 +31,10 @@ const props = withDefaults(
     countries?: ReadonlyArray<string>;
     /** The ISO code the phone field selects first; the first allowed country when omitted. */
     defaultCountry?: string;
+    /** The signed-in person's id, who may name themselves the invited person's trusted contact ("Me"); no "Me" without it. */
+    currentUserId?: string | null;
   }>(),
-  { client: undefined, baseUrl: undefined, countries: undefined, defaultCountry: undefined },
+  { client: undefined, baseUrl: undefined, countries: undefined, defaultCountry: undefined, currentUserId: null },
 );
 
 const emit = defineEmits<{
@@ -113,6 +115,7 @@ defineExpose({
       :client="client"
       :countries="countries"
       :default-country="defaultCountry"
+      :current-user-id="currentUserId"
       @created="add"
     />
 

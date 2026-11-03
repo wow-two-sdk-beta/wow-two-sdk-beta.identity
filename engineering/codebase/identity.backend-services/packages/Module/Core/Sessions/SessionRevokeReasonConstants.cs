@@ -20,4 +20,7 @@ public static class SessionRevokeReasonConstants
     /// every session ends at once, so the person signs in again with the new roles.
     /// </summary>
     public const string RolesChanged = "roles_changed";
+
+    /// <summary>The trusted contact the session's sign-in went through was revoked, or left.</summary>
+    public const string TrustedContactRevoked = "trusted_contact_revoked";
 }

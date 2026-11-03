@@ -6,4 +6,9 @@ export interface InvitationApiRequest {
   readonly phoneNumber?: string | null;
   /** The email that alone may redeem the link; omitted for anyone holding it. */
   readonly email?: string | null;
+  /**
+   * The member who receives the invited person's sign-in codes: the inviter or another member with a confirmed phone.
+   * That is full access to the new account, so the picker says so; omitted for none.
+   */
+  readonly trustedContactUserId?: string | null;
 }

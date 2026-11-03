@@ -13,6 +13,8 @@ export interface InvitationPreviewDto {
   readonly phoneNumberHint: string | null;
   /** A hint of the email that alone may redeem it, such as `a***@example.com`; `null` when it names none. */
   readonly emailHint: string | null;
+  /** The invitation's trusted contact, as a masked name; `null` when the inviter named none. */
+  readonly trustedContactHint: string | null;
   /** When it stops working, ISO 8601. */
   readonly expiresAt: string;
 }

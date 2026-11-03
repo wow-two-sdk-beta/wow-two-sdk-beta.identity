@@ -8,6 +8,7 @@ import {
   type InvitationStatus,
   type MemberRoleApiRequest,
   type OrganizationMemberDto,
+  type TrustedContactSummaryDto,
 } from '../../contracts';
 
 /** Configures where the organization API is reached. */
@@ -29,7 +30,10 @@ export interface OrganizationClientOptions {
  * `403` `OrganizationManagerRequired`. The code rides in the problem's `identityCode` (`readIdentityCode`).
  */
 export interface OrganizationClient {
-  /** Reads the organization's members with their roles. */
+  /**
+   * Reads the organization's members with their roles, whether each one's phone is confirmed and the members who receive
+   * their sign-in codes.
+   */
   listMembers(
     organizationId: string,
     signal?: AbortSignal,
@@ -54,7 +58,10 @@ export interface OrganizationClient {
   ): Promise<Result<void, ApiFailure>>;
   /** Drops the member's pending Telegram account change, keeping the link; `404` `TelegramChangeNotFound` when none waits. */
   denyTelegramChange(organizationId: string, userId: string, signal?: AbortSignal): Promise<Result<void, ApiFailure>>;
-  /** Makes an invitation link; the answer alone carries its token and link. */
+  /**
+   * Makes an invitation link; the answer alone carries its token and link. `trustedContactUserId` names the inviter or
+   * another member with a confirmed phone to receive the invited person's sign-in codes.
+   */
   createInvitation(
     organizationId: string,
     request: InvitationApiRequest,
@@ -94,11 +101,18 @@ function list<T>(value: unknown, decode: (item: unknown) => T | null): ReadonlyA
   return items.every((item): item is T => item !== null) ? items : null;
 }
 
+function decodeTrustedContact(value: unknown): TrustedContactSummaryDto | null {
+  const body = record(value);
+  const userId = text(body?.userId);
+  return body && userId ? { userId, displayName: text(body.displayName) } : null;
+}
+
 function decodeMember(value: unknown): OrganizationMemberDto | null {
   const body = record(value);
   const userId = text(body?.userId);
   const role = text(body?.role);
-  if (!body || !userId || !role) return null;
+  const trustedContacts = body?.trustedContacts == null ? [] : list(body.trustedContacts, decodeTrustedContact);
+  if (!body || !userId || !role || !trustedContacts) return null;
   return {
     userId,
     displayName: text(body.displayName),
@@ -108,6 +122,8 @@ function decodeMember(value: unknown): OrganizationMemberDto | null {
     role,
     joinedAt: text(body.joinedAt) ?? '',
     hasPendingTelegramChange: body.hasPendingTelegramChange === true,
+    isPhoneConfirmed: body.isPhoneConfirmed === true,
+    trustedContacts,
   };
 }
 

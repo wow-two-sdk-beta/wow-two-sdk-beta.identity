@@ -17,4 +17,7 @@ public sealed record InviteSignUpStartRequest
 
     /// <summary>Gets where the request came from, for rate limiting; null when unknown.</summary>
     public string? Origin { get; init; }
+
+    /// <summary>Gets how the sign-up proves the person: their own Telegram (default) or the invitation's trusted contact.</summary>
+    public InviteSignUpVerification Verification { get; init; } = InviteSignUpVerification.Telegram;
 }

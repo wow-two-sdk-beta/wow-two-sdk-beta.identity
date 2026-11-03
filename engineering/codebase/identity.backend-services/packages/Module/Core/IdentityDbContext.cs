@@ -10,7 +10,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 /// <summary>
 /// The Module's own context over the identity schema in PostgreSQL: 11 account tables, OpenIddict's four
 /// <c>identity_oidc_*</c> tables, the sessions, sign-in log and Data Protection key tables, the one-time code and
-/// Telegram link and message tables, and the invitation, sign-up and picture tables, mapped only. The embedded
+/// Telegram link and message tables, and the invitation, sign-up, picture and trusted contact tables, mapped only. The embedded
 /// SQL migration set <see cref="IdentityDatabaseOptions.MigrationSetName"/> creates and evolves them; EF never does.
 /// </summary>
 /// <remarks>
@@ -125,6 +125,9 @@ public sealed class IdentityDbContext : AppDbContextBase
 
     /// <summary>People's profile pictures (<c>identity_profile_pictures</c>).</summary>
     public DbSet<IdentityProfilePicture> ProfilePictures => Set<IdentityProfilePicture>();
+
+    /// <summary>Accounts' trusted contacts (<c>identity_trusted_contacts</c>).</summary>
+    public DbSet<IdentityTrustedContact> TrustedContacts => Set<IdentityTrustedContact>();
 
     /// <inheritdoc />
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -284,6 +287,14 @@ public sealed class IdentityDbContext : AppDbContextBase
             invitation.Property(i => i.TokenHash).HasMaxLength(64);
             invitation.Property(i => i.PhoneNumber).HasMaxLength(32);
             invitation.Property(i => i.Email).HasMaxLength(256);
+        });
+
+        // 010-trusted-contacts: one row per account and contact.
+        modelBuilder.Entity<IdentityTrustedContact>(contact =>
+        {
+            contact.ToTable("identity_trusted_contacts");
+            contact.HasKey(c => new { c.UserId, c.ContactUserId });
+            contact.HasIndex(c => c.ContactUserId);
         });
 
         modelBuilder.Entity<IdentitySignUpRequest>(request =>

@@ -6,6 +6,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.ProfilePictures;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.TrustedContacts;
 using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.InviteSignUp;
@@ -23,6 +24,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.InviteSignUp;
 ///   - an invitation naming a phone binds the start link to it; any other takes the contact's number, which must be in
 ///     <c>Identity:Phone:AllowedCountries</c>
 ///   - a known person keeps their name and picture when they have one; the join and the new person are one transaction
+///   - with trusted contacts on, an invitation naming a contact may verify through them instead: the code goes to the
+///     contact's Telegram, and typing it on the page creates the person with no phone, redeems the invitation and records
+///     the contact, in one transaction (<see cref="VerifyThroughContactAsync"/>)
 /// </remarks>
 /// <param name="invitations">Finds and redeems the invitation.</param>
 /// <param name="requests">The waiting sign-ups.</param>
@@ -35,6 +39,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.InviteSignUp;
 /// <param name="accounts">Creates and updates people.</param>
 /// <param name="phones">The allowed countries.</param>
 /// <param name="time">The clock sign-ups are stamped with.</param>
+/// <param name="trustedContacts">The trusted contacts slice; null offers the bot's link only.</param>
 public sealed class InviteSignUpService(
     InvitationService invitations,
     ISignUpRequestRepository requests,
@@ -46,7 +51,8 @@ public sealed class InviteSignUpService(
     IUserRepository users,
     UserAccountService accounts,
     PhoneNumberPolicy phones,
-    TimeProvider time)
+    TimeProvider time,
+    TrustedContactService? trustedContacts = null)
 {
     private const int SecretBytes = 32;
 
@@ -71,9 +77,21 @@ public sealed class InviteSignUpService(
         if (CheckPicture(request.Picture, profile.Picture, out var picture) is { } pictureRefusal)
             return InviteSignUpStartResult.Of(InviteSignUpStartStatus.Invalid, pictureRefusal);
 
-        var phone = lookup.Invitation.PhoneNumber;
-        if (await telegram.IsRateLimitedAsync(phone, request.Origin, cancellationToken))
+        IdentityUser? contact = null;
+        if (request.Verification == InviteSignUpVerification.TrustedContact)
+        {
+            var (refusal, found) = await ContactOfAsync(lookup.Invitation, cancellationToken);
+            if (refusal is not null || found is null)
+                return InviteSignUpStartResult.Of(InviteSignUpStartStatus.TrustedContactRefused, refusal ?? Unreachable());
+
+            contact = found;
+            if (await trustedContacts!.IsContactRateLimitedAsync(contact.Id, request.Origin, cancellationToken))
+                return InviteSignUpStartResult.Of(InviteSignUpStartStatus.RateLimited);
+        }
+        else if (await telegram.IsRateLimitedAsync(lookup.Invitation.PhoneNumber, request.Origin, cancellationToken))
+        {
             return InviteSignUpStartResult.Of(InviteSignUpStartStatus.RateLimited);
+        }
 
         var now = time.GetUtcNow();
         var secret = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(SecretBytes));
@@ -89,7 +107,25 @@ public sealed class InviteSignUpService(
             ExpiresAt = Min(now + telegram.LinkLifetime, lookup.Invitation.ExpiresAt),
         };
         await requests.AddAsync(signUpRequest, cancellationToken);
-        var url = await telegram.CreateStartLinkAsync(phone, TelegramLinkPurposeConstants.InviteSignUp, signUpRequest.Id, request.Origin, cancellationToken);
+        if (contact is not null)
+        {
+            var sent = await trustedContacts!.SendSignUpCodeAsync(contact, signUpRequest.Id, name, request.Origin, cancellationToken);
+            return sent switch
+            {
+                TrustedContactSendStatus.CodeSent => new InviteSignUpStartResult
+                {
+                    Status = InviteSignUpStartStatus.Started,
+                    VerificationId = signUpRequest.Id,
+                    BrowserSecret = secret,
+                    IsCodeSentToTrustedContact = true,
+                    ExpiresAt = signUpRequest.ExpiresAt,
+                },
+                TrustedContactSendStatus.RateLimited => InviteSignUpStartResult.Of(InviteSignUpStartStatus.RateLimited),
+                _ => InviteSignUpStartResult.Of(InviteSignUpStartStatus.TrustedContactRefused, Unreachable()),
+            };
+        }
+
+        var url = await telegram.CreateStartLinkAsync(lookup.Invitation.PhoneNumber, TelegramLinkPurposeConstants.InviteSignUp, signUpRequest.Id, request.Origin, cancellationToken);
         return new InviteSignUpStartResult
         {
             Status = InviteSignUpStartStatus.Started,
@@ -172,6 +208,86 @@ public sealed class InviteSignUpService(
         };
     }
 
+    /// <summary>
+    /// Finishes the sign-up <paramref name="signUpId"/> started through its invitation's trusted contact, for the browser
+    /// holding <paramref name="browserSecret"/>: <paramref name="code"/>, the contact's code, creates the person with no phone,
+    /// the sign-up's name and picture, redeems the invitation and records the contact, in one transaction. A wrong code stays
+    /// counted; a refused join undoes the rest.
+    /// </summary>
+    /// <param name="signUpId">The sign-up.</param>
+    /// <param name="browserSecret">The secret the starting browser keeps.</param>
+    /// <param name="code">The code the contact passed on.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<InviteSignUpVerifyResult> VerifyThroughContactAsync(Guid signUpId, string? browserSecret, string? code, CancellationToken cancellationToken = default)
+    {
+        var request = await requests.FindAsync(signUpId, cancellationToken);
+        if (request is null || trustedContacts is null || string.IsNullOrEmpty(browserSecret)
+            || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(request.BrowserSecretHash), Encoding.ASCII.GetBytes(HashOf(browserSecret)))
+            || request.CompletedAt is not null)
+        {
+            return InviteSignUpVerifyResult.Of(InviteSignUpVerifyStatus.NotFound);
+        }
+
+        if (request.ExpiresAt <= time.GetUtcNow())
+            return InviteSignUpVerifyResult.Of(InviteSignUpVerifyStatus.Expired);
+
+        var lookup = await invitations.FindByIdAsync(request.InvitationId, cancellationToken);
+        if (lookup?.Invitation.TrustedContactUserId is not { } contactId)
+            return InviteSignUpVerifyResult.Of(InviteSignUpVerifyStatus.NotFound);
+
+        var (person, redemption) = await invitations.RedeemThroughTrustedContactWithAsync(
+            lookup.Invitation,
+            async token =>
+            {
+                if (!await trustedContacts.VerifySignUpCodeAsync(contactId, request.Id, code, token))
+                    return null;
+
+                var created = await CreateAsync(phone: null, "member-" + Guid.NewGuid().ToString("N"), request.DisplayName, token)
+                    ?? throw new InvalidOperationException("The trusted contact sign-up could not create the person.");
+                if (request.Picture is { } picture)
+                    await pictures.SaveAsync(created.Id, picture, token);
+                var recorded = await trustedContacts.RecordAsync(created.Id, contactId, lookup.Invitation.CreatedByUserId, token);
+                return recorded.IsSuccess ? created : throw new InvalidOperationException(recorded.Errors[0].Description);
+            },
+            created => created,
+            cancellationToken);
+        if (redemption is null || person is null)
+            return InviteSignUpVerifyResult.Of(InviteSignUpVerifyStatus.InvalidCode);
+        if (!redemption.IsSuccess)
+        {
+            var failure = redemption.Errors.Count > 0 ? redemption.Errors[0].Code : IdentityErrorCodeConstants.InvitationNotFound;
+            await requests.TryCompleteAsync(request.Id, userId: null, failure, time.GetUtcNow(), cancellationToken);
+            return InviteSignUpVerifyResult.Of(InviteSignUpVerifyStatus.Failed, failure);
+        }
+
+        await requests.TryCompleteAsync(request.Id, person.Id, failureCode: null, time.GetUtcNow(), cancellationToken);
+        await requests.TryMarkSignedInAsync(request.Id, time.GetUtcNow(), cancellationToken);
+        return new InviteSignUpVerifyResult
+        {
+            Status = InviteSignUpVerifyStatus.Completed,
+            SignInAs = person,
+            TrustedContactUserId = contactId,
+            ClientId = request.ClientId,
+        };
+    }
+
+    /// <summary>The invitation's trusted contact when a code can reach them now, or why a sign-up cannot go through them.</summary>
+    private async Task<(IdentityResult? Refusal, IdentityUser? Contact)> ContactOfAsync(IdentityInvitation invitation, CancellationToken cancellationToken)
+    {
+        if (trustedContacts is not { IsEnabled: true })
+            return (IdentityUserExtensions.Failure(TrustedContactErrorCodeConstants.TrustedContactsOff, "Trusted contacts are off on this instance."), null);
+        if (invitation.TrustedContactUserId is not { } contactId)
+            return (IdentityUserExtensions.Failure(TrustedContactErrorCodeConstants.NoTrustedContact, "The invitation names no trusted contact; verify with your own Telegram."), null);
+
+        var contact = await accounts.FindByIdAsync(contactId, cancellationToken);
+        return contact is not null && await trustedContacts.IsDeliverableAsync(contact, cancellationToken)
+            ? (null, contact)
+            : (Unreachable(), null);
+    }
+
+    private static IdentityResult Unreachable()
+        => IdentityUserExtensions.Failure(TrustedContactErrorCodeConstants.TrustedContactUnavailable, "The trusted contact cannot receive a code now; verify with your own Telegram.");
+
     /// <summary>The person holding <paramref name="phone"/> confirmed, given the sign-up's name and picture where they lack one, or a new person holding it.</summary>
     private async Task<IdentityUser?> PersonOfAsync(string phone, IdentitySignUpRequest request, CancellationToken cancellationToken)
     {
@@ -197,10 +313,10 @@ public sealed class InviteSignUpService(
         return person;
     }
 
-    /// <summary>Creates a person holding <paramref name="phone"/> confirmed under <paramref name="userName"/>; null when the name is taken.</summary>
-    private async Task<IdentityUser?> CreateAsync(string phone, string userName, string? displayName, CancellationToken cancellationToken)
+    /// <summary>Creates a person holding <paramref name="phone"/> confirmed (or none) under <paramref name="userName"/>; null when the name is taken.</summary>
+    private async Task<IdentityUser?> CreateAsync(string? phone, string userName, string? displayName, CancellationToken cancellationToken)
     {
-        var user = new IdentityUser { UserName = userName, PhoneNumber = phone, IsPhoneNumberConfirmed = true, DisplayName = displayName };
+        var user = new IdentityUser { UserName = userName, PhoneNumber = phone, IsPhoneNumberConfirmed = phone is not null, DisplayName = displayName };
         var result = await accounts.CreateAsync(user, cancellationToken);
         if (result.IsSuccess)
             return user;

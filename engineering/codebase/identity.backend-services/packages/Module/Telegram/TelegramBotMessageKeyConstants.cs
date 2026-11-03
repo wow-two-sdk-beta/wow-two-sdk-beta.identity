@@ -56,4 +56,31 @@ public static class TelegramBotMessageKeyConstants
 
     /// <summary>A pressed button's action failed.</summary>
     public const string ButtonFailed = "button-failed";
+
+    /// <summary>A sign-in code sent to a trusted contact for an account: <c>{code}</c>, <c>{account}</c>, <c>{app}</c>, <c>{minutes}</c>.</summary>
+    public const string ContactSignInCode = "contact-code-sign-in";
+
+    /// <summary>A sign-up code sent to the trusted contact an invitation names: <c>{code}</c>, <c>{account}</c>, <c>{app}</c>, <c>{minutes}</c>.</summary>
+    public const string ContactSignUpCode = "contact-code-sign-up";
+
+    /// <summary>The notice to an account's own chat after a sign-in through one of its contacts: <c>{contact}</c>, <c>{app}</c>, <c>{time}</c>.</summary>
+    public const string ContactSignInNotice = "contact-sign-in-notice";
+
+    /// <summary>The label of the notice's button that revokes the contact.</summary>
+    public const string RevokeTrustButton = "revoke-trust-button";
+
+    /// <summary>What the notice reads, and the presser's toast, once its button revoked the contact.</summary>
+    public const string TrustRevoked = "trust-revoked";
+
+    /// <summary>Asks for the contact that adds or changes one's own phone.</summary>
+    public const string AddPhoneSharePrompt = "add-phone-share-prompt";
+
+    /// <summary>The shared number is now the account's own phone.</summary>
+    public const string AddPhoneDone = "add-phone-done";
+
+    /// <summary>Another account holds the shared number confirmed.</summary>
+    public const string AddPhoneTaken = "add-phone-taken";
+
+    /// <summary>The add-phone link no longer adds a phone: the account or its session is gone, or it gained an own phone meanwhile.</summary>
+    public const string AddPhoneFailed = "add-phone-failed";
 }

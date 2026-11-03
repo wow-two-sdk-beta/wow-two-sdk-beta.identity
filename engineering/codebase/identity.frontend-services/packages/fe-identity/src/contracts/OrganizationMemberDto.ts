@@ -1,3 +1,5 @@
+import type { TrustedContactSummaryDto } from './TrustedContactSummaryDto';
+
 /** Mirrors `OrganizationMemberDto` of the be contract: one member of an organization, as its owners and admins see them. */
 export interface OrganizationMemberDto {
   /** The person's id, the `sub` of their tokens. */
@@ -19,4 +21,8 @@ export interface OrganizationMemberDto {
    * owner or admin to approve or deny moving the number's link to it; `false` while the instance has no bot.
    */
   readonly hasPendingTelegramChange: boolean;
+  /** Whether the person's own phone is confirmed, which alone lets them be another's trusted contact. */
+  readonly isPhoneConfirmed: boolean;
+  /** The members who receive this person's sign-in codes; empty when they have none. */
+  readonly trustedContacts: ReadonlyArray<TrustedContactSummaryDto>;
 }

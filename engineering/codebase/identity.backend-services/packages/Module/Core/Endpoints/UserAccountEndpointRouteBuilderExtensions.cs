@@ -536,6 +536,13 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
         var user = await CurrentUserAsync(principal, http, cancellationToken);
         var current = SessionOf(services, principal)?.SessionId;
         var listed = await services.GetRequiredService<UserSessionService>().ListAsync(user, cancellationToken);
+        var contactNames = new Dictionary<Guid, string?>();
+        foreach (var contactId in listed.Select(session => session.TrustedContactUserId).OfType<Guid>().Distinct())
+        {
+            var contact = await services.GetRequiredService<UserAccountService>().FindByIdAsync(contactId, cancellationToken);
+            contactNames[contactId] = contact is null ? null : TrustedContacts.TrustedContactService.NameOf(contact);
+        }
+
         return Results.Ok(ApiResponse<IReadOnlyList<SessionDto>>.Ok([.. listed.Select(session => new SessionDto
         {
             Id = session.Id,
@@ -546,6 +553,7 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
             IpMasked = session.IpMasked,
             UserAgent = session.UserAgent,
             IsCurrent = session.Id == current,
+            TrustedContactDisplayName = session.TrustedContactUserId is { } contactId ? contactNames.GetValueOrDefault(contactId) : null,
         })]));
     }
 

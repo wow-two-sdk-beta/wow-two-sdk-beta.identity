@@ -56,6 +56,7 @@ public sealed class SignInDeclarationService(
             PhoneCodeLength = services.GetService<OtpOptions>()?.CodeLength ?? new OtpOptions().CodeLength,
             IsConfirmedEmailRequired = signIn.IsConfirmedEmailRequired,
             IsConfirmedPhoneNumberRequired = signIn.IsConfirmedPhoneNumberRequired,
+            IsTrustedContactSignInEnabled = services.GetService<TrustedContacts.TrustedContactService>() is { IsEnabled: true },
         };
 
         return SignInDeclarationBuilder.Build(input, SignInLocaleResolver.Resolve(locale, []));

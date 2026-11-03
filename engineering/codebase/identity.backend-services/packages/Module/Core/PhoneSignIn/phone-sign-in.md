@@ -27,6 +27,11 @@ app.MapTelegramWebhook();                                    // POST /api/telegr
 | `POST phone-sign-in/send` | `{ phone }` → `{ isCodeSent, telegramLinkUrl }`: `isCodeSent` when the code went to the linked chat, else the link to open |
 | `POST phone-sign-in[?useCookies=true&clientId=]` | `{ phone, code }`: a cookie (`204`) or a bearer token pair, as `sign-in` answers |
 
+With trusted contacts registered (`AddTrustedContacts`, `../TrustedContacts/trusted-contacts.md`): `phone-sign-in/targets`
+lists the number's contacts, `send` takes a `targetId` that sends the code to one of them, `phone-sign-in` takes such a
+code too (method `trusted_contact_code`) and answers a contact's own number with `accountChoice`, and
+`phone-sign-in/choose` signs in as the account picked.
+
 ## Notes
 
 - Both routes answer `404` (`PhoneSignInUnavailable`) while `Identity:Telegram:IsEnabled` is off; the bot, its webhook
@@ -59,3 +64,6 @@ app.MapTelegramWebhook();                                    // POST /api/telegr
   published to products.
 - A number a person holds confirmed and linked to another Telegram account does not move to a new one: the share waits
   in `identity_telegram_link_changes` for an owner or admin of the person's organization to approve it.
+- A code the number's own chat did not receive may be one a trusted contact received for the person: `phone-sign-in`
+  tries the person's deliverable contacts once the number's own code fails, unless that code ran out of tries or the
+  number spent its failure budget.

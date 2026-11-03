@@ -65,6 +65,10 @@ var verified = await otp.VerifyAsync(user.Id, typedCode, "phone-confirmation", c
   `OriginRateLimitWindow` (5 s, short because many people share a carrier's address), `MaxAttempts` wrong tries per code,
   and `MaxSubjectFailures` wrong tries per subject across all its codes within `SubjectFailureWindow`: past that budget no
   code is issued or verified, so asking for a new code buys no fresh guesses.
+- Bound codes: `CreateBoundAsync(subject, scope, spec, origin, binding)` and `VerifyBoundAsync(subject, code, scope, binding)`
+  key the limits by the subject alone while the binding enters the code's digest, so one subject (a trusted contact)
+  receives codes for several targets (accounts, sign-ups) under one window and one failure budget, and each code verifies
+  only for its own target; a mismatch counts as a wrong code.
 - A new code retires the subject's older ones (their expiry moves to now), so spending it never revives them;
   `DiscardAsync(created.CodeId)` removes a code whose delivery failed.
 - Two-factor sign-in over these channels: `Identity/Core/TwoFactor`.

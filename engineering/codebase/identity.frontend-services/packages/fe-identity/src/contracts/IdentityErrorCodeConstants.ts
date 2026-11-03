@@ -57,4 +57,14 @@ export const IdentityErrorCodeConstants = {
   phoneCountryNotAllowed: 'PhoneCountryNotAllowed',
   /** `404`: no Telegram account change of the member's confirmed phone number waits for approval. */
   telegramChangeNotFound: 'TelegramChangeNotFound',
+  /**
+   * `403`: revoking a trusted contact, or changing the own phone, needs a session signed in with the account's own phone.
+   * The slice 1 API table writes it `main_phone_required`; `isIdentityCode` reads either spelling.
+   */
+  mainPhoneRequired: 'MainPhoneRequired',
+  /**
+   * `409`: the person is the last trusted contact of an account with no phone of its own, so they cannot leave. The slice 1
+   * API table writes it `last_trusted_contact`; `isIdentityCode` reads either spelling.
+   */
+  lastTrustedContact: 'LastTrustedContact',
 } as const;

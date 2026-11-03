@@ -16,6 +16,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.ProfilePictures;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignInLog;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.TrustedContacts;
 using WoW.Two.Sdk.Beta.Be.Web.Contracts;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.InviteSignUp;
@@ -27,6 +28,9 @@ public static class InviteSignUpEndpointRouteBuilderExtensions
     public const string CookieName = "__Host-identity-sign-up";
 
     private const int FormOverheadBytes = 64 * 1024;
+
+    /// <summary>The code of a <c>verification</c> other than <c>telegram</c> or <c>trusted-contact</c>.</summary>
+    private const string InvalidVerificationCode = "InvalidSignUpVerification";
 
     /// <summary>
     /// Maps <c>invitations/{token}/sign-up</c> and <c>invitations/sign-up/status</c> under <paramref name="endpoints"/>, the
@@ -43,6 +47,14 @@ public static class InviteSignUpEndpointRouteBuilderExtensions
     ///     <c>pending</c>, <c>completed</c> (the first such answer signs the browser in with a cookie session, <c>amr</c>
     ///     <c>otp</c>, sign-in log method <c>phone_contact</c>), <c>failed</c> or <c>expired</c>; <c>404</c>
     ///     <c>SignUpVerificationNotFound</c> without a matching cookie. A finished sign-up clears the cookie.
+    ///   - with trusted contacts registered, the form's <c>verification</c> is <c>telegram</c> (the default) or
+    ///     <c>trusted-contact</c>: the latter sends a code to the invitation's contact and answers
+    ///     <c>{ isCodeSentToTrustedContact: true, expiresAt }</c> with no link (<c>404</c> <c>TrustedContactsOff</c>,
+    ///     <c>400</c> <c>NoTrustedContact</c>, <c>409</c> <c>TrustedContactUnavailable</c>); <c>POST invitations/sign-up/verify</c>
+    ///     takes <c>{ code, isPersistent }</c> with the cookie and answers <c>204</c> with the session cookie: the person is
+    ///     created with no phone, joins and has the contact recorded, in one transaction (sign-in log method
+    ///     <c>trusted_contact_code</c>, the session naming the contact); <c>401</c> <c>InvalidPhoneCode</c> for a wrong code,
+    ///     <c>404</c> <c>SignUpVerificationNotFound</c> without a waiting sign-up; it takes the credential rate-limit policy
     /// </remarks>
     /// <param name="endpoints">The account API's route group.</param>
     public static IEndpointRouteBuilder MapInviteSignUpEndpoints(this IEndpointRouteBuilder endpoints)
@@ -50,6 +62,8 @@ public static class InviteSignUpEndpointRouteBuilderExtensions
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapPost("/invitations/{token}/sign-up", StartAsync).LimitCredentials(endpoints);
         endpoints.MapGet("/invitations/sign-up/status", StatusAsync);
+        if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(TrustedContactService)) == true)
+            endpoints.MapPost("/invitations/sign-up/verify", VerifyAsync).LimitCredentials(endpoints);
         return endpoints;
     }
 
@@ -62,6 +76,7 @@ public static class InviteSignUpEndpointRouteBuilderExtensions
 
         string? displayName = null;
         byte[]? picture = null;
+        var verification = InviteSignUpVerification.Telegram;
         if (http.Request.HasFormContentType)
         {
             IFormCollection form;
@@ -75,6 +90,12 @@ public static class InviteSignUpEndpointRouteBuilderExtensions
             }
 
             displayName = form["displayName"].FirstOrDefault();
+            verification = form["verification"].FirstOrDefault()?.Trim().ToLowerInvariant() switch
+            {
+                null or "" or "telegram" => InviteSignUpVerification.Telegram,
+                "trusted-contact" => InviteSignUpVerification.TrustedContact,
+                _ => throw Coded(AppErrorType.Validation, "Verify with 'telegram' or 'trusted-contact'.", InvalidVerificationCode).ToException(),
+            };
             if (form.Files.GetFile("picture") is { Length: > 0 } file)
                 picture = file.Length > rules.MaxUploadBytes ? new byte[rules.MaxUploadBytes + 1] : await ReadAsync(file, cancellationToken);
         }
@@ -87,6 +108,7 @@ public static class InviteSignUpEndpointRouteBuilderExtensions
                 Picture = picture,
                 ClientId = clientId,
                 Origin = http.Connection.RemoteIpAddress?.ToString(),
+                Verification = verification,
             },
             cancellationToken);
         switch (started.Status)
@@ -96,7 +118,14 @@ public static class InviteSignUpEndpointRouteBuilderExtensions
                     CookieName,
                     started.VerificationId!.Value.ToString("N", CultureInfo.InvariantCulture) + "." + started.BrowserSecret,
                     new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax, Path = "/", Expires = started.ExpiresAt, IsEssential = true });
-                return Results.Ok(ApiResponse<InviteSignUpStartedDto>.Ok(new InviteSignUpStartedDto { TelegramLinkUrl = started.TelegramLinkUrl!, ExpiresAt = started.ExpiresAt!.Value }));
+                return Results.Ok(ApiResponse<InviteSignUpStartedDto>.Ok(new InviteSignUpStartedDto
+                {
+                    TelegramLinkUrl = started.TelegramLinkUrl,
+                    IsCodeSentToTrustedContact = started.IsCodeSentToTrustedContact,
+                    ExpiresAt = started.ExpiresAt!.Value,
+                }));
+            case InviteSignUpStartStatus.TrustedContactRefused:
+                throw TrustedContactError(started.Refusal!).ToException();
             case InviteSignUpStartStatus.InvitationRefused:
                 throw InvitationErrors.Of(started.Refusal!).ToException();
             case InviteSignUpStartStatus.Invalid:
@@ -137,14 +166,50 @@ public static class InviteSignUpEndpointRouteBuilderExtensions
         };
     }
 
-    /// <summary>Signs the browser in as <paramref name="person"/> with a cookie session; false when the person must sign in themselves, such as with a second factor.</summary>
-    private static async Task<bool> SignInAsync(IdentityUser person, string? clientId, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> VerifyAsync(InviteSignUpVerifyApiRequest request, string? clientId, HttpContext http, CancellationToken cancellationToken)
+    {
+        if (!TryReadCookie(http, out var signUpId, out var secret))
+            throw NotFound().ToException();
+
+        var verified = await http.RequestServices.GetRequiredService<InviteSignUpService>().VerifyThroughContactAsync(signUpId, secret, request.Code, cancellationToken);
+        switch (verified.Status)
+        {
+            case InviteSignUpVerifyStatus.InvalidCode:
+                throw Coded(AppErrorType.Unauthorized, "The code is invalid or has expired.", IdentityErrorCodeConstants.InvalidPhoneCode).ToException();
+            case InviteSignUpVerifyStatus.NotFound:
+                throw NotFound().ToException();
+            case InviteSignUpVerifyStatus.Expired:
+                http.Response.Cookies.Delete(CookieName, new CookieOptions { Secure = true, Path = "/" });
+                throw Coded(AppErrorType.Conflict, "The sign-up has expired; start again from the invitation link.", IdentityErrorCodeConstants.SignUpVerificationNotFound).ToException();
+            case InviteSignUpVerifyStatus.Failed:
+                http.Response.Cookies.Delete(CookieName, new CookieOptions { Secure = true, Path = "/" });
+                throw InvitationErrors.Of(IdentityUserExtensions.Failure(verified.FailureCode ?? IdentityErrorCodeConstants.InvitationNotFound, "The invitation can no longer be used; ask for a new link.")).ToException();
+        }
+
+        http.Response.Cookies.Delete(CookieName, new CookieOptions { Secure = true, Path = "/" });
+        var isSignedIn = await SignInAsync(verified.SignInAs!, clientId ?? verified.ClientId, http, cancellationToken, verified.TrustedContactUserId, request.IsPersistent);
+        return isSignedIn
+            ? Results.NoContent()
+            : throw Coded(AppErrorType.Unauthorized, "The account was created; sign in to continue.", IdentityErrorCodeConstants.SignInFailed).ToException();
+    }
+
+    /// <summary>
+    /// Signs the browser in as <paramref name="person"/> with a cookie session; false when the person must sign in themselves,
+    /// such as with a second factor. A sign-up through a trusted contact logs <c>trusted_contact_code</c> and marks the session.
+    /// </summary>
+    private static async Task<bool> SignInAsync(
+        IdentityUser person, string? clientId, HttpContext http, CancellationToken cancellationToken, Guid? trustedContactUserId = null, bool isPersistent = false)
     {
         var services = http.RequestServices;
-        if (!string.IsNullOrWhiteSpace(clientId) && services.GetService<SignInLogService>() is { } log)
-            log.ClientId = clientId;
+        if (services.GetService<SignInLogService>() is { } log)
+        {
+            if (!string.IsNullOrWhiteSpace(clientId))
+                log.ClientId = clientId;
+            log.TrustedContactUserId = trustedContactUserId;
+        }
 
-        var result = await services.GetRequiredService<SignInService>().SignInAsync(person, [AuthenticationMethodConstants.OneTimePassword], SignInMethodConstants.PhoneContact, cancellationToken);
+        var method = trustedContactUserId is null ? SignInMethodConstants.PhoneContact : SignInMethodConstants.TrustedContactCode;
+        var result = await services.GetRequiredService<SignInService>().SignInAsync(person, [AuthenticationMethodConstants.OneTimePassword], method, cancellationToken);
         if (!result.IsSuccess || result.Principal is not { } principal)
             return false;
 
@@ -152,15 +217,28 @@ public static class InviteSignUpEndpointRouteBuilderExtensions
         if (services.GetService<UserSessionService>() is { } sessions && principal.Identity is ClaimsIdentity identity)
         {
             var methods = principal.FindAll(AuthenticationMethodConstants.ClaimType).Select(claim => claim.Value);
-            var session = await sessions.StartAsync(person, methods, result.SignInLogEntryId, isPersistent: false, cancellationToken);
+            var session = await sessions.StartAsync(person, methods, result.SignInLogEntryId, isPersistent, trustedContactUserId, cancellationToken);
             identity.AddClaim(new Claim(services.GetRequiredService<IdentityCoreOptions>().Claims.SessionIdClaimType, session.Id.ToString()));
             properties.IssuedUtc = session.CreatedAt;
             properties.ExpiresUtc = session.ExpiresAt;
-            properties.IsPersistent = sessions.IsCookiePersistent(isPersistent: false);
+            properties.IsPersistent = sessions.IsCookiePersistent(isPersistent);
         }
 
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, properties);
         return true;
+    }
+
+    /// <summary>The error a sign-up through a trusted contact is refused with: <c>404</c> while they are off, <c>400</c> with none named, <c>409</c> when unreachable.</summary>
+    private static AppError TrustedContactError(IdentityResult refusal)
+    {
+        var error = refusal.Errors[0];
+        var type = error.Code switch
+        {
+            TrustedContactErrorCodeConstants.TrustedContactsOff => AppErrorType.NotFound,
+            TrustedContactErrorCodeConstants.NoTrustedContact => AppErrorType.Validation,
+            _ => AppErrorType.Conflict,
+        };
+        return Coded(type, error.Description, error.Code);
     }
 
     private static bool TryReadCookie(HttpContext http, out Guid signUpId, out string secret)

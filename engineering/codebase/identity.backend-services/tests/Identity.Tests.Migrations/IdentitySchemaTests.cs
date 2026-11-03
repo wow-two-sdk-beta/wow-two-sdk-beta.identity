@@ -43,7 +43,10 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         (await HasColumnAsync(migrator, "identity_telegram_link_requests", "reference_id")).Should().BeTrue("007-invite-sign-up adds the reference");
         (await migrator.HasTableAsync(Schema, "identity_telegram_link_changes")).Should().BeTrue("008-telegram-link-changes adds the pending changes");
         (await migrator.HasTableAsync(Schema, "identity_telegram_messages")).Should().BeTrue("009-telegram-messages adds the bot's message ledger");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9);
+        (await migrator.HasTableAsync(Schema, "identity_trusted_contacts")).Should().BeTrue("010-trusted-contacts adds the contacts");
+        foreach (var table in new[] { "identity_invitations", "identity_sessions", "identity_sign_in_log" })
+            (await HasColumnAsync(migrator, table, "trusted_contact_user_id")).Should().BeTrue($"010-trusted-contacts names the contact on {table}");
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
@@ -53,6 +56,11 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         await using var migrator = CreateMigrator(fixture);
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
+
+        (await runner.RollbackAsync(targetOrdinal: 9)).ValueOrThrow().Should().Equal("010-trusted-contacts");
+        (await migrator.HasTableAsync(Schema, "identity_trusted_contacts")).Should().BeFalse("rolling 010-trusted-contacts back drops the contacts");
+        (await HasColumnAsync(migrator, "identity_sessions", "trusted_contact_user_id")).Should().BeFalse("rolling 010-trusted-contacts back drops the session's contact");
+        (await migrator.HasTableAsync(Schema, "identity_telegram_messages")).Should().BeTrue("the bot's message ledger stays");
 
         (await runner.RollbackAsync(targetOrdinal: 8)).ValueOrThrow().Should().Equal("009-telegram-messages");
         foreach (var table in SchemaShape.TelegramMessageTables)

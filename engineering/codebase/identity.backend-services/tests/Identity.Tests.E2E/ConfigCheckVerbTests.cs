@@ -74,6 +74,32 @@ public sealed partial class ConfigCheckVerbTests
     }
 
     [Fact]
+    public async Task Check_ShouldKnowTheTrustedContactSettings_AndRefuseABadCapOrAMissingBot()
+    {
+        var settings = DeclaredSettings();
+        settings["Identity:TrustedContacts:IsEnabled"] = "true";
+        settings["Identity:TrustedContacts:MaxPerPerson"] = "3";
+
+        var run = await RunAsync(settings);
+
+        run.Exit.Should().Be(0, run.Output + run.Error);
+        run.Result.Unknown.Should().BeEmpty();
+
+        settings["Identity:TrustedContacts:MaxPerPerson"] = "0";
+        var capped = await RunAsync(settings);
+
+        capped.Exit.Should().Be(1);
+        capped.Result.Invalid.Should().Contain(finding => finding.Setting == "Identity:TrustedContacts:MaxPerPerson" && finding.Code == "range", capped.Output + capped.Error);
+
+        settings["Identity:TrustedContacts:MaxPerPerson"] = "3";
+        settings["Identity:Telegram:IsEnabled"] = "false";
+        var botless = await RunAsync(settings);
+
+        botless.Exit.Should().Be(1);
+        botless.Result.Invalid.Should().Contain(finding => finding.Setting.StartsWith("Identity:TrustedContacts", StringComparison.Ordinal), botless.Output + botless.Error);
+    }
+
+    [Fact]
     public async Task Check_ShouldRefuseARetiredKey_AndNameItWithoutItsValue()
     {
         var settings = DeclaredSettings();
@@ -208,6 +234,9 @@ public sealed partial class ConfigCheckVerbTests
             ["Identity:SignUp:Profile:Picture"] = "Required",
             ["Identity:Methods:Password:IsEnabled"] = "false",
             ["Identity:Methods:Email:IsEnabled"] = "false",
+            ["Identity:TrustedContacts:IsEnabled"] = "true",
+            ["Identity:TrustedContacts:MaxPerPerson"] = "3",
+            ["Identity:Telegram:NoticeLifetime"] = "1.00:00:00",
             ["Identity:Server:Keys:Signing:0"] = SigningCertificateGenerator.ExportPem(signing),
             ["Identity:Server:Keys:Encryption:0"] = SigningCertificateGenerator.ExportPem(encryption),
             ["Identity:DataProtection:Certificates:0"] = SigningCertificateGenerator.ExportPem(ring),
@@ -263,6 +292,9 @@ public sealed partial class ConfigCheckVerbTests
         ["Identity:Methods:Email:IsEnabled"] = "false",
         ["Identity:SignUp:Profile:DisplayName"] = "Required",
         ["Identity:SignUp:Profile:Picture"] = "Required",
+        ["Identity:TrustedContacts:IsEnabled"] = "true",
+        ["Identity:TrustedContacts:MaxPerPerson"] = "3",
+        ["Identity:Telegram:NoticeLifetime"] = "1.00:00:00",
         ["Identity:ProfilePictures:AcceptedTypes:0"] = "image/jpeg",
         ["Identity:ProfilePictures:MaxUploadBytes"] = "5242880",
         ["Identity:ProfilePictures:MinDimension"] = "256",

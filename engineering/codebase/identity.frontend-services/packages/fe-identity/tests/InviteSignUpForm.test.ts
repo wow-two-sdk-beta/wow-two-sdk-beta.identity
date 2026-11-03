@@ -2,7 +2,7 @@ import { flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SignUpProfileDto } from '../src/contracts';
 import { InviteSignUpForm } from '../src/kit';
-import { fakeAccountApi, problem } from './FakeAccountApi';
+import { fakeAccountApi, noContent as noContentAnswer, problem } from './FakeAccountApi';
 import { button, render } from './Mounting';
 
 const link = 'https://t.me/ocharo_bot?start=su-1';
@@ -350,5 +350,189 @@ describe('invitation sign-up polling', () => {
     wrapper.unmount();
     await vi.advanceTimersByTimeAsync(10_000);
     expect(polls()).toHaveLength(2);
+  });
+});
+
+describe('invitation sign-up verified by a trusted contact', () => {
+  const hint = 'A*** K.';
+  const sentToContact = () =>
+    Response.json({ data: { isCodeSentToTrustedContact: true, telegramLinkUrl: null, expiresAt: '' } });
+
+  /** Mounts the form for an invitation that names a trusted contact, on a profile that asks for a name. */
+  function mountWithContact(answers: Parameters<typeof fakeAccountApi>[0], props: Record<string, unknown> = {}) {
+    const api = fakeAccountApi({ 'POST /invitations/tok-1/sign-up': sentToContact, ...answers });
+    const wrapper = render(InviteSignUpForm, {
+      props: {
+        client: api.client,
+        invitationToken: 'tok-1',
+        profile: profileOf('optional', 'off'),
+        clientId: 'desk',
+        trustedContactHint: hint,
+        ...props,
+      },
+    });
+    return { ...api, wrapper };
+  }
+
+  const radios = (wrapper: VueWrapper) =>
+    wrapper.findAll('input[type="radio"]').map((radio) => ({
+      label: radio.element.closest('label')?.textContent?.trim() ?? '',
+      checked: (radio.element as HTMLInputElement).checked,
+    }));
+
+  /** Picks the trusted contact and starts the sign-up, which sends the code. */
+  async function sendCodeToContact(wrapper: VueWrapper) {
+    await wrapper.findAll('input[type="radio"]')[1]?.setValue(true);
+    await submit(wrapper);
+  }
+
+  it('offers no choice while the invitation names no contact', async () => {
+    const { client } = fakeAccountApi({});
+    const wrapper = render(InviteSignUpForm, {
+      props: { client, invitationToken: 'tok-1', profile: profileOf('off', 'off') },
+    });
+
+    expect(wrapper.find('input[type="radio"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('trusted contact');
+  });
+
+  it('offers the person’s own Telegram first, which stays today’s flow', async () => {
+    const { wrapper, received } = mountWithContact({
+      'POST /invitations/tok-1/sign-up': () => Response.json({ data: { telegramLinkUrl: link, expiresAt: '' } }),
+    });
+
+    expect(radios(wrapper)).toEqual([
+      { label: expect.stringContaining('With my own Telegram'), checked: true },
+      { label: expect.stringContaining(`With my trusted contact, ${hint}`), checked: false },
+    ]);
+    await submit(wrapper);
+
+    expect([...(received[0]?.body as FormData).keys()]).toEqual([]);
+    expect(window.open).toHaveBeenCalledWith(link, '_blank', 'noopener,noreferrer');
+    expect(wrapper.text()).toContain('Waiting for your contact');
+  });
+
+  it('warns of the full access, and sends the code to the contact instead of opening the bot', async () => {
+    const { wrapper, received } = mountWithContact({});
+
+    expect(wrapper.text()).not.toContain('full access');
+    await wrapper.findAll('input[type="radio"]')[1]?.setValue(true);
+    expect(wrapper.text()).toContain(`${hint} gets a code in Telegram`);
+    expect(wrapper.text()).toContain('full access to your account');
+    await wrapper.get('input[name="displayName"]').setValue(' Lola ');
+    expect(button(wrapper, `Send the code to ${hint}`).attributes('type')).toBe('submit');
+    await submit(wrapper);
+
+    expect([...(received[0]?.body as FormData).entries()]).toEqual([
+      ['displayName', 'Lola'],
+      ['verification', 'trusted-contact'],
+    ]);
+    expect(received[0]?.url.search).toBe('?clientId=desk');
+    expect(window.open).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain(`We sent a code to ${hint} in Telegram. Ask them for it and enter it here.`);
+    expect(wrapper.find('input[name="code"]').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain('Waiting for your contact');
+  });
+
+  it('finishes the sign-up with the contact’s code, signed in', async () => {
+    const { wrapper, received } = mountWithContact({ 'POST /invitations/sign-up/verify': noContentAnswer });
+
+    await sendCodeToContact(wrapper);
+    await wrapper.get('input[name="code"]').setValue(' 123456 ');
+    await submit(wrapper);
+
+    expect(received[1]?.url.pathname).toBe('/api/account/invitations/sign-up/verify');
+    expect(received[1]?.url.search).toBe('?clientId=desk');
+    expect(received[1]?.body).toEqual({ code: '123456', isPersistent: false });
+    expect(wrapper.emitted('signedUp')).toEqual([[]]);
+    expect(wrapper.emitted('signInRequired')).toBeUndefined();
+    expect(wrapper.text()).toContain('Your account is ready. Signing you in…');
+  });
+
+  it('keeps the person signed in from the code step when the instance offers it', async () => {
+    const { wrapper, received } = mountWithContact(
+      { 'POST /invitations/sign-up/verify': noContentAnswer },
+      { isPersistenceOffered: true },
+    );
+
+    await sendCodeToContact(wrapper);
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await wrapper.get('input[type="checkbox"]').setValue(true);
+    await submit(wrapper);
+
+    expect(received[1]?.body).toEqual({ code: '123456', isPersistent: true });
+  });
+
+  it('checks the declared code length before sending, so a typo spends no attempt', async () => {
+    const codeRules = [
+      { code: 'length', params: { length: 6, unit: 'characters' }, message: 'The code has 6 digits.' },
+    ];
+    const { wrapper, received } = mountWithContact({}, { codeRules });
+
+    await sendCodeToContact(wrapper);
+    await wrapper.get('input[name="code"]').setValue('12345');
+    await submit(wrapper);
+
+    expect(errorUnder(wrapper, 'code')).toBe('The code has 6 digits.');
+    expect(received).toHaveLength(1);
+  });
+
+  it('keeps a wrong code on its field, so the right one can follow', async () => {
+    const answers = [() => problem(400, 'The code is incorrect.', { identityCode: 'InvalidCode' }), noContentAnswer];
+    const { wrapper } = mountWithContact({ 'POST /invitations/sign-up/verify': () => answers.shift()!() });
+
+    await sendCodeToContact(wrapper);
+    await wrapper.get('input[name="code"]').setValue('000000');
+    await submit(wrapper);
+
+    expect(wrapper.text()).toContain('The code is incorrect.');
+    expect(wrapper.emitted('signedUp')).toBeUndefined();
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await submit(wrapper);
+
+    expect(wrapper.emitted('signedUp')).toEqual([[]]);
+  });
+
+  it('ends for good when the invitation is used up while the code is typed', async () => {
+    const { wrapper } = mountWithContact({
+      'POST /invitations/sign-up/verify': () =>
+        problem(409, 'This invitation has expired.', { identityCode: 'InvitationExpired' }),
+    });
+
+    await sendCodeToContact(wrapper);
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await submit(wrapper);
+
+    expect(wrapper.text()).toContain('This invitation has expired. Ask for a new link.');
+    expect(wrapper.findAll('button').map((found) => found.text())).not.toContain('Start again');
+  });
+
+  it('starts again from the kept profile when the attempt is gone', async () => {
+    const { wrapper, received } = mountWithContact({
+      'POST /invitations/sign-up/verify': () =>
+        problem(404, 'No sign-up is running.', { identityCode: 'SignUpVerificationNotFound' }),
+    });
+
+    await wrapper.get('input[name="displayName"]').setValue('Lola');
+    await sendCodeToContact(wrapper);
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await submit(wrapper);
+
+    expect(wrapper.text()).toContain('This phone check is no longer running. Start again.');
+    await button(wrapper, 'Start again').trigger('click');
+
+    expect(wrapper.get<HTMLInputElement>('input[name="displayName"]').element.value).toBe('Lola');
+    await submit(wrapper);
+    expect(received.filter((request) => request.url.pathname.endsWith('/sign-up'))).toHaveLength(2);
+  });
+
+  it('goes back to the profile from the code step', async () => {
+    const { wrapper } = mountWithContact({});
+
+    await sendCodeToContact(wrapper);
+    await button(wrapper, 'Start over').trigger('click');
+
+    expect(wrapper.find('input[name="displayName"]').exists()).toBe(true);
+    expect(wrapper.find('input[name="code"]').exists()).toBe(false);
   });
 });

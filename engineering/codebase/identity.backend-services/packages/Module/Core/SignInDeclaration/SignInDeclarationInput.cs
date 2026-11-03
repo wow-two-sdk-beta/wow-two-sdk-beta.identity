@@ -42,6 +42,9 @@ internal sealed record SignInDeclarationInput
     /// <summary>Whether a sign-in may ask to stay signed in (<c>Identity:Sessions</c>: fixed, with an extended lifetime).</summary>
     public bool IsPersistenceOffered { get; init; }
 
+    /// <summary>Whether accounts sign in through trusted contacts (<see cref="SignInOptionsDto.IsTrustedContactSignInEnabled"/>).</summary>
+    public bool IsTrustedContactSignInEnabled { get; init; }
+
     /// <summary>Whether a sign-in needs a confirmed email.</summary>
     public bool IsConfirmedEmailRequired { get; init; }
 

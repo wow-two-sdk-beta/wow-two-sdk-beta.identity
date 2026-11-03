@@ -1,23 +1,32 @@
 <script setup lang="ts">
 import { fieldIssues, type ApiFailure } from '@wow-two-beta/fe/foundation/http';
-import type { AppError } from '@wow-two-beta/fe/foundation/results';
-import type { FieldIssue } from '@wow-two-beta/fe/foundation/validators';
+import { ResultExtensions, type AppError } from '@wow-two-beta/fe/foundation/results';
+import { boolean, object, type FieldIssue } from '@wow-two-beta/fe/foundation/validators';
 import { Button } from '@wow-two-beta/fe/presentation/actions';
 import { Avatar } from '@wow-two-beta/fe/presentation/display';
 import { AlertSimple, InlineSpinner } from '@wow-two-beta/fe/presentation/feedback';
-import { Field, FilePicker, TextInput } from '@wow-two-beta/fe/presentation/forms';
+import {
+  CheckboxField,
+  Field,
+  FilePicker,
+  RadioField,
+  RadioGroup,
+  TextInput,
+} from '@wow-two-beta/fe/presentation/forms';
 import { computed, onScopeDispose, shallowRef, watch } from 'vue';
 import {
   IdentityErrorCodeConstants,
   InviteSignUpStatus,
+  InviteSignUpVerification,
   ProfileFieldMode,
   type InviteSignUpStartedDto,
+  type SignInRuleDto,
   type SignUpProfileDto,
 } from '../../../../contracts';
 import type { AccountClient } from '../../../account';
 import { readIdentityCode } from '../../../account/AccountProblems';
 import { useAccountClient, useAccountForm, useAccountText } from '../../../account/hooks';
-import { inspectPicture } from '../../../account/validation';
+import { codeRule, inspectPicture, passwordRuleMessages } from '../../../account/validation';
 import { FailureAlert } from '../../feedback/failureAlert';
 import { inviteSignUpMessages } from './InviteSignUpMessages';
 import { inviteSignUpFieldOf, inviteSignUpSchema } from './InviteSignUpSchema';
@@ -29,6 +38,10 @@ import { InviteSignUpStep } from './InviteSignUpStep';
  * proves the phone and links the chat, and polls every 2 s until the service says the person joined, was refused or ran
  * out of time. A picture is checked before it is sent as the service checks it: its type, size and, where the browser
  * decodes pictures, its sides. A failure the client or the service finds in a field shows under that field.
+ *
+ * When the invitation names a trusted contact (`trustedContactHint`), the profile is followed by a choice: verify with
+ * the person's own Telegram, the default, or with the contact. The contact receives a code in Telegram; it is entered
+ * on the page and finishes the sign-up with no phone on the new account.
  */
 defineOptions({ name: 'InviteSignUpForm' });
 
@@ -44,8 +57,21 @@ const props = withDefaults(
     baseUrl?: string;
     /** The OIDC client the sign-up serves, recorded by the sign-in log. */
     clientId?: string | null;
+    /** The invitation's trusted contact as a masked name, `InvitationPreviewDto.trustedContactHint`; the choice shows only with one. */
+    trustedContactHint?: string | null;
+    /** The rules the contact's code meets, the declared `code` field's `rules`; with none, it is only required. */
+    codeRules?: ReadonlyArray<SignInRuleDto>;
+    /** Whether to offer "Keep me signed in" on the code step, as the declaration's `isPersistenceOffered` says. */
+    isPersistenceOffered?: boolean;
   }>(),
-  { client: undefined, baseUrl: undefined, clientId: null },
+  {
+    client: undefined,
+    baseUrl: undefined,
+    clientId: null,
+    trustedContactHint: null,
+    codeRules: undefined,
+    isPersistenceOffered: false,
+  },
 );
 
 const emit = defineEmits<{
@@ -68,6 +94,11 @@ const finalOutcomes: ReadonlySet<string> = new Set([
   IdentityErrorCodeConstants.invitationAccepted,
   IdentityErrorCodeConstants.invitationRevoked,
 ]);
+/** The refusals of the contact's code after which it cannot be entered again: the final outcomes, and no attempt to finish. */
+const codeEndings: ReadonlySet<string> = new Set([
+  ...finalOutcomes,
+  IdentityErrorCodeConstants.signUpVerificationNotFound,
+]);
 
 const client = useAccountClient(props);
 const t = useAccountText();
@@ -78,6 +109,10 @@ const attempt = shallowRef<InviteSignUpStartedDto | null>(null);
 /** Why the last attempt ended, by its code. */
 const outcome = shallowRef<string | null>(null);
 const isSignedIn = shallowRef(false);
+/** How the phone is verified, as the person picked it; the contact only where the invitation names one. */
+const verification = shallowRef<InviteSignUpVerification>(InviteSignUpVerification.Telegram);
+/** Whether the finished sign-up went through the trusted contact, which says so while the page moves on. */
+const isByContact = shallowRef(false);
 const isInspecting = shallowRef(false);
 const previewUrl = shallowRef<string | undefined>(undefined);
 let pollTimer: ReturnType<typeof setTimeout> | undefined;
@@ -97,12 +132,16 @@ const pictureInput = computed(() => ({ name: 'picture', accept: props.profile.pi
 const isAsked = (field: string) => (field === 'displayName' ? isNameAsked.value : isPictureAsked.value);
 
 const waitingText = computed(() => t('InviteSignUpForm.waiting', 'Waiting for your contact…'));
-/** What a finished sign-up says while the page moves on. */
-const completedText = computed(() =>
-  isSignedIn.value
-    ? t('InviteSignUpForm.signedUp', 'Your phone is verified. Signing you in…')
-    : t('InviteSignUpForm.signInRequired', 'Your phone is verified. Sign in to finish.'),
+const isContactChosen = computed(
+  () => props.trustedContactHint !== null && verification.value === InviteSignUpVerification.TrustedContact,
 );
+/** What a finished sign-up says while the page moves on. */
+const completedText = computed(() => {
+  if (isByContact.value) return t('InviteSignUpForm.signedUpByContact', 'Your account is ready. Signing you in…');
+  return isSignedIn.value
+    ? t('InviteSignUpForm.signedUp', 'Your phone is verified. Signing you in…')
+    : t('InviteSignUpForm.signInRequired', 'Your phone is verified. Sign in to finish.');
+});
 
 /** Follows `profile`, which the page may load after the form shows. */
 const schema = computed(() => inviteSignUpSchema(props.profile, messages.field));
@@ -127,6 +166,7 @@ const form = useAccountForm(() => ({
       {
         ...(isNameAsked.value && displayName ? { displayName } : {}),
         ...(isPictureAsked.value && values.picture ? { picture: values.picture } : {}),
+        ...(isContactChosen.value ? { verification: InviteSignUpVerification.TrustedContact } : {}),
       },
       { clientId: props.clientId, signal },
     );
@@ -134,6 +174,40 @@ const form = useAccountForm(() => ({
     return result;
   },
 }));
+
+/** Follows `codeRules`, which the page may load after the form shows. */
+const codeSchema = computed(() => object({ code: codeRule(props.codeRules), isPersistent: boolean() }));
+
+/** Finishes the sign-up with the code the trusted contact received. */
+const codeForm = useAccountForm(() => ({
+  defaultValues: { code: '', isPersistent: false },
+  schema: codeSchema.value,
+  messages: passwordRuleMessages,
+  onSubmit: async (values, { signal }) => {
+    const result = await client.verifyInviteSignUp(
+      { code: values.code.trim(), isPersistent: props.isPersistenceOffered && values.isPersistent },
+      { clientId: props.clientId, signal },
+    );
+    if (result.ok) {
+      isByContact.value = true;
+      finish(true);
+      return result;
+    }
+    // A wrong code stays on its field; a refusal no code can fix ends the attempt.
+    const code = readIdentityCode(result.failure);
+    if (code && codeEndings.has(code)) {
+      end(code);
+      return ResultExtensions.ok(undefined);
+    }
+    return result;
+  },
+}));
+
+function pickVerification(value: string | null) {
+  if (value === InviteSignUpVerification.Telegram || value === InviteSignUpVerification.TrustedContact) {
+    verification.value = value;
+  }
+}
 
 /** A local address of the picture for its preview; none where the browser gives none. */
 function objectUrl(picture: Blob | null): string | undefined {
@@ -195,6 +269,15 @@ function begin(started: InviteSignUpStartedDto) {
   stopPolling();
   attempt.value = started;
   outcome.value = null;
+  if (started.isCodeSentToTrustedContact) {
+    codeForm.reset();
+    step.value = InviteSignUpStep.Code;
+    return;
+  }
+  if (!started.telegramLinkUrl) {
+    end(null);
+    return;
+  }
   step.value = InviteSignUpStep.Telegram;
   openTelegram(started.telegramLinkUrl);
   const deadline = Date.parse(started.expiresAt);
@@ -294,7 +377,37 @@ onScopeDispose(() => {
         <TextInput v-model="field.value" name="displayName" autocomplete="name" @blur="field.onBlur" />
       </Field>
     </form.Field>
-    <p class="text-sm text-muted-foreground">
+    <RadioGroup
+      v-if="trustedContactHint"
+      name="verification"
+      :model-value="verification"
+      :legend="t('InviteSignUpForm.verification', 'How should we verify you?')"
+      @update:model-value="pickVerification"
+    >
+      <RadioField
+        :value="InviteSignUpVerification.Telegram"
+        :label="t('InviteSignUpForm.verifyOwn', 'With my own Telegram')"
+        :description="
+          t('InviteSignUpForm.verifyOwnHint', 'Open our bot, press Start and share your contact. No code to type.')
+        "
+      />
+      <RadioField
+        :value="InviteSignUpVerification.TrustedContact"
+        :label="
+          t('InviteSignUpForm.verifyContact', 'With my trusted contact, {contact}', { contact: trustedContactHint })
+        "
+      />
+    </RadioGroup>
+    <AlertSimple v-if="isContactChosen" severity="warning">
+      {{
+        t(
+          'InviteSignUpForm.contactAccess',
+          '{contact} gets a code in Telegram and tells it to you. Their codes give them full access to your account until you add a phone of your own and remove them.',
+          { contact: trustedContactHint ?? '' },
+        )
+      }}
+    </AlertSimple>
+    <p v-else class="text-sm text-muted-foreground">
       {{
         t(
           'InviteSignUpForm.intro',
@@ -304,7 +417,51 @@ onScopeDispose(() => {
     </p>
     <FailureAlert :failure="form.state.submitError" />
     <Button type="submit" is-full-width :is-loading="form.state.isSubmitting" :is-disabled="isInspecting">
-      {{ t('InviteSignUpForm.verify', 'Verify phone in Telegram') }}
+      {{
+        isContactChosen
+          ? t('InviteSignUpForm.sendToContact', 'Send the code to {contact}', { contact: trustedContactHint ?? '' })
+          : t('InviteSignUpForm.verify', 'Verify phone in Telegram')
+      }}
+    </Button>
+  </form>
+
+  <form
+    v-else-if="step === InviteSignUpStep.Code"
+    class="flex flex-col gap-4"
+    novalidate
+    @submit="codeForm.handleSubmit"
+  >
+    <p class="text-sm text-muted-foreground">
+      {{
+        t('InviteSignUpForm.codeIntro', 'We sent a code to {contact} in Telegram. Ask them for it and enter it here.', {
+          contact: trustedContactHint ?? '',
+        })
+      }}
+    </p>
+    <codeForm.Field v-slot="field" name="code" is-required>
+      <Field :label="t('InviteSignUpForm.code', 'Code')">
+        <TextInput
+          v-model="field.value"
+          name="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          @blur="field.onBlur"
+        />
+      </Field>
+    </codeForm.Field>
+    <codeForm.Field v-if="isPersistenceOffered" v-slot="field" name="isPersistent">
+      <CheckboxField
+        v-model="field.value"
+        :label="t('InviteSignUpForm.keepSignedIn', 'Keep me signed in')"
+        @blur="field.onBlur"
+      />
+    </codeForm.Field>
+    <FailureAlert :failure="codeForm.state.submitError" />
+    <Button type="submit" is-full-width :is-loading="codeForm.state.isSubmitting">
+      {{ t('InviteSignUpForm.finish', 'Finish signing up') }}
+    </Button>
+    <Button type="button" variant="ghost" tone="neutral" @click="startOver">
+      {{ t('InviteSignUpForm.startOver', 'Start over') }}
     </Button>
   </form>
 
@@ -318,7 +475,7 @@ onScopeDispose(() => {
       }}
     </p>
     <Button as-child is-full-width>
-      <a :href="attempt.telegramLinkUrl" target="_blank" rel="noopener noreferrer">
+      <a :href="attempt.telegramLinkUrl ?? undefined" target="_blank" rel="noopener noreferrer">
         {{ t('InviteSignUpForm.openTelegram', 'Open Telegram') }}
       </a>
     </Button>

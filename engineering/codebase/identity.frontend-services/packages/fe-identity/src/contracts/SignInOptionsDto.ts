@@ -30,6 +30,11 @@ export interface SignInOptionsDto {
   readonly locale: string;
   /** The locales the pages offer, in display order. */
   readonly locales: ReadonlyArray<string>;
+  /**
+   * Whether trusted contacts are on (`Identity:TrustedContacts:IsEnabled`): the phone sign-in then asks
+   * `phone-sign-in/targets` after the number, and the account security page lists contacts.
+   */
+  readonly isTrustedContactSignInEnabled: boolean;
   /** The enabled methods, in the order the pages lay them out. */
   readonly methods: ReadonlyArray<SignInMethodDto>;
   /** The verifications a sign-in needs. */

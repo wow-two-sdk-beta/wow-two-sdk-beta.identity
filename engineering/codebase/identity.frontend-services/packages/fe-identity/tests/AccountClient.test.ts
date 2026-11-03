@@ -42,7 +42,7 @@ describe('account client', () => {
       'POST /invitations/tok-1/accept': noContent,
     });
 
-    expect(await client.getInvitation('tok-1')).toEqual({ ok: true, value: preview });
+    expect(await client.getInvitation('tok-1')).toEqual({ ok: true, value: { ...preview, trustedContactHint: null } });
     expect(await client.acceptInvitation('tok-1')).toEqual({ ok: true, value: undefined });
     expect(received.map((request) => `${request.method} ${request.url.pathname}`)).toEqual([
       'GET /api/account/invitations/tok-1',

@@ -51,6 +51,22 @@ public sealed class TelegramBotMessages(IOptionsMonitor<TelegramBotOptions> opti
         throw new InvalidOperationException($"The Telegram bot has no text for '{key}'.");
     }
 
+    /// <summary>
+    /// The text for <paramref name="key"/> in <paramref name="culture"/> with each <c>{name}</c> placeholder replaced by its
+    /// value; a placeholder without a value stays as written.
+    /// </summary>
+    /// <param name="key">One of <see cref="TelegramBotMessageKeyConstants"/>.</param>
+    /// <param name="culture">The person's culture.</param>
+    /// <param name="values">The placeholders' values by name, such as <c>code</c>.</param>
+    public string Format(string key, CultureInfo culture, IReadOnlyDictionary<string, string> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        var text = Text(key, culture);
+        foreach (var (name, value) in values)
+            text = text.Replace("{" + name + "}", value, StringComparison.Ordinal);
+        return text;
+    }
+
     private static IEnumerable<string> Cultures(CultureInfo requested, string defaultCulture)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

@@ -1,4 +1,4 @@
-export { readIdentityCode, readTwoFactorChallenge } from './AccountProblems';
+export { isIdentityCode, readIdentityCode, readTwoFactorChallenge } from './AccountProblems';
 export {
   createAccountClient,
   type AccountClient,

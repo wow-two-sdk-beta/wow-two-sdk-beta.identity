@@ -29,7 +29,8 @@ sources. Messages resolve through the fe sdk `LocaleProvider` under `IdentityKit
 | Export | Holds |
 |---|---|
 | `./contracts` | the account API's request and answer shapes, the sign-in declaration (`SignInOptionsDto`, `SignInMethodIdConstants`, `SignUpProfileDto`, `ProfileFieldMode`), `AccountRouteConstants`, `HostedPageRouteConstants`, `IdentityErrorCodeConstants`, `InviteSignUpStatus`, `PasswordChangeConfirmationType` |
-| `./kit` | `createAccountClient` (with `getSignInOptions`, `startInviteSignUp`, `getInviteSignUpStatus`), `readIdentityCode`, `readTwoFactorChallenge`, `passwordRule`, `codeRule`, `inspectPicture`; `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `InviteSignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm` |
+| `./kit` | `createAccountClient` (with `getSignInOptions`, `startInviteSignUp`, `getInviteSignUpStatus`, `verifyInviteSignUp`, `getPhoneSignInTargets`, `choosePhoneSignInAccount`, `getPhone`, `createPhoneTelegramLink`, `getTrustedContacts`, `revokeTrustedContact`, `getTrustedBy`, `leaveTrustedContact`, `getSessions`), `readIdentityCode`, `isIdentityCode`, `readTwoFactorChallenge`, `passwordRule`, `codeRule`, `inspectPicture`; `PasswordSignIn`, `PhoneCodeSignIn`, `SignUpForm`, `InviteSignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm`, `PhoneSettings`, `TrustedContactsList`, `TrustedByList`, `SessionList` |
+| `./admin` | `createOrganizationClient`; `MembersPanel` and `InvitationsPanel` |
 
 - `getSignInOptions({ clientId, locale })` reads `GET /api/account/sign-in-options`: the hosted pages' look, whether
   sign-up is open, and each enabled method in layout order with its fields and fe sdk rules, the messages in the
@@ -52,3 +53,24 @@ sources. Messages resolve through the fe sdk `LocaleProvider` under `IdentityKit
   (`Code`), or a sent link (`Link`) whose page passes the link's `token`. A sign-in whose password breaks the current
   rules emits `passwordChangeRequired` with a `ticket` and sets no session: pass `ticket` and `confirmation` to the
   form, then sign in again with the new password.
+
+Trusted contacts (another person of the instance who receives a person's sign-in codes; `Identity:TrustedContacts`):
+
+- `PhoneCodeSignIn` with `isTrustedContactSignInEnabled` (the declaration's flag) checks the phone's contacts after the
+  number: a phone that has some offers "My Telegram", the default, or each contact's masked label as the place the code
+  goes (`targetId` of the send). A phone whose person is another's trusted contact continues, after the code, to the
+  accounts it can sign in as (`accountChoice`), and `signedIn` fires once one is picked.
+- `InviteSignUpForm` with the preview's `trustedContactHint` offers to verify the sign-up by the person's own Telegram,
+  the default, or by that contact: the form sends `verification=trusted-contact`, the contact receives a code in
+  Telegram, and the code typed on the form (`verifyInviteSignUp`) finishes the sign-up with no phone on the new account.
+  It takes `codeRules` and `isPersistenceOffered` for that code step.
+- `PhoneSettings` adds or changes the signed-in account's own phone through the bot's `add-phone` link and polls until
+  the number shows; `TrustedContactsList` lists the account's contacts and revokes one (`canRevoke`, from a session
+  signed in with the own phone); `TrustedByList` lists the accounts that trust the person and leaves one (`canLeave`);
+  `SessionList` lists the live sessions and the contact one went through. Each renders nothing while its route answers
+  `404`.
+- `InvitationsPanel` takes `currentUserId` and offers an optional trusted contact on the invitation form: "Me", or a
+  member whose `isPhoneConfirmed` is true, with a full-access warning. `MembersPanel` shows each member's phone state and
+  contacts.
+- `isIdentityCode(failure, IdentityErrorCodeConstants.mainPhoneRequired)` reads the `main_phone_required` and
+  `last_trusted_contact` refusals in either `snake_case` or `PascalCase`.

@@ -25,11 +25,12 @@ identity.AddArgon2Passwords().AddLockout().AddSignIn().AddSignInLog(o => o.Reten
 | `occurred_at` | when (UTC) |
 | `user_id` | the account the attempt named; null for an unknown identifier |
 | `subject_masked` | the typed identifier as a hint: `a***@example.com`, `+998*******45`, `al***` |
-| `method` | `password`, `passkey`, `email_link`, `email_code`, `external`, or `2fa:{method}` (`2fa:authenticator`, `2fa:sms`, `2fa:recovery_code`) |
+| `method` | `password`, `passkey`, `email_link`, `email_code`, `phone_code`, `phone_contact`, `trusted_contact_code`, `external`, or `2fa:{method}` (`2fa:authenticator`, `2fa:sms`, `2fa:recovery_code`) |
 | `client_id` | the OIDC client the sign-in serves, when the hosted pages pass `?clientId=` |
 | `result` · `reason` | `succeeded`, `failed`, `locked_out`, `not_allowed`, `two_factor_required` · `unknown_account`, `wrong_password`, `no_password`, `wrong_code`, `invalid_passkey`, `invalid_ticket`, `invalid_link_or_code`, `locked_out`, `lockout_started`, `unconfirmed_email`, `unconfirmed_phone` |
 | `ip_masked` · `user_agent` | the network (IPv4 /24, IPv6 /48) · the user agent, cut to 256 characters |
 | `session_id` | the session a successful cookie sign-in started |
+| `trusted_contact_user_id` | the trusted contact a `trusted_contact_code` sign-in went through (`010-trusted-contacts`); `SignInLogService.TrustedContactUserId` sets it for the request |
 | `trace_id` | the request's W3C trace id |
 
 ## Notes
@@ -43,3 +44,5 @@ identity.AddArgon2Passwords().AddLockout().AddSignIn().AddSignInLog(o => o.Reten
 - A plain table for now; monthly partitions (T10 row 21) wait until the volume asks for them. `country` waits for a
   geo source, `organization_id` for a sign-in that picks one.
 - Account deletion leaves the rows to their retention; the personal-data export lists them.
+- Trusted contacts read the row tied to a session to tell an own-phone session (`phone_code` or `phone_contact`, through no
+  contact) from any other, so a session older than the retention loses that mark.

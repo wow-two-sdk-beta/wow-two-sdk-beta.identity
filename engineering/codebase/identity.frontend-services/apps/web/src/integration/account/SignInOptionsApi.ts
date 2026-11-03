@@ -33,6 +33,7 @@ export function toSignInOptions(declaration: SignInOptionsDto): SignInOptions {
     signUpMode: declaration.signUpMode,
     isPersistenceOffered: declaration.isPersistenceOffered,
     isEmailEnabled: declaration.isEmailEnabled,
+    isTrustedContactSignInEnabled: declaration.isTrustedContactSignInEnabled,
     methods: declaration.methods.map(toMethod).filter((method): method is SignInMethod => method !== null),
     passwordRules:
       declaration.methods.find((method) => method.id === SignInMethodIdConstants.password)?.passwordRules ?? [],

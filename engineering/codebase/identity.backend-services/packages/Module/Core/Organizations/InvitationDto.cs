@@ -29,4 +29,7 @@ public sealed record InvitationDto
 
     /// <summary>The person who redeemed it; null while unused.</summary>
     public Guid? AcceptedByUserId { get; init; }
+
+    /// <summary>The trusted contact a sign-up through it gets its code from; null when it names none.</summary>
+    public Guid? TrustedContactUserId { get; init; }
 }

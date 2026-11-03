@@ -41,4 +41,10 @@ public sealed class IdentitySession : IKeyedEntity<Guid>
 
     /// <summary>The browser's user agent at sign-in, cut to 256 characters.</summary>
     public string? UserAgent { get; set; }
+
+    /// <summary>
+    /// The trusted contact the sign-in went through (<c>010-trusted-contacts</c>); null for a sign-in by the person's own
+    /// means. Revoking that contact ends the session.
+    /// </summary>
+    public Guid? TrustedContactUserId { get; set; }
 }

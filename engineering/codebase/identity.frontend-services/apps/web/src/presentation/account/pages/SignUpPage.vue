@@ -14,7 +14,8 @@ import HostedPage from '../../common/layout/HostedPage.vue';
  * the instance's methods carrying the token, or, to someone signed in, joining at once. The phone method there asks
  * for the declared profile and verifies the phone in Telegram with no code typed, continuing signed in. Without a
  * token it offers the email form while sign-up is open and the instance takes emails, the phone method on an open
- * phone-only instance; by invitation only, it says so.
+ * phone-only instance; by invitation only, it says so. A link that names a trusted contact lets the person verify
+ * the phone with that contact's code instead of their own Telegram.
  */
 defineOptions({ name: 'SignUpPage' });
 
@@ -133,6 +134,9 @@ async function join() {
                 :invitation-token="invitationToken"
                 :profile="options.signUpProfile"
                 :client-id="request.clientId"
+                :trusted-contact-hint="invitation.trustedContactHint"
+                :code-rules="method.codeRules"
+                :is-persistence-offered="options.isPersistenceOffered"
                 @signed-up="continueToReturnUrl"
                 @sign-in-required="signInToContinue"
               />

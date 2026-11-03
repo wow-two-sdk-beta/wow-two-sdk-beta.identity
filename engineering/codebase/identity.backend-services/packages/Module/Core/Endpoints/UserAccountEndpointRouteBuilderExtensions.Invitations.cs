@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using WoW.Two.Sdk.Beta.Be.Foundation.Errors;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.TrustedContacts;
 using WoW.Two.Sdk.Beta.Be.Web.Contracts;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
@@ -37,7 +38,20 @@ public static partial class UserAccountEndpointRouteBuilderExtensions
             PhoneNumberHint = PersonalDataMasks.MaskSubject(invitation.PhoneNumber),
             EmailHint = PersonalDataMasks.MaskSubject(invitation.Email),
             ExpiresAt = invitation.ExpiresAt,
+            TrustedContactHint = await TrustedContactHintAsync(http.RequestServices, invitation, cancellationToken),
         }));
+    }
+
+    /// <summary>The invitation's trusted contact, masked, while trusted contacts are on; null otherwise.</summary>
+    private static async Task<string?> TrustedContactHintAsync(IServiceProvider services, IdentityInvitation invitation, CancellationToken cancellationToken)
+    {
+        if (invitation.TrustedContactUserId is not { } contactId || services.GetService<TrustedContactService>() is not { IsEnabled: true })
+            return null;
+
+        var contact = await services.GetRequiredService<UserAccountService>().FindByIdAsync(contactId, cancellationToken);
+        return contact is null
+            ? null
+            : PersonalDataMasks.MaskName(contact.DisplayName) ?? PersonalDataMasks.MaskSubject(contact.IsPhoneNumberConfirmed ? contact.PhoneNumber : null);
     }
 
     private static async Task<IResult> AcceptInvitationAsync(string token, ClaimsPrincipal principal, HttpContext http, CancellationToken cancellationToken)

@@ -62,7 +62,9 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
   number plus `reference_id` on start links; `008-telegram-link-changes` adds `identity_telegram_link_changes` (a known
   number re-shared from another Telegram account, waiting for a manager's approval); `009-telegram-messages` adds
   `identity_telegram_messages` (the bot's sent codes and notices until the sweep cleans them up) and
-  `identity_telegram_callbacks` (their inline buttons by token digest; `../Telegram/`). None is published to products.
+  `identity_telegram_callbacks` (their inline buttons by token digest; `../Telegram/`); `010-trusted-contacts` adds
+  `identity_trusted_contacts` (one row per account and contact) and `trusted_contact_user_id` on invitations, sessions and
+  the sign-in log (`TrustedContacts/`). None is published to products.
 - The SQL owns the schema: `../Migrations/Postgres/NNN-name/{Apply,Rollback}.sql`, embedded and run as the be sdk
   migration set `identity` (history `identity_migration_history`, its own advisory lock). EF only maps.
 - Names are pinned in the model, whatever the host's naming convention: snake_case columns, `pk_{table}`,
@@ -105,6 +107,7 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
 | `AddEmailSignIn(o => …)` | `UserEmailSignInService` (single-use link or code over OTP) | `EmailSignIn/` |
 | `AddPersonalData()` | `UserPersonalDataService` (export sections, account erasure hooks) | `PersonalData/` |
 | `AddInvitations(o => …)` + `MapOrganizationEndpoints()` | `InvitationService` (single-use links carrying a role), the managers' member and invitation routes | `Invitations/`, `Organizations/` |
+| `AddTrustedContacts(o => …)` + `MapTrustedContactEndpoints()` | `TrustedContactService` (another person's Telegram receives an account's codes), `OwnPhoneService` (`add-phone`); needs `AddPhoneSignIn` | `TrustedContacts/` |
 | `AddAccountEndpoints()` + `MapUserAccountEndpoints()` | account HTTP API; sign-up by invitation only unless `Identity:SignUp:Mode` is `Open` | `Endpoints/` |
 | `AddSignIn()` | `SignInService` | `SignIn/` |
 
@@ -120,6 +123,7 @@ a repository the host registered first wins.
 - `Identity:Email` (`From`, `FromName`, `Smtp:{Host,Port,SecureSocket,Username,Password}`) configures `AddSmtpEmail`; with no
   `Smtp:Host` the instance boots and every send fails with a logged `smtp_not_configured`.
 - `Identity:Phone:AllowedCountries`, `Identity:Otp:HashKey`, `Identity:Telegram:*`: `PhoneSignIn/phone-sign-in.md`.
+- `Identity:TrustedContacts:{IsEnabled,MaxPerPerson}`: `TrustedContacts/trusted-contacts.md`.
 - `Identity:Tokens:SigningKey` signs purpose tokens (`Tokens/`); the service reads it as base64 or base64url of 32+ bytes, or a file path.
 - Verified channels: each slice that proves a way to reach a person lists it through `IUserVerifiedChannelSource`
   (`Channels/`; a confirmed email is the only source today), so a flow that must reach them names no channel.

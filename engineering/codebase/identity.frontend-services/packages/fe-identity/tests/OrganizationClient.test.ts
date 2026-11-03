@@ -29,6 +29,8 @@ describe('organization client', () => {
           role: 'viewer',
           joinedAt: 'x',
           hasPendingTelegramChange: false,
+          isPhoneConfirmed: false,
+          trustedContacts: [],
         },
       ],
     });
@@ -99,6 +101,41 @@ describe('organization client', () => {
       ['POST', `${base}/members/u3/telegram-change/approve`, undefined],
       ['POST', `${base}/members/u3/telegram-change/deny`, undefined],
     ]);
+  });
+
+  it("reads each member's phone state and trusted contacts, and refuses a malformed contact", async () => {
+    const lola = member('u3', 'editor', {
+      isPhoneConfirmed: true,
+      trustedContacts: [
+        { userId: 'u1', displayName: 'Anvar' },
+        { userId: 'u5', displayName: null },
+      ],
+    });
+    const answers = [
+      [lola, { userId: 'u4', role: 'viewer', trustedContacts: null }],
+      [{ ...lola, trustedContacts: [{ displayName: 'no id' }] }],
+    ];
+    const { client } = fakeOrganizationApi({ 'GET /members': () => Response.json({ data: answers.shift() }) });
+
+    const listed = await client.listMembers(organizationId);
+    const malformed = await client.listMembers(organizationId);
+
+    expect(listed.ok && listed.value.map((m) => [m.isPhoneConfirmed, m.trustedContacts])).toEqual([
+      [true, lola.trustedContacts],
+      [false, []],
+    ]);
+    expect(!malformed.ok && malformed.failure.code).toBe('protocol');
+  });
+
+  it('makes an invitation with a trusted contact', async () => {
+    const made = invitation('i1', 'owner');
+    const { client, received } = fakeOrganizationApi({
+      'POST /invitations': () => Response.json({ data: { invitation: made, token: 'tok-1', link: null } }),
+    });
+
+    await client.createInvitation(organizationId, { role: 'owner', trustedContactUserId: 'u1' });
+
+    expect(received[0]?.body).toEqual({ role: 'owner', trustedContactUserId: 'u1' });
   });
 
   it('makes an invitation and reads its link once', async () => {

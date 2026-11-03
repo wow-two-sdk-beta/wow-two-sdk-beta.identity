@@ -97,7 +97,8 @@ await notices.SendAsync(new TelegramNotice                 // ITelegramNoticeSen
   returns `TelegramCallbackResult`: new text replaces the notice's, and its buttons drop either way.
 - Every callback query is answered with `answerCallbackQuery`: the handler's toast, or `button-expired`,
   `button-not-yours` or, when the handler throws (logged, never rethrown), `button-failed`. No action is registered here;
-  trusted contacts brings the first.
+  trusted contacts registers `trusted-contacts.revoke` for its `contact-sign-in` notice
+  (`../Core/TrustedContacts/trusted-contacts.md`).
 
 ## Notes
 
@@ -127,8 +128,11 @@ await notices.SendAsync(new TelegramNotice                 // ITelegramNoticeSen
 - A start link is `https://t.me/{BotUserName}?start={token}` with 32 random characters; only the token's SHA-256 is stored,
   and the link expires after `LinkLifetime`. Making one is rate-limited per number by `Identity:Otp:RateLimitWindow` (30 s) and per origin by
   `Identity:Otp:OriginRateLimitWindow` (5 s).
-- The bot's own texts (welcome, share prompt, mismatch, expired, pending link change, the expired-message stub and the
-  button answers) come in `en`, `ru` and `uz`; `Identity:Telegram:Messages:{culture}:{key}` overrides them.
+- The bot's own texts (welcome, share prompt, mismatch, expired, pending link change, the expired-message stub, the
+  button answers, and the trusted contact codes, notice and `add-phone` replies) come in `en`, `ru` and `uz`;
+  `Identity:Telegram:Messages:{culture}:{key}` overrides them. `TelegramBotMessages.Format` fills `{name}` placeholders.
+- Start link purposes: `phone-sign-in`, `invite-sign-up` and `add-phone` (trusted contacts: the shared number becomes the
+  account's own confirmed phone).
 - Boot check, failing closed while the bot is on: a token of `{bot id}:{secret}`, a user name Telegram allows, a known mode,
   the secret in Webhook mode, an absolute HTTPS `WebhookUrl` when set, a positive link lifetime, a `NoticeLifetime` that is
   positive and below 48 hours, and on a deployed boot `Identity:Otp:HashKey`.

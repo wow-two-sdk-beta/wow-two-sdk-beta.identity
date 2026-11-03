@@ -27,6 +27,9 @@ public sealed partial class SignInLogService(
     /// <summary>Gets or sets the OIDC client the current request's sign-in serves, as the hosted pages name it; recorded with each attempt of this scope.</summary>
     public string? ClientId { get; set; }
 
+    /// <summary>Gets or sets the trusted contact the current request's sign-in goes through; recorded with each attempt of this scope.</summary>
+    public Guid? TrustedContactUserId { get; set; }
+
     /// <summary>Record one attempt.</summary>
     /// <param name="attempt">The attempt.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -47,6 +50,7 @@ public sealed partial class SignInLogService(
             IpMasked = ipMasked,
             UserAgent = userAgent,
             TraceId = PersonalDataMasks.TraceId(),
+            TrustedContactUserId = attempt.TrustedContactUserId ?? TrustedContactUserId,
         };
 
         try

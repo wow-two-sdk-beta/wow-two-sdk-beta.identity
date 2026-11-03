@@ -2,7 +2,7 @@ import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { InvitationsPanel } from '../src/admin';
 import { noContent, problem } from './FakeAccountApi';
-import { fakeOrganizationApi, invitation, organizationId } from './FakeOrganizationApi';
+import { fakeOrganizationApi, invitation, member, organizationId } from './FakeOrganizationApi';
 import { button, pickOption, render } from './Mounting';
 
 const pending = invitation('i2', 'editor', { phoneNumber: '+998901234567' });
@@ -13,17 +13,23 @@ const accepted = invitation('i1', 'viewer', {
 });
 const link = 'https://id.example.test/sign-up?invitation=tok-3';
 
-async function mountPanel(answers: Parameters<typeof fakeOrganizationApi>[0]) {
+async function mountPanel(answers: Parameters<typeof fakeOrganizationApi>[0], props: { currentUserId?: string } = {}) {
   const api = fakeOrganizationApi({
     'GET /invitations': () => Response.json({ data: [pending, accepted] }),
     ...answers,
   });
-  const wrapper = render(InvitationsPanel, { props: { organizationId, client: api.client, countries: ['UZ'] } });
+  const wrapper = render(InvitationsPanel, {
+    props: { organizationId, client: api.client, countries: ['UZ'], ...props },
+  });
   await flushPromises();
   return { ...api, wrapper };
 }
 
 const rows = (wrapper: Awaited<ReturnType<typeof mountPanel>>['wrapper']) => wrapper.findAll('li');
+
+/** The requests the invitations themselves made: the form's read of the members for its contact picker is left out. */
+const invitationCalls = (received: Awaited<ReturnType<typeof mountPanel>>['received']) =>
+  received.filter((request) => !request.url.pathname.endsWith('/members'));
 
 describe('invitations panel', () => {
   it('lists the invitations with where each stands, offering to revoke only a pending one', async () => {
@@ -57,8 +63,11 @@ describe('invitations panel', () => {
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(received[1]).toMatchObject({ method: 'POST', body: { role: 'admin', phoneNumber: '+998907654321' } });
-    expect(received[1]?.url.pathname).toBe(`/api/organizations/${organizationId}/invitations`);
+    expect(invitationCalls(received)[1]).toMatchObject({
+      method: 'POST',
+      body: { role: 'admin', phoneNumber: '+998907654321' },
+    });
+    expect(invitationCalls(received)[1]?.url.pathname).toBe(`/api/organizations/${organizationId}/invitations`);
     expect(wrapper.text()).toContain('Send this link to the person you invite. It shows only this once.');
     expect(wrapper.get('code').text()).toBe(link);
     await wrapper.get('button[aria-label="Copy"]').trigger('click');
@@ -83,7 +92,7 @@ describe('invitations panel', () => {
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(received[1]?.body).toEqual({ role: 'viewer' });
+    expect(invitationCalls(received)[1]?.body).toEqual({ role: 'viewer' });
     expect(wrapper.text()).toContain('Send this invitation token to the person you invite.');
     expect(wrapper.get('code').text()).toBe('tok-3');
   });
@@ -95,7 +104,7 @@ describe('invitations panel', () => {
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(received).toHaveLength(1);
+    expect(invitationCalls(received)).toHaveLength(1);
     expect(wrapper.find('code').exists()).toBe(false);
   });
 
@@ -109,7 +118,7 @@ describe('invitations panel', () => {
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(received[1]?.body).toEqual({ role: 'owner' });
+    expect(invitationCalls(received)[1]?.body).toEqual({ role: 'owner' });
     expect(wrapper.get('code').text()).toBe(link);
     expect(rows(wrapper)[0]?.text()).toContain('Owner');
   });
@@ -136,8 +145,8 @@ describe('invitations panel', () => {
     await button(rows(wrapper)[0]!, 'Revoke').trigger('click');
     await flushPromises();
 
-    expect(received[1]).toMatchObject({ method: 'DELETE' });
-    expect(received[1]?.url.pathname).toBe(`/api/organizations/${organizationId}/invitations/i2`);
+    expect(invitationCalls(received)[1]).toMatchObject({ method: 'DELETE' });
+    expect(invitationCalls(received)[1]?.url.pathname).toBe(`/api/organizations/${organizationId}/invitations/i2`);
     expect(rows(wrapper)[0]?.text()).toContain('Revoked');
     expect(rows(wrapper)[0]?.findAll('button')).toHaveLength(0);
     expect(wrapper.emitted('revoked')).toEqual([['i2']]);
@@ -155,5 +164,102 @@ describe('invitations panel', () => {
     expect(rows(wrapper)[0]?.text()).toContain('The invitation link is not valid.');
     expect(rows(wrapper)[0]?.text()).toContain('Pending');
     expect(wrapper.emitted('revoked')).toBeUndefined();
+  });
+});
+
+describe('invitation trusted contact', () => {
+  const ann = member('u1', 'owner', { displayName: 'Ann', isPhoneConfirmed: true });
+  const bob = member('u2', 'editor', { displayName: 'Bob', isPhoneConfirmed: true });
+  const cy = member('u3', 'viewer', { displayName: 'Cy', isPhoneConfirmed: false });
+  const made = invitation('i3', 'viewer');
+  const created = {
+    'POST /invitations': () => Response.json({ data: { invitation: made, token: 'tok-3', link } }),
+  };
+
+  /** The names the open trusted contact select offers, in order. */
+  async function offered(wrapper: Awaited<ReturnType<typeof mountPanel>>['wrapper']) {
+    await wrapper.get('button[aria-label="Trusted contact"]').trigger('click');
+    await flushPromises();
+    const names = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].map((option) =>
+      option.textContent?.trim(),
+    );
+    await wrapper.get('button[aria-label="Trusted contact"]').trigger('click');
+    await flushPromises();
+    return names;
+  }
+
+  it('offers no one, me, or a member with a confirmed phone, and nothing without a candidate', async () => {
+    const { wrapper } = await mountPanel(
+      { 'GET /members': () => Response.json({ data: [ann, bob, cy] }), ...created },
+      { currentUserId: 'u1' },
+    );
+
+    expect(await offered(wrapper)).toEqual(['No trusted contact', 'Me', 'Bob']);
+    expect(wrapper.get('button[aria-label="Trusted contact"]').text()).toBe('No trusted contact');
+    expect(wrapper.text()).not.toContain('full access');
+    const { wrapper: alone } = await mountPanel({ 'GET /members': () => Response.json({ data: [cy] }) });
+    expect(alone.find('button[aria-label="Trusted contact"]').exists()).toBe(false);
+  });
+
+  it('leaves out "me" while the inviter’s own phone is not confirmed', async () => {
+    const { wrapper } = await mountPanel(
+      { 'GET /members': () => Response.json({ data: [{ ...ann, isPhoneConfirmed: false }, bob] }) },
+      { currentUserId: 'u1' },
+    );
+
+    expect(await offered(wrapper)).toEqual(['No trusted contact', 'Bob']);
+  });
+
+  it('invites with the inviter as the trusted contact, warning of the full access it gives', async () => {
+    const { wrapper, received } = await mountPanel(
+      { 'GET /members': () => Response.json({ data: [ann, bob] }), ...created },
+      { currentUserId: 'u1' },
+    );
+
+    await pickOption(wrapper, 'Trusted contact', 'Me');
+
+    expect(wrapper.text()).toContain('full access to the account');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(invitationCalls(received).find((request) => request.method === 'POST')?.body).toEqual({
+      role: 'viewer',
+      trustedContactUserId: 'u1',
+    });
+    expect(wrapper.get('button[aria-label="Trusted contact"]').text()).toBe('No trusted contact');
+    expect(wrapper.text()).not.toContain('full access to the account');
+  });
+
+  it('invites with another member as the trusted contact, beside a phone and a role', async () => {
+    const { wrapper, received } = await mountPanel(
+      { 'GET /members': () => Response.json({ data: [ann, bob] }), ...created },
+      { currentUserId: 'u1' },
+    );
+
+    await pickOption(wrapper, 'Role', 'Owner');
+    await wrapper.get('input[type="tel"]').setValue('907654321');
+    await pickOption(wrapper, 'Trusted contact', 'Bob');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(invitationCalls(received).find((request) => request.method === 'POST')?.body).toEqual({
+      role: 'owner',
+      phoneNumber: '+998907654321',
+      trustedContactUserId: 'u2',
+    });
+  });
+
+  it('invites with no contact once the choice is put back to none', async () => {
+    const { wrapper, received } = await mountPanel(
+      { 'GET /members': () => Response.json({ data: [ann, bob] }), ...created },
+      { currentUserId: 'u1' },
+    );
+
+    await pickOption(wrapper, 'Trusted contact', 'Bob');
+    await pickOption(wrapper, 'Trusted contact', 'No trusted contact');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(invitationCalls(received).find((request) => request.method === 'POST')?.body).toEqual({ role: 'viewer' });
   });
 });

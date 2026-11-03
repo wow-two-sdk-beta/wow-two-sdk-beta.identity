@@ -5,7 +5,10 @@
 export const OrganizationRouteConstants = {
   /** The organization API's mount point. */
   base: '/api/organizations',
-  /** `GET`: the members; `PUT /members/{userId}` with `{ role }` re-roles one; `DELETE /members/{userId}` removes one. */
+  /**
+   * `GET`: the members, each with `isPhoneConfirmed` and their `trustedContacts`; `PUT /members/{userId}` with `{ role }`
+   * re-roles one; `DELETE /members/{userId}` removes one.
+   */
   members: '/members',
   /**
    * Below `/members/{userId}`: `POST /telegram-change/approve` moves the member's phone link to the Telegram account
@@ -17,8 +20,8 @@ export const OrganizationRouteConstants = {
   /** Below `telegramChange`: denies the pending change. */
   deny: '/deny',
   /**
-   * `POST` with `{ role, phoneNumber?, email? }`: makes an invitation, its link in that answer alone; `GET`: the
-   * invitations, newest first; `DELETE /invitations/{invitationId}` revokes one.
+   * `POST` with `{ role, phoneNumber?, email?, trustedContactUserId? }`: makes an invitation, its link in that answer
+   * alone; `GET`: the invitations, newest first; `DELETE /invitations/{invitationId}` revokes one.
    */
   invitations: '/invitations',
 } as const;

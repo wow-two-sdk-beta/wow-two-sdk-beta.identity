@@ -33,6 +33,33 @@ public interface IOtpService
     Task<OtpCreationResult> CreateAsync(string subject, string scope, OtpCodeSpec spec, string? origin, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Generates and stores a new code as <see cref="CreateAsync(string, string, OtpCodeSpec, string?, CancellationToken)"/>
+    /// does, bound to <paramref name="binding"/>: the code verifies only through
+    /// <see cref="VerifyBoundAsync"/> with the same binding. Rate limits, the failure budget and retiring older codes stay
+    /// keyed by the subject alone, so several targets sharing one subject (a trusted contact receiving codes for several
+    /// accounts) share its limits.
+    /// </summary>
+    /// <param name="subject">Consumer-defined identity key the limits count by, such as a trusted contact.</param>
+    /// <param name="scope">Consumer-defined scope the code is valid for.</param>
+    /// <param name="spec">The code's characters, length and lifetime; a null lifetime takes the configured one.</param>
+    /// <param name="origin">Where the request came from; null limits by subject only.</param>
+    /// <param name="binding">What the code is for, such as one account or one sign-up; it enters the code's digest.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task<OtpCreationResult> CreateBoundAsync(string subject, string scope, OtpCodeSpec spec, string? origin, string binding, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Verifies <paramref name="code"/> as <see cref="VerifyAsync"/> does against the latest pending code of the subject,
+    /// made by <see cref="CreateBoundAsync"/> for <paramref name="binding"/>; a code bound to another target fails as a
+    /// wrong code does and counts as one.
+    /// </summary>
+    /// <param name="subject">Consumer-defined identity key used at creation.</param>
+    /// <param name="code">The code the user entered.</param>
+    /// <param name="scope">Scope used at creation.</param>
+    /// <param name="binding">The target the code must be bound to.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task<OtpVerificationResult> VerifyBoundAsync(string subject, string code, string scope, string binding, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Whether a code for <c>(subject, scope)</c> was created within <see cref="OtpOptions.RateLimitWindow"/>, one from
     /// <paramref name="origin"/> within <see cref="OtpOptions.OriginRateLimitWindow"/>, or the subject is past its failure budget.
     /// </summary>

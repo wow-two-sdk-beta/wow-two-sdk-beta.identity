@@ -1,6 +1,7 @@
 using System.Globalization;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Lockout;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.TrustedContacts;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp.Models;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp.Telegram;
@@ -30,6 +31,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.PhoneSignIn;
 /// <param name="phones">The number rules and the allowed countries.</param>
 /// <param name="telegram">The number's chat and start links.</param>
 /// <param name="lockout">The lockout slice; null skips the check before the code is spent.</param>
+/// <param name="trustedContacts">The trusted contacts slice; null leaves a code only to the number's own chat.</param>
 public sealed class UserPhoneSignInService(
     IUserRepository users,
     UserAccountService accounts,
@@ -39,7 +41,8 @@ public sealed class UserPhoneSignInService(
     OtpOptions otpOptions,
     PhoneNumberPolicy phones,
     TelegramLinkService telegram,
-    UserLockoutService? lockout = null)
+    UserLockoutService? lockout = null,
+    TrustedContactService? trustedContacts = null)
 {
     /// <summary>The OTP scope of phone sign-in codes.</summary>
     public const string CodeScope = UserPhoneService.SignInScope;
@@ -134,7 +137,9 @@ public sealed class UserPhoneSignInService(
     /// Spends <paramref name="code"/> for <paramref name="phoneNumber"/> and returns the person holding the number
     /// confirmed; with none, creates one holding it confirmed while <paramref name="isSignUpAllowed"/>, else
     /// <see cref="PhoneSignInStatus.SignUpClosed"/>. A locked-out person answers <see cref="PhoneSignInStatus.LockedOut"/>
-    /// before the code is checked, so it is not spent.
+    /// before the code is checked, so it is not spent. A code that is not the number's own may be one a trusted contact of
+    /// the person received for them (<c>phone-sign-in/send</c> with a <c>targetId</c>); the result then names the contact.
+    /// A number whose own code ran out of tries or failure budget tries no contact's.
     /// </summary>
     /// <param name="phoneNumber">The number as typed.</param>
     /// <param name="code">The code the bot sent.</param>
@@ -151,8 +156,22 @@ public sealed class UserPhoneSignInService(
         var known = await users.FindByConfirmedPhoneNumberAsync(phone, cancellationToken);
         if (known is not null && lockout?.IsLockedOut(known) == true)
             return new PhoneSignInResult { Status = PhoneSignInStatus.LockedOut, PhoneNumber = phone, User = known };
-        if (string.IsNullOrWhiteSpace(code) || !(await otp.VerifyAsync(phone, code.Trim(), CodeScope, cancellationToken)).IsSuccess)
+        if (string.IsNullOrWhiteSpace(code))
             return PhoneSignInResult.Of(PhoneSignInStatus.InvalidCode, phone);
+
+        var own = await otp.VerifyAsync(phone, code.Trim(), CodeScope, cancellationToken);
+        if (!own.IsSuccess)
+        {
+            if (known is not null
+                && own.FailureReason != OtpFailureReason.MaxAttemptsReached
+                && trustedContacts is not null
+                && await trustedContacts.VerifySignInCodeAsync(known, code, cancellationToken) is { } contactId)
+            {
+                return new PhoneSignInResult { Status = PhoneSignInStatus.Verified, PhoneNumber = phone, User = known, TrustedContactUserId = contactId };
+            }
+
+            return PhoneSignInResult.Of(PhoneSignInStatus.InvalidCode, phone);
+        }
 
         if (known is not null)
             return new PhoneSignInResult { Status = PhoneSignInStatus.Verified, PhoneNumber = phone, User = known };

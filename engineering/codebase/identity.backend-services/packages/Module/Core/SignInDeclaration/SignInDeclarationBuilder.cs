@@ -46,6 +46,7 @@ internal static class SignInDeclarationBuilder
             SignUpMode = input.SignUpMode == SignUpMode.Open ? "open" : "invite",
             IsPersistenceOffered = input.IsPersistenceOffered,
             IsEmailEnabled = input.IsEmailEnabled,
+            IsTrustedContactSignInEnabled = input.IsTrustedContactSignInEnabled && input.PhoneCountries is not null,
             SignUpProfile = SignUpProfile(input),
             Locale = locale,
             Locales = SignInLocaleResolver.Locales,

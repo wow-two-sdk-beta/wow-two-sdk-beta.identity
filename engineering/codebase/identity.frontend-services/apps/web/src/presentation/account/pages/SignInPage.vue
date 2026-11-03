@@ -17,7 +17,9 @@ import HostedPage from '../../common/layout/HostedPage.vue';
  * already continues there at once, the page showing only a loading state meanwhile; to use another account they sign
  * out in the console first. A return URL asking for a fresh sign-in (`prompt=login`, `max_age`) shows the methods
  * anyway. A password that breaks the current rules is changed first, with the sign-in's ticket, and then signs in anew.
- * The forgot-password link shows only while the instance takes emails, as the reset goes by email.
+ * The forgot-password link shows only while the instance takes emails, as the reset goes by email. While the instance has
+ * trusted contacts on, the phone method asks where the code goes when the phone has contacts, and lists the accounts
+ * a trusted contact can sign in as.
  */
 defineOptions({ name: 'SignInPage' });
 
@@ -90,6 +92,7 @@ function passwordChanged() {
             :countries="method.countries"
             :code-rules="method.codeRules"
             :is-persistence-offered="options.isPersistenceOffered"
+            :is-trusted-contact-sign-in-enabled="options.isTrustedContactSignInEnabled"
             @signed-in="continueToReturnUrl"
           />
         </section>

@@ -33,7 +33,8 @@ await signIn.TwoFactorSignInAsync(userId, ticket, code);          // or Recovery
 - Wrong passwords and wrong second factors both count toward lockout; the failure count resets only on success.
 - `RenewAsync` (refresh) re-checks the preconditions but not a lockout, which guards new credential attempts only.
 - A `NotAllowed` result names its precondition in `UnmetPrecondition` (`unconfirmed_email`, `unconfirmed_phone`); an
-  account with no email but a confirmed phone meets `IsConfirmedEmailRequired` through its phone.
+  account with no email but a confirmed phone meets `IsConfirmedEmailRequired` through its phone, and one with
+  neither email nor phone (a trusted contact's sign-up) through the contact who signs it in.
 - A user with `IsTwoFactorEnabled` always gets `RequiresTwoFactor`, even when the two-factor slice is absent.
 - The two-factor ticket is a purpose token (5 minutes by default) bound to the user and stamp.
 - `SignInAsync(user)` completes external-account and passwordless flows with the same lockout and precondition checks;

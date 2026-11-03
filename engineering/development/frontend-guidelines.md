@@ -8,7 +8,8 @@ Defer to `wow-two-ws/conventions/development/frontend/`.
 - `packages/fe-identity` is `@wow-two-beta/fe-identity`, published to npm: `./contracts` (the TypeScript mirror of the
   account and organization APIs: shapes, `AccountRouteConstants`, `HostedPageRouteConstants`,
   `OrganizationRouteConstants`), `./kit` (`createAccountClient` and the components `PasswordSignIn`, `PhoneCodeSignIn`,
-  `SignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm`) and `./admin` (`createOrganizationClient`
+  `SignUpForm`, `InviteSignUpForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `ChangePasswordForm`, and for account
+  security `PhoneSettings`, `TrustedContactsList`, `TrustedByList`, `SessionList`) and `./admin` (`createOrganizationClient`
   and the embeddable `MembersPanel` and `InvitationsPanel` for an organization's owners and admins). It peers `@wow-two-beta/fe` at `>=0.0.n <0.1.0`, `n` the pinned version; `check:package` enforces it.
 - `apps/web` is `@identity/web`, private: the hosted pages (`/sign-in`, `/sign-up`, `/confirm-email`, `/forgot-password`,
   `/reset-password`, `/change-password`, `/account/security`) in one card, and the console in its own shell (`/`,

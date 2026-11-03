@@ -9,6 +9,7 @@ const declaration: SignInOptionsDto = {
   signUpMode: 'open',
   isPersistenceOffered: true,
   isEmailEnabled: false,
+  isTrustedContactSignInEnabled: true,
   locale: 'ru',
   locales: ['uz', 'ru', 'en'],
   methods: [
@@ -114,6 +115,7 @@ describe('sign-in declaration', () => {
         signUpMode: 'invite',
         isPersistenceOffered: false,
         isEmailEnabled: true,
+        isTrustedContactSignInEnabled: false,
         locale: 'en',
         locales: [],
         methods: [{ id: 'password', channels: [], fields: [], passwordRules: null }],
@@ -125,6 +127,22 @@ describe('sign-in declaration', () => {
         signUpProfile: noProfile,
       },
     });
+  });
+
+  it('reads whether trusted contacts are on, and anything but true as off', async () => {
+    const answers = [true, 'yes', undefined];
+    const { client } = fakeAccountApi({
+      'GET /sign-in-options': () =>
+        Response.json({ data: { ...declaration, isTrustedContactSignInEnabled: answers.shift() } }),
+    });
+
+    const flags = [];
+    for (let index = 0; index < 3; index += 1) {
+      const result = await client.getSignInOptions();
+      flags.push(result.ok && result.value.isTrustedContactSignInEnabled);
+    }
+
+    expect(flags).toEqual([true, false, false]);
   });
 
   it.each([

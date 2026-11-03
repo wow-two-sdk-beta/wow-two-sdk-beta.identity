@@ -43,6 +43,10 @@ public sealed class InvitationService(
     /// <param name="role">The role the person joins with, one of the organization roles.</param>
     /// <param name="phoneNumber">The phone number that alone may redeem it, as typed; null for none.</param>
     /// <param name="email">The email that alone may redeem it; null for none.</param>
+    /// <param name="trustedContactUserId">
+    /// The trusted contact a sign-up through it gets its code from, checked by the caller
+    /// (<c>TrustedContactService.CheckInvitationContactAsync</c>); null for none.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<InvitationCreateResult> CreateAsync(
         IdentityOrganization organization,
@@ -50,6 +54,7 @@ public sealed class InvitationService(
         string? role,
         string? phoneNumber,
         string? email,
+        Guid? trustedContactUserId = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(creator);
@@ -76,6 +81,7 @@ public sealed class InvitationService(
             PhoneNumber = phone,
             Email = address,
             CreatedByUserId = creator.Id,
+            TrustedContactUserId = trustedContactUserId,
             CreatedAt = now,
             ExpiresAt = now + options.CurrentValue.Lifetime,
         };
@@ -171,7 +177,10 @@ public sealed class InvitationService(
     /// <param name="invitation">The invitation.</param>
     /// <param name="user">The person redeeming it.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentityResult> RedeemAsync(IdentityInvitation invitation, IdentityUser user, CancellationToken cancellationToken = default)
+    public Task<IdentityResult> RedeemAsync(IdentityInvitation invitation, IdentityUser user, CancellationToken cancellationToken = default)
+        => RedeemCoreAsync(invitation, user, isIdentifierChecked: true, cancellationToken);
+
+    private async Task<IdentityResult> RedeemCoreAsync(IdentityInvitation invitation, IdentityUser user, bool isIdentifierChecked, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(invitation);
         ArgumentNullException.ThrowIfNull(user);
@@ -179,7 +188,7 @@ public sealed class InvitationService(
         if (status != InvitationStatus.Pending)
             return RefusalOf(status);
         var phone = user.IsPhoneNumberConfirmed ? user.PhoneNumber : null;
-        if (!Names(invitation, user.Email, phone))
+        if (isIdentifierChecked && !Names(invitation, user.Email, phone))
             return Mismatch();
         if (await organizations.FindByIdAsync(invitation.OrganizationId, cancellationToken) is not { } organization)
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvitationNotFound, "The invitation's organization no longer exists.");
@@ -204,11 +213,42 @@ public sealed class InvitationService(
     /// <param name="personOf">The person <paramref name="step"/> signed up, or null when it failed.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The step's outcome, and the redemption; a null redemption means the step signed nobody up.</returns>
-    public async Task<(T Step, IdentityResult? Redemption)> RedeemWithAsync<T>(
+    public Task<(T Step, IdentityResult? Redemption)> RedeemWithAsync<T>(
         IdentityInvitation invitation,
         Func<CancellationToken, Task<T>> step,
         Func<T, IdentityUser?> personOf,
         CancellationToken cancellationToken = default)
+        => RedeemWithCoreAsync(invitation, step, personOf, isIdentifierChecked: true, cancellationToken);
+
+    /// <summary>
+    /// Run a sign-up <paramref name="step"/> through <paramref name="invitation"/>'s trusted contact and redeem it for the
+    /// person it signs up, in one transaction, as <see cref="RedeemWithAsync{T}"/> does. The contact's code is the proof, so a
+    /// phone number or email the invitation names is not asked of the new person, who holds no phone.
+    /// </summary>
+    /// <typeparam name="T">The step's outcome.</typeparam>
+    /// <param name="invitation">The invitation naming a trusted contact.</param>
+    /// <param name="step">The sign-up: the contact's code verified, the person created and the contact recorded.</param>
+    /// <param name="personOf">The person <paramref name="step"/> signed up, or null when it failed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The step's outcome, and the redemption; a null redemption means the step signed nobody up.</returns>
+    public Task<(T Step, IdentityResult? Redemption)> RedeemThroughTrustedContactWithAsync<T>(
+        IdentityInvitation invitation,
+        Func<CancellationToken, Task<T>> step,
+        Func<T, IdentityUser?> personOf,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(invitation);
+        if (invitation.TrustedContactUserId is null)
+            throw new InvalidOperationException("The invitation names no trusted contact.");
+        return RedeemWithCoreAsync(invitation, step, personOf, isIdentifierChecked: false, cancellationToken);
+    }
+
+    private async Task<(T Step, IdentityResult? Redemption)> RedeemWithCoreAsync<T>(
+        IdentityInvitation invitation,
+        Func<CancellationToken, Task<T>> step,
+        Func<T, IdentityUser?> personOf,
+        bool isIdentifierChecked,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(invitation);
         ArgumentNullException.ThrowIfNull(step);
@@ -224,7 +264,7 @@ public sealed class InvitationService(
             return (outcome, null);
         }
 
-        var redemption = await RedeemAsync(invitation, person, cancellationToken);
+        var redemption = await RedeemCoreAsync(invitation, person, isIdentifierChecked, cancellationToken);
         if (transaction is not null)
         {
             if (redemption.IsSuccess)

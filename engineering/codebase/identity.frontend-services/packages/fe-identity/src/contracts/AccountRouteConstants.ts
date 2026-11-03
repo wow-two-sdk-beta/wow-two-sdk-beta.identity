@@ -26,8 +26,15 @@ export const AccountRouteConstants = {
   passwordChange: '/password/change',
   /** `POST`: sends a phone sign-in code. */
   phoneSignInSend: '/phone-sign-in/send',
-  /** `POST`: signs in with a phone and the code sent to it. */
+  /**
+   * `POST`: signs in with a phone and the code sent to it. A phone whose person is another's trusted contact answers `200`
+   * with an `accountChoice` and no session; `phoneSignInChoose` then picks the account.
+   */
   phoneSignIn: '/phone-sign-in',
+  /** `POST`: lists the trusted contacts a phone's sign-in code can go to instead, as masked labels with opaque ids. */
+  phoneSignInTargets: '/phone-sign-in/targets',
+  /** `POST`: signs in as the account a trusted contact picked from an `accountChoice`, with its token. */
+  phoneSignInChoose: '/phone-sign-in/choose',
   /** `GET`, anonymous: an invitation link's preview, `/invitations/{token}`; `POST` `/invitations/{token}/accept` adds the signed-in person. */
   invitations: '/invitations',
   /**
@@ -41,6 +48,21 @@ export const AccountRouteConstants = {
    * `completed` answer sets the session cookie.
    */
   invitationSignUpStatus: '/invitations/sign-up/status',
+  /**
+   * `POST`, anonymous: finishes an invitation sign-up verified by the trusted contact (`verification=trusted-contact`)
+   * with the code the contact received, `?clientId=`; `204` and the session cookie.
+   */
+  invitationSignUpVerify: '/invitations/sign-up/verify',
+  /** `GET`: the signed-in account's live sessions, with the trusted contact a session went through. */
+  manageSessions: '/manage/sessions',
+  /** `GET`: the account's own phone and whether this session may change it. */
+  managePhone: '/manage/phone',
+  /** `POST`: the bot's `add-phone` link that adds or changes the account's own phone. */
+  managePhoneTelegramLink: '/manage/phone/telegram-link',
+  /** `GET`: the account's trusted contacts; `DELETE /{userId}` revokes one, from a session signed in with the own phone. */
+  manageTrustedContacts: '/manage/trusted-contacts',
+  /** `GET`: the accounts that trust the signed-in person; `DELETE /{userId}` stops being their contact. */
+  manageTrustedBy: '/manage/trusted-by',
   /** `POST`: ends the cookie's session. */
   signOut: '/sign-out',
   /** `GET`, anonymous: the sign-in declaration, the look and the enabled methods with their rules; `?clientId=`, `?locale=`. */

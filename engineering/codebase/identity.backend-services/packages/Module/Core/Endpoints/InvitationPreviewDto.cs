@@ -20,4 +20,10 @@ public sealed record InvitationPreviewDto
 
     /// <summary>When it stops working (UTC).</summary>
     public required DateTimeOffset ExpiresAt { get; init; }
+
+    /// <summary>
+    /// The masked name of the trusted contact a sign-up through it gets its code from (<c>S*** R***</c>), or their masked
+    /// phone when they set no name; null when it names none or trusted contacts are off.
+    /// </summary>
+    public string? TrustedContactHint { get; init; }
 }

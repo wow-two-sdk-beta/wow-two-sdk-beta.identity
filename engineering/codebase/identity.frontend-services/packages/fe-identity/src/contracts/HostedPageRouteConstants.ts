@@ -12,7 +12,7 @@ export const HostedPageRouteConstants = {
   resetPassword: '/reset-password',
   /** Spends a password change link; the token travels in the URL fragment (`#token=`), `returnUrl` in the query. */
   changePassword: '/change-password',
-  /** The signed-in person's security settings: the password change. */
+  /** The signed-in person's security settings: the password change, own phone, trusted contacts and sessions. */
   accountSecurity: '/account/security',
   /** The query parameter that carries the local path a page continues to. */
   returnUrlParameter: 'returnUrl',

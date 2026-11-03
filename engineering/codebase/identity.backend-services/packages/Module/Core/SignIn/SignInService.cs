@@ -29,7 +29,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
 ///   - a lockout refuses new sign-ins only; a renewal of an existing session passes it, so failed guesses by someone else
 ///     never end the person's sessions
 ///   - a refused precondition names itself in <see cref="SignInResult.UnmetPrecondition"/>; an account without an email
-///     but with a confirmed phone (a phone sign-in's person) meets the confirmed-email precondition through its phone
+///     but with a confirmed phone (a phone sign-in's person) meets the confirmed-email precondition through its phone, and
+///     one with neither email nor phone (a trusted contact's sign-up) through the contact who signs it in
 /// </remarks>
 public sealed class SignInService
 {
@@ -407,7 +408,7 @@ public sealed class SignInService
     /// person has no email to confirm.
     /// </summary>
     private string? UnmetPrecondition(IdentityUser user)
-        => _options.IsConfirmedEmailRequired && !user.IsEmailConfirmed && !(string.IsNullOrEmpty(user.Email) && user.IsPhoneNumberConfirmed)
+        => _options.IsConfirmedEmailRequired && !user.IsEmailConfirmed && !(string.IsNullOrEmpty(user.Email) && (user.IsPhoneNumberConfirmed || string.IsNullOrEmpty(user.PhoneNumber)))
             ? SignInReasonConstants.UnconfirmedEmail
             : _options.IsConfirmedPhoneNumberRequired && !user.IsPhoneNumberConfirmed ? SignInReasonConstants.UnconfirmedPhone
             : null;

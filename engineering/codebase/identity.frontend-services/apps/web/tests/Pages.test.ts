@@ -143,6 +143,7 @@ function withOptions(overrides: Partial<SignInOptions>) {
     signUpMode: 'open',
     isPersistenceOffered: false,
     isEmailEnabled: true,
+    isTrustedContactSignInEnabled: false,
     methods: [{ id: SignInMethodId.Password }],
     passwordRules: [],
     signUpProfile: noProfile,
@@ -1375,5 +1376,425 @@ describe('password rules from the declaration', () => {
 
     expect(errorUnder(wrapper, 'newPassword')).toBe(shortMessage);
     expect(received.map((request) => request.url.pathname)).not.toContain('/api/account/manage/password');
+  });
+});
+
+describe('sign-in with trusted contacts', () => {
+  const trusted = () => Response.json({ data: { ...instanceDeclaration, isTrustedContactSignInEnabled: true } });
+  const contacts = () => Response.json({ data: { trustedContacts: [{ id: 't1', label: 'L*** K.' }] } });
+  const sent = () => Response.json({ data: { isCodeSent: true, telegramLinkUrl: null } });
+  const phoneForm = 'section[aria-label="Phone"] form';
+  const choice = {
+    token: 'choice-1',
+    accounts: [
+      { userId: 'u1', displayName: 'Anvar', pictureUrl: null, isSelf: true },
+      { userId: 'u2', displayName: 'Lola', pictureUrl: null, isSelf: false },
+    ],
+  };
+
+  async function enterPhone(wrapper: ReturnType<typeof mount>) {
+    await wrapper.get('section[aria-label="Phone"] input[type="tel"]').setValue('901234567');
+    await wrapper.get(phoneForm).trigger('submit');
+    await flushPromises();
+  }
+
+  async function enterCode(wrapper: ReturnType<typeof mount>) {
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await wrapper.get(phoneForm).trigger('submit');
+    await flushPromises();
+  }
+
+  it('asks nothing of the phone’s contacts while the declaration keeps them off', async () => {
+    const received = stubApi({ 'POST /api/account/phone-sign-in/send': sent });
+    const { wrapper } = await renderAt('/sign-in');
+
+    await enterPhone(wrapper);
+
+    expect(received.map((request) => request.url.pathname)).not.toContain('/api/account/phone-sign-in/targets');
+    expect(wrapper.find('input[name="code"]').exists()).toBe(true);
+  });
+
+  it('offers my Telegram or a contact after the number, and sends the code to the contact picked', async () => {
+    const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
+    const received = stubApi({
+      'GET /api/account/sign-in-options': trusted,
+      'POST /api/account/phone-sign-in/targets': contacts,
+      'POST /api/account/phone-sign-in/send': sent,
+      'POST /api/account/phone-sign-in': noContent,
+    });
+    const { wrapper } = await renderAt(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
+
+    await enterPhone(wrapper);
+
+    const labels = wrapper.findAll('input[type="radio"]').map((radio) => radio.element.closest('label')?.textContent);
+    expect(labels).toHaveLength(2);
+    expect(labels[0]).toContain('My Telegram');
+    expect(labels[1]).toContain('L*** K.');
+    await wrapper.findAll('input[type="radio"]')[1]?.setValue(true);
+    await wrapper.get(phoneForm).trigger('submit');
+    await flushPromises();
+    await enterCode(wrapper);
+
+    const calls = received
+      .filter((request) => request.method === 'POST')
+      .map((request) => [request.url.pathname, request.body]);
+    expect(calls).toEqual([
+      ['/api/account/phone-sign-in/targets', { phone: '+998901234567' }],
+      ['/api/account/phone-sign-in/send', { phone: '+998901234567', targetId: 't1' }],
+      ['/api/account/phone-sign-in', { phone: '+998901234567', code: '123456', isPersistent: false }],
+    ]);
+    expect(assign).toHaveBeenCalledWith(authorize);
+  });
+
+  it('sends the code to my Telegram by default, with no target', async () => {
+    const received = stubApi({
+      'GET /api/account/sign-in-options': trusted,
+      'POST /api/account/phone-sign-in/targets': contacts,
+      'POST /api/account/phone-sign-in/send': sent,
+    });
+    const { wrapper } = await renderAt('/sign-in');
+
+    await enterPhone(wrapper);
+    await wrapper.get(phoneForm).trigger('submit');
+    await flushPromises();
+
+    expect(received.at(-1)?.body).toEqual({ phone: '+998901234567' });
+  });
+
+  it('lists the accounts a trusted contact can sign in as, and continues once one is picked', async () => {
+    const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
+    const received = stubApi({
+      'GET /api/account/sign-in-options': trusted,
+      'POST /api/account/phone-sign-in/targets': () => Response.json({ data: { trustedContacts: [] } }),
+      'POST /api/account/phone-sign-in/send': sent,
+      'POST /api/account/phone-sign-in': () => Response.json({ data: { accountChoice: choice } }),
+      'POST /api/account/phone-sign-in/choose': noContent,
+    });
+    const { wrapper } = await renderAt(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
+
+    await enterPhone(wrapper);
+    await enterCode(wrapper);
+
+    expect(assign).not.toHaveBeenCalled();
+    const accounts = wrapper.findAll('section[aria-label="Phone"] li');
+    expect(accounts.map((account) => account.text().includes('You'))).toEqual([true, false]);
+    expect(accounts[1]?.text()).toContain('Lola');
+    await accounts[1]?.get('button').trigger('click');
+    await flushPromises();
+
+    const chosen = received.find((request) => request.url.pathname === '/api/account/phone-sign-in/choose');
+    expect(chosen?.url.search).toBe('?useCookies=true&clientId=desk');
+    expect(chosen?.body).toEqual({ token: 'choice-1', userId: 'u2', isPersistent: false });
+    expect(assign).toHaveBeenCalledWith(authorize);
+  });
+});
+
+describe('sign-up by a trusted contact', () => {
+  const hint = 'A*** K.';
+  const preview = {
+    organizationName: 'Ocharo',
+    role: 'owner',
+    status: 'pending',
+    phoneNumberHint: null,
+    emailHint: null,
+    trustedContactHint: hint,
+    expiresAt: '2026-11-09T07:00:00+00:00',
+  };
+
+  /** Opens an invitation link on a phone-only instance, whose preview names a trusted contact unless `data` says not. */
+  async function openInvitation(data: Record<string, unknown> = preview) {
+    const received = stubApi({
+      'GET /api/account/manage/info': unauthorized,
+      'GET /api/account/invitations/tok-1': () => Response.json({ data }),
+      'POST /api/account/invitations/tok-1/sign-up': () =>
+        Response.json({ data: { isCodeSentToTrustedContact: true, expiresAt: '2099-01-01T00:00:00Z' } }),
+      'POST /api/account/invitations/sign-up/verify': noContent,
+    });
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    withOptions({
+      signUpMode: 'invite',
+      isEmailEnabled: false,
+      isPersistenceOffered: true,
+      methods: [{ id: SignInMethodId.PhoneCode, countries: ['UZ'], codeRules: [] }],
+      signUpProfile: { ...noProfile, displayName: 'required' },
+    });
+    const rendered = await renderAt(`/sign-up?invitation=tok-1&returnUrl=${encodeURIComponent(authorize)}`);
+    return { received, ...rendered };
+  }
+
+  it('offers no choice while the link names no contact', async () => {
+    const { wrapper } = await openInvitation({ ...preview, trustedContactHint: null });
+
+    expect(wrapper.find('input[type="radio"]').exists()).toBe(false);
+    expect(wrapper.findAll('button').map((button) => button.text())).toContain('Verify phone in Telegram');
+  });
+
+  it('verifies the sign-up with the contact’s code, then continues signed in', async () => {
+    const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
+    const { wrapper, received } = await openInvitation();
+
+    expect(wrapper.get('section[aria-label="Phone"]').text()).toContain('With my own Telegram');
+    await wrapper.findAll('input[type="radio"]')[1]?.setValue(true);
+    expect(wrapper.text()).toContain('full access to your account');
+    await wrapper.get('input[name="displayName"]').setValue('Lola');
+    await wrapper.get('section[aria-label="Phone"] form').trigger('submit');
+    await flushPromises();
+
+    const started = received.find((request) => request.url.pathname === '/api/account/invitations/tok-1/sign-up');
+    expect(started?.url.search).toBe('?clientId=desk');
+    expect([...(started?.body as FormData).entries()]).toEqual([
+      ['displayName', 'Lola'],
+      ['verification', 'trusted-contact'],
+    ]);
+    expect(window.open).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain(`We sent a code to ${hint} in Telegram.`);
+
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await wrapper.get('input[type="checkbox"]').setValue(true);
+    await wrapper.get('section[aria-label="Phone"] form').trigger('submit');
+    await flushPromises();
+
+    const verified = received.find((request) => request.url.pathname === '/api/account/invitations/sign-up/verify');
+    expect(verified?.url.search).toBe('?clientId=desk');
+    expect(verified?.body).toEqual({ code: '123456', isPersistent: true });
+    expect(assign).toHaveBeenCalledWith(authorize);
+  });
+});
+
+describe('account security', () => {
+  const info = () => Response.json({ data: { userId: 'u1', userName: '+998901234567' } });
+  const lola = {
+    userId: 'u2',
+    displayName: 'Lola',
+    phoneHint: '+998*******45',
+    isDeliverable: true,
+    createdAt: '2026-11-03T08:00:00+00:00',
+  };
+  const anvar = { userId: 'u3', displayName: 'Anvar', createdAt: '2026-11-03T08:00:00+00:00', canLeave: true };
+  const session = {
+    id: 's1',
+    createdAt: '2026-11-03T08:00:00+00:00',
+    lastSeenAt: '2026-11-03T09:00:00+00:00',
+    expiresAt: '2026-11-10T08:00:00+00:00',
+    authenticationMethods: ['otp'],
+    ipMasked: '203.0.113.0',
+    userAgent: 'Firefox on macOS',
+    isCurrent: true,
+  };
+  const phone = (data: Record<string, unknown>) => () => Response.json({ data });
+  const trustedOn = () => Response.json({ data: { ...instanceDeclaration, isTrustedContactSignInEnabled: true } });
+
+  /** The answers of an account that signs in with a phone and has a contact, an account it trusts and two sessions. */
+  const account = (overrides: Record<string, () => Response> = {}) => ({
+    'GET /api/account/sign-in-options': trustedOn,
+    'GET /api/account/manage/info': info,
+    'GET /api/account/manage/phone': phone({ phoneHint: '+998*******67', isConfirmed: true, canChange: true }),
+    'GET /api/account/manage/trusted-contacts': phone({ canRevoke: true, items: [lola] }),
+    'GET /api/account/manage/trusted-by': () => Response.json({ data: [anvar] }),
+    'GET /api/account/manage/sessions': () =>
+      Response.json({
+        data: [session, { ...session, id: 's2', isCurrent: false, trustedContactDisplayName: 'Anvar' }],
+      }),
+    ...overrides,
+  });
+
+  it('shows the phone, the trusted contacts, the people who trust the person and the sessions', async () => {
+    stubApi(account());
+    const { wrapper } = await renderAt('/account/security');
+
+    const headings = wrapper.findAll('h2').map((heading) => heading.text());
+    expect(headings).toEqual(['Password', 'Phone', 'Trusted contacts', 'People who trust you', 'Sessions']);
+    expect(wrapper.text()).toContain('Your phone: +998*******67');
+    expect(wrapper.get('section[aria-label="Trusted contacts"]').text()).toContain('Lola');
+    expect(wrapper.get('section[aria-label="People who trust you"]').text()).toContain('Anvar');
+    const sessions = wrapper.get('section[aria-label="Sessions"]').findAll('li');
+    expect(sessions).toHaveLength(2);
+    expect(sessions[1]?.text()).toContain('Signed in through Anvar');
+  });
+
+  it('revokes a trusted contact from a session signed in with the own phone', async () => {
+    const received = stubApi(account({ 'DELETE /api/account/manage/trusted-contacts/u2': noContent }));
+    const { wrapper } = await renderAt('/account/security');
+
+    const section = wrapper.get('section[aria-label="Trusted contacts"]');
+    await section
+      .findAll('button')
+      .find((button) => button.text() === 'Revoke')
+      ?.trigger('click');
+    await section
+      .findAll('button')
+      .find((button) => button.text() === 'Yes, revoke')
+      ?.trigger('click');
+    await flushPromises();
+
+    expect(received.at(-1)).toMatchObject({ method: 'DELETE' });
+    expect(received.at(-1)?.url.pathname).toBe('/api/account/manage/trusted-contacts/u2');
+    expect(wrapper.get('section[aria-label="Trusted contacts"]').text()).toContain('You have no trusted contacts.');
+  });
+
+  it('leaves out the revoke and the leave the session may not do, and says why', async () => {
+    stubApi(
+      account({
+        'GET /api/account/manage/phone': phone({ phoneHint: '+998*******67', isConfirmed: true, canChange: false }),
+        'GET /api/account/manage/trusted-contacts': phone({ canRevoke: false, items: [lola] }),
+        'GET /api/account/manage/trusted-by': () => Response.json({ data: [{ ...anvar, canLeave: false }] }),
+      }),
+    );
+    const { wrapper } = await renderAt('/account/security');
+
+    const buttons = wrapper.findAll('section button').map((button) => button.text());
+    expect(buttons).not.toContain('Revoke');
+    expect(buttons).not.toContain('Leave');
+    expect(buttons).not.toContain('Change phone');
+    expect(wrapper.text()).toContain('To revoke a trusted contact, sign in with your own phone.');
+    expect(wrapper.text()).toContain('To change your phone, sign in with the phone you have now.');
+    expect(wrapper.text()).toContain('You are the only contact of an account with no phone of its own');
+  });
+
+  it('leaves an account that trusts the person', async () => {
+    const received = stubApi(account({ 'DELETE /api/account/manage/trusted-by/u3': noContent }));
+    const { wrapper } = await renderAt('/account/security');
+
+    const section = wrapper.get('section[aria-label="People who trust you"]');
+    await section
+      .findAll('button')
+      .find((button) => button.text() === 'Leave')
+      ?.trigger('click');
+    await section
+      .findAll('button')
+      .find((button) => button.text() === 'Yes, leave')
+      ?.trigger('click');
+    await flushPromises();
+
+    expect(received.at(-1)?.url.pathname).toBe('/api/account/manage/trusted-by/u3');
+    expect(wrapper.find('section[aria-label="People who trust you"]').exists()).toBe(false);
+  });
+
+  it('adds a phone through the bot link when the account has none', async () => {
+    const link = 'https://t.me/identity_bot?start=ap-1';
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    const received = stubApi(
+      account({
+        'GET /api/account/manage/phone': phone({ isConfirmed: false, canChange: true }),
+        'POST /api/account/manage/phone/telegram-link': () => Response.json({ data: { telegramLinkUrl: link } }),
+      }),
+    );
+    const { wrapper } = await renderAt('/account/security');
+
+    expect(wrapper.text()).toContain('You have no phone of your own yet.');
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Add a phone')
+      ?.trigger('click');
+    await flushPromises();
+
+    expect(received.some((request) => request.url.pathname === '/api/account/manage/phone/telegram-link')).toBe(true);
+    expect(window.open).toHaveBeenCalledWith(link, '_blank', 'noopener,noreferrer');
+    expect(wrapper.get(`a[href="${link}"]`).text()).toBe('Open Telegram');
+  });
+
+  it('keeps the trusted blocks out while the instance has none, but not the contacts it still holds', async () => {
+    stubApi(
+      account({
+        'GET /api/account/sign-in-options': () => Response.json({ data: instanceDeclaration }),
+        'GET /api/account/manage/trusted-contacts': phone({ canRevoke: true, items: [] }),
+        'GET /api/account/manage/trusted-by': () => Response.json({ data: [] }),
+      }),
+    );
+    const { wrapper } = await renderAt('/account/security');
+
+    expect(wrapper.findAll('h2').map((heading) => heading.text())).toEqual(['Password', 'Phone', 'Sessions']);
+    wrapper.unmount();
+    wrappers.pop();
+
+    stubApi(
+      account({
+        'GET /api/account/sign-in-options': () => Response.json({ data: instanceDeclaration }),
+        'GET /api/account/manage/trusted-by': () => Response.json({ data: [] }),
+      }),
+    );
+    const held = await renderAt('/account/security');
+    expect(held.wrapper.findAll('h2').map((heading) => heading.text())).toContain('Trusted contacts');
+  });
+});
+
+describe('console trusted contacts', () => {
+  const joined = '2026-10-20T08:00:00+00:00';
+  const members = [
+    {
+      userId: 'u1',
+      displayName: 'Lola Karimova',
+      role: 'owner',
+      joinedAt: joined,
+      hasPendingTelegramChange: false,
+      isPhoneConfirmed: true,
+      trustedContacts: [],
+    },
+    {
+      userId: 'u2',
+      displayName: 'Bobur',
+      role: 'editor',
+      joinedAt: joined,
+      hasPendingTelegramChange: false,
+      isPhoneConfirmed: false,
+      trustedContacts: [{ userId: 'u1', displayName: 'Lola Karimova' }],
+    },
+  ];
+  const organizationApi = (path: string) => `/api/organizations/${organizationId}${path}`;
+
+  it('shows each member’s phone state and their trusted contacts', async () => {
+    stubApi({
+      'GET /api/console/session': consoleAdmin,
+      [`GET ${organizationApi('/members')}`]: () => Response.json({ data: members }),
+    });
+    const { wrapper } = await renderAt(membersPath);
+    await flushPromises();
+
+    const rows = wrapper.findAll('ul[aria-label="Members"] li');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.text()).toContain('Phone confirmed');
+    expect(rows[1]?.text()).toContain('No confirmed phone · Trusted contacts: Lola Karimova');
+  });
+
+  it('lets the signed-in person name themselves the invited person’s trusted contact', async () => {
+    const created = {
+      invitation: {
+        id: 'i1',
+        role: 'viewer',
+        status: 'pending',
+        phoneNumber: null,
+        email: null,
+        createdAt: joined,
+        expiresAt: '2026-11-08T08:00:00+00:00',
+        acceptedAt: null,
+        acceptedByUserId: null,
+      },
+      token: 'tok-9',
+      link: null,
+    };
+    const received = stubApi({
+      'GET /api/console/session': consoleAdmin,
+      [`GET ${organizationApi('/members')}`]: () => Response.json({ data: members }),
+      [`GET ${organizationApi('/invitations')}`]: () => Response.json({ data: [] }),
+      [`POST ${organizationApi('/invitations')}`]: () => Response.json({ data: created }),
+    });
+    const { wrapper } = await renderAt(invitationsPath);
+    await flushPromises();
+
+    const trigger = wrapper.get('button[aria-label="Trusted contact"]');
+    await trigger.trigger('click');
+    await flushPromises();
+    const offered = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+    expect(offered.map((option) => option.textContent?.trim())).toEqual(['No trusted contact', 'Me']);
+    offered[1]?.click();
+    await flushPromises();
+    expect(wrapper.text()).toContain('full access to the account');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    const posted = received.find(
+      (request) => request.method === 'POST' && request.url.pathname.endsWith('/invitations'),
+    );
+    expect(posted?.body).toEqual({ role: 'viewer', trustedContactUserId: 'u1' });
   });
 });

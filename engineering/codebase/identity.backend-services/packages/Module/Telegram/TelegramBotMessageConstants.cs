@@ -26,6 +26,15 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.ButtonExpired] = "This button no longer works.",
                 [TelegramBotMessageKeyConstants.ButtonNotYours] = "This button is not for you.",
                 [TelegramBotMessageKeyConstants.ButtonFailed] = "Something went wrong. Check your account page.",
+                [TelegramBotMessageKeyConstants.ContactSignInCode] = "{code} is the code to sign in to {account}'s {app} account, sent to you as their trusted contact. Share it only if you are signing in for them. It expires in {minutes} min.",
+                [TelegramBotMessageKeyConstants.ContactSignUpCode] = "{code} is the code for {account} to join {app} with you as their trusted contact. Share it only with them, while they sign up. It expires in {minutes} min.",
+                [TelegramBotMessageKeyConstants.ContactSignInNotice] = "{contact}, your trusted contact, received a code and signed in to your {app} account at {time}. If you did not expect it, revoke their trust.",
+                [TelegramBotMessageKeyConstants.RevokeTrustButton] = "Revoke trust",
+                [TelegramBotMessageKeyConstants.TrustRevoked] = "Trust revoked",
+                [TelegramBotMessageKeyConstants.AddPhoneSharePrompt] = "Tap the button below to share your phone number and add it to your account.",
+                [TelegramBotMessageKeyConstants.AddPhoneDone] = "Your phone number is now on your account. Go back to the account page.",
+                [TelegramBotMessageKeyConstants.AddPhoneTaken] = "This number belongs to another account.",
+                [TelegramBotMessageKeyConstants.AddPhoneFailed] = "This link can no longer add a phone. Start again from your account page.",
             },
             ["ru"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -46,6 +55,15 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.ButtonExpired] = "Эта кнопка больше не действует.",
                 [TelegramBotMessageKeyConstants.ButtonNotYours] = "Эта кнопка не для вас.",
                 [TelegramBotMessageKeyConstants.ButtonFailed] = "Что-то пошло не так. Проверьте страницу аккаунта.",
+                [TelegramBotMessageKeyConstants.ContactSignInCode] = "{code} — код для входа в аккаунт {account} в {app}; он пришёл вам как доверенному контакту. Сообщайте его, только если входите за этого человека. Код действует {minutes} мин.",
+                [TelegramBotMessageKeyConstants.ContactSignUpCode] = "{code} — код, чтобы {account} присоединился к {app}, указав вас доверенным контактом. Сообщайте его только этому человеку, пока он регистрируется. Код действует {minutes} мин.",
+                [TelegramBotMessageKeyConstants.ContactSignInNotice] = "{contact}, ваш доверенный контакт, получил код и вошёл в ваш аккаунт {app} в {time}. Если вы этого не ждали, отзовите доверие.",
+                [TelegramBotMessageKeyConstants.RevokeTrustButton] = "Отозвать доверие",
+                [TelegramBotMessageKeyConstants.TrustRevoked] = "Доверие отозвано",
+                [TelegramBotMessageKeyConstants.AddPhoneSharePrompt] = "Нажмите кнопку ниже, чтобы отправить свой номер телефона и добавить его в аккаунт.",
+                [TelegramBotMessageKeyConstants.AddPhoneDone] = "Ваш номер телефона добавлен в аккаунт. Вернитесь на страницу аккаунта.",
+                [TelegramBotMessageKeyConstants.AddPhoneTaken] = "Этот номер принадлежит другому аккаунту.",
+                [TelegramBotMessageKeyConstants.AddPhoneFailed] = "Эта ссылка больше не может добавить номер. Начните заново со страницы аккаунта.",
             },
             ["uz"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -66,6 +84,15 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.ButtonExpired] = "Bu tugma endi ishlamaydi.",
                 [TelegramBotMessageKeyConstants.ButtonNotYours] = "Bu tugma siz uchun emas.",
                 [TelegramBotMessageKeyConstants.ButtonFailed] = "Nimadir xato ketdi. Akkaunt sahifangizni tekshiring.",
+                [TelegramBotMessageKeyConstants.ContactSignInCode] = "{code} — {app} dagi {account} akkauntiga kirish kodi; u sizga ishonchli kontakt sifatida yuborildi. Uni faqat shu odam uchun kirayotgan bo'lsangiz bering. Kod {minutes} daqiqa amal qiladi.",
+                [TelegramBotMessageKeyConstants.ContactSignUpCode] = "{code} — {account} sizni ishonchli kontakt qilib {app} ga qo'shilishi uchun kod. Uni faqat shu odamga, u ro'yxatdan o'tayotganda bering. Kod {minutes} daqiqa amal qiladi.",
+                [TelegramBotMessageKeyConstants.ContactSignInNotice] = "Ishonchli kontaktingiz {contact} kod oldi va {time} da {app} akkauntingizga kirdi. Agar buni kutmagan bo'lsangiz, ishonchni bekor qiling.",
+                [TelegramBotMessageKeyConstants.RevokeTrustButton] = "Ishonchni bekor qilish",
+                [TelegramBotMessageKeyConstants.TrustRevoked] = "Ishonch bekor qilindi",
+                [TelegramBotMessageKeyConstants.AddPhoneSharePrompt] = "Telefon raqamingizni yuborib, akkauntingizga qo'shish uchun quyidagi tugmani bosing.",
+                [TelegramBotMessageKeyConstants.AddPhoneDone] = "Telefon raqamingiz akkauntingizga qo'shildi. Akkaunt sahifasiga qayting.",
+                [TelegramBotMessageKeyConstants.AddPhoneTaken] = "Bu raqam boshqa akkauntga tegishli.",
+                [TelegramBotMessageKeyConstants.AddPhoneFailed] = "Bu havola endi raqam qo'sha olmaydi. Akkaunt sahifasidan qaytadan boshlang.",
             },
         };
 }

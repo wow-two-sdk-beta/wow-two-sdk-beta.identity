@@ -61,6 +61,21 @@ internal static class PersonalDataMasks
         return masked.Length <= MaxSubjectLength ? masked : masked[..MaxSubjectLength];
     }
 
+    /// <summary>
+    /// A person's name masked to each word's first letter (<c>Sultonbek Rakhimov</c> → <c>S*** R***</c>), so a page that
+    /// anyone with a link opens names a trusted contact without spelling them out; null without a name.
+    /// </summary>
+    /// <param name="name">The name as stored.</param>
+    internal static string? MaskName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+
+        var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var masked = string.Join(' ', words.Select(word => char.IsSurrogate(word[0]) && word.Length > 1 ? word[..2] + "***" : word[0] + "***"));
+        return masked.Length <= MaxSubjectLength ? masked : masked[..MaxSubjectLength];
+    }
+
     /// <summary>The user agent cut to <see cref="MaxUserAgentLength"/> characters; blank stays null.</summary>
     /// <param name="userAgent">The header value.</param>
     internal static string? TrimUserAgent(string? userAgent)

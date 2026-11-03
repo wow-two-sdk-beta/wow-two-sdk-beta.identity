@@ -32,6 +32,25 @@ describe('members panel', () => {
     expect(wrapper.get('button[aria-label="Role of bob"]').text()).toBe('Editor');
   });
 
+  it('shows each member’s phone state and the members who receive their sign-in codes', async () => {
+    const lola = member('u3', 'editor', {
+      displayName: 'Lola',
+      isPhoneConfirmed: false,
+      trustedContacts: [
+        { userId: 'u1', displayName: 'Ann' },
+        { userId: 'u2', displayName: null },
+      ],
+    });
+    const { wrapper } = await mountPanel({
+      'GET /members': () => Response.json({ data: [{ ...ann, isPhoneConfirmed: true }, bob, lola] }),
+    });
+
+    expect(row(wrapper, 'Ann').text()).toContain('Phone confirmed');
+    expect(row(wrapper, 'Ann').text()).not.toContain('Trusted contacts');
+    expect(row(wrapper, 'bob').text()).toContain('No confirmed phone');
+    expect(row(wrapper, 'Lola').text()).toContain('No confirmed phone · Trusted contacts: Ann, Unnamed member');
+  });
+
   it('says so when the organization has no members', async () => {
     const { wrapper } = await mountPanel({ 'GET /members': () => Response.json({ data: [] }) });
 

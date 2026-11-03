@@ -15,6 +15,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.RefreshTokens;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignInLog;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.TrustedContacts;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.TwoFactor;
 using WoW.Two.Sdk.Beta.Be.Identity.Jwt.Issuance;
 using WoW.Two.Sdk.Beta.Be.Web.Contracts;
@@ -44,7 +45,16 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
     ///     <c>401</c> (<c>InvalidPhoneCode</c>); a second factor answers <c>401</c> with the ticket for <c>sign-in/two-factor</c>;
     ///     a bearer sign-in on a cookie-only instance is <c>400</c> (<c>BearerSignInUnsupported</c>) and a locked-out person
     ///     <c>429</c> (<c>LockedOut</c>), both before the code is spent
-    ///   - both routes take the per-address <see cref="AccountRateLimitPolicyConstants.Credentials"/> policy
+    ///   - with trusted contacts registered (<c>AddTrustedContacts</c>): <c>phone-sign-in/targets</c> takes <c>{ phone }</c> and
+    ///     answers <c>{ trustedContacts: [{ id, label }] }</c>, the masked contacts of the account holding the number, empty
+    ///     when none; <c>send</c> takes an optional <c>targetId</c>, one of those ids, and sends the code to that contact's
+    ///     Telegram (<c>404</c> <c>TrustedContactNotFound</c>, <c>409</c> <c>TrustedContactUnavailable</c>); <c>phone-sign-in</c>
+    ///     takes such a code as well, signing in through the contact (sign-in log method <c>trusted_contact_code</c>, the
+    ///     session naming the contact, a notice to the account's own chat), and when the number's person is someone's trusted
+    ///     contact answers <c>200</c> <c>{ accountChoice: { token, accounts } }</c> with no session; <c>phone-sign-in/choose</c>
+    ///     takes <c>{ token, userId, isPersistent }</c> and signs in as the account picked, as <c>phone-sign-in</c> does
+    ///     (<c>401</c> <c>InvalidAccountChoice</c>)
+    ///   - every route takes the per-address <see cref="AccountRateLimitPolicyConstants.Credentials"/> policy
     /// </remarks>
     /// <param name="endpoints">The account API's route group.</param>
     public static IEndpointRouteBuilder MapPhoneSignInEndpoints(this IEndpointRouteBuilder endpoints)
@@ -52,12 +62,45 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapPost("/phone-sign-in/send", SendAsync).LimitCredentials(endpoints);
         endpoints.MapPost("/phone-sign-in", SignInAsync).LimitCredentials(endpoints);
+        if (endpoints.ServiceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(TrustedContactService)) == true)
+        {
+            endpoints.MapPost("/phone-sign-in/targets", TargetsAsync).LimitCredentials(endpoints);
+            endpoints.MapPost("/phone-sign-in/choose", ChooseAsync).LimitCredentials(endpoints);
+        }
+
         return endpoints;
+    }
+
+    private static async Task<IResult> TargetsAsync(PhoneSignInTargetsApiRequest request, HttpContext http, CancellationToken cancellationToken)
+    {
+        _ = ServiceOf(http);
+        var targets = await http.RequestServices.GetRequiredService<TrustedContactService>().ListTargetsAsync(request.Phone, cancellationToken);
+        return Results.Ok(ApiResponse<PhoneSignInTargetsDto>.Ok(new PhoneSignInTargetsDto
+        {
+            TrustedContacts = [.. targets.Select(target => new PhoneSignInTargetDto { Id = target.Id, Label = target.Label })],
+        }));
+    }
+
+    private static async Task<IResult> ChooseAsync(PhoneSignInChooseApiRequest request, bool? useCookies, string? clientId, HttpContext http, CancellationToken cancellationToken)
+    {
+        _ = ServiceOf(http);
+        var services = http.RequestServices;
+        if (useCookies != true && services.GetService<ITokenIssuer>() is null)
+            throw CodedError(AppErrorType.Validation, "Bearer sign-in is not enabled on this instance; sign in with ?useCookies=true.", AccountApiErrorCodeConstants.BearerSignInUnsupported).ToException();
+        if (!string.IsNullOrWhiteSpace(clientId) && services.GetService<SignInLogService>() is { } log)
+            log.ClientId = clientId;
+
+        var chosen = await services.GetRequiredService<TrustedContactService>().ChooseAsync(request.Token, request.UserId, cancellationToken)
+            ?? throw CodedError(AppErrorType.Unauthorized, "The account choice has expired or does not offer that account; sign in again.", TrustedContactErrorCodeConstants.InvalidAccountChoice).ToException();
+        return await SignInPersonAsync(chosen.User, chosen.TrustedContactUserId, useCookies, request.IsPersistent, http, cancellationToken);
     }
 
     private static async Task<IResult> SendAsync(PhoneSignInSendApiRequest request, HttpContext http, CancellationToken cancellationToken)
     {
         var phoneSignIn = ServiceOf(http);
+        if (!string.IsNullOrWhiteSpace(request.TargetId))
+            return await SendToContactAsync(request, http, cancellationToken);
+
         var result = await phoneSignIn.SendAsync(request.Phone, http.Connection.RemoteIpAddress?.ToString(), CultureInfo.CurrentUICulture, cancellationToken);
         return result.Status switch
         {
@@ -65,6 +108,22 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
             PhoneSignInStatus.LinkRequired => Results.Ok(ApiResponse<PhoneSignInSentDto>.Ok(new PhoneSignInSentDto { IsCodeSent = false, TelegramLinkUrl = result.TelegramLinkUrl })),
             PhoneSignInStatus.RateLimited => throw CodedError(AppErrorType.TooManyRequests, "A code was sent moments ago; wait before asking again.", PhoneSignInErrorCodeConstants.PhoneCodeRateLimited).ToException(),
             _ => throw NumberError(result.Status).ToException(),
+        };
+    }
+
+    private static async Task<IResult> SendToContactAsync(PhoneSignInSendApiRequest request, HttpContext http, CancellationToken cancellationToken)
+    {
+        var trusted = http.RequestServices.GetService<TrustedContactService>()
+            ?? throw CodedError(AppErrorType.NotFound, "Trusted contacts are off on this instance.", TrustedContactErrorCodeConstants.TrustedContactsOff).ToException();
+        var status = await trusted.SendSignInCodeAsync(request.Phone, request.TargetId, http.Connection.RemoteIpAddress?.ToString(), cancellationToken);
+        return status switch
+        {
+            TrustedContactSendStatus.CodeSent => Results.Ok(ApiResponse<PhoneSignInSentDto>.Ok(new PhoneSignInSentDto { IsCodeSent = true })),
+            TrustedContactSendStatus.RateLimited => throw CodedError(AppErrorType.TooManyRequests, "A code was sent moments ago; wait before asking again.", PhoneSignInErrorCodeConstants.PhoneCodeRateLimited).ToException(),
+            TrustedContactSendStatus.NotFound => throw CodedError(AppErrorType.NotFound, "No such trusted contact for this number.", TrustedContactErrorCodeConstants.TrustedContactNotFound).ToException(),
+            TrustedContactSendStatus.Unavailable => throw CodedError(AppErrorType.Conflict, "The trusted contact cannot receive a code now; pick another or use your own phone.", TrustedContactErrorCodeConstants.TrustedContactUnavailable).ToException(),
+            TrustedContactSendStatus.CountryNotAllowed => throw NumberError(PhoneSignInStatus.CountryNotAllowed).ToException(),
+            _ => throw NumberError(PhoneSignInStatus.InvalidNumber).ToException(),
         };
     }
 
@@ -111,18 +170,58 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
                 throw NumberError(verified.Status).ToException();
         }
 
-        var signIn = services.GetRequiredService<SignInService>();
-        var result = await signIn.SignInAsync(verified.User!, [AuthenticationMethodConstants.OneTimePassword], SignInMethodConstants.PhoneCode, cancellationToken);
+        // A trusted contact signing in with their own number picks the account: their own, or one trusting them.
+        if (verified is { TrustedContactUserId: null, IsUserCreated: false, User: { } person }
+            && invitation is null
+            && services.GetService<TrustedContactService>() is { } trusted
+            && await trusted.OfferAccountsAsync(person, cancellationToken) is { } choice)
+        {
+            return Results.Ok(ApiResponse<PhoneSignInAccountChoiceDto>.Ok(new PhoneSignInAccountChoiceDto
+            {
+                AccountChoice = new AccountChoiceDto
+                {
+                    Token = choice.Token,
+                    Accounts =
+                    [
+                        .. choice.Accounts.Select(account => new AccountChoiceAccountDto
+                        {
+                            UserId = account.UserId,
+                            DisplayName = account.DisplayName,
+                            PictureUrl = account.PictureUrl,
+                            IsSelf = account.IsSelf,
+                        }),
+                    ],
+                },
+            }));
+        }
+
+        return await SignInPersonAsync(verified.User!, verified.TrustedContactUserId, useCookies, request.IsPersistent, http, cancellationToken);
+    }
+
+    /// <summary>
+    /// Signs <paramref name="user"/> in after a verified phone code: their own (<c>phone_code</c>), or one a trusted contact
+    /// received (<c>trusted_contact_code</c>, the session naming the contact, a notice to the account's own chat).
+    /// </summary>
+    private static async Task<IResult> SignInPersonAsync(IdentityUser user, Guid? trustedContactUserId, bool? useCookies, bool isPersistent, HttpContext http, CancellationToken cancellationToken)
+    {
+        var services = http.RequestServices;
+        if (trustedContactUserId is not null && services.GetService<SignInLogService>() is { } log)
+            log.TrustedContactUserId = trustedContactUserId;
+
+        var method = trustedContactUserId is null ? SignInMethodConstants.PhoneCode : SignInMethodConstants.TrustedContactCode;
+        var result = await services.GetRequiredService<SignInService>().SignInAsync(user, [AuthenticationMethodConstants.OneTimePassword], method, cancellationToken);
         if (result is { Status: SignInStatus.RequiresTwoFactor, TwoFactorTicket: { } ticket })
             throw TwoFactorChallenge(result.UserId, ticket, result.TwoFactorMethod ?? TwoFactorMethodNameConstants.Authenticator).ToException();
         if (!result.IsSuccess)
             throw FailureOf(result).ToException();
 
-        return await SessionAsync(result, verified.User!, useCookies, request.IsPersistent, http, cancellationToken);
+        if (trustedContactUserId is { } contactId && services.GetService<TrustedContactService>() is { } trusted)
+            await trusted.NotifySignInAsync(user, contactId, cancellationToken);
+        return await SessionAsync(result, user, useCookies, isPersistent, trustedContactUserId, http, cancellationToken);
     }
 
     /// <summary>The session of a successful sign-in, as <c>sign-in</c> makes it: a cookie carrying a new session's <c>sid</c>, or a bearer token pair.</summary>
-    private static async Task<IResult> SessionAsync(SignInResult result, IdentityUser user, bool? useCookies, bool isPersistent, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> SessionAsync(SignInResult result, IdentityUser user, bool? useCookies, bool isPersistent, Guid? trustedContactUserId, HttpContext http, CancellationToken cancellationToken)
     {
         var services = http.RequestServices;
         var principal = result.Principal!;
@@ -132,7 +231,7 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
             if (services.GetService<UserSessionService>() is { } sessions && principal.Identity is ClaimsIdentity identity)
             {
                 var methods = principal.FindAll(AuthenticationMethodConstants.ClaimType).Select(claim => claim.Value);
-                var session = await sessions.StartAsync(user, methods, result.SignInLogEntryId, isPersistent, cancellationToken);
+                var session = await sessions.StartAsync(user, methods, result.SignInLogEntryId, isPersistent, trustedContactUserId, cancellationToken);
                 identity.AddClaim(new Claim(services.GetRequiredService<IdentityCoreOptions>().Claims.SessionIdClaimType, session.Id.ToString()));
                 properties.IssuedUtc = session.CreatedAt;
                 properties.ExpiresUtc = session.ExpiresAt;

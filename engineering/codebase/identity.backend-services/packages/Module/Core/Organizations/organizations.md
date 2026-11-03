@@ -56,10 +56,10 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
 
 | Route | Does |
 |---|---|
-| `GET {organizationId}/members` | the members: `userId`, `displayName`, `userName`, `email`, `phoneNumber`, `role`, `joinedAt`, `hasPendingTelegramChange` |
+| `GET {organizationId}/members` | the members: `userId`, `displayName`, `userName`, `email`, `phoneNumber`, `role`, `joinedAt`, `hasPendingTelegramChange`, `isPhoneConfirmed`, `trustedContacts: [{ userId, displayName }]` |
 | `PUT {organizationId}/members/{userId}` | `{ role }`: another role, `owner` included; `400` `UnknownOrganizationRole` |
 | `DELETE {organizationId}/members/{userId}` | removes the member, the last owner included; `404` `UserNotMember` |
-| `POST {organizationId}/invitations` | `{ role, phoneNumber?, email? }`: a new link, its `token` and `link` shown this once |
+| `POST {organizationId}/invitations` | `{ role, phoneNumber?, email?, trustedContactUserId? }`: a new link, its `token` and `link` shown this once; the contact is the inviter or another member with a confirmed, bot-linked phone |
 | `GET {organizationId}/invitations` | the invitations, newest first, with `status`; never a token |
 | `DELETE {organizationId}/invitations/{invitationId}` | withdraws a pending one; `404` once used or withdrawn |
 | `POST {organizationId}/members/{userId}/telegram-change/approve` | moves the member's phone link to the Telegram account that asked; `404` `TelegramChangeNotFound` when none waits |
@@ -72,3 +72,5 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
   waits when another Telegram account shares a member's confirmed, already linked number, as a recycled number's new
   holder would (`../../Telegram/telegram.md`); `hasPendingTelegramChange` flags it for a day. Approving rotates nothing
   else; an owner or admin resolves anyone's, an owner's included.
+- Managers set a trusted contact only on an invitation, never on an existing member's account
+  (`../TrustedContacts/trusted-contacts.md`).

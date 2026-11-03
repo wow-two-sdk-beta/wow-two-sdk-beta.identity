@@ -4,6 +4,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.OneTimeCodes;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.InviteSignUp;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PhoneSignIn;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.ProfilePictures;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.TrustedContacts;
 using WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
@@ -26,6 +27,8 @@ public static partial class HostConfiguration
     ///   - an invitation's sign-up page asks for the profile <c>Identity:SignUp:Profile</c> names, its picture under
     ///     <c>Identity:ProfilePictures</c>, then verifies the phone through the bot with no code typed; pictures live in the
     ///     identity database and reach apps as the <c>picture</c> claim, a link on the issuer's origin
+    ///   - trusted contacts (<c>Identity:TrustedContacts</c>, off by default) let an invitation name a contact whose Telegram
+    ///     receives the sign-up's and later sign-ins' codes, and an account add or change its own phone through the bot
     ///   - a local run signs in by phone through a dev bot of its own (<c>identity.local.env</c> or
     ///     <c>appsettings.Local.json</c>), never a fake one: fakes live in the test projects
     /// </remarks>
@@ -35,7 +38,8 @@ public static partial class HostConfiguration
             .AddDatabaseOtpStore()
             .AddPhoneSignIn()
             .AddProfilePictures()
-            .AddInviteSignUp();
+            .AddInviteSignUp()
+            .AddTrustedContacts();
         identity.Services.AddOptions<TelegramBotOptions>().PostConfigure<OidcServerOptions>((telegram, server) =>
         {
             // Telegram delivers to HTTPS only, so a plain-HTTP issuer (a local check) derives no address.
@@ -48,7 +52,7 @@ public static partial class HostConfiguration
     /// <summary>Maps the phone sign-in routes under <see cref="AccountPath"/> and the bot's webhook.</summary>
     private static WebApplication MapPhoneSignInByTelegram(this WebApplication app)
     {
-        app.MapGroup(AccountPath).MapPhoneSignInEndpoints().MapInviteSignUpEndpoints();
+        app.MapGroup(AccountPath).MapPhoneSignInEndpoints().MapInviteSignUpEndpoints().MapTrustedContactEndpoints();
         app.MapTelegramWebhook(TelegramWebhookEndpointRouteBuilderExtensions.DefaultPattern);
         return app;
     }

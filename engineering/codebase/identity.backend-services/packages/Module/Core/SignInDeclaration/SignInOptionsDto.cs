@@ -40,6 +40,13 @@ public sealed record SignInOptionsDto
     /// </summary>
     public bool IsEmailEnabled { get; init; } = true;
 
+    /// <summary>
+    /// Whether accounts sign in through trusted contacts here: a code may go to an account's contact
+    /// (<c>phone-sign-in/targets</c>), a contact's number may pick the account to sign in as, and an invitation's sign-up
+    /// may verify through its contact. Needs phone sign-in and <c>Identity:TrustedContacts:IsEnabled</c>.
+    /// </summary>
+    public bool IsTrustedContactSignInEnabled { get; init; }
+
     /// <summary>The profile fields an invitation sign-up asks for beside the phone, with the picture's rules.</summary>
     public required SignUpProfileDto SignUpProfile { get; init; }
 

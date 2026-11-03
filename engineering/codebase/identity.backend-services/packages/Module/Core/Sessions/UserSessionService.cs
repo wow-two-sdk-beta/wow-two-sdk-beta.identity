@@ -35,11 +35,27 @@ public sealed class UserSessionService(
     /// <param name="signInLogEntryId">The logged attempt that signed them in, which then names the session; null when none.</param>
     /// <param name="isPersistent">Whether the person asked to stay signed in: a fixed session then takes <see cref="SessionOptions.ExtendedLifetime"/>.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IdentitySession> StartAsync(
+    public Task<IdentitySession> StartAsync(
         IdentityUser user,
         IEnumerable<string> methods,
         long? signInLogEntryId = null,
         bool isPersistent = false,
+        CancellationToken cancellationToken = default)
+        => StartAsync(user, methods, signInLogEntryId, isPersistent, trustedContactUserId: null, cancellationToken);
+
+    /// <summary>Start a session for a completed sign-in that may have gone through a trusted contact.</summary>
+    /// <param name="user">The signed-in person.</param>
+    /// <param name="methods">How they signed in, as <c>amr</c> values.</param>
+    /// <param name="signInLogEntryId">The logged attempt that signed them in, which then names the session; null when none.</param>
+    /// <param name="isPersistent">Whether the person asked to stay signed in.</param>
+    /// <param name="trustedContactUserId">The trusted contact whose code signed them in; null for their own means. Revoking it ends the session.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<IdentitySession> StartAsync(
+        IdentityUser user,
+        IEnumerable<string> methods,
+        long? signInLogEntryId,
+        bool isPersistent,
+        Guid? trustedContactUserId,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
@@ -57,6 +73,7 @@ public sealed class UserSessionService(
             ExpiresAt = now + options.LifetimeOf(isPersistent),
             IpMasked = ipMasked,
             UserAgent = userAgent,
+            TrustedContactUserId = trustedContactUserId,
         };
         await sessions.AddAsync(session, cancellationToken);
         if (signInLogEntryId is { } entry && signInLog is not null)
@@ -174,6 +191,35 @@ public sealed class UserSessionService(
             .Where(id => id != keep)
             .ToList();
         return (await EndAsync(ids, reason, cancellationToken)).Count;
+    }
+
+    /// <summary>
+    /// Revoke every unrevoked session of <paramref name="userId"/> whose sign-in went through
+    /// <paramref name="trustedContactUserId"/>, marked <see cref="SessionRevokeReasonConstants.TrustedContactRevoked"/>;
+    /// returns how many ended.
+    /// </summary>
+    /// <param name="userId">The account.</param>
+    /// <param name="trustedContactUserId">The revoked trusted contact.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<int> RevokeThroughContactAsync(Guid userId, Guid trustedContactUserId, CancellationToken cancellationToken = default)
+    {
+        var ids = (await sessions.ListUnrevokedAsync(userId, time.GetUtcNow(), cancellationToken))
+            .Where(session => session.TrustedContactUserId == trustedContactUserId)
+            .Select(session => session.Id)
+            .ToList();
+        return (await EndAsync(ids, SessionRevokeReasonConstants.TrustedContactRevoked, cancellationToken)).Count;
+    }
+
+    /// <summary>The session <paramref name="sessionId"/> of <paramref name="userId"/> while it is live, without recording a use; null otherwise.</summary>
+    /// <param name="sessionId">The <c>sid</c> presented.</param>
+    /// <param name="userId">The person the cookie names.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<IdentitySession?> FindAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var session = await sessions.FindAsync(sessionId, cancellationToken);
+        return session is not null && session.UserId == userId && session.RevokedAt is null && session.ExpiresAt > time.GetUtcNow()
+            ? session
+            : null;
     }
 
     private static bool IsCurrent(IdentitySession session, IdentityUser user)

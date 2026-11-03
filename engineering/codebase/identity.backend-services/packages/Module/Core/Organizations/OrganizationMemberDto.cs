@@ -29,4 +29,10 @@ public sealed record OrganizationMemberDto
     /// owner or admin to approve or deny moving the number's link to it; false while the instance has no bot.
     /// </summary>
     public bool HasPendingTelegramChange { get; init; }
+
+    /// <summary>Whether the person's phone number is confirmed, so they may be named an invitation's trusted contact once it is linked to the bot.</summary>
+    public bool IsPhoneConfirmed { get; init; }
+
+    /// <summary>The person's trusted contacts, oldest first; empty without any.</summary>
+    public IReadOnlyList<MemberTrustedContactDto> TrustedContacts { get; init; } = [];
 }

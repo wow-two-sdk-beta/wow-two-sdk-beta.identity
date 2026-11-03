@@ -15,6 +15,16 @@ Sign-up from an invitation with the phone the instance's bot verifies, no code t
 5. The starting browser polls `GET /api/account/invitations/sign-up/status`; the first `completed` answer signs it in
    with a cookie session (`amr` `otp`, sign-in log method `phone_contact`), unless a second factor is due.
 
+## Through a trusted contact
+
+With trusted contacts registered and the invitation naming a contact, the form's `verification` may be
+`trusted-contact`: the start route sends a code to the contact's Telegram (worded with the name given and the app) and
+answers `{ isCodeSentToTrustedContact: true, expiresAt }` with the same cookie and no link;
+`POST invitations/sign-up/verify` `{ code, isPersistent }` then creates the person with no phone, the name and picture,
+redeems the invitation and records the contact, in one transaction, and signs the browser in (method
+`trusted_contact_code`, the session naming the contact). The invitation's own phone or email is not asked of the new
+person. Rules: `../TrustedContacts/trusted-contacts.md`.
+
 ## Notes
 
 - Register with `AddInviteSignUp()` beside `AddInvitations()`, `AddPhoneSignIn()` and `AddProfilePictures()`; map with

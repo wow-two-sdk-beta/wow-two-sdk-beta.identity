@@ -49,7 +49,17 @@ public sealed class OtpService : IOtpService
         => CreateAsync(subject, scope, spec, null, cancellationToken);
 
     /// <inheritdoc />
-    public async Task<OtpCreationResult> CreateAsync(string subject, string scope, OtpCodeSpec spec, string? origin, CancellationToken cancellationToken = default)
+    public Task<OtpCreationResult> CreateAsync(string subject, string scope, OtpCodeSpec spec, string? origin, CancellationToken cancellationToken = default)
+        => CreateCoreAsync(subject, scope, spec, origin, binding: null, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<OtpCreationResult> CreateBoundAsync(string subject, string scope, OtpCodeSpec spec, string? origin, string binding, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(binding);
+        return CreateCoreAsync(subject, scope, spec, origin, binding, cancellationToken);
+    }
+
+    private async Task<OtpCreationResult> CreateCoreAsync(string subject, string scope, OtpCodeSpec spec, string? origin, string? binding, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
@@ -71,7 +81,7 @@ public sealed class OtpService : IOtpService
         {
             Id = Guid.CreateVersion7(now),
             SubjectHash = subjectHash,
-            CodeHash = _hasher.Code(subjectHash, scope, code),
+            CodeHash = _hasher.Code(subjectHash, DigestScope(scope, binding), code),
             OriginHash = originHash,
             Scope = scope,
             CreatedAt = now,
@@ -98,7 +108,17 @@ public sealed class OtpService : IOtpService
         => _store.DeleteAsync(codeId, cancellationToken);
 
     /// <inheritdoc />
-    public async Task<OtpVerificationResult> VerifyAsync(string subject, string code, string scope, CancellationToken cancellationToken = default)
+    public Task<OtpVerificationResult> VerifyAsync(string subject, string code, string scope, CancellationToken cancellationToken = default)
+        => VerifyCoreAsync(subject, code, scope, binding: null, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<OtpVerificationResult> VerifyBoundAsync(string subject, string code, string scope, string binding, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(binding);
+        return VerifyCoreAsync(subject, code, scope, binding, cancellationToken);
+    }
+
+    private async Task<OtpVerificationResult> VerifyCoreAsync(string subject, string code, string scope, string? binding, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
@@ -131,7 +151,7 @@ public sealed class OtpService : IOtpService
             return OtpVerificationResult.Failed(OtpFailureReason.MaxAttemptsReached);
         }
 
-        if (!OtpCodeHasher.Matches(record.CodeHash, _hasher.Code(subjectHash, scope, code)))
+        if (!OtpCodeHasher.Matches(record.CodeHash, _hasher.Code(subjectHash, DigestScope(scope, binding), code)))
         {
             return OtpVerificationResult.Failed(OtpFailureReason.InvalidCode);
         }
@@ -145,6 +165,9 @@ public sealed class OtpService : IOtpService
     /// Whether a new code must wait: one for the subject went out within <see cref="OtpOptions.RateLimitWindow"/>, one from
     /// the origin within <see cref="OtpOptions.OriginRateLimitWindow"/>, or the subject spent its failure budget.
     /// </summary>
+    /// <summary>The scope a code's digest covers: the scope alone, or the scope with the code's binding, so a bound code verifies only for its target.</summary>
+    private static string DigestScope(string scope, string? binding) => binding is null ? scope : string.Concat(scope, "\nbound:", binding);
+
     private async Task<bool> IsLimitedAsync(string subjectHash, string scope, string? originHash, CancellationToken cancellationToken)
         => await _store.HasRecentAsync(subjectHash, scope, null, _options.RateLimitWindow, cancellationToken).ConfigureAwait(false)
             || (originHash is not null

@@ -28,8 +28,8 @@ app.MapGroup("/api/organizations").MapOrganizationEndpoints();    // {organizati
 
 | Step | Route or call | Does |
 |---|---|---|
-| Make | `POST /api/organizations/{organizationId}/invitations` `{ role, phoneNumber?, email? }` | stores the token's SHA-256, answers the `token` and `link` once |
-| Preview | `GET /api/account/invitations/{token}` | anonymous: `organizationName`, `role`, `status`, `phoneNumberHint`, `emailHint`, `expiresAt`; `404` for a link naming none |
+| Make | `POST /api/organizations/{organizationId}/invitations` `{ role, phoneNumber?, email?, trustedContactUserId? }` | stores the token's SHA-256, answers the `token` and `link` once |
+| Preview | `GET /api/account/invitations/{token}` | anonymous: `organizationName`, `role`, `status`, `phoneNumberHint`, `emailHint`, `expiresAt`, `trustedContactHint`; `404` for a link naming none |
 | Sign up | `POST /api/account/sign-up` with `invitationToken` | creates the account and joins it with the role, in one transaction |
 | Sign in by phone | `POST /api/account/phone-sign-in` with `invitationToken` | creates the person on a first sign-in, or takes the known one, and joins them |
 | Accept | `POST /api/account/invitations/{token}/accept` | joins the signed-in person and reissues their cookie with the new role |
@@ -47,3 +47,6 @@ app.MapGroup("/api/organizations").MapOrganizationEndpoints();    // {organizati
   `identityCode`.
 - The hosted page `/sign-up?invitation={token}` previews the link and offers the instance's methods carrying the token,
   or a "Join" button to someone signed in.
+- A trusted contact (`trusted_contact_user_id`, `010-trusted-contacts`) is the inviter or another member with a confirmed
+  phone linked to the bot; a sign-up through it redeems with `RedeemThroughTrustedContactWithAsync`, which asks no named
+  identifier of the new person (`../TrustedContacts/trusted-contacts.md`).

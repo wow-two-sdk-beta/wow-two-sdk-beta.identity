@@ -13,7 +13,7 @@ describe('invitation sign-up client', () => {
 
     const result = await client.startInviteSignUp('tok/1', { displayName: 'Lola', picture }, { clientId: 'desk' });
 
-    expect(result).toEqual({ ok: true, value: started });
+    expect(result).toEqual({ ok: true, value: { ...started, isCodeSentToTrustedContact: false } });
     expect(received[0]?.url.toString()).toBe(`${serviceUrl}/api/account/invitations/tok%2F1/sign-up?clientId=desk`);
     const body = received[0]?.body as FormData;
     expect(body).toBeInstanceOf(FormData);
@@ -62,6 +62,34 @@ describe('invitation sign-up client', () => {
     expect(result.ok).toBe(false);
     if (!result.ok)
       expect([result.failure.status, readIdentityCode(result.failure)]).toEqual([409, 'InvitationExpired']);
+  });
+
+  it('starts with the trusted contact verifying, and reads the sent code with no link', async () => {
+    const { client, received } = fakeAccountApi({
+      'POST /invitations/tok-1/sign-up': () =>
+        Response.json({ data: { isCodeSentToTrustedContact: true, expiresAt: started.expiresAt } }),
+    });
+
+    const result = await client.startInviteSignUp('tok-1', { displayName: 'Lola', verification: 'trusted-contact' });
+
+    expect(result).toEqual({
+      ok: true,
+      value: { telegramLinkUrl: null, isCodeSentToTrustedContact: true, expiresAt: started.expiresAt },
+    });
+    expect([...(received[0]?.body as FormData).entries()]).toEqual([
+      ['displayName', 'Lola'],
+      ['verification', 'trusted-contact'],
+    ]);
+  });
+
+  it('leaves the verification part out for the default Telegram flow', async () => {
+    const { client, received } = fakeAccountApi({
+      'POST /invitations/tok-1/sign-up': () => Response.json({ data: started }),
+    });
+
+    await client.startInviteSignUp('tok-1', { verification: null });
+
+    expect([...(received[0]?.body as FormData).keys()]).toEqual([]);
   });
 
   it("reads each status of the browser's attempt, naming the client", async () => {

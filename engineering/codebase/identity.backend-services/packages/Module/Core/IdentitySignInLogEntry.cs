@@ -42,4 +42,7 @@ public sealed class IdentitySignInLogEntry
 
     /// <summary>The W3C trace id of the request, to join the attempt with its logs and spans.</summary>
     public string? TraceId { get; set; }
+
+    /// <summary>The trusted contact the attempt went through (method <c>trusted_contact_code</c>); null otherwise.</summary>
+    public Guid? TrustedContactUserId { get; set; }
 }

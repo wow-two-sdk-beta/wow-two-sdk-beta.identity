@@ -17,4 +17,10 @@ public enum InviteSignUpStartStatus
 
     /// <summary>The instance's bot is off, so no phone can be verified.</summary>
     Unavailable,
+
+    /// <summary>
+    /// A sign-up through the trusted contact cannot go ahead: trusted contacts are off, the invitation names none, or the
+    /// contact cannot receive a code now; <see cref="InviteSignUpStartResult.Refusal"/> carries the code.
+    /// </summary>
+    TrustedContactRefused,
 }

@@ -26,4 +26,7 @@ public sealed record SessionDto
 
     /// <summary>Whether this is the session of the request asking.</summary>
     public required bool IsCurrent { get; init; }
+
+    /// <summary>The name of the trusted contact the sign-in went through; null for a sign-in by the person's own means.</summary>
+    public string? TrustedContactDisplayName { get; init; }
 }

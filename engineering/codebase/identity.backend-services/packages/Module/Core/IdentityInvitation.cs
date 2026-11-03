@@ -42,4 +42,10 @@ public sealed class IdentityInvitation
 
     /// <summary>When an owner or admin withdrew it; null while standing.</summary>
     public DateTimeOffset? RevokedAt { get; set; }
+
+    /// <summary>
+    /// The trusted contact the maker named (<c>010-trusted-contacts</c>): the inviter or another member with a confirmed,
+    /// bot-linked phone; a sign-up through it gets its code in the contact's Telegram. Null when it names none.
+    /// </summary>
+    public Guid? TrustedContactUserId { get; set; }
 }

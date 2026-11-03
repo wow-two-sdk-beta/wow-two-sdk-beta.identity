@@ -410,3 +410,238 @@ describe('phone code sign-in', () => {
     expect(wrapper.find('input[type="tel"]').exists()).toBe(true);
   });
 });
+
+describe('phone code sign-in with trusted contacts', () => {
+  const sent = () => Response.json({ data: { isCodeSent: true, telegramLinkUrl: null } });
+  const contacts = { trustedContacts: [{ id: 't1', label: 'L*** K.' }] };
+  const choice = {
+    token: 'choice-1',
+    accounts: [
+      { userId: 'u1', displayName: 'Anvar', pictureUrl: null, isSelf: true },
+      { userId: 'u2', displayName: 'Lola', pictureUrl: 'https://cdn.example.test/lola.png', isSelf: false },
+    ],
+  };
+
+  async function enterPhone(wrapper: ReturnType<typeof render>) {
+    await wrapper.get('input[type="tel"]').setValue('901234567');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+  }
+
+  /** The destination radios as their labels, and which one is checked. */
+  function destinations(wrapper: ReturnType<typeof render>) {
+    return wrapper.findAll('input[type="radio"]').map((radio) => ({
+      label: radio.element.closest('label')?.textContent?.trim() ?? '',
+      checked: (radio.element as HTMLInputElement).checked,
+    }));
+  }
+
+  it('asks nothing of the contacts while the instance has them off', async () => {
+    const { client, received } = fakeAccountApi({ 'POST /phone-sign-in/send': sent });
+    const wrapper = render(PhoneCodeSignIn, { props: { client, countries: ['UZ'] } });
+
+    await enterPhone(wrapper);
+
+    expect(received.map((request) => request.url.pathname)).toEqual(['/api/account/phone-sign-in/send']);
+  });
+
+  it('sends the code straight to the phone’s own Telegram when it has no contacts', async () => {
+    const { client, received } = fakeAccountApi({
+      'POST /phone-sign-in/targets': () => Response.json({ data: { trustedContacts: [] } }),
+      'POST /phone-sign-in/send': sent,
+    });
+    const wrapper = render(PhoneCodeSignIn, {
+      props: { client, countries: ['UZ'], isTrustedContactSignInEnabled: true },
+    });
+
+    await enterPhone(wrapper);
+
+    expect(received.map((request) => [request.url.pathname, request.body])).toEqual([
+      ['/api/account/phone-sign-in/targets', { phone: '+998901234567' }],
+      ['/api/account/phone-sign-in/send', { phone: '+998901234567' }],
+    ]);
+    expect(wrapper.find('input[name="code"]').exists()).toBe(true);
+  });
+
+  it('offers my Telegram by default, and sends the code to it with no target', async () => {
+    const { client, received } = fakeAccountApi({
+      'POST /phone-sign-in/targets': () => Response.json({ data: contacts }),
+      'POST /phone-sign-in/send': sent,
+    });
+    const wrapper = render(PhoneCodeSignIn, {
+      props: { client, countries: ['UZ'], isTrustedContactSignInEnabled: true },
+    });
+
+    await enterPhone(wrapper);
+
+    expect(destinations(wrapper)).toEqual([
+      { label: expect.stringContaining('My Telegram'), checked: true },
+      { label: expect.stringContaining('L*** K.'), checked: false },
+    ]);
+    expect(wrapper.find('input[name="code"]').exists()).toBe(false);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received[1]?.body).toEqual({ phone: '+998901234567' });
+    expect(wrapper.text()).toContain('We sent a code to +998901234567.');
+  });
+
+  it('sends the code to the contact picked, says so, and sends a new code to the same contact', async () => {
+    const { client, received } = fakeAccountApi({
+      'POST /phone-sign-in/targets': () => Response.json({ data: contacts }),
+      'POST /phone-sign-in/send': sent,
+      'POST /phone-sign-in': noContent,
+    });
+    const wrapper = render(PhoneCodeSignIn, {
+      props: { client, countries: ['UZ'], isTrustedContactSignInEnabled: true },
+    });
+
+    await enterPhone(wrapper);
+    await wrapper.findAll('input[type="radio"]')[1]?.setValue(true);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received[1]?.body).toEqual({ phone: '+998901234567', targetId: 't1' });
+    expect(wrapper.text()).toContain('We sent a code to L*** K. in Telegram. Ask them for it.');
+    await button(wrapper, 'Send a new code').trigger('click');
+    await flushPromises();
+    expect(received[2]?.body).toEqual({ phone: '+998901234567', targetId: 't1' });
+
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(received[3]?.body).toEqual({ phone: '+998901234567', code: '123456', isPersistent: false });
+    expect(wrapper.emitted('signedIn')).toEqual([[]]);
+  });
+
+  it('goes back to the phone from the destination, and forgets the contacts', async () => {
+    const { client } = fakeAccountApi({ 'POST /phone-sign-in/targets': () => Response.json({ data: contacts }) });
+    const wrapper = render(PhoneCodeSignIn, {
+      props: { client, countries: ['UZ'], isTrustedContactSignInEnabled: true },
+    });
+
+    await enterPhone(wrapper);
+    await button(wrapper, 'Use another number').trigger('click');
+
+    expect(wrapper.find('input[type="tel"]').exists()).toBe(true);
+    expect(wrapper.find('input[type="radio"]').exists()).toBe(false);
+  });
+
+  it('stays on the phone and says why when the contacts could not be read', async () => {
+    const { client } = fakeAccountApi({
+      'POST /phone-sign-in/targets': () => problem(503, 'Try again in a minute.'),
+    });
+    const wrapper = render(PhoneCodeSignIn, {
+      props: { client, countries: ['UZ'], isTrustedContactSignInEnabled: true },
+    });
+
+    await enterPhone(wrapper);
+
+    expect(wrapper.text()).toContain('Try again in a minute.');
+    expect(wrapper.find('input[type="tel"]').exists()).toBe(true);
+  });
+
+  it('lists the accounts a trusted contact can sign in as, and signs in as the one picked', async () => {
+    const { client, received } = fakeAccountApi({
+      'POST /phone-sign-in/send': sent,
+      'POST /phone-sign-in': () => Response.json({ data: { accountChoice: choice } }),
+      'POST /phone-sign-in/choose': noContent,
+    });
+    const wrapper = render(PhoneCodeSignIn, {
+      props: { client, countries: ['UZ'], clientId: 'desk', isPersistenceOffered: true },
+    });
+
+    await enterPhone(wrapper);
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await wrapper.get('input[type="checkbox"]').setValue(true);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(wrapper.emitted('signedIn')).toBeUndefined();
+    const accounts = wrapper.findAll('li');
+    expect(accounts).toHaveLength(2);
+    expect(accounts[0]?.text()).toContain('Anvar');
+    expect(accounts[0]?.text()).toContain('You');
+    expect(accounts[1]?.text()).toContain('Lola');
+    expect(accounts[1]?.text()).not.toContain('You');
+    expect(accounts[1]?.get('img').attributes('src')).toBe('https://cdn.example.test/lola.png');
+    await accounts[1]?.get('button').trigger('click');
+    await flushPromises();
+
+    expect(received[2]?.url.pathname).toBe('/api/account/phone-sign-in/choose');
+    expect(received[2]?.url.search).toBe('?useCookies=true&clientId=desk');
+    expect(received[2]?.body).toEqual({ token: 'choice-1', userId: 'u2', isPersistent: true });
+    expect(wrapper.emitted('signedIn')).toEqual([[]]);
+  });
+
+  it('shows why the picked account could not be signed in to, and lets the person pick again', async () => {
+    const answers = [() => problem(400, 'This choice has expired.', { identityCode: 'ChoiceExpired' }), noContent];
+    const { client, received } = fakeAccountApi({
+      'POST /phone-sign-in/send': sent,
+      'POST /phone-sign-in': () => Response.json({ data: { accountChoice: choice } }),
+      'POST /phone-sign-in/choose': () => answers.shift()!(),
+    });
+    const wrapper = render(PhoneCodeSignIn, { props: { client, countries: ['UZ'] } });
+
+    await enterPhone(wrapper);
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    await wrapper.findAll('li')[0]?.get('button').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('This choice has expired.');
+    expect(wrapper.emitted('signedIn')).toBeUndefined();
+    await wrapper.findAll('li')[0]?.get('button').trigger('click');
+    await flushPromises();
+
+    expect(received.filter((request) => request.url.pathname.endsWith('/choose'))).toHaveLength(2);
+    expect(wrapper.emitted('signedIn')).toEqual([[]]);
+  });
+
+  it('goes back to the phone from the account choice', async () => {
+    const { client } = fakeAccountApi({
+      'POST /phone-sign-in/send': sent,
+      'POST /phone-sign-in': () => Response.json({ data: { accountChoice: choice } }),
+    });
+    const wrapper = render(PhoneCodeSignIn, { props: { client, countries: ['UZ'] } });
+
+    await enterPhone(wrapper);
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    await button(wrapper, 'Use another number').trigger('click');
+
+    expect(wrapper.find('input[type="tel"]').exists()).toBe(true);
+    expect(wrapper.find('li').exists()).toBe(false);
+  });
+
+  it('asks for the second factor when the picked account has one', async () => {
+    const { client, received } = fakeAccountApi({
+      'POST /phone-sign-in/send': sent,
+      'POST /phone-sign-in': () => Response.json({ data: { accountChoice: choice } }),
+      'POST /phone-sign-in/choose': () =>
+        problem(401, 'Enter your two-factor code.', {
+          identityCode: 'TwoFactorRequired',
+          twoFactorMethod: 'authenticator',
+          userId: 'u2',
+          twoFactorTicket: 'tk-2fa',
+        }),
+      'POST /sign-in/two-factor': noContent,
+    });
+    const wrapper = render(PhoneCodeSignIn, { props: { client, countries: ['UZ'] } });
+
+    await enterPhone(wrapper);
+    await wrapper.get('input[name="code"]').setValue('123456');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    await wrapper.findAll('li')[1]?.get('button').trigger('click');
+    await flushPromises();
+    await wrapper.get('input[name="twoFactorCode"]').setValue('654321');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received.at(-1)?.body).toMatchObject({ userId: 'u2', ticket: 'tk-2fa', twoFactorCode: '654321' });
+    expect(wrapper.emitted('signedIn')).toEqual([[]]);
+  });
+});

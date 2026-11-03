@@ -21,6 +21,9 @@ public static class SignInMethodConstants
     /// <summary>A phone proven by sharing its Telegram contact with the instance's bot, as an invitation sign-up does.</summary>
     public const string PhoneContact = "phone_contact";
 
+    /// <summary>A single-use code the instance's bot sent to a trusted contact's Telegram for the account.</summary>
+    public const string TrustedContactCode = "trusted_contact_code";
+
     /// <summary>A sign-in completed elsewhere, such as an external provider.</summary>
     public const string External = "external";
 

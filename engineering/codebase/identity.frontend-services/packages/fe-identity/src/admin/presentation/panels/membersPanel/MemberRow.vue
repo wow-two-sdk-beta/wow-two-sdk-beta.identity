@@ -11,8 +11,9 @@ import { memberName } from '../../../organizations/OrganizationLabels';
 import { RoleSelect } from '../../roleSelect';
 
 /**
- * One member of the members panel: re-roles them through the catalog select, removes them after a confirm step, approves
- * or denies a pending Telegram account change, and shows a refusal under the row.
+ * One member of the members panel: shows whether their phone is confirmed and who receives their sign-in codes, re-roles
+ * them through the catalog select, removes them after a confirm step, approves or denies a pending Telegram account
+ * change, and shows a refusal under the row.
  */
 defineOptions({ name: 'MemberRow' });
 
@@ -55,6 +56,18 @@ const details = computed(() => {
     (contact): contact is string => !!contact && contact !== name.value,
   );
   return [...contacts, ...joined].join(' · ');
+});
+/** Whether the member's phone is confirmed, then the members who receive their sign-in codes, if any. */
+const phoneDetails = computed(() => {
+  const phone = props.member.isPhoneConfirmed
+    ? t('MembersPanel.phoneConfirmed', 'Phone confirmed')
+    : t('MembersPanel.phoneNotConfirmed', 'No confirmed phone');
+  const contacts = props.member.trustedContacts.map(
+    (contact) => contact.displayName || t('MembersPanel.unnamed', 'Unnamed member'),
+  );
+  return contacts.length > 0
+    ? `${phone} · ${t('MembersPanel.trustedContacts', 'Trusted contacts: {names}', { names: contacts.join(', ') })}`
+    : phone;
 });
 const isBusy = computed(() => requestedRole.value !== null || isRemoving.value || resolving.value !== null);
 
@@ -106,6 +119,12 @@ async function remove() {
         <p class="truncate font-medium">{{ name }}</p>
         <p class="truncate text-sm text-muted-foreground">
           {{ details }}
+        </p>
+        <p
+          class="text-sm text-muted-foreground"
+          :aria-label="t('MembersPanel.phoneState', 'Phone and trusted contacts')"
+        >
+          {{ phoneDetails }}
         </p>
       </div>
       <div class="w-36">

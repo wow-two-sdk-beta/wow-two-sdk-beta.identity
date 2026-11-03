@@ -11,4 +11,10 @@ public sealed record InvitationApiRequest
 
     /// <summary>The email that alone may redeem the link; null for anyone holding it.</summary>
     public string? Email { get; init; }
+
+    /// <summary>
+    /// The trusted contact whose Telegram receives the sign-up's code: the inviter or another member with a confirmed phone
+    /// linked to the bot; null for none. The inviter's choice needs no other consent.
+    /// </summary>
+    public Guid? TrustedContactUserId { get; init; }
 }

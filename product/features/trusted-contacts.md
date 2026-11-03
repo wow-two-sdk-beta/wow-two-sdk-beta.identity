@@ -90,11 +90,11 @@ Fixed for the backend and the hosted pages alike; a change goes through this fil
 | `POST phone-sign-in` | when the number's person is a trusted contact, `200` with `accountChoice: { token, accounts: [{ userId, displayName, pictureUrl?, isSelf }] }` and no session |
 | `POST phone-sign-in/choose` | new: `{ token, userId, isPersistent }` → `204` with the session cookie, or the token answer for bearer clients |
 | `GET manage/trusted-contacts` | new: `{ canRevoke, items: [{ userId, displayName, phoneHint, isDeliverable, createdAt }] }` |
-| `DELETE manage/trusted-contacts/{userId}` | new: `204`; `403 main_phone_required` outside an own-phone session |
+| `DELETE manage/trusted-contacts/{userId}` | new: `204`; `403 MainPhoneRequired` outside an own-phone session |
 | `GET manage/trusted-by` | new: `[{ userId, displayName, createdAt, canLeave }]` |
-| `DELETE manage/trusted-by/{userId}` | new: `204`; `409 last_trusted_contact` for the last contact of an account with no own phone |
+| `DELETE manage/trusted-by/{userId}` | new: `204`; `409 LastTrustedContact` for the last contact of an account with no own phone |
 | `GET manage/phone` | new: `{ phoneHint?, isConfirmed, canChange }` |
-| `POST manage/phone/telegram-link` | new: `{ telegramLinkUrl }` for the `add-phone` start link; `403 main_phone_required` when changing outside an own-phone session |
+| `POST manage/phone/telegram-link` | new: `{ telegramLinkUrl }` for the `add-phone` start link; `403 MainPhoneRequired` when changing outside an own-phone session |
 | `GET manage/sessions` | each session gains `trustedContactDisplayName?` |
 | `GET sign-in-options` | gains `isTrustedContactSignInEnabled` |
 
@@ -102,7 +102,7 @@ Fixed for the backend and the hosted pages alike; a change goes through this fil
 
 - `Identity:TrustedContacts:IsEnabled` (default off) and `MaxPerPerson` (default 3).
 - `Identity:Telegram:NoticeLifetime` (default `1.00:00:00`, below 48 hours).
-- Bot, hosted page and console texts come in `en`, `ru` and `uz`.
+- Bot texts come in `en`, `ru` and `uz`; hosted pages and the console stay English, as they all are today.
 
 ## Later
 

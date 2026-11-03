@@ -4,6 +4,8 @@ export const InviteSignUpStep = {
   Profile: 'profile',
   /** Refers to waiting while the person shares the contact with the Telegram bot; the page polls meanwhile. */
   Telegram: 'telegram',
+  /** Refers to entering the code the invitation's trusted contact received. */
+  Code: 'code',
   /** Refers to an attempt that ended without an account: refused, timed out or gone. */
   Ended: 'ended',
   /** Refers to a finished sign-up, once `signedUp` or `signInRequired` fired. */
