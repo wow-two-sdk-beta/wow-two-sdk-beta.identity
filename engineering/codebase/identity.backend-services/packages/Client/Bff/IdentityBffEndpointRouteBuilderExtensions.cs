@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Identity.Bff.Antiforgery;
 using WoW.Two.Sdk.Beta.Be.Identity.Bff.Endpoints;
 using WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
+using WoW.Two.Sdk.Beta.Be.Identity.Signals;
 using WoW.Two.Sdk.Beta.Be.Web.Contracts;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Bff;
@@ -26,6 +27,8 @@ public static class IdentityBffEndpointRouteBuilderExtensions
     ///     and for a few seconds after it this route answers a <c>401</c> problem (<c>SignInFailed</c>) instead of redirecting
     ///   - <c>POST /sign-out</c>: with a session, needs <c>X-Csrf-Token</c>, ends it here and answers
     ///     <c>{ data: { endSessionUrl } }</c>, the instance's end-session URL the SPA sends the browser to
+    ///   - <c>POST /signal</c>, only with <see cref="IdentityBffOptions.SignalUrl"/>: the instance's revocation signals, verified
+    ///     through its JWKS, answering <c>202</c>, or <c>401</c> for a signature that fails; no antiforgery header
     /// The code callback (<c>/callback</c>) is the OpenID Connect handler's own. Map them behind <c>UseIdentityBff</c>.
     /// </summary>
     /// <param name="endpoints">The route builder.</param>
@@ -37,6 +40,9 @@ public static class IdentityBffEndpointRouteBuilderExtensions
         group.MapGet(BffPathConstants.Session, SessionAsync);
         group.MapGet(BffPathConstants.SignIn, SignIn);
         group.MapPost(BffPathConstants.SignOut, EndSessionAsync);
+        if (options.SignalUrl is not null)
+            group.MapIdentitySignals(BffPathConstants.Signal);
+
         return endpoints;
     }
 

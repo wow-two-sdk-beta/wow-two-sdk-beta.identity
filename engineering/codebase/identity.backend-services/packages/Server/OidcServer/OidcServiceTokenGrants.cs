@@ -22,8 +22,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 /// refresh token.
 /// </summary>
 /// <remarks>
-/// OpenIddict has already authenticated the client, checked the grant, resource and scope permissions and refused a
-/// resource or scope no one registered. It never turns <c>resource</c> into <c>aud</c>: <c>aud</c> comes from the
+/// OpenIddict has already authenticated the client, checked its grant and refused a resource or scope no one registered;
+/// <see cref="OidcServiceTargetCheckHandler"/> has refused an ungranted one. It never turns <c>resource</c> into <c>aud</c>: <c>aud</c> comes from the
 /// principal, so the registry decides it here, along with which grant reaches which resource.
 /// </remarks>
 internal static class OidcServiceTokenGrants
@@ -95,11 +95,12 @@ internal static class OidcServiceTokenGrants
 
     /// <summary>
     /// Picks the one resource the token is for and its scopes: always every scope the client may use on it, so a caller holds
-    /// one token per target and never one per action (developer, 2026-11-05). Answers the refusal for a request naming no
+    /// one token per target and never one per action (developer, 2026-11-05). Answers the problem for a request naming no
     /// resource or several, a resource this grant doesn't reach and a scope outside that set, so a token never holds a scope
-    /// its own audience doesn't understand.
+    /// its own audience doesn't understand. <see cref="OidcServiceTargetCheckHandler"/> asks first, so a refusal reaches the
+    /// caller with its own code.
     /// </summary>
-    private static IResult? RefuseOrSelect(
+    internal static (string Error, string Description)? ProblemWith(
         OpenIddictRequest request,
         IReadOnlyList<string> reachable,
         OidcClientProfile client,
@@ -110,19 +111,30 @@ internal static class OidcServiceTokenGrants
         resource = null!;
         scopes = [];
         if (request.GetResources() is not [var uri])
-            return OidcServerEndpointRouteBuilderExtensions.Forbid(Errors.InvalidTarget, "Name exactly one resource: a service token has one audience.");
+            return (Errors.InvalidTarget, "Name exactly one resource: a service token has one audience.");
 
         if (!reachable.Contains(uri, StringComparer.Ordinal)
             || options.Resources.FirstOrDefault(candidate => string.Equals(candidate.Uri, uri, StringComparison.Ordinal)) is not { } registered)
-            return OidcServerEndpointRouteBuilderExtensions.Forbid(Errors.InvalidTarget, "This client may not reach that resource with this grant.");
+            return (Errors.InvalidTarget, "This client may not reach that resource with this grant.");
 
         var allowed = registered.Scopes.Intersect(client.ServiceAccess.Scopes, StringComparer.Ordinal).ToList();
         var asked = request.GetScopes();
         if (asked.Any(scope => !allowed.Contains(scope, StringComparer.Ordinal)) || (asked.IsEmpty && allowed.Count == 0))
-            return OidcServerEndpointRouteBuilderExtensions.Forbid(Errors.InvalidScope, "This client may not ask for that scope on that resource.");
+            return (Errors.InvalidScope, "This client may not ask for that scope on that resource.");
 
         resource = registered;
         scopes = allowed;
         return null;
     }
+
+    private static IResult? RefuseOrSelect(
+        OpenIddictRequest request,
+        IReadOnlyList<string> reachable,
+        OidcClientProfile client,
+        OidcServerOptions options,
+        out OidcResourceOptions resource,
+        out IReadOnlyList<string> scopes)
+        => ProblemWith(request, reachable, client, options, out resource, out scopes) is { } problem
+            ? OidcServerEndpointRouteBuilderExtensions.Forbid(problem.Error, problem.Description)
+            : null;
 }

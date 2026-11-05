@@ -11,7 +11,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 |---|---|---|
 | Sign-in methods | partial: password with email confirmation, phone by Telegram, hosted pages and the declaration ship; open sign-up's email-first form planned | [sign-in-methods.md](../../product/features/sign-in-methods.md) |
 | Accounts and members | partial: organizations, the fixed role catalog, invitation links, member routes, the members panel and the invite sign-up with name, picture and a bot-verified phone ship | [accounts.md](../../product/features/accounts.md) |
-| Sessions and tokens | partial: OIDC server, keys, sessions with fixed, extended or sliding lifetimes, revocation, the BFF and sign-in log ship; back-channel sign-out planned | [sessions.md](../../product/features/sessions.md) |
+| Sessions and tokens | partial: OIDC server, keys, sessions with fixed, extended or sliding lifetimes, revocation, the BFF and sign-in log ship; revocation signals in v0.5 iteration 12 | [sessions.md](../../product/features/sessions.md) |
 | Abuse protection | partial: lockout, durable hashed codes, a per-number failure budget and per-address rate limits ship | [abuse-protection.md](../../product/features/abuse-protection.md) |
 | Admin console | planned | [admin-console.md](../../product/features/admin-console.md) |
 | Member self-service | planned | [self-service.md](../../product/features/self-service.md) |
@@ -29,17 +29,16 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | hosted pages layout | product | C14: what the developer names; with the console layout review below |
 | code input as boxes | product | every code form takes the fe sdk's `PinInput`, one box per digit, instead of one text field: `PhoneCodeSignIn`, `InviteSignUpForm`, `SecondFactorForm` (TOTP; recovery codes stay text) and `ChangePasswordForm`; the pinned `@wow-two-beta/fe` 0.0.40 ships it (developer, 2026-11-03) |
 | invitation use limits | feature | a link for a number of people or none, beside today's single use; accept after signing in from the invitation page |
-| I18 back-channel sign-out | feature | member removal signs every app out at once |
 | app access check | feature | refuse sign-in and tokens for an app missing from the member's `app_access` (Q61) |
 | `amr` after a second factor | fix | keep `pwd` beside `otp` and `mfa` once a password sign-in passes TOTP (RFC 8176) |
-| BFF sign-out receiver | feature | the `Client` package takes back-channel sign-out (I18) |
 | I20 Telegram | feature | link on first sign-in; Sign in with Telegram with the `phone` scope |
 | test kit | feature | fakes, personas and a test-host helper in the `Testing` package and test projects; the runtime ships no test mode (2026-11-01) |
 | hosted pages and console | feature | `apps/web` over `fe-identity` (`./kit`, `./admin`); sign-in passes `?clientId=` for the sign-in log; sign-up shows only in `Identity:SignUp:Mode=Open` or from an invitation link, read at runtime; the console signs in by its own cookie through Wheelhouse's one-time links (C4, open) |
 | console layout review | product | with the developer once Ocharo's capabilities are verified; the console starts on Wheelhouse's layout |
 | Ocharo's instance as Ocharo's service | product | the image pinned by tag in Ocharo's `deploy.yml`, its first `migrate:` item when `access.*` moves (Q66); Wheelhouse v0.11 generates its keys and links the client secret (`deployment.md` § Pinning the instance) |
 | generated keys in its own `deploy.yml` | feature | `generate` on the three certificates and `from` on the issuer once pipelines `v0.14.0` ships, for wow2's shared instance |
-| service tokens | feature | v0.5 iteration 11 ([spec](../../product/features/service-tokens.md)); left: Desk, Editorial and Files adopt it (G8, G10); Wheelhouse generating client key pairs; revocation signals, not decided |
+| revocation signals | feature | v0.5 iteration 12 ([spec](../../product/features/revocation-signals.md)); left: services adopt the receiver and the deny list; a broker for jobs on other replicas |
+| service tokens | feature | v0.5 iteration 11 ([spec](../../product/features/service-tokens.md)); left: Desk, Editorial and Files adopt it (G8, G10); Wheelhouse generating client key pairs |
 | agent tokens | feature | a person issues a revocable token to an agent, bound to their membership: OAuth for MCP or personal access tokens; Ocharo P1 |
 | conformance in CI | feature | OpenID Foundation suite against the image in `Testing` mode |
 | broker conformance | feature | the module, the client and the fake pass the same broker cases |

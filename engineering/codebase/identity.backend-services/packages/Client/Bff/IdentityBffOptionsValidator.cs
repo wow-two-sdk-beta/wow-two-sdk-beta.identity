@@ -38,6 +38,11 @@ internal sealed class IdentityBffOptionsValidator : IValidateOptions<IdentityBff
         if (options.AccessTokenRefreshMargin < TimeSpan.Zero)
             failures.Add($"{section}:{nameof(IdentityBffOptions.AccessTokenRefreshMargin)} must not be negative.");
 
+        // On Unix a bare "/path" parses as an absolute file URI.
+        if (options.SignalUrl is not null
+            && (!Uri.TryCreate(options.SignalUrl, UriKind.Absolute, out var signalUrl) || (signalUrl.Scheme != Uri.UriSchemeHttps && signalUrl.Scheme != Uri.UriSchemeHttp)))
+            failures.Add($"{section}:{nameof(IdentityBffOptions.SignalUrl)} must be this BFF's absolute HTTP or HTTPS signal URL.");
+
         if (string.IsNullOrWhiteSpace(options.CookieName))
             failures.Add($"{section}:{nameof(IdentityBffOptions.CookieName)} is required.");
 

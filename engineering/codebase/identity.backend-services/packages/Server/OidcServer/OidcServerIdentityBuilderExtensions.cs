@@ -4,9 +4,15 @@ using Microsoft.Extensions.Options;
 using OpenIddict.Server;
 using WoW.Two.Sdk.Beta.Be.Foundation.Options;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.AccessChanges;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Signals;
 using WoW.Two.Sdk.Beta.Be.Identity.Keys;
+using WoW.Two.Sdk.Beta.Be.Identity.Signals;
+using WoW.Two.Sdk.Beta.Be.Messaging;
+using WoW.Two.Sdk.Beta.Be.Messaging.Webhooks;
+using WoW.Two.Sdk.Beta.Be.Messaging.Webhooks.Issuers;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
@@ -44,6 +50,7 @@ public static class OidcServerIdentityBuilderExtensions
         services.TryAddScoped<OidcClaimMapper>();
         services.TryAddScoped<OidcClientSeeder>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ISessionRevocationHandler, OidcSessionRevocationHandler>());
+        AddSignals(services);
         services.AddHostedService<OidcClientSeedingService>();
 
         services.AddOpenIddict()
@@ -56,6 +63,7 @@ public static class OidcServerIdentityBuilderExtensions
                     .SetTokenEndpointUris(Relative(OidcServerPathConstants.Token))
                     .SetUserInfoEndpointUris(Relative(OidcServerPathConstants.UserInfo))
                     .SetEndSessionEndpointUris(Relative(OidcServerPathConstants.EndSession))
+                    .SetIntrospectionEndpointUris(Relative(OidcServerPathConstants.Introspection))
                     .SetConfigurationEndpointUris(Relative(OidcServerPathConstants.Configuration))
                     .SetJsonWebKeySetEndpointUris(Relative(OidcServerPathConstants.JsonWebKeySet));
 
@@ -75,6 +83,9 @@ public static class OidcServerIdentityBuilderExtensions
 
                 server.AddEventHandler(ActiveKeySelectionHandler.Descriptor);
                 server.AddEventHandler(OidcServiceTokenEntryHandler.Descriptor);
+                server.AddEventHandler(OidcServiceTargetCheckHandler.Descriptor);
+                server.RemoveEventHandler(OpenIddictServerHandlers.Introspection.ValidateAuthorizedParty.Descriptor);
+                server.AddEventHandler(OidcLiveTokenCheckHandler.Descriptor);
                 server.UseAspNetCore()
                     .EnableAuthorizationEndpointPassthrough()
                     .EnableTokenEndpointPassthrough()
@@ -104,6 +115,30 @@ public static class OidcServerIdentityBuilderExtensions
             .ValidateOnStart();
         services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, ServerKeyConfiguration>();
         return builder;
+    }
+
+    /// <summary>
+    /// Signals: an ended session and a changed access go on the local bus, off the request, then over <c>Messaging/Webhooks</c>
+    /// to every client and resource naming a signal URL, signed with the token key.
+    /// </summary>
+    private static void AddSignals(IServiceCollection services)
+    {
+        services.TryAddScoped<OidcSignalRelay>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ISessionRevocationHandler, OidcSignalRelay>(provider => provider.GetRequiredService<OidcSignalRelay>()));
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAccessChangeHandler, OidcSignalRelay>(provider => provider.GetRequiredService<OidcSignalRelay>()));
+        services.AddInMemoryEventBus(typeof(OidcSignalForwarder).Assembly, typeof(SessionEndedEvent).Assembly);
+
+        // Each event waits on its slowest target's retries, so one hanging service mustn't hold every other event back.
+        services.AddMessagingConcurrency(static concurrency => concurrency.MaxConcurrentMessages = 8);
+        services.TryAddSingleton<IWebhookSubscriptionRepository, OidcSignalSubscriptionRepository>();
+        services.AddWebhooks();
+        services.AddOptions<WebhookOptions>().Configure<OidcServerOptions>(static (webhooks, options) =>
+        {
+            webhooks.RequireHttps = options.Signals.RequireHttps;
+            webhooks.AllowPrivateNetworkTargets = options.Signals.AllowPrivateNetworkTargets;
+            webhooks.RequestTimeout = options.Signals.RequestTimeout;
+        });
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IWebhookSignatureIssuer, OidcSignalSignatureIssuer>());
     }
 
     /// <summary>OpenIddict takes endpoint paths relative to the issuer, without the leading slash.</summary>

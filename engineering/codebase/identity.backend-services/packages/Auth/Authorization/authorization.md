@@ -20,6 +20,15 @@ app.MapGet("/files", GetFiles).RequireAuthorization(policy => policy.RequireScop
 app.MapPost("/admin/purge", Purge).RequireAuthorization(policy => policy.RequireAudience("https://files.example.com/admin").RequireScope("files.admin"));
 ```
 
+- **Live token** — `RequireLiveToken` on `AuthorizationPolicyBuilder`, with `AddLiveTokenCheck` (`Identity/Signals`). For named dangerous actions only: it posts the request's bearer token to `/connect/introspect` (RFC 7662), on every request with nothing cached, while every other request stays offline.
+  - Passes only on `active: true`. An inactive token, an unreachable or refusing endpoint, an unreadable answer and a caller with no bearer token all answer **403**; an anonymous caller **401**.
+  - The requirement handles itself, so a policy that isn't used costs no registration. A used one with no `AddLiveTokenCheck` throws, since that's a wiring mistake.
+  - The client authenticates as at the token endpoint (`OAuth2ClientAuthentication`), and needs `CanIntrospect` at the instance. HTTPS unless loopback, checked at boot.
+
+```csharp
+app.MapPost("/files/purge", Purge).RequireAuthorization(policy => policy.RequireLiveToken().RequireScope("files.admin"));
+```
+
 **Compose:** `withAllowlist: true` makes the fallback require *authenticated* **and** *allowlisted*; empty allowlist keeps it authenticated-only.
 
 ## Canonical wiring order

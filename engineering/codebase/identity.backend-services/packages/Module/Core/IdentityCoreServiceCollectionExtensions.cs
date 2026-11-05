@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authentication;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.AccessChanges;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -67,6 +69,7 @@ public static class IdentityCoreServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddScoped<UserAccountService>();
         services.TryAddScoped<UserClaimsPrincipalFactory>();
+        services.AddScoped<IClaimsTransformation, CurrentAccessClaimsTransformation>();
         services.AddIdentityDatabase(configureDatabase);
 
         // The texts left core with Identity; the contract carries them and the module contributes them, once per culture.

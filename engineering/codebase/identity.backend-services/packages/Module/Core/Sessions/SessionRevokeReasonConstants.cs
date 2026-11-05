@@ -15,10 +15,7 @@ public static class SessionRevokeReasonConstants
     /// <summary>The person's security stamp rotated (a credential change or an explicit sign-out everywhere).</summary>
     public const string SecurityStamp = "security_stamp";
 
-    /// <summary>
-    /// The person's roles changed (an instance role granted or removed, an organization joined, re-roled, left or deleted):
-    /// every session ends at once, so the person signs in again with the new roles.
-    /// </summary>
+    /// <summary>The person's roles changed, on rows from before a role change stopped ending sessions; nothing new writes it.</summary>
     public const string RolesChanged = "roles_changed";
 
     /// <summary>The trusted contact the session's sign-in went through was revoked, or left.</summary>

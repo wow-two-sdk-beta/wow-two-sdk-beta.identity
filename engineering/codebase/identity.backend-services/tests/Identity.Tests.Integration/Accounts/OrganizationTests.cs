@@ -83,11 +83,11 @@ public sealed class OrganizationTests
         (await organizations.ChangeRoleAsync(ocharo, member, "viewer")).IsSuccess.Should().BeTrue();
         (await organizations.GetRoleAsync(ocharo, member)).Should().Be("viewer");
         var changed = (await host.ReloadAsync(member.Id)).SecurityStamp;
-        changed.Should().NotBe(stamp);
+        changed.Should().Be(stamp, "a role change rotates no stamp");
 
         (await organizations.RemoveMemberAsync(ocharo, member)).IsSuccess.Should().BeTrue();
         (await organizations.GetRoleAsync(ocharo, member)).Should().BeNull();
-        (await host.ReloadAsync(member.Id)).SecurityStamp.Should().NotBe(changed);
+        (await host.ReloadAsync(member.Id)).SecurityStamp.Should().Be(changed);
         (await organizations.RemoveMemberAsync(ocharo, member)).Errors.Should().ContainSingle(e => e.Code == IdentityErrorCodeConstants.UserNotMember);
         (await organizations.ListMembersAsync(ocharo)).Should().ContainSingle().Which.UserId.Should().Be(founder.Id);
     }
@@ -157,7 +157,7 @@ public sealed class OrganizationTests
     }
 
     [Fact]
-    public async Task Delete_ShouldRemoveMembershipsAndRotateEveryMembersStamp()
+    public async Task Delete_ShouldRemoveMemberships_AndLeaveEveryMembersStamp()
     {
         await using var host = CreateHost();
         var founder = await host.CreateUserAsync("shahzoda");
@@ -173,7 +173,7 @@ public sealed class OrganizationTests
 
         (await organizations.FindByIdAsync(ocharo.Id)).Should().BeNull();
         (await organizations.ListForUserAsync(member)).Should().BeEmpty();
-        (await host.ReloadAsync(member.Id)).SecurityStamp.Should().NotBe(stamp);
+        (await host.ReloadAsync(member.Id)).SecurityStamp.Should().Be(stamp);
     }
 
     [Fact]

@@ -65,7 +65,25 @@ internal sealed partial class OidcServerOptionsValidator(IServiceProvider? servi
         foreach (var client in options.Clients)
             problems.AddRange(CheckClient(client, options.Resources));
 
+        problems.AddRange(CheckSignalUrls(options));
+
         return problems.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problems);
+    }
+
+    /// <summary>A signal URL is absolute with the scheme <c>Signals:RequireHttps</c> allows, and needs a pinned issuer, since the signature names it.</summary>
+    private static IEnumerable<string> CheckSignalUrls(OidcServerOptions options)
+    {
+        var urls = options.Clients.Select(client => client.SignalUrl).Concat(options.Resources.Select(resource => resource.SignalUrl)).OfType<string>().ToList();
+        if (urls.Count > 0 && options.Issuer is null)
+            yield return $"{OidcServerOptions.SectionName}:Issuer is required once a client or resource names a SignalUrl; the signature names it.";
+
+        foreach (var url in urls)
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)
+                || (parsed.Scheme != Uri.UriSchemeHttps && parsed.Scheme != Uri.UriSchemeHttp)
+                || (options.Signals.RequireHttps && !IsAllowedScheme(parsed)))
+                yield return $"The SignalUrl '{url}' is not an absolute HTTPS URI (HTTP on a loopback host, or anywhere with Signals:RequireHttps off).";
+        }
     }
 
     private static IEnumerable<string> CheckResource(OidcResourceOptions resource)

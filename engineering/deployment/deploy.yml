@@ -98,6 +98,9 @@ services:
         Identity:Server:Issuer: { type: url, required: true }
         Identity:Server:Keys:IsEphemeral: { type: boolean, default: false }
         Identity:Server:ServiceTokenLifetime: {}
+        Identity:Server:Signals:RequireHttps: { type: boolean, default: true }
+        Identity:Server:Signals:AllowPrivateNetworkTargets: { type: boolean, default: false }
+        Identity:Server:Signals:RequestTimeout: {}
         Identity:SignUp:Mode: { type: choice, values: [Invite, Open], default: Invite }
         Identity:SignUp:Profile:DisplayName: { type: choice, values: [Off, Optional, Required], default: Off }
         Identity:SignUp:Profile:Picture: { type: choice, values: [Off, Optional, Required], default: Off }

@@ -63,9 +63,9 @@
 | `act` | no | `{ "sub": "<client id>" }` |
 
 - OpenIddict validates `resource` and checks the client's permission, but never turns `resource` into `aud`; `aud` comes from the registry.
-- A request names exactly one `resource`; none or several answers `invalid_target`.
+- A request names exactly one `resource`; none, several, or one this client's grant doesn't reach answers `invalid_target` (RFC 8707).
 - One token per person and target, never one per action (developer, 2026-11-05): a `scope` parameter is checked, not
-  narrowing, and a scope outside what the client may use on that resource answers `invalid_scope`.
+  narrowing, and a scope outside what the client may use on that resource answers `invalid_scope` (RFC 6749).
 - Service tokens write no row to `identity_oidc_tokens`; nothing can revoke them, so they end with their lifetime.
 
 ## Token exchange
@@ -82,7 +82,7 @@ client_id=ocharo-editorial&client_secret=…
 - The caller must be the subject token's presenter or audience, so an app exchanges only tokens issued to it.
 - The subject token must be a person's own: a service token or one already exchanged answers `invalid_grant`.
 - An ended sign-in session answers `invalid_grant`, as does a token with no `sid` on an instance with sessions.
-- The result never outlives the session; a token already issued lives out its few minutes.
+- The result never outlives the session; an issued token lives out its few minutes unless a [signal](revocation-signals.md) stops it.
 - `actor_token` and a `requested_token_type` other than `access_token` are refused.
 
 ## Client authentication
@@ -139,7 +139,6 @@ services.AddHttpClient("files").AddOAuth2TokenExchange(o => { o.TokenEndpoint = 
 
 ## Later
 
-- Revocation signals: back-channel sign-out (I18) reaching a resource that holds an exchanged token; exchanged tokens keep
-  `sid` so a later signal can match them. Not decided, not built.
+- [Revocation signals](revocation-signals.md) stop a token before it expires; exchanged tokens keep `sid` for that.
 - Wheelhouse generating client key pairs.
 - A BFF authenticating with `private_key_jwt`.

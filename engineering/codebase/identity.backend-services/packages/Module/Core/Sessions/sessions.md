@@ -53,9 +53,7 @@ app.MapGroup("/api/account").MapUserAccountEndpoints();  // sign-in?useCookies=t
   session too.
 - Live means unrevoked, unexpired and stamped with the person's current security stamp. A stamp rotation (password
   change, sign-out everywhere) ends every session; the row is marked `security_stamp` when next seen.
-- A role change (`../Roles/roles.md` § Role changes) rotates the stamp and revokes every session at once, marked
-  `roles_changed`: the cookie fails its next request, each app's refresh is refused, each BFF session ends at its next
-  refresh, and the person signs in again with the new roles.
+- A role change (`../Roles/roles.md` § Role changes) ends no session; `roles_changed` stays only on rows from before.
 - End: `RevokeAsync` (one, reason `revoked`; `sign_out` from the sign-out and end-session routes) and `RevokeAllAsync`
   (reason `revoked_all`, or the one given, optionally keeping one) mark the rows, then run every `ISessionRevocationHandler`.
 

@@ -12,6 +12,9 @@ public static class BffPathConstants
     /// <summary>Holds the sign-out route (<c>POST</c>): ends the local session, answers the end-session URL of the instance.</summary>
     public const string SignOut = "/sign-out";
 
+    /// <summary>Holds the route the instance posts revocation signals to (<c>POST</c>), mapped only with <see cref="IdentityBffOptions.SignalUrl"/>; its signature is the check.</summary>
+    public const string Signal = "/signal";
+
     /// <summary>Holds the code callback the instance redirects to; register <c>{origin}{prefix}/callback</c> there.</summary>
     public const string Callback = "/callback";
 

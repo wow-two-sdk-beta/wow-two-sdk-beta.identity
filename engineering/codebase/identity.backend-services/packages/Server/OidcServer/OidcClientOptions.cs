@@ -53,6 +53,12 @@ public sealed record OidcClientOptions
     /// <summary>Gets or sets the scopes it may ask for on those resources; a token holds only those its own resource understands.</summary>
     public List<string> Scopes { get; set; } = [];
 
+    /// <summary>Gets or sets where it hears revocation signals; null hears none. HTTPS unless <c>Identity:Server:Signals:RequireHttps</c> is off.</summary>
+    public string? SignalUrl { get; set; }
+
+    /// <summary>Gets or sets whether it may ask <c>/connect/introspect</c> if a token stands now, for a dangerous action.</summary>
+    public bool CanIntrospect { get; set; }
+
     /// <summary>Gets or sets the organization its own tokens carry as <c>org_id</c>, for a client bound to one; null carries none.</summary>
     public Guid? OrganizationId { get; set; }
 }

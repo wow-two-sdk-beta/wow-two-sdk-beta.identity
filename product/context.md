@@ -30,7 +30,7 @@ through Ocharo's own instance with the `Client` BFF. Track: [v0.5](../engineerin
 ### Gaps
 
 - the members panel (`./admin`) and the console; open sign-up's guest and email-first form (C13); the layout (C14).
-- back-channel sign-out (I18), app access checks, client credentials and agent tokens, conformance in CI.
+- app access checks, agent tokens, conformance in CI.
 - a built-in BFF session store; until a product registers a shared cache and key ring, its deploys sign people out.
 - local runtime: arm64 image, HTTPS from a mounted PEM, the compose build, phone sign-in tested with a real bot.
 

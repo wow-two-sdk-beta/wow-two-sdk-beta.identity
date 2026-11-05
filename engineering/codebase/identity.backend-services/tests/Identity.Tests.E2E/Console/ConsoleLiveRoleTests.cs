@@ -21,7 +21,7 @@ public sealed class ConsoleLiveRoleTests
     private const string Organizations = "/api/console/organizations";
 
     [Fact]
-    public async Task Grant_ShouldSignThePersonOut_ThenShowTheRoleOnceTheySignInAgain()
+    public async Task Grant_ShouldShowTheRole_OnTheNextRequest_WithNoSignIn()
     {
         await using var host = new AccountHost();
         var userId = await host.CreateUserAsync("lola@example.test");
@@ -31,12 +31,10 @@ public sealed class ConsoleLiveRoleTests
 
         await GrantAsync(host, userId, InstanceRoleConstants.Admin);
 
-        (await client.GetAsync(Session)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "a role change ends the person's sessions");
-        (await AccountHost.SignInAsync(client, "lola@example.test", AccountHost.StrongPassword)).StatusCode.Should().Be(HttpStatusCode.NoContent);
         var session = await AccountHost.DataAsync(await client.GetAsync(Session));
         session.GetProperty("roles").EnumerateArray().Select(role => role.GetString()).Should().Equal("admin");
         (await client.PostAsJsonAsync(Organizations, new { name = "Ocharo", slug = "ocharo" })).StatusCode
-            .Should().Be(HttpStatusCode.Created, "the store's role counts once she signs in again");
+            .Should().Be(HttpStatusCode.Created, "the store's role counts at once");
         var managed = (await AccountHost.DataAsync(await client.GetAsync(Session))).GetProperty("organizations").EnumerateArray().Single();
         (managed.GetProperty("slug").GetString(), managed.GetProperty("role").GetString()).Should().Be(("ocharo", "owner"));
     }

@@ -24,6 +24,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 ///     <see cref="IdentityBffOptions.SessionLifetime"/> after the sign-in
 ///   - it also ends when the instance refuses the refresh, or when the access token ran out with no refresh token; an
 ///     unreachable instance keeps it
+///   - a person's changed access (<see cref="BffAccessChangeRepository"/>) also starts a refresh once, under the same gate, so the
+///     next request carries fresh claims; each request reads one more cache key for it. Without a refresh token the session
+///     keeps its tokens until they run out, since a role change signs nobody out
 ///   - a refresh and the save of its tokens run apart from the request, bounded by <see cref="RefreshTimeout"/>: the
 ///     instance rotates the refresh token as it answers, so a browser that leaves mid-refresh must not strand the new one
 /// </remarks>
@@ -33,13 +36,15 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 /// <param name="options">The BFF options.</param>
 /// <param name="time">The clock.</param>
 /// <param name="logger">The logger.</param>
+/// <param name="accessChanges">The people whose access changed; null never refreshes for it.</param>
 internal sealed partial class BffSessionService(
     IBffSessionRepository repository,
     BffSessionProtector protector,
     BffTokenClient tokens,
     IOptions<IdentityBffOptions> options,
     TimeProvider time,
-    ILogger<BffSessionService> logger)
+    ILogger<BffSessionService> logger,
+    BffAccessChangeRepository? accessChanges = null)
 {
     /// <summary>Holds the request item that marks the session ended in this request, so signing out never ends it twice.</summary>
     private const string EndedItem = "WoW.Two.Sdk.Beta.Be.Identity.Bff.SessionEnded";
@@ -108,6 +113,7 @@ internal sealed partial class BffSessionService(
             RefreshToken = properties.GetTokenValue("refresh_token"),
             IdentityToken = properties.GetTokenValue("id_token"),
             SignedInAt = now,
+            ClaimsAsOf = now,
             ExpiresAt = ReadInstanceEnd(properties) ?? now + options.Value.SessionLifetime,
         };
 
@@ -127,7 +133,7 @@ internal sealed partial class BffSessionService(
     {
         ArgumentNullException.ThrowIfNull(reference);
         var session = await LoadLiveAsync(reference, cancellationToken);
-        if (session is null || !NeedsRefresh(session.State))
+        if (session is null || !await NeedsRefreshAsync(session.State, cancellationToken))
             return session;
 
         var gate = _gates[(uint)StringComparer.Ordinal.GetHashCode(reference.SessionId) % (uint)_gates.Length];
@@ -136,7 +142,7 @@ internal sealed partial class BffSessionService(
         {
             // Another request of this session may have refreshed while this one waited.
             session = await LoadLiveAsync(reference, cancellationToken);
-            return session is null || !NeedsRefresh(session.State) ? session : await RefreshAsync(session);
+            return session is null || !await NeedsRefreshAsync(session.State, cancellationToken) ? session : await RefreshAsync(session);
         }
         finally
         {
@@ -208,6 +214,9 @@ internal sealed partial class BffSessionService(
         if (state.RefreshToken is not { } refreshToken)
             return await EndWithAsync(session.SessionId, "access token ran out without a refresh token", CancellationToken.None);
 
+        // Read first: the tokens this refresh brings are from after any change already recorded.
+        var changedAt = await AccessChangedAtAsync(state, CancellationToken.None);
+
         BffTokenRefreshResult refreshed;
         using (var timeout = new CancellationTokenSource(RefreshTimeout, time))
         {
@@ -247,6 +256,9 @@ internal sealed partial class BffSessionService(
                 RefreshToken = refreshed.RefreshToken ?? refreshToken,
                 IdentityToken = refreshed.IdentityToken ?? state.IdentityToken,
                 ExpiresAt = refreshed.SessionLifetime is { } remaining ? now + remaining : state.ExpiresAt,
+
+                // The change names the instance's clock: one ahead of this host's must not refresh every request until they meet.
+                ClaimsAsOf = changedAt > now ? changedAt : now,
             },
         };
         // The instance already rotated the refresh token: the save must land whatever became of the request.
@@ -255,8 +267,20 @@ internal sealed partial class BffSessionService(
         return renewed;
     }
 
-    private bool NeedsRefresh(BffSessionState state)
-        => state.AccessTokenExpiresAt is { } expiresAt && expiresAt - options.Value.AccessTokenRefreshMargin <= time.GetUtcNow();
+    private async ValueTask<bool> NeedsRefreshAsync(BffSessionState state, CancellationToken cancellationToken)
+    {
+        if (state.AccessTokenExpiresAt is { } expiresAt && expiresAt - options.Value.AccessTokenRefreshMargin <= time.GetUtcNow())
+            return true;
+
+        return state.RefreshToken is not null
+            && await AccessChangedAtAsync(state, cancellationToken) is { } changedAt
+            && changedAt > (state.ClaimsAsOf ?? state.SignedInAt);
+    }
+
+    private async ValueTask<DateTimeOffset?> AccessChangedAtAsync(BffSessionState state, CancellationToken cancellationToken)
+        => accessChanges is not null && state.Claims.FirstOrDefault(claim => claim.Type == JwtRegisteredClaimNames.Sub)?.Value is { } subject
+            ? await accessChanges.FindAsync(subject, cancellationToken)
+            : null;
 
     private async Task<BffSession?> EndWithAsync(string sessionId, string reason, CancellationToken cancellationToken)
     {

@@ -15,6 +15,18 @@ internal static class BffRequestMatcher
         return options.EffectiveApiPathPrefixes.Any(prefix => request.Path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>Whether <paramref name="request"/> is the instance's signal: its signature is the check, and no browser sends it.</summary>
+    /// <param name="request">The request.</param>
+    /// <param name="options">The BFF options.</param>
+    public static bool IsSignal(HttpRequest request, IdentityBffOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(options);
+        return options.SignalUrl is not null
+            && request.Path.StartsWithSegments(options.RoutePrefix + BffPathConstants.Signal, StringComparison.OrdinalIgnoreCase, out var rest)
+            && (!rest.HasValue || rest.Value == "/");
+    }
+
     /// <summary>Whether <paramref name="method"/> may change state, so a session's request with it needs the antiforgery header.</summary>
     /// <param name="method">The HTTP method.</param>
     public static bool IsUnsafe(string method)

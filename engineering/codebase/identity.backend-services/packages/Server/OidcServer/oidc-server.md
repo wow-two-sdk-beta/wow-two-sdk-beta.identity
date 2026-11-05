@@ -49,6 +49,7 @@ app.MapOidcServerEndpoints();
 | `/.well-known/openid-configuration` · `/.well-known/jwks` | OpenIddict | discovery (code flow, S256, the claims below) and the signing keys |
 | `/connect/authorize` | pass-through | reads the cookie session; none, `prompt=login` or an exceeded `max_age` redirects to `SignInPath?returnUrl=…`, where the return URL trades `prompt` and `max_age` for `fresh_sign_in`, the request's instant sealed with Data Protection: back from the sign-in page, the request passes only for a session signed in after it (a missing or forged marker asks again). `prompt=none` answers `login_required`; ties the grant to the session's `sid` |
 | `/connect/token` | pass-through | code and refresh grants re-check the person (exists, same stamp) and the session behind the grant, and write fresh claims; a lockout does not end a grant. Client credentials and token exchange issue a service token (below) |
+| `/connect/introspect` | OpenIddict, with `OidcLiveTokenCheckHandler` | RFC 7662 for a client with `CanIntrospect`: `active: false` once the person is gone, their session ended, or their membership or role in the token's organization differs |
 | `/connect/userinfo` | pass-through | the current profile and organization claims for the access token, while its session lives |
 | `/connect/endsession` | pass-through | with a valid `id_token_hint`, ends the cookie and its session (when they are the hint's person) and revokes the app's authorizations and tokens for that person; a `POST` from this origin (`Sec-Fetch-Site: same-origin`, or a matching `Origin`) ends the cookie and its session without a hint; anything else, such as a bare `GET` another site sends, ends nothing; every case returns to the validated `post_logout_redirect_uri` |
 
@@ -103,6 +104,18 @@ Spec, claims and refusals: [service tokens](../../../../../../product/features/s
   assertion's `aud` is the issuer and its `typ` is `client-authentication+jwt`, as OpenIddict 7 requires.
 - A boot refuses a resource URI not written as `Uri.AbsoluteUri` (`https://files.example/`, with its slash), a scope that
   is not `{service}.{action}`, a client whose grants, resources and scopes disagree, and a lifetime above 10 minutes.
+
+## Signals
+
+Spec: [revocation signals](../../../../../../product/features/revocation-signals.md). `../Signals/`:
+
+- `OidcSignalRelay` hears `ISessionRevocationHandler` and `IAccessChangeHandler` and puts `SessionEndedEvent` and
+  `AccessChangedEvent` on the local bus, off the request, when a client or resource names a `SignalUrl`.
+- `OidcSignalForwarder` carries each event to `IWebhookPublisher`; `OidcSignalSubscriptionRepository` reads the targets from
+  this registry, one per URL.
+- `OidcSignalSignatureIssuer` signs each delivery with the active token key: a `webhook+jwt` bound to the target URL and the
+  hash of the body, under the `key-signed` scheme, so a receiver needs no shared secret.
+- A signal URL needs a pinned `Issuer`. Lost after its retries, a signal is logged and dropped; a token's lifetime is the limit.
 
 ## Clients
 

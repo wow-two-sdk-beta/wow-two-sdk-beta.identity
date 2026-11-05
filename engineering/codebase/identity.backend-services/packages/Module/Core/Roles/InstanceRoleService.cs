@@ -8,8 +8,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 /// <remarks>
 ///   - the catalog's rows are seeded on first use: granting a role creates its row when missing
 ///   - granting is idempotent: a role already held answers success with <see cref="InstanceRoleGrant.IsGranted"/> false
-///   - giving a role signs the person out everywhere (<see cref="RoleChangeSignOut"/>): they sign in again carrying it; a
-///     role already held changes nothing
+///   - giving a role signs nobody out: the console reads it from the store on each request
 /// </remarks>
 /// <param name="roles">Creates and finds role rows.</param>
 /// <param name="memberships">Adds and reads a person's roles.</param>

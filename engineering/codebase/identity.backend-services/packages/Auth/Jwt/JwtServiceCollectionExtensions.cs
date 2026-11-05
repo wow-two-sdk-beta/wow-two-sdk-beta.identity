@@ -8,7 +8,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Jwt;
 /// <summary>JWT bearer registration helpers.</summary>
 public static class JwtServiceCollectionExtensions
 {
-    private static readonly string[] AsymmetricAlgorithms =
+    /// <summary>The algorithms a token between services may use: never a shared key.</summary>
+    internal static readonly string[] AsymmetricAlgorithms =
     [
         SecurityAlgorithms.RsaSha256,
         SecurityAlgorithms.RsaSha384,
@@ -171,7 +172,11 @@ public static class JwtServiceCollectionExtensions
         }
     }
 
-    private static void ValidateTrustedIssuer(TrustedIssuer issuer, bool isInsecureMetadataAllowed)
+    /// <summary>Refuses a trusted issuer that names nothing usable, or whose keys or metadata break the trust rules.</summary>
+    /// <param name="issuer">The issuer.</param>
+    /// <param name="isInsecureMetadataAllowed">Whether HTTP metadata is allowed.</param>
+    /// <exception cref="InvalidOperationException">The issuer is not usable.</exception>
+    internal static void ValidateTrustedIssuer(TrustedIssuer issuer, bool isInsecureMetadataAllowed)
     {
         if (string.IsNullOrWhiteSpace(issuer.Issuer))
             throw new InvalidOperationException("TrustedIssuer.Issuer is required.");

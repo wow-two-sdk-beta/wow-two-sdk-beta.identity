@@ -109,8 +109,9 @@ public sealed class ServiceTokenTests : IAsyncLifetime
 
         await ShouldFailAsync(await WorkerTokenAsync(client, resource: null, "desk.media"), "invalid_target");
         await ShouldFailAsync(await WorkerTokenAsync(client, "https://unknown.example.test/", "desk.media"), "invalid_target");
-        await ShouldFailAsync(await WorkerTokenAsync(client, Files, "files.read"), "invalid_request", "invalid_scope");
-        await ShouldFailAsync(await WorkerTokenAsync(client, Desk, "desk.admin"), "invalid_request", "invalid_scope");
+        await ShouldFailAsync(await WorkerTokenAsync(client, Files, "files.read"), "invalid_target");
+        await ShouldFailAsync(await WorkerTokenAsync(client, Files, scope: null), "invalid_target");
+        await ShouldFailAsync(await WorkerTokenAsync(client, Desk, "desk.admin"), "invalid_scope");
         await ShouldFailAsync(await WorkerTokenAsync(client, Desk, "openid"), "invalid_scope");
         await ShouldFailAsync(await client.Http.PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -201,8 +202,8 @@ public sealed class ServiceTokenTests : IAsyncLifetime
         await client.SignUpAndSignInAsync($"scope-{Guid.NewGuid():N}@example.test", Password);
         var tokens = await client.SignInToAppAsync();
 
-        await ShouldFailAsync(await ExchangeAsync(client, tokens.AccessToken, Desk, "desk.media"), "invalid_request", "invalid_scope");
-        await ShouldFailAsync(await ExchangeAsync(client, tokens.AccessToken, Files, "files.write"), "invalid_scope", "invalid_request");
+        await ShouldFailAsync(await ExchangeAsync(client, tokens.AccessToken, Desk, "desk.media"), "invalid_target");
+        await ShouldFailAsync(await ExchangeAsync(client, tokens.AccessToken, Files, "files.write"), "invalid_scope");
     }
 
     [Fact]

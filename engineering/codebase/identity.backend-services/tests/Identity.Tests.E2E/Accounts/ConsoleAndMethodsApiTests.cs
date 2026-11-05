@@ -23,7 +23,7 @@ public sealed class ConsoleAndMethodsApiTests
     private const string DeskId = "0190a2b3-c4d5-4e6f-8a9b-0c1d2e3f4a5b";
 
     [Fact]
-    public async Task Console_ShouldAnswer401_403_ThenThePerson_OnceAnInstanceRoleIsHeldAndTheySignInAgain()
+    public async Task Console_ShouldAnswer401_403_ThenThePerson_OnceAnInstanceRoleIsHeld()
     {
         await using var host = new AccountHost();
         var userId = await host.CreateUserAsync("lola@example.test");
@@ -40,8 +40,6 @@ public sealed class ConsoleAndMethodsApiTests
             (await scope.ServiceProvider.GetRequiredService<InstanceRoleService>().GrantAsync(person, "admin")).IsGranted.Should().BeTrue();
         }
 
-        (await client.GetAsync(Console)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "the grant ended her sessions");
-        (await AccountHost.SignInAsync(client, "lola@example.test", AccountHost.StrongPassword)).StatusCode.Should().Be(HttpStatusCode.NoContent);
         using var session = await client.GetAsync(Console);
         session.StatusCode.Should().Be(HttpStatusCode.OK, "the console reads the role from the store");
         var data = await AccountHost.DataAsync(session);

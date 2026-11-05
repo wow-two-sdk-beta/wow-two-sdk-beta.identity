@@ -24,4 +24,7 @@ public sealed record OidcResourceOptions
     /// person's <c>org_permission</c> values that start with <c>{namespace}:</c>. Null carries every permission of the role.
     /// </summary>
     public string? PermissionNamespace { get; set; }
+
+    /// <summary>Gets or sets where it hears revocation signals; null hears none. HTTPS unless <c>Identity:Server:Signals:RequireHttps</c> is off.</summary>
+    public string? SignalUrl { get; set; }
 }

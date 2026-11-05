@@ -16,6 +16,10 @@ using WoW.Two.Sdk.Beta.Be.Identity.Bff.Antiforgery;
 using WoW.Two.Sdk.Beta.Be.Identity.Bff.Authorization;
 using WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Cookies;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Signals;
+using WoW.Two.Sdk.Beta.Be.Identity.Jwt;
+using WoW.Two.Sdk.Beta.Be.Identity.Signals;
+using WoW.Two.Sdk.Beta.Be.Messaging;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Bff;
 
@@ -42,6 +46,9 @@ public static class IdentityBffServiceCollectionExtensions
     ///   - the defaults keep sessions in the in-memory distributed cache and the key ring in the process's own folder, enough
     ///     for a local run only: a deployed host registers a shared <c>IDistributedCache</c> and a persisted key ring, or every
     ///     restart signs everyone out; a deployed boot (<c>DEPLOY_ENVIRONMENT</c> set) logs a warning for each one missing
+    ///   - with <see cref="IdentityBffOptions.SignalUrl"/>, an ended session ends here and a changed access refreshes the next
+    ///     request. That setting may come from configuration, read only once the host runs, so the signal receiver and its
+    ///     in-memory event bus register either way: a broker registers before this call
     /// </remarks>
     /// <param name="services">The service collection to configure.</param>
     /// <param name="configure">Code configuration, applied after the host section, so it wins.</param>
@@ -67,6 +74,7 @@ public static class IdentityBffServiceCollectionExtensions
         services.TryAddSingleton<BffTokenClient>();
         services.TryAddSingleton<BffSessionService>();
         services.TryAddSingleton<BffCsrfTokenService>();
+        services.TryAddSingleton<BffAccessChangeRepository>();
         services.TryAddTransient<BffCookieEvents>();
         services.TryAddTransient<BffOpenIdConnectEvents>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, BffStorageCheck>());
@@ -87,6 +95,12 @@ public static class IdentityBffServiceCollectionExtensions
             .Configure<IOptions<IdentityBffOptions>, IDataProtectionProvider>(static (cookie, bff, protection) => ConfigureCookie(cookie, bff.Value, protection));
         services.AddOptions<OpenIdConnectOptions>(BffAuthenticationSchemeConstants.OpenIdConnect)
             .Configure<IOptions<IdentityBffOptions>>(static (handler, bff) => ConfigureOpenIdConnect(handler, bff.Value));
+
+        services.AddIdentitySignalReceiver();
+        services.AddOptions<IdentitySignalReceiverOptions>()
+            .Configure<IOptions<IdentityBffOptions>>(static (receiver, bff) => ConfigureSignals(receiver, bff.Value));
+        if (!services.Any(descriptor => descriptor.ServiceType == typeof(IEventHandler<SessionEndedEvent>) && descriptor.ImplementationType == typeof(BffSignalHandler)))
+            services.AddEventHandlersFromAssemblies(typeof(BffSignalHandler).Assembly);
 
         services.AddAuthorization();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuthorizationHandler, OrganizationPermissionAuthorizationHandler>());
@@ -117,6 +131,9 @@ public static class IdentityBffServiceCollectionExtensions
         handler.ClientId = bff.ClientId;
         handler.ClientSecret = bff.ClientSecret;
         handler.RequireHttpsMetadata = bff.IsHttpsMetadataRequired;
+        if (bff.BackchannelHttpHandler is { } backchannel)
+            handler.BackchannelHttpHandler = backchannel;
+
         handler.ResponseType = OpenIdConnectResponseType.Code;
         handler.ResponseMode = OpenIdConnectResponseMode.Query;
         handler.UsePkce = true;
@@ -135,6 +152,18 @@ public static class IdentityBffServiceCollectionExtensions
         foreach (var scope in bff.EffectiveScopes)
             handler.Scope.Add(scope);
         handler.EventsType = typeof(BffOpenIdConnectEvents);
+    }
+
+    /// <summary>The instance as a trusted signal issuer and the signal URL as an accepted audience, beside what the host's own receiver names.</summary>
+    private static void ConfigureSignals(IdentitySignalReceiverOptions receiver, IdentityBffOptions bff)
+    {
+        if (bff.SignalUrl is null)
+            return;
+
+        receiver.Audiences.Add(bff.SignalUrl);
+        receiver.TrustedIssuers.AddRange(bff.AuthorityIssuers.Select(issuer => new TrustedIssuer { Issuer = issuer }));
+        receiver.BackchannelHttpHandler ??= bff.BackchannelHttpHandler;
+        receiver.IsInsecureMetadataAllowedInDevelopment |= !bff.IsHttpsMetadataRequired;
     }
 
     /// <summary>

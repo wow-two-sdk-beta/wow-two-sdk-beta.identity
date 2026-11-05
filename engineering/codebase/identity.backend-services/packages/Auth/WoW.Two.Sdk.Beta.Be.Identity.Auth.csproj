@@ -3,11 +3,11 @@
   <!--
     The edge (layer 2): the store-less part of Identity a product uses with no Identity store or service — cookies, API
     keys, the allowlist and default-deny authorization, the guest session, the cookie current-user service, JWT bearer
-    validation and HMAC token issuance. Module and Client build on it; M0 products and API resources take it alone.
+    validation, HMAC token issuance and the receiving side of revocation signals. Module and Client build on it; M0 products and API resources take it alone.
   -->
   <PropertyGroup>
     <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
-    <Description>Identity edge: cookie and API-key authentication, allowlist authorization, guest sessions, the cookie current-user service, JWT bearer validation and token issuance — no Identity store needed.</Description>
+    <Description>Identity edge: cookie and API-key authentication, allowlist authorization, guest sessions, the cookie current-user service, JWT bearer validation, token issuance and revocation signals — no Identity store needed.</Description>
   </PropertyGroup>
 
   <ItemGroup>

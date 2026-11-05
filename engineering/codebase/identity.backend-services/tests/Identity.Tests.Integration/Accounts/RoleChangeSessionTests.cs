@@ -1,4 +1,7 @@
+using System.Security.Claims;
 using AwesomeAssertions;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -6,6 +9,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.AccessChanges;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Endpoints;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.InviteSignUp;
@@ -16,6 +20,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.ProfilePictures;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignIn;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Signals;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 using WoW.Two.Sdk.Beta.Be.Identity.Tests.PhoneSignIn;
@@ -23,11 +28,10 @@ using WoW.Two.Sdk.Beta.Be.Identity.Tests.PhoneSignIn;
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.Accounts;
 
 /// <summary>
-/// A role change signs the person out everywhere (<see cref="RoleChangeSignOut"/>): an instance role granted or removed,
-/// an organization joined (a member added, an invitation redeemed, the invitation sign-up), a role changed, a member removed
-/// or the organization deleted rotates the person's stamp and revokes their live sessions as <c>roles_changed</c>, telling
-/// every revocation handler. Other people's sessions stay live, a call that changes nothing ends nothing, a registration
-/// without sessions only rotates the stamp, and the invitation sign-up still signs the browser in after the join.
+/// A role change signs nobody out: an instance role granted or removed, an organization joined (a member added, an invitation
+/// redeemed, the invitation sign-up), a role changed, a member removed or the organization deleted leaves the person's stamp
+/// and sessions alone. Every <see cref="IAccessChangeHandler"/> hears of what an app's tokens carry, a call that changes nothing
+/// tells nobody, and the cookie reads its roles fresh on its next request.
 /// </summary>
 public sealed class RoleChangeSessionTests
 {
@@ -38,125 +42,139 @@ public sealed class RoleChangeSessionTests
     private const string HashKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
     [Fact]
-    public async Task InstanceRole_GrantAndRemoval_ShouldEachSignThePersonOut_AndLeaveOthersSignedIn()
+    public async Task InstanceRole_GrantAndRemoval_ShouldSignNobodyOut_AndRaiseNoSignal()
     {
-        var revocations = new SessionTests.RevocationLog();
-        await using var host = CreateHost(revocations);
+        var log = new Log();
+        await using var host = CreateHost(log);
         var lola = await host.CreateUserAsync("lola");
-        var sam = await host.CreateUserAsync("sam");
-        var bystander = await StartAsync(host, sam.Id);
         var laptop = await StartAsync(host, lola.Id);
-        var phone = await StartAsync(host, lola.Id);
 
         var stamp = await ChangeAsync(host, lola.Id, async (services, person) =>
             (await services.GetRequiredService<InstanceRoleService>().GrantAsync(person, InstanceRoleConstants.Admin)).Result);
-        await ShouldBeSignedOutAsync(host, revocations, lola.Id, stamp, laptop, phone);
-        await ShouldBeLiveAsync(host, bystander);
-
-        var kept = await StartAsync(host, lola.Id);
-        await using (var scope = host.Scope())
-        {
-            var person = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(lola.Id))!;
-            (await scope.ServiceProvider.GetRequiredService<InstanceRoleService>().GrantAsync(person, InstanceRoleConstants.Admin)).IsGranted.Should().BeFalse();
-        }
-
-        await ShouldBeLiveAsync(host, kept, "a role already held changes nothing");
+        await ShouldStayAsync(host, log, lola.Id, stamp, laptop);
 
         stamp = await ChangeAsync(host, lola.Id, (services, person) =>
             services.GetRequiredService<UserRoleService>().RemoveFromRoleAsync(person, InstanceRoleConstants.Admin));
-        await ShouldBeSignedOutAsync(host, revocations, lola.Id, stamp, kept);
-        await ShouldBeLiveAsync(host, bystander);
-        revocations.Revoked.Should().NotContain(bystander.Id);
+        await ShouldStayAsync(host, log, lola.Id, stamp, laptop);
+        log.Changes.Should().BeEmpty("instance roles never enter an app's token");
     }
 
     [Fact]
-    public async Task Joining_ByBeingAddedOrRedeemingAnInvitation_ShouldSignTheMemberOut_ButCreatingAnOrganizationShouldNot()
+    public async Task Joining_ByBeingAddedOrRedeemingAnInvitation_ShouldTellTheHandlers_AndSignNobodyOut()
     {
-        var revocations = new SessionTests.RevocationLog();
-        await using var host = CreateHost(revocations);
+        var log = new Log();
+        await using var host = CreateHost(log);
         var owner = await host.CreateUserAsync("owner");
-        var ownerSession = await StartAsync(host, owner.Id);
         var organization = await CreateOrganizationAsync(host, owner.Id);
-        await ShouldBeLiveAsync(host, ownerSession, "the creator stays signed in");
+        log.Changes.Should().BeEmpty("the creator's next sign-in shows the membership");
 
         var ann = await host.CreateUserAsync("ann");
         var annSession = await StartAsync(host, ann.Id);
         var stamp = await ChangeAsync(host, ann.Id, (services, person) =>
             services.GetRequiredService<OrganizationService>().AddMemberAsync(organization, person, OrganizationRoleConstants.Editor));
-        await ShouldBeSignedOutAsync(host, revocations, ann.Id, stamp, annSession);
+        await ShouldStayAsync(host, log, ann.Id, stamp, annSession);
+        log.ShouldHaveToldOnce(ann.Id, organization.Id, AccessChangeKind.Changed);
 
         var ben = await host.CreateUserAsync("ben", "ben@example.test");
         var benSession = await StartAsync(host, ben.Id);
         var invitation = await InviteAsync(host, organization, owner.Id, email: "ben@example.test");
         stamp = await ChangeAsync(host, ben.Id, (services, person) => services.GetRequiredService<InvitationService>().RedeemAsync(invitation, person));
-        await ShouldBeSignedOutAsync(host, revocations, ben.Id, stamp, benSession);
+        await ShouldStayAsync(host, log, ben.Id, stamp, benSession);
+        log.ShouldHaveToldOnce(ben.Id, organization.Id, AccessChangeKind.Changed);
 
-        var benAgain = await StartAsync(host, ben.Id);
         var second = await InviteAsync(host, organization, owner.Id, email: null);
         await ChangeAsync(host, ben.Id, (services, person) => services.GetRequiredService<InvitationService>().RedeemAsync(second, person));
-        await ShouldBeLiveAsync(host, benAgain, "a member keeps their role, so nothing changed");
-        await ShouldBeLiveAsync(host, ownerSession);
+        log.ShouldHaveToldOnce(ben.Id, organization.Id, AccessChangeKind.Changed);
     }
 
     [Fact]
-    public async Task RoleChange_Removal_AndDeletion_ShouldSignTheMembersOut()
+    public async Task RoleChange_Removal_AndDeletion_ShouldTellTheHandlers_AndLeaveEverySessionLive()
     {
-        var revocations = new SessionTests.RevocationLog();
-        await using var host = CreateHost(revocations);
+        var log = new Log();
+        await using var host = CreateHost(log);
         var owner = await host.CreateUserAsync("owner");
         var ann = await host.CreateUserAsync("ann");
         var organization = await CreateOrganizationAsync(host, owner.Id);
         await AddAsync(host, organization, ann.Id);
         var ownerSession = await StartAsync(host, owner.Id);
+        var session = await StartAsync(host, ann.Id);
+        log.Changes.Clear();
 
-        var first = await StartAsync(host, ann.Id);
         await ChangeAsync(host, ann.Id, (services, person) =>
             services.GetRequiredService<OrganizationService>().ChangeRoleAsync(organization, person, OrganizationRoleConstants.Editor));
-        await ShouldBeLiveAsync(host, first, "the same role changes nothing");
+        log.Changes.Should().BeEmpty("the same role changes nothing");
+
         var stamp = await ChangeAsync(host, ann.Id, (services, person) =>
             services.GetRequiredService<OrganizationService>().ChangeRoleAsync(organization, person, OrganizationRoleConstants.Viewer));
-        await ShouldBeSignedOutAsync(host, revocations, ann.Id, stamp, first);
-        await ShouldBeLiveAsync(host, ownerSession, "the manager's roles did not change");
+        await ShouldStayAsync(host, log, ann.Id, stamp, session);
+        log.ShouldHaveToldOnce(ann.Id, organization.Id, AccessChangeKind.Changed);
+        log.Changes.Clear();
 
-        var second = await StartAsync(host, ann.Id);
         stamp = await ChangeAsync(host, ann.Id, (services, person) =>
             services.GetRequiredService<OrganizationService>().RemoveMemberAsync(organization, person));
-        await ShouldBeSignedOutAsync(host, revocations, ann.Id, stamp, second);
+        await ShouldStayAsync(host, log, ann.Id, stamp, session);
+        log.ShouldHaveToldOnce(ann.Id, organization.Id, AccessChangeKind.Removed);
+        log.Changes.Clear();
 
         await AddAsync(host, organization, ann.Id);
-        var third = await StartAsync(host, ann.Id);
+        log.Changes.Clear();
         var annStamp = (await host.ReloadAsync(ann.Id)).SecurityStamp;
         var ownerStamp = await ChangeAsync(host, owner.Id, async (services, _) =>
             await services.GetRequiredService<OrganizationService>().DeleteAsync(organization));
-        await ShouldBeSignedOutAsync(host, revocations, ann.Id, annStamp, third);
-        await ShouldBeSignedOutAsync(host, revocations, owner.Id, ownerStamp, ownerSession);
+        await ShouldStayAsync(host, log, ann.Id, annStamp, session);
+        await ShouldStayAsync(host, log, owner.Id, ownerStamp, ownerSession);
+        log.ShouldHaveToldOnce(ann.Id, organization.Id, AccessChangeKind.Removed);
+        log.ShouldHaveToldOnce(owner.Id, organization.Id, AccessChangeKind.Removed);
     }
 
-    [Fact]
-    public async Task WithoutSessions_ARoleChange_ShouldOnlyRotateTheStamp()
+    [Theory]
+    [InlineData(UserClaimsPrincipalFactory.DefaultAuthenticationType)]
+    [InlineData(CookieAuthenticationDefaults.AuthenticationScheme)]
+    public async Task Cookie_ShouldReadItsRolesFresh_OnTheNextRequest_KeepingWhatTheSignInDecided(string authenticationType)
     {
-        await using var host = AccountsHost.Create(identity => identity.AddRoles().AddOrganizations());
+        var log = new Log();
+        await using var host = CreateHost(log);
         var owner = await host.CreateUserAsync("owner");
-        var lola = await host.CreateUserAsync("lola");
+        var ann = await host.CreateUserAsync("ann");
         var organization = await CreateOrganizationAsync(host, owner.Id);
+        await AddAsync(host, organization, ann.Id);
+        var role = $"{organization.Id:D}:{OrganizationRoleConstants.Viewer}";
+
+        ClaimsPrincipal cookie;
         await using (var scope = host.Scope())
-            scope.ServiceProvider.GetService<UserSessionService>().Should().BeNull();
+        {
+            cookie = await scope.ServiceProvider.GetRequiredService<UserClaimsPrincipalFactory>()
+                .CreateAsync(await host.ReloadAsync(ann.Id), authenticationType);
+        }
 
-        var stamp = await ChangeAsync(host, lola.Id, async (services, person) =>
-            (await services.GetRequiredService<InstanceRoleService>().GrantAsync(person, InstanceRoleConstants.Support)).Result);
-        (await host.ReloadAsync(lola.Id)).SecurityStamp.Should().NotBe(stamp);
+        var identity = (ClaimsIdentity)cookie.Identity!;
+        identity.AddClaim(new Claim("sid", Guid.NewGuid().ToString("D")));
+        identity.AddClaim(new Claim(AuthenticationMethodConstants.ClaimType, AuthenticationMethodConstants.Password));
+        cookie.FindAll(OrganizationClaimTypeConstants.Role).Select(claim => claim.Value).Should().NotContain(role);
 
-        stamp = await ChangeAsync(host, lola.Id, (services, person) =>
-            services.GetRequiredService<OrganizationService>().AddMemberAsync(organization, person, OrganizationRoleConstants.Viewer));
-        (await host.ReloadAsync(lola.Id)).SecurityStamp.Should().NotBe(stamp);
+        await ChangeAsync(host, ann.Id, (services, person) =>
+            services.GetRequiredService<OrganizationService>().ChangeRoleAsync(organization, person, OrganizationRoleConstants.Viewer));
+
+        await using (var scope = host.Scope())
+        {
+            var fresh = await scope.ServiceProvider.GetRequiredService<IClaimsTransformation>().TransformAsync(cookie);
+            fresh.FindAll(OrganizationClaimTypeConstants.Role).Select(claim => claim.Value).Should().Equal(role);
+            fresh.FindFirst("sid")!.Value.Should().Be(cookie.FindFirst("sid")!.Value);
+            fresh.FindFirst(AuthenticationMethodConstants.ClaimType)!.Value.Should().Be(AuthenticationMethodConstants.Password);
+        }
+
+        await ChangeAsync(host, ann.Id, (services, person) =>
+            services.GetRequiredService<OrganizationService>().RemoveMemberAsync(organization, person));
+        await using (var scope = host.Scope())
+            (await scope.ServiceProvider.GetRequiredService<IClaimsTransformation>().TransformAsync(cookie)).FindAll(OrganizationClaimTypeConstants.Role).Should().BeEmpty();
     }
 
     [Fact]
-    public async Task InviteSignUp_ShouldEndAKnownPersonsOldSessions_AndStillSignTheBrowserIn()
+    public async Task InviteSignUp_ShouldLeaveAKnownPersonsSessions_AndStillSignTheBrowserIn()
     {
-        var revocations = new SessionTests.RevocationLog();
         var bot = new FakeTelegramBotClient();
-        await using var host = CreateSignUpHost(bot, revocations);
+        var log = new Log();
+        await using var host = CreateSignUpHost(bot, log);
         var owner = await host.CreateUserAsync("owner");
         var organization = await CreateOrganizationAsync(host, owner.Id);
         var known = await host.CreateUserAsync("lola");
@@ -174,10 +192,11 @@ public sealed class RoleChangeSessionTests
         var knownSignUp = await StartSignUpAsync(host, await TokenAsync(host, organization, owner.Id));
         await ShareAsync(host, knownSignUp, Phone, KnownChat);
 
-        await ShouldBeSignedOutAsync(host, revocations, known.Id, stamp, oldSession);
+        await ShouldStayAsync(host, log, known.Id, stamp, oldSession);
         var knownBrowser = await SignInFromPollAsync(host, knownSignUp);
         knownBrowser.UserId.Should().Be(known.Id);
-        await ShouldBeLiveAsync(host, knownBrowser, "the poll signs in after the join, under the new stamp");
+        await ShouldBeLiveAsync(host, knownBrowser, "the poll signs in after the join");
+        log.ShouldHaveToldOnce(known.Id, organization.Id, AccessChangeKind.Changed);
 
         host.Time.Advance(TimeSpan.FromMinutes(1));
         var newSignUp = await StartSignUpAsync(host, await TokenAsync(host, organization, owner.Id));
@@ -191,15 +210,41 @@ public sealed class RoleChangeSessionTests
         }
     }
 
-    private static AccountsHost CreateHost(SessionTests.RevocationLog revocations) => AccountsHost.Create(
+    private sealed class Log : IAccessChangeHandler, ISessionRevocationHandler
+    {
+        public List<AccessChangedEvent> Changes { get; } = [];
+
+        public List<Guid> Revoked { get; } = [];
+
+        public Task HandleAsync(AccessChangedEvent change, CancellationToken cancellationToken = default)
+        {
+            Changes.Add(change);
+            return Task.CompletedTask;
+        }
+
+        public Task HandleAsync(IReadOnlyList<IdentitySession> sessions, CancellationToken cancellationToken = default)
+        {
+            Revoked.AddRange(sessions.Select(session => session.Id));
+            return Task.CompletedTask;
+        }
+
+        public void ShouldHaveToldOnce(Guid person, Guid organization, AccessChangeKind kind)
+            => Changes.Should().ContainSingle(change => change.Subject == person.ToString("D") && change.OrganizationId == organization.ToString("D") && change.Kind == kind);
+    }
+
+    private static AccountsHost CreateHost(Log log) => AccountsHost.Create(
         identity => identity
             .AddRoles()
             .AddSessions()
             .AddOrganizations(o => o.Roles[OrganizationRoleConstants.Editor] = ["content:edit"])
             .AddInvitations(),
-        services: services => services.AddScoped<ISessionRevocationHandler>(_ => revocations));
+        services: services =>
+        {
+            services.AddScoped<ISessionRevocationHandler>(_ => log);
+            services.AddScoped<IAccessChangeHandler>(_ => log);
+        });
 
-    private static AccountsHost CreateSignUpHost(FakeTelegramBotClient bot, SessionTests.RevocationLog revocations) => AccountsHost.Create(
+    private static AccountsHost CreateSignUpHost(FakeTelegramBotClient bot, Log log) => AccountsHost.Create(
         identity => identity
             .AddSessions()
             .AddSignIn()
@@ -227,7 +272,8 @@ public sealed class RoleChangeSessionTests
             services.AddOtpService(o => o.HashKey = HashKey);
             services.RemoveAll<ITelegramBotClient>();
             services.AddSingleton<ITelegramBotClient>(bot);
-            services.AddScoped<ISessionRevocationHandler>(_ => revocations);
+            services.AddScoped<ISessionRevocationHandler>(_ => log);
+            services.AddScoped<IAccessChangeHandler>(_ => log);
         });
 
     /// <summary>Reloads the person in a fresh scope, runs <paramref name="change"/> on them, and returns their stamp from before.</summary>
@@ -240,18 +286,13 @@ public sealed class RoleChangeSessionTests
         return before;
     }
 
-    private static async Task ShouldBeSignedOutAsync(AccountsHost host, SessionTests.RevocationLog revocations, Guid userId, string? stampBefore, params IdentitySession[] sessions)
+    private static async Task ShouldStayAsync(AccountsHost host, Log log, Guid userId, string? stampBefore, params IdentitySession[] sessions)
     {
-        (await host.ReloadAsync(userId)).SecurityStamp.Should().NotBe(stampBefore, "a role change rotates the stamp");
+        (await host.ReloadAsync(userId)).SecurityStamp.Should().Be(stampBefore, "a role change rotates no stamp");
         foreach (var session in sessions)
-        {
-            var row = await RowAsync(host, session.Id);
-            row.RevokedAt.Should().NotBeNull("the session ends at once, not when next seen");
-            row.RevokeReason.Should().Be(SessionRevokeReasonConstants.RolesChanged);
-            (await ValidateAsync(host, session.Id, userId)).Should().BeFalse();
-        }
+            await ShouldBeLiveAsync(host, session, "a role change ends no session");
 
-        revocations.Revoked.Should().Contain(sessions.Select(session => session.Id), "what the sessions issued ends with them");
+        log.Revoked.Should().BeEmpty();
     }
 
     private static async Task ShouldBeLiveAsync(AccountsHost host, IdentitySession session, string because = "")

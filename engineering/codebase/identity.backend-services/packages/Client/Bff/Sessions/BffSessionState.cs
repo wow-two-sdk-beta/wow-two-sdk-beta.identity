@@ -28,6 +28,10 @@ internal sealed record BffSessionState
     /// <summary>Gets when the person signed in to the BFF (UTC).</summary>
     public required DateTimeOffset SignedInAt { get; init; }
 
+    /// <summary>Gets when <see cref="Claims"/> were last read from the instance (UTC), set at sign-in and on each refresh; null on a
+    /// session stored before this existed, which counts from <see cref="SignedInAt"/>.</summary>
+    public DateTimeOffset? ClaimsAsOf { get; init; }
+
     /// <summary>Gets the absolute end of the session (UTC), never extended by a refresh.</summary>
     public required DateTimeOffset ExpiresAt { get; init; }
 }

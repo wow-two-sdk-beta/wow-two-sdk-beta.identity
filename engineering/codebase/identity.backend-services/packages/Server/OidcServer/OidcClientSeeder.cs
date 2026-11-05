@@ -108,6 +108,9 @@ internal sealed partial class OidcClientSeeder(IOpenIddictApplicationManager app
         if (client.PermissionNamespace is { } permissionNamespace)
             descriptor.Properties[OidcClientProfile.PermissionNamespaceProperty] = JsonSerializer.SerializeToElement(permissionNamespace);
 
+        if (client.CanIntrospect)
+            descriptor.Permissions.Add(Permissions.Endpoints.Introspection);
+
         AddServiceAccess(descriptor, client, resources ?? []);
         return descriptor;
     }

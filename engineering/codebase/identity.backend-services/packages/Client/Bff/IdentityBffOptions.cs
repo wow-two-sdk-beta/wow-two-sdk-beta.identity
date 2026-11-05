@@ -74,9 +74,31 @@ public sealed record IdentityBffOptions
     /// loopback instance on a local run.</summary>
     public bool IsHttpsMetadataRequired { get; set; } = true;
 
+    /// <summary>Gets or sets this BFF's public signal URL, <c>{origin}{RoutePrefix}/signal</c>, as registered for the client at the
+    /// instance: the <c>aud</c> a signal must name. Null maps no route. Set, the instance's signals end a session and refresh a
+    /// person's claims; each request then reads one more cache key.</summary>
+    public string? SignalUrl { get; set; }
+
+    /// <summary>Gets or sets the handler the BFF's own calls to the instance (discovery, tokens, signal keys) go through, for a test
+    /// host; null uses the network.</summary>
+    public HttpMessageHandler? BackchannelHttpHandler { get; set; }
+
     /// <summary>Gets the scopes to request: <see cref="Scopes"/>, or <see cref="DefaultScopes"/> when empty.</summary>
     public IReadOnlyList<string> EffectiveScopes => Scopes.Count > 0 ? Scopes : DefaultScopes;
 
     /// <summary>Gets the API path prefixes: <see cref="ApiPathPrefixes"/>, or <see cref="DefaultApiPathPrefixes"/> when empty.</summary>
     public IReadOnlyList<string> EffectiveApiPathPrefixes => ApiPathPrefixes.Count > 0 ? ApiPathPrefixes : DefaultApiPathPrefixes;
+
+    /// <summary>
+    /// Gets <see cref="Authority"/> as an instance may sign it: discovery tolerates a missing trailing slash, while a signature's
+    /// <c>iss</c> is compared exactly, so both spellings stand for this instance.
+    /// </summary>
+    internal string[] AuthorityIssuers
+    {
+        get
+        {
+            var trimmed = new Uri(Authority, UriKind.Absolute).AbsoluteUri.TrimEnd('/');
+            return [trimmed + "/", trimmed];
+        }
+    }
 }

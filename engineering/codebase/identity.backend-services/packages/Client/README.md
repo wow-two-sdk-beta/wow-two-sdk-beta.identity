@@ -21,7 +21,7 @@ app.MapGroup("/api/orgs/{organizationId:guid}/desks")
 - Settings: `Identity:Client` — `Authority`, `ClientId`, `ClientSecret`, `Scopes` (default `openid profile email phone
   offline_access`), `RoutePrefix` (`/api/identity`), `ApiPathPrefixes` (`/api`), `PostSignOutRedirectPath` (`/`),
   `SessionLifetime` (12 h, only while the instance names no end), `AccessTokenRefreshMargin` (1 min), `CookieName`,
-  `Environment`; code configuration wins.
+  `Environment`, `SignalUrl` (none); code configuration wins.
 - Session end: the BFF session ends with the instance's sign-in session, whose end each token response names
   (`refresh_token_expires_in`); a sliding instance session moves it, and the cookie is reissued to follow.
 - Add the client at the instance with the redirect URI `{origin}/api/identity/callback` and the post-sign-out URI
@@ -36,6 +36,24 @@ app.MapGroup("/api/orgs/{organizationId:guid}/desks")
 - A sign-in callback that fails lands back at `returnUrl` with `signInError=callback_failed`; for 10 s after it the
   sign-in route and page redirects answer a 401 problem (`code` `SignInFailed`) instead of starting the sign-in again,
   so a misconfigured client ends at an error rather than in a redirect loop.
+
+## Revocation signals
+
+```jsonc
+"Identity": { "Client": { "SignalUrl": "https://desk.example.com/api/identity/signal" } }   // the client's SignalUrl at the instance
+```
+
+- `SignalUrl` set maps `POST {RoutePrefix}/signal`, verified through the JWKS of `Authority` with `SignalUrl` as the only `aud` it
+  adds; null maps no route. The route stays out of the antiforgery check: its signature is the check, and no browser sends it.
+  Contract: [revocation signals](../../../../../product/features/revocation-signals.md).
+- A session's end ends the BFF session under that `sid`. A changed access records a marker per person in `IDistributedCache`
+  for `SessionLifetime`, since the session store has no index by person, and the person's next request refreshes first, once, so it
+  carries fresh claims. Each request reads this one more cache key.
+- A refresh the instance refuses still ends the session. A session with no refresh token keeps its tokens until they run out, since
+  a role change signs nobody out.
+- Only `Authority`'s own signals reach a session: a `sid` or `sub` from another issuer the host trusts as a resource doesn't.
+- `AddIdentityBff` registers the receiver and an in-memory event bus either way, because `SignalUrl` may come from configuration.
+  A broker registers before it, or it is silently ignored ([signals](../Auth/Signals/signals.md#the-bus)).
 
 ## Deployed hosts: persist the sessions and the key ring
 

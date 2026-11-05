@@ -65,7 +65,7 @@ public sealed class RolesAndSignInTests
     }
 
     [Fact]
-    public async Task RoleRemovalAndClaimRemoval_ShouldRotateTheStamp()
+    public async Task ClaimRemoval_ShouldRotateTheStamp_ButRoleRemovalShouldNot()
     {
         await using var host = CreateHost();
         var user = await host.CreateUserAsync("owen");
@@ -79,7 +79,7 @@ public sealed class RolesAndSignInTests
 
         var stamp = tracked.SecurityStamp;
         (await memberships.RemoveFromRoleAsync(tracked, "Editor")).IsSuccess.Should().BeTrue();
-        tracked.SecurityStamp.Should().NotBe(stamp);
+        tracked.SecurityStamp.Should().Be(stamp, "the cookie reads its roles fresh, so nobody signs out");
         (await memberships.GetRolesAsync(tracked)).Should().BeEmpty();
 
         stamp = tracked.SecurityStamp;

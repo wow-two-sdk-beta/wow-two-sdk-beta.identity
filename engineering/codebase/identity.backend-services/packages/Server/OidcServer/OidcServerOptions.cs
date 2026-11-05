@@ -1,4 +1,5 @@
 using WoW.Two.Sdk.Beta.Be.Identity.Keys;
+using WoW.Two.Sdk.Beta.Be.Identity.Signals;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 
@@ -43,6 +44,9 @@ public sealed record OidcServerOptions
 
     /// <summary>Gets or sets the registered clients, seeded at startup (<c>Identity:Server:Clients</c>).</summary>
     public List<OidcClientOptions> Clients { get; set; } = [];
+
+    /// <summary>Gets or sets how revocation signals reach the services naming a signal URL (<c>Identity:Server:Signals</c>).</summary>
+    public OidcSignalOptions Signals { get; set; } = new();
 
     /// <summary>Gets or sets the APIs service tokens may be issued for (<c>Identity:Server:Resources</c>).</summary>
     public List<OidcResourceOptions> Resources { get; set; } = [];

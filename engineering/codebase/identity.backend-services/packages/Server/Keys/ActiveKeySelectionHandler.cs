@@ -38,7 +38,8 @@ internal sealed class ActiveKeySelectionHandler : IOpenIddictServerHandler<Gener
         return ValueTask.CompletedTask;
     }
 
-    private static TCredentials? Select<TCredentials>(IEnumerable<TCredentials> candidates, Func<TCredentials, SecurityKey> key, DateTimeOffset now)
+    /// <summary>Of <paramref name="candidates"/>, the one whose certificate is active at <paramref name="now"/>; null with none, such as ephemeral keys.</summary>
+    internal static TCredentials? Select<TCredentials>(IEnumerable<TCredentials> candidates, Func<TCredentials, SecurityKey> key, DateTimeOffset now)
         where TCredentials : class
     {
         var byCertificate = candidates

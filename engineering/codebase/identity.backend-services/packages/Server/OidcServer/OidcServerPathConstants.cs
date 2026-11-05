@@ -15,6 +15,9 @@ public static class OidcServerPathConstants
     /// <summary>The end-session endpoint (pass-through: ends the session and the app's tokens).</summary>
     public const string EndSession = "/connect/endsession";
 
+    /// <summary>The introspection endpoint (RFC 7662), served by OpenIddict with <see cref="OidcLiveTokenCheckHandler"/>.</summary>
+    public const string Introspection = "/connect/introspect";
+
     /// <summary>The discovery document, served by OpenIddict.</summary>
     public const string Configuration = "/.well-known/openid-configuration";
 

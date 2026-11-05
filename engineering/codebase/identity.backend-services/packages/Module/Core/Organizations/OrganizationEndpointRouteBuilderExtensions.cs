@@ -28,7 +28,7 @@ public static class OrganizationEndpointRouteBuilderExtensions
     ///     owner nor admin <c>403</c> (<c>OrganizationManagerRequired</c>)
     ///   - owners and admins manage every member alike: either invites with any catalog role, promotes to or demotes from
     ///     owner, removes anyone and resolves anyone's Telegram change; an organization may be left with no owner
-    ///   - a role change or removal rotates the member's security stamp, ending their sessions
+    ///   - a role change or removal signs nobody out; the member's next token carries it, and a signal tells the services
     ///   - approving a member's pending Telegram change moves their confirmed number's link to the Telegram account that
     ///     asked and rotates nothing else; denying drops it; none pending answers <c>404</c> (<c>TelegramChangeNotFound</c>)
     ///   - failures carry their code in the problem's <c>identityCode</c> extension
