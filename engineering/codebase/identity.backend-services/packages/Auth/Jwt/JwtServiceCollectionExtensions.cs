@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,9 @@ public static class JwtServiceCollectionExtensions
     /// <remarks>
     /// One issuer takes <see cref="JwtOptions.Issuer"/> with one key source. <see cref="JwtOptions.TrustedIssuers"/> or a
     /// resolver turn trusted-issuer mode on: each token is checked against the issuer it names, over asymmetric keys only.
+    /// <paramref name="configure"/> runs here, while the host is built, so late configuration doesn't reach it: a test host passes
+    /// its values with <c>UseSetting</c>, or trusts <c>AddFakeTokenIssuer</c>. Bearer becomes the default scheme only on a host that
+    /// names none.
     /// </remarks>
     /// <param name="services">The service collection to configure.</param>
     /// <param name="configure">Configures the JWT bearer options (issuer, audience, signing key, lifetime).</param>
@@ -43,13 +47,23 @@ public static class JwtServiceCollectionExtensions
         return opts.IsTrustedIssuerMode ? AddTrustedIssuerBearer(services, opts) : AddSingleIssuerBearer(services, opts);
     }
 
+    /// <summary>
+    /// The authentication builder, with bearer as the default only on a host that names none: a BFF's or a cookie's default stays,
+    /// in either registration order, and its endpoints name the bearer scheme where they take a token.
+    /// </summary>
+    private static AuthenticationBuilder BearerAuthentication(IServiceCollection services)
+    {
+        services.Configure<AuthenticationOptions>(static options => options.DefaultScheme ??= JwtBearerDefaults.AuthenticationScheme);
+        return services.AddAuthentication();
+    }
+
     private static IServiceCollection AddSingleIssuerBearer(IServiceCollection services, JwtOptions opts)
     {
         if (string.IsNullOrWhiteSpace(opts.Issuer)) throw new InvalidOperationException("JwtOptions.Issuer is required.");
         if (string.IsNullOrWhiteSpace(opts.Audience)) throw new InvalidOperationException("JwtOptions.Audience is required.");
         ValidateTrustConfiguration(opts);
 
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        BearerAuthentication(services)
             .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, b =>
             {
                 b.RequireHttpsMetadata = true;
@@ -105,7 +119,7 @@ public static class JwtServiceCollectionExtensions
             provider.GetRequiredService<TrustedIssuerDiscovery>(),
             provider.GetRequiredService<IHttpContextAccessor>()));
 
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        BearerAuthentication(services)
             .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, b =>
             {
                 b.SaveToken = true;

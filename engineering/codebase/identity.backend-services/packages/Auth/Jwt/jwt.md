@@ -73,3 +73,12 @@ builder.Services.AddJwtBearerAuthentication(o =>
 - A resolver or discovery failure answers `401`, with the reason in the host's log.
 
 Tests stand in for all of this with `FakeTokenIssuer` in `WoW2.Sdk.Beta.Be.Identity.Testing`.
+
+## Notes
+
+- Bearer becomes the default scheme only on a host that names none. A BFF's or a cookie's default stays, whichever registers
+  first, so a host taking tokens on some endpoints names the scheme there:
+  `RequireAuthorization(policy => policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser())`.
+- `configure` runs inside `AddJwtBearerAuthentication`, while the host is built, and the boot checks run with it. So
+  `ConfigureTestServices` and configuration added later don't reach the issuer or the audience: a test host passes them with
+  `UseSetting`, before the host's `Program` reads them, or swaps the issuer with `AddFakeTokenIssuer` (`../../Testing/Tokens/tokens.md`).

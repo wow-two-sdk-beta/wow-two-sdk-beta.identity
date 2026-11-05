@@ -31,6 +31,8 @@ app.MapGroup("/api/orgs/{organizationId:guid}/desks")
 - The cookie carries only the session reference; the tokens and claims live in `IBffSessionRepository` (the
   distributed cache by default), keyed on the instance's `sid`, encrypted with Data Protection. Several instances
   share a distributed cache and a Data Protection key ring.
+- Accepting tokens beside the session: `AddJwtBearerAuthentication` leaves the session cookie the default scheme, whichever
+  registers first; an endpoint taking a token names `JwtBearerDefaults.AuthenticationScheme` in its policy.
 - Calling another service for the person: `AddHttpClient("files").AddOAuth2TokenExchange(…)` takes its subject token from the
   session, with no bearer header needed ([service tokens](../../../../../product/features/service-tokens.md)).
 - A sign-in callback that fails lands back at `returnUrl` with `signInError=callback_failed`; for 10 s after it the

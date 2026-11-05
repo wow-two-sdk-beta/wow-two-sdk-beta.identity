@@ -110,6 +110,7 @@ app.MapGet("/files", …).RequireAuthorization(policy => policy.RequireScope("fi
 
 - `ICurrentPrincipal` (kernel) answers person, service or key over one normalizer, so a policy never branches by scheme.
 - An issuer's keys validate only that issuer's tokens; an unknown issuer answers `401`.
+- Bearer becomes the default scheme only on a host that names none, so a BFF's session survives adding it in either order.
 
 ## Caller side
 
