@@ -85,6 +85,7 @@ public sealed class TrustedContactApiTests
                 (await context.Memberships.SingleAsync(m => m.UserId == maftunaId)).Role.Should().Be("owner");
                 (await context.TrustedContacts.SingleAsync(c => c.UserId == maftunaId)).Should().BeEquivalentTo(new { ContactUserId = ownerId, CreatedByUserId = ownerId }, o => o.ExcludingMissingMembers());
                 (await context.Sessions.SingleAsync(s => s.UserId == maftunaId)).TrustedContactUserId.Should().Be(ownerId);
+                (await context.KnownDevices.SingleAsync(d => d.UserId == maftunaId)).ConfirmedByUserId.Should().Be(ownerId, "the contact answered for the browser by giving the code");
                 var logged = await context.SignInLog.SingleAsync(e => e.UserId == maftunaId && e.Result == "succeeded");
                 logged.Should().BeEquivalentTo(new { Method = "trusted_contact_code", TrustedContactUserId = (Guid?)ownerId }, o => o.ExcludingMissingMembers());
             }
@@ -236,9 +237,15 @@ public sealed class TrustedContactApiTests
                 (await CodeOfAsync(misuse)).Should().Be("InvalidPhoneCode");
 
             // An own-phone session revokes the contact, ending the session through them; the other contact may then leave.
+            // Its own number on a new browser waits for a contact's press first.
             using var own = Client(host);
             host.Clock.Advance(TimeSpan.FromSeconds(31));
-            await SignInOwnNumberAsync(host, bot, own, MaftunaPhone, MaftunaChat);
+            (await DataAsync(await own.PostAsJsonAsync("/api/account/phone-sign-in/send", new { phone = MaftunaPhone }))).GetProperty("isCodeSent").GetBoolean().Should().BeTrue();
+            var waiting = (await DataAsync(await own.PostAsJsonAsync("/api/account/phone-sign-in?useCookies=true", new { phone = MaftunaPhone, code = bot.LastCode(MaftunaChat) }))).GetProperty("deviceConfirmation");
+            var approve = ((InlineKeyboardMarkup)bot.To(OwnerChat).Last().ReplyMarkup!).InlineKeyboard.Select(row => row.Single()).Single(button => button.Text == "Approve");
+            (await PostUpdateAsync(own, CallbackUpdate(approve.CallbackData!, OwnerChat))).StatusCode.Should().Be(HttpStatusCode.OK);
+            (await own.PostAsJsonAsync("/api/account/phone-sign-in/confirmation?useCookies=true", new { token = waiting.GetProperty("token").GetString() })).StatusCode.Should().Be(HttpStatusCode.NoContent);
+            host.Clock.Advance(TimeSpan.FromSeconds(31));
             var listed = await DataAsync(await own.GetAsync("/api/account/manage/trusted-contacts"));
             listed.GetProperty("canRevoke").GetBoolean().Should().BeTrue();
             (await own.DeleteAsync($"/api/account/manage/trusted-contacts/{memberId}")).StatusCode.Should().Be(HttpStatusCode.NoContent);

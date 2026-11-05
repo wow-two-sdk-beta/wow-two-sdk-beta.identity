@@ -32,4 +32,13 @@ public static class TrustedContactErrorCodeConstants
 
     /// <summary>The account holds an instance role, which keeps it from having a trusted contact in slice 1.</summary>
     public const string InstanceRoleHolder = "InstanceRoleHolder";
+
+    /// <summary>A contact denied the new device a sign-in waited on (<c>403</c>).</summary>
+    public const string DeviceConfirmationDenied = "DeviceConfirmationDenied";
+
+    /// <summary>The token a sign-in waits with is unknown, spent, replaced or expired (<c>401</c>).</summary>
+    public const string DeviceConfirmationExpired = "DeviceConfirmationExpired";
+
+    /// <summary>A new device needs a contact's press, but every contact's chat refused the notice (<c>409</c>).</summary>
+    public const string DeviceConfirmationUnavailable = "DeviceConfirmationUnavailable";
 }

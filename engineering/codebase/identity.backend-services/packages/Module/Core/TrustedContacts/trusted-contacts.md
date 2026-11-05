@@ -21,7 +21,8 @@ account.MapPhoneSignInEndpoints()                      // + phone-sign-in/target
 "Identity": {
   "TrustedContacts": {
     "IsEnabled": true,                                 // default false; needs Identity:Telegram:IsEnabled
-    "MaxPerPerson": 3                                  // 1–10, default 3
+    "MaxPerPerson": 3,                                 // 1–10, default 3
+    "IsNewDeviceConfirmationRequired": true            // default true; a new browser waits for a contact's press
   }
 }
 ```
@@ -39,6 +40,8 @@ account.MapPhoneSignInEndpoints()                      // + phone-sign-in/target
 | `POST phone-sign-in/send` | `targetId?` sends the code to that contact; `404` `TrustedContactNotFound`, `409` `TrustedContactUnavailable` |
 | `POST phone-sign-in` | a contact's code signs in through them; a contact's own number answers `200` `{ accountChoice: { token, accounts } }` and no session |
 | `POST phone-sign-in/choose` | `{ token, userId, isPersistent }` → `204` with the cookie, or the token answer; `401` `InvalidAccountChoice` |
+| `POST phone-sign-in`, `phone-sign-in/choose` | a new device answers `200` `{ deviceConfirmation: { token, expiresAt, contacts } }` and no session; `409` `DeviceConfirmationUnavailable` when no contact's chat took the notice |
+| `POST phone-sign-in/confirmation` | polled, not rate-limited: `{ token, isPersistent }` → `200` `{ status: "pending" }`, then signs in as `phone-sign-in`; `403` `DeviceConfirmationDenied`, `401` `DeviceConfirmationExpired` |
 | `GET manage/trusted-contacts` | `{ canRevoke, items: [{ userId, displayName, phoneHint, isDeliverable, createdAt }] }` |
 | `DELETE manage/trusted-contacts/{userId}` | `204`; `403` `MainPhoneRequired` outside an own-phone session |
 | `GET manage/trusted-by` | `[{ userId, displayName, createdAt, canLeave }]` |
@@ -49,6 +52,17 @@ account.MapPhoneSignInEndpoints()                      // + phone-sign-in/target
 | `GET sign-in-options` | gains `isTrustedContactSignInEnabled` |
 
 Account routes sit under `/api/account`; answers use the `ApiResponse` envelope, failures carry `identityCode`.
+
+## New devices
+
+`DeviceConfirmationService` holds a sign-in by an account's own code on a browser it hasn't used until a contact presses Approve
+([spec](../../../../../../../product/features/trusted-contacts.md#new-devices)).
+
+- A browser is the `__Host-identity-device` cookie (`DeviceCookie`); only its SHA-256 is stored, per account.
+- `SignInPersonAsync` of the phone routes runs the check after the code and before the sign-in, so a second factor still follows.
+- A bot share joining a known person through an invitation signs nobody in on a new device; the person signs in by code.
+- The notice names the app from settings and a fixed device label: `clientId` and the user agent are the signer's own words.
+- Who is asked, what passes and the limits: the spec.
 
 ## Rules
 

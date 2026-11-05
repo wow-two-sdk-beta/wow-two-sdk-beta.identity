@@ -12,8 +12,10 @@ import {
   RadioGroup,
   TextInput,
 } from '@wow-two-beta/fe/presentation/forms';
-import { computed, shallowRef } from 'vue';
+import { computed, onBeforeUnmount, shallowRef } from 'vue';
+import { ApiFailureCode, type ApiFailure } from '@wow-two-beta/fe/foundation/http';
 import type {
+  DeviceConfirmationDto,
   PhoneSignInAccountChoiceDto,
   PhoneSignInAccountDto,
   PhoneSignInTargetDto,
@@ -37,6 +39,10 @@ import { PhoneSignInStep } from './PhoneSignInStep';
  * With `isTrustedContactSignInEnabled`, the phone is followed by a check of its trusted contacts: a phone that has some
  * first offers "My Telegram" (the default) or each contact's masked label as the place the code goes. A phone whose
  * person is another's trusted contact continues, after the code, to a choice of the account to sign in as.
+ *
+ * A browser new to the account first waits for a trusted contact's press in Telegram, after the code or the account
+ * choice: the page polls the confirmation every 3 seconds until a contact approves, then fires `signedIn` or continues
+ * to the second factor; a denial or the end of the request shows why and offers to start again.
  */
 defineOptions({ name: 'PhoneCodeSignIn' });
 
@@ -108,6 +114,17 @@ const choice = shallowRef<(PhoneSignInAccountChoiceDto & { isPersistent: boolean
 /** The account being signed in as, while its request runs. */
 const choosing = shallowRef<string | null>(null);
 const chooseFailure = shallowRef<AppError | null>(null);
+/** How often a new device's confirmation is asked for, in milliseconds. */
+const pollInterval = 3000;
+/** The device confirmation being waited for and whether the earlier step asked to stay signed in. */
+type WaitingDevice = DeviceConfirmationDto & { isPersistent: boolean };
+const waiting = shallowRef<WaitingDevice | null>(null);
+/** Why the wait ended without a sign-in: a contact's denial, or the end of the request. */
+const waitFailure = shallowRef<AppError | null>(null);
+const isStartingAgain = shallowRef(false);
+let pollTimer: ReturnType<typeof setTimeout> | undefined;
+let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+let pollAbort: AbortController | null = null;
 
 /** The id of the contact the picked destination names; none for the phone's own Telegram. */
 const targetId = computed(() =>
@@ -119,6 +136,92 @@ const notSent = () =>
     ...AppErrorFactory.unavailable(),
     message: t('PhoneCodeSignIn.notSent', 'We could not send a code. Try again in a minute.'),
   });
+
+const waitingContacts = computed(
+  () => waiting.value?.contacts.join(', ') || t('PhoneCodeSignIn.contactsFallback', 'your trusted contacts'),
+);
+
+/** Stops asking: clears the timers and cancels the request in flight. */
+function stopWaiting() {
+  clearTimeout(pollTimer);
+  clearTimeout(expiryTimer);
+  pollTimer = undefined;
+  expiryTimer = undefined;
+  pollAbort?.abort();
+  pollAbort = null;
+}
+
+onBeforeUnmount(stopWaiting);
+
+/** Whether a failed poll leaves the wait open: the connection or the service hiccuped, no answer was given. */
+function isTransient(failure: ApiFailure) {
+  return (
+    failure.code === ApiFailureCode.Transport ||
+    failure.code === ApiFailureCode.Timeout ||
+    (failure.code === ApiFailureCode.Http && (failure.status >= 500 || failure.status === 429))
+  );
+}
+
+function schedulePoll(current: WaitingDevice) {
+  pollTimer = setTimeout(() => void poll(current), pollInterval);
+}
+
+/** Asks once where the confirmation stands, then asks again after `pollInterval` unless it ended; never two at a time. */
+async function poll(current: WaitingDevice) {
+  if (waiting.value !== current) return;
+  const abort = new AbortController();
+  pollAbort = abort;
+  const result = await client.confirmPhoneSignIn(
+    { token: current.token, isPersistent: current.isPersistent },
+    { clientId: props.clientId, signal: abort.signal },
+  );
+  if (waiting.value !== current || abort.signal.aborted) return;
+  pollAbort = null;
+  if (result.ok) {
+    if (!result.value) {
+      schedulePoll(current);
+      return;
+    }
+    stopWaiting();
+    emit('signedIn');
+    return;
+  }
+  const challenge = readTwoFactorChallenge(result.failure);
+  if (challenge?.userId && challenge.twoFactorTicket) {
+    stopWaiting();
+    pending.value = { challenge, isPersistent: current.isPersistent };
+    step.value = PhoneSignInStep.SecondFactor;
+    return;
+  }
+  if (isTransient(result.failure)) {
+    schedulePoll(current);
+    return;
+  }
+  stopWaiting();
+  waitFailure.value = result.failure;
+}
+
+/** Waits for a trusted contact to confirm the new device, asking from now every `pollInterval` until `expiresAt`. */
+function waitForDevice(confirmation: DeviceConfirmationDto, isPersistent: boolean) {
+  stopWaiting();
+  const current = { ...confirmation, isPersistent };
+  waiting.value = current;
+  waitFailure.value = null;
+  step.value = PhoneSignInStep.DeviceConfirmation;
+  const remaining = Date.parse(current.expiresAt) - Date.now();
+  expiryTimer = setTimeout(
+    () => {
+      if (waiting.value !== current) return;
+      stopWaiting();
+      waitFailure.value = {
+        ...AppErrorFactory.unavailable(),
+        message: t('PhoneCodeSignIn.deviceExpired', 'The request has ended. Start again to get a new one.'),
+      };
+    },
+    Math.min(Math.max(remaining, 0), 2 ** 31 - 1),
+  );
+  schedulePoll(current);
+}
 
 /** Sends a code to the phone's own Telegram, or to the trusted contact `target` names. */
 async function send(value: string, signal?: AbortSignal, target?: string) {
@@ -178,6 +281,11 @@ const codeForm = useAccountForm(() => ({
       { clientId: props.clientId, signal },
     );
     if (result.ok) {
+      if (result.value && 'contacts' in result.value) {
+        // A new device: no session yet, a trusted contact's press comes first.
+        waitForDevice(result.value, isPersistent);
+        return ResultExtensions.ok(undefined);
+      }
       if (result.value) {
         // A trusted contact: no session yet, the account to sign in as comes first.
         choice.value = { ...result.value, isPersistent };
@@ -232,7 +340,8 @@ async function chooseAccount(account: PhoneSignInAccountDto) {
   );
   choosing.value = null;
   if (result.ok) {
-    emit('signedIn');
+    if (result.value) waitForDevice(result.value, current.isPersistent);
+    else emit('signedIn');
     return;
   }
   const challenge = readTwoFactorChallenge(result.failure);
@@ -275,7 +384,28 @@ async function resend() {
   else step.value = PhoneSignInStep.Telegram;
 }
 
+/** Sends a new code to the phone and destination the failed wait began with, which the code step then takes. */
+async function startAgain() {
+  if (isStartingAgain.value) return;
+  isStartingAgain.value = true;
+  const result = await send(phone.value, undefined, targetId.value);
+  isStartingAgain.value = false;
+  if (!result.ok) {
+    waitFailure.value = result.failure;
+    return;
+  }
+  waiting.value = null;
+  waitFailure.value = null;
+  codeForm.reset();
+  isResent.value = false;
+  resendFailure.value = null;
+  step.value = telegramLinkUrl.value ? PhoneSignInStep.Telegram : PhoneSignInStep.Code;
+}
+
 function useAnotherPhone() {
+  stopWaiting();
+  waiting.value = null;
+  waitFailure.value = null;
   step.value = PhoneSignInStep.Phone;
   telegramLinkUrl.value = null;
   pending.value = null;
@@ -403,6 +533,25 @@ function useAnotherPhone() {
       </li>
     </ul>
     <FailureAlert :failure="chooseFailure" />
+    <Button type="button" variant="ghost" tone="neutral" @click="useAnotherPhone">
+      {{ t('PhoneCodeSignIn.otherPhone', 'Use another number') }}
+    </Button>
+  </div>
+
+  <div v-else-if="step === PhoneSignInStep.DeviceConfirmation && waiting" class="flex flex-col gap-4">
+    <p v-if="!waitFailure" class="text-sm text-muted-foreground" role="status">
+      {{
+        t(
+          'PhoneCodeSignIn.newDevice',
+          'This is a new device. We asked {contacts} to confirm it’s you in Telegram. This page continues on its own.',
+          { contacts: waitingContacts },
+        )
+      }}
+    </p>
+    <FailureAlert :failure="waitFailure" />
+    <Button v-if="waitFailure" type="button" is-full-width :is-loading="isStartingAgain" @click="startAgain">
+      {{ t('PhoneCodeSignIn.startAgain', 'Start again') }}
+    </Button>
     <Button type="button" variant="ghost" tone="neutral" @click="useAnotherPhone">
       {{ t('PhoneCodeSignIn.otherPhone', 'Use another number') }}
     </Button>

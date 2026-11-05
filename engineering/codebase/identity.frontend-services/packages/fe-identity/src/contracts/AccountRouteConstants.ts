@@ -28,9 +28,15 @@ export const AccountRouteConstants = {
   phoneSignInSend: '/phone-sign-in/send',
   /**
    * `POST`: signs in with a phone and the code sent to it. A phone whose person is another's trusted contact answers `200`
-   * with an `accountChoice` and no session; `phoneSignInChoose` then picks the account.
+   * with an `accountChoice` and no session; `phoneSignInChoose` then picks the account. A browser new to the account
+   * answers `200` with a `deviceConfirmation` and no session; `phoneSignInConfirmation` then waits for a contact's press.
    */
   phoneSignIn: '/phone-sign-in',
+  /**
+   * `POST`: asks where a new device's confirmation stands, polled with the `token` of a `deviceConfirmation`: `200` with
+   * `status` `pending`, then as `phoneSignIn` once a contact approved, or `403` / `401` once denied / ended.
+   */
+  phoneSignInConfirmation: '/phone-sign-in/confirmation',
   /** `POST`: lists the trusted contacts a phone's sign-in code can go to instead, as masked labels with opaque ids. */
   phoneSignInTargets: '/phone-sign-in/targets',
   /** `POST`: signs in as the account a trusted contact picked from an `accountChoice`, with its token. */

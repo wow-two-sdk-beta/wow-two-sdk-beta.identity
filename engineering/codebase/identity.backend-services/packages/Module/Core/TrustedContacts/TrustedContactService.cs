@@ -275,12 +275,24 @@ public sealed partial class TrustedContactService(
         var targets = new List<TrustedContactTarget>();
         foreach (var contact in await DeliverableContactsAsync(account, cancellationToken))
         {
-            var name = PersonalDataMasks.MaskName(contact.DisplayName);
-            var phone = PersonalDataMasks.MaskSubject(contact.PhoneNumber);
-            targets.Add(new TrustedContactTarget { Id = TargetIdOf(account.Id, contact.Id), Label = name is null ? phone! : $"{name} · {phone}" });
+            targets.Add(new TrustedContactTarget { Id = TargetIdOf(account.Id, contact.Id), Label = LabelOf(contact) });
         }
 
         return targets;
+    }
+
+    /// <summary>
+    /// The contacts who can answer for <paramref name="account"/> now: its contacts whose phones are confirmed and linked to the
+    /// bot. Empty while trusted contacts are off or it holds an instance role.
+    /// </summary>
+    /// <param name="account">The account.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<IReadOnlyList<IdentityUser>> ListDeliverableContactsAsync(IdentityUser account, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        return IsEnabled && await MayHaveContactsAsync(account.Id, cancellationToken)
+            ? await DeliverableContactsAsync(account, cancellationToken)
+            : [];
     }
 
     /// <summary>
@@ -594,8 +606,18 @@ public sealed partial class TrustedContactService(
         return new AccountChoiceOption { UserId = person.Id, DisplayName = NameOf(person), PictureUrl = pictureUrl, IsSelf = isSelf };
     }
 
-    /// <summary>The name a contact's code message gives the account: its display name, else its number or user name.</summary>
-    private static string AccountNameOf(IdentityUser person)
+    /// <summary>A contact's masked label, as the sign-in page shows it: name and phone, or the phone alone.</summary>
+    /// <param name="contact">The contact.</param>
+    internal static string LabelOf(IdentityUser contact)
+    {
+        var name = PersonalDataMasks.MaskName(contact.DisplayName);
+        var phone = PersonalDataMasks.MaskSubject(contact.PhoneNumber);
+        return name is null ? phone! : $"{name} · {phone}";
+    }
+
+    /// <summary>The name a contact's message gives the account: its display name, else its number or user name.</summary>
+    /// <param name="person">The account.</param>
+    internal static string AccountNameOf(IdentityUser person)
         => !string.IsNullOrWhiteSpace(person.DisplayName) ? person.DisplayName : person.PhoneNumber ?? person.UserName ?? person.Id.ToString();
 
     /// <summary>The opaque id of a sign-in target: a keyed digest of the account and the contact, the same on every instance.</summary>

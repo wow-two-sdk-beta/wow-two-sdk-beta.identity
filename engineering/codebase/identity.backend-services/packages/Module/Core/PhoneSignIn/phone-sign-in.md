@@ -32,6 +32,10 @@ lists the number's contacts, `send` takes a `targetId` that sends the code to on
 code too (method `trusted_contact_code`) and answers a contact's own number with `accountChoice`, and
 `phone-sign-in/choose` signs in as the account picked.
 
+The account's own code on a browser it hasn't used waits for a contact's press: both routes answer `200` with
+`deviceConfirmation` and no session, and `phone-sign-in/confirmation` signs in once approved
+(`../TrustedContacts/trusted-contacts.md` § New devices).
+
 ## Notes
 
 - Both routes answer `404` (`PhoneSignInUnavailable`) while `Identity:Telegram:IsEnabled` is off; the bot, its webhook

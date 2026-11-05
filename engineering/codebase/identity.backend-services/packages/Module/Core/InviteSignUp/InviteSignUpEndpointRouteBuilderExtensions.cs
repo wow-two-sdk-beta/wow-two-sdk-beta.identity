@@ -152,8 +152,10 @@ public static class InviteSignUpEndpointRouteBuilderExtensions
                 throw NotFound().ToException();
             case InviteSignUpState.Pending:
                 return Status("pending");
+            // A bot share doesn't stand in for a contact's press: a known person on a new device signs in by code.
             case InviteSignUpState.Completed when poll.SignInAs is { } person:
-                isSignedIn = await SignInAsync(person, clientId ?? poll.ClientId, http, cancellationToken);
+                if (!await IsNewDeviceAsync(person, http, cancellationToken))
+                    isSignedIn = await SignInAsync(person, clientId ?? poll.ClientId, http, cancellationToken);
                 break;
         }
 
@@ -188,10 +190,22 @@ public static class InviteSignUpEndpointRouteBuilderExtensions
 
         http.Response.Cookies.Delete(CookieName, new CookieOptions { Secure = true, Path = "/" });
         var isSignedIn = await SignInAsync(verified.SignInAs!, clientId ?? verified.ClientId, http, cancellationToken, verified.TrustedContactUserId, request.IsPersistent);
+        if (isSignedIn
+            && verified.TrustedContactUserId is { } contactId
+            && http.RequestServices.GetService<DeviceConfirmationService>() is { IsEnabled: true } devices)
+        {
+            await devices.RememberThroughContactAsync(verified.SignInAs!.Id, contactId, DeviceCookie.Ensure(http, isCookieClient: true), cancellationToken);
+        }
+
         return isSignedIn
             ? Results.NoContent()
             : throw Coded(AppErrorType.Unauthorized, "The account was created; sign in to continue.", IdentityErrorCodeConstants.SignInFailed).ToException();
     }
+
+    /// <summary>Whether <paramref name="person"/> has a contact who would have to answer for this browser.</summary>
+    private static async Task<bool> IsNewDeviceAsync(IdentityUser person, HttpContext http, CancellationToken cancellationToken)
+        => http.RequestServices.GetService<DeviceConfirmationService>() is { IsEnabled: true } devices
+            && await devices.IsConfirmationNeededAsync(person, DeviceCookie.Ensure(http, isCookieClient: true), cancellationToken);
 
     /// <summary>
     /// Signs the browser in as <paramref name="person"/> with a cookie session; false when the person must sign in themselves,

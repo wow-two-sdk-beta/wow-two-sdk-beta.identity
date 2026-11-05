@@ -62,12 +62,15 @@ public static class SchemaShape
     /// <summary>The table 010-trusted-contacts creates.</summary>
     public static readonly IReadOnlyList<string> TrustedContactTables = ["identity_trusted_contacts"];
 
+    /// <summary>The tables 011-device-confirmations creates.</summary>
+    public static readonly IReadOnlyList<string> DeviceConfirmationTables = ["identity_device_confirmations", "identity_known_devices"];
+
     /// <summary>Every table the set creates, in name order.</summary>
     public static readonly IReadOnlyList<string> AllTables =
-        [.. AccountTables.Concat(OidcTables).Concat(SpineTables).Concat(PhoneSignInTables).Concat(InvitationTables).Concat(InviteSignUpTables).Concat(TelegramLinkChangeTables).Concat(TelegramMessageTables).Concat(TrustedContactTables).Order(StringComparer.Ordinal)];
+        [.. AccountTables.Concat(OidcTables).Concat(SpineTables).Concat(PhoneSignInTables).Concat(InvitationTables).Concat(InviteSignUpTables).Concat(TelegramLinkChangeTables).Concat(TelegramMessageTables).Concat(TrustedContactTables).Concat(DeviceConfirmationTables).Order(StringComparer.Ordinal)];
 
     /// <summary>The set's migrations in apply order.</summary>
-    public static readonly IReadOnlyList<string> Migrations = ["001-accounts", "002-oidc", "003-spine", "004-phone-sign-in", "005-display-name", "006-invitations", "007-invite-sign-up", "008-telegram-link-changes", "009-telegram-messages", "010-trusted-contacts"];
+    public static readonly IReadOnlyList<string> Migrations = ["001-accounts", "002-oidc", "003-spine", "004-phone-sign-in", "005-display-name", "006-invitations", "007-invite-sign-up", "008-telegram-link-changes", "009-telegram-messages", "010-trusted-contacts", "011-device-confirmations"];
 
     /// <summary>The identity set's own history table, which the model does not map.</summary>
     private const string MigrationHistoryTable = $"{IdentityDatabaseOptions.MigrationSetName}_migration_history";

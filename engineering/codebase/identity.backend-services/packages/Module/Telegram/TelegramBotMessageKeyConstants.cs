@@ -72,6 +72,27 @@ public static class TelegramBotMessageKeyConstants
     /// <summary>What the notice reads, and the presser's toast, once its button revoked the contact.</summary>
     public const string TrustRevoked = "trust-revoked";
 
+    /// <summary>Asks a trusted contact to answer for an account's new device: <c>{account}</c>, <c>{app}</c>, <c>{device}</c>, <c>{network}</c>, <c>{time}</c>.</summary>
+    public const string DeviceConfirmationRequest = "device-confirmation-request";
+
+    /// <summary>The label of the button that approves the new device.</summary>
+    public const string ApproveDeviceButton = "approve-device-button";
+
+    /// <summary>The label of the button that stops the sign-in.</summary>
+    public const string DenyDeviceButton = "deny-device-button";
+
+    /// <summary>What the notice reads, and the presser's toast, once approved.</summary>
+    public const string DeviceApproved = "device-approved";
+
+    /// <summary>What the notice reads, and the presser's toast, once denied.</summary>
+    public const string DeviceDenied = "device-denied";
+
+    /// <summary>What the notice reads, and the presser's toast, when the press changed nothing.</summary>
+    public const string DeviceConfirmationClosed = "device-confirmation-closed";
+
+    /// <summary>Stands in for <c>{device}</c> or <c>{network}</c> when the request named none.</summary>
+    public const string UnknownDevice = "unknown-device";
+
     /// <summary>Asks for the contact that adds or changes one's own phone.</summary>
     public const string AddPhoneSharePrompt = "add-phone-share-prompt";
 

@@ -29,6 +29,8 @@ public static partial class HostConfiguration
     ///     identity database and reach apps as the <c>picture</c> claim, a link on the issuer's origin
     ///   - trusted contacts (<c>Identity:TrustedContacts</c>, off by default) let an invitation name a contact whose Telegram
     ///     receives the sign-up's and later sign-ins' codes, and an account add or change its own phone through the bot
+    ///   - while they are on, a browser an account hasn't used waits for a contact's press before a sign-in by the account's own
+    ///     code (<c>Identity:TrustedContacts:IsNewDeviceConfirmationRequired</c>, on by default)
     ///   - a local run signs in by phone through a dev bot of its own (<c>identity.local.env</c> or
     ///     <c>appsettings.Local.json</c>), never a fake one: fakes live in the test projects
     /// </remarks>

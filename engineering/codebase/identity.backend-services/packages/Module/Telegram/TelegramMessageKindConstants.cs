@@ -8,4 +8,7 @@ public static class TelegramMessageKindConstants
 
     /// <summary>The notice to an account's own chat after a sign-in through one of its trusted contacts, with its revoke button.</summary>
     public const string ContactSignIn = "contact-sign-in";
+
+    /// <summary>The notice asking a trusted contact to answer for an account's new device, with its two buttons.</summary>
+    public const string DeviceConfirmation = "device-confirmation";
 }

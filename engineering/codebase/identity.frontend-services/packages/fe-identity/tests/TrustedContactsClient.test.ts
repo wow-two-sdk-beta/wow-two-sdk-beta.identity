@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { IdentityErrorCodeConstants } from '../src/contracts';
-import { isIdentityCode, readIdentityCode } from '../src/kit';
+import { isIdentityCode, readIdentityCode, readTwoFactorChallenge } from '../src/kit';
 import { fakeAccountApi, noContent, problem, serviceUrl } from './FakeAccountApi';
 
 const choice = {
@@ -10,6 +10,8 @@ const choice = {
     { userId: 'u2', displayName: 'Lola', pictureUrl: '/api/files/lola.png', isSelf: false },
   ],
 };
+
+const deviceConfirmation = { token: 'dc-1', expiresAt: '2099-01-01T00:00:00Z', contacts: ['L*** K.', 'A*** B.'] };
 
 describe('trusted contact sign-in client', () => {
   it('lists the contacts a phone’s code can go to, and reads none as an empty list', async () => {
@@ -97,13 +99,12 @@ describe('trusted contact sign-in client', () => {
 
     const result = await client.signInWithPhone({ phone: '+998901234567', code: '123456' });
 
-    expect(result.ok && result.value?.accounts.map((account) => account.pictureUrl)).toEqual([
-      '/p.png',
-      'https://cdn.example.test/p.png',
-      null,
-      null,
-      null,
-    ]);
+    expect(
+      result.ok &&
+        result.value &&
+        'accounts' in result.value &&
+        result.value.accounts.map((account) => account.pictureUrl),
+    ).toEqual(['/p.png', 'https://cdn.example.test/p.png', null, null, null]);
   });
 
   it('keeps a refused phone sign-in’s problem', async () => {
@@ -124,9 +125,66 @@ describe('trusted contact sign-in client', () => {
       { clientId: 'desk' },
     );
 
-    expect(result).toEqual({ ok: true, value: undefined });
+    expect(result).toEqual({ ok: true, value: null });
     expect(received[0]?.url.search).toBe('?useCookies=true&clientId=desk');
     expect(received[0]?.body).toEqual({ token: 'choice-1', userId: 'u2', isPersistent: true });
+  });
+
+  it('reads the device confirmation a new browser gets after the code or the pick, enveloped or bare', async () => {
+    const answers = [
+      () => Response.json({ data: { deviceConfirmation } }),
+      () => Response.json({ deviceConfirmation }),
+    ];
+    const { client } = fakeAccountApi({
+      'POST /phone-sign-in': () => answers[0]!(),
+      'POST /phone-sign-in/choose': () => answers[1]!(),
+    });
+
+    const signedIn = await client.signInWithPhone({ phone: '+998901234567', code: '123456' });
+    const chosen = await client.choosePhoneSignInAccount({ token: 'choice-1', userId: 'u2' });
+
+    expect(signedIn).toEqual({ ok: true, value: deviceConfirmation });
+    expect(chosen).toEqual({ ok: true, value: deviceConfirmation });
+  });
+
+  it.each([
+    ['no token', { expiresAt: '2099-01-01T00:00:00Z', contacts: ['L*** K.'] }],
+    ['no end', { token: 'dc-1', contacts: ['L*** K.'] }],
+    ['an end that is no date', { token: 'dc-1', expiresAt: 'soon', contacts: ['L*** K.'] }],
+    ['no contact list', { token: 'dc-1', expiresAt: '2099-01-01T00:00:00Z' }],
+    ['a contact that is no text', { token: 'dc-1', expiresAt: '2099-01-01T00:00:00Z', contacts: [1] }],
+  ])('never takes a device confirmation with %s for a sign-in', async (_case, body) => {
+    const { client } = fakeAccountApi({
+      'POST /phone-sign-in': () => Response.json({ data: { deviceConfirmation: body } }),
+      'POST /phone-sign-in/choose': () => Response.json({ data: { deviceConfirmation: body } }),
+    });
+
+    const signedIn = await client.signInWithPhone({ phone: '+998901234567', code: '123456' });
+    const chosen = await client.choosePhoneSignInAccount({ token: 'choice-1', userId: 'u2' });
+
+    expect(!signedIn.ok && signedIn.failure.code).toBe('protocol');
+    expect(!chosen.ok && chosen.failure.code).toBe('protocol');
+  });
+
+  it('never takes an account choice for the answer of a pick', async () => {
+    const { client } = fakeAccountApi({
+      'POST /phone-sign-in/choose': () => Response.json({ data: { accountChoice: choice } }),
+    });
+
+    const chosen = await client.choosePhoneSignInAccount({ token: 'choice-1', userId: 'u2' });
+
+    expect(!chosen.ok && chosen.failure.code).toBe('protocol');
+  });
+
+  it('keeps a refused phone sign-in’s device confirmation problem', async () => {
+    const { client } = fakeAccountApi({
+      'POST /phone-sign-in': () =>
+        problem(409, 'Nobody could be asked.', { identityCode: IdentityErrorCodeConstants.deviceConfirmationUnavailable }),
+    });
+
+    const result = await client.signInWithPhone({ phone: '+998901234567', code: '123456' });
+
+    expect(!result.ok && readIdentityCode(result.failure)).toBe('DeviceConfirmationUnavailable');
   });
 
   it('finishes an invitation sign-up with the trusted contact’s code, naming the client', async () => {
@@ -137,6 +195,80 @@ describe('trusted contact sign-in client', () => {
     expect(result).toEqual({ ok: true, value: undefined });
     expect(received[0]?.url.toString()).toBe(`${serviceUrl}/api/account/invitations/sign-up/verify?clientId=desk`);
     expect(received[0]?.body).toEqual({ code: '123456', isPersistent: false });
+  });
+});
+
+describe('new device confirmation client', () => {
+  const request = { token: 'dc-1', isPersistent: true };
+
+  it('polls by cookie, naming the client, and tells pending from signed in', async () => {
+    const answers = [
+      () => Response.json({ data: { status: 'pending' } }),
+      () => Response.json({ status: 'pending' }),
+      () => noContent(),
+    ];
+    const { client, received } = fakeAccountApi({ 'POST /phone-sign-in/confirmation': () => answers.shift()!() });
+
+    const results = [];
+    for (let index = 0; index < 3; index += 1) {
+      results.push(await client.confirmPhoneSignIn(request, { clientId: 'desk' }));
+    }
+
+    expect(results).toEqual([
+      { ok: true, value: false },
+      { ok: true, value: false },
+      { ok: true, value: true },
+    ]);
+    expect(received[0]?.url.pathname).toBe('/api/account/phone-sign-in/confirmation');
+    expect(received[0]?.url.search).toBe('?useCookies=true&clientId=desk');
+    expect(received[0]?.body).toEqual(request);
+  });
+
+  it.each([
+    ['an unknown status', { data: { status: 'approved' } }],
+    ['no status', { data: {} }],
+    ['a bearer answer', { data: { accessToken: 'a', refreshToken: 'r' } }],
+  ])('never takes a 200 with %s for a sign-in', async (_case, body) => {
+    const { client } = fakeAccountApi({ 'POST /phone-sign-in/confirmation': () => Response.json(body) });
+
+    const result = await client.confirmPhoneSignIn(request);
+
+    expect(!result.ok && result.failure.code).toBe('protocol');
+  });
+
+  it('never takes text that is no JSON for a sign-in', async () => {
+    const { client } = fakeAccountApi({
+      'POST /phone-sign-in/confirmation': () => new Response('<html></html>', { status: 200 }),
+    });
+
+    const result = await client.confirmPhoneSignIn(request);
+
+    expect(!result.ok && result.failure.code).toBe('protocol');
+  });
+
+  it('keeps the denied, ended and second factor problems', async () => {
+    const answers = [
+      () => problem(403, 'A contact denied it.', { identityCode: IdentityErrorCodeConstants.deviceConfirmationDenied }),
+      () => problem(401, 'It has ended.', { identityCode: IdentityErrorCodeConstants.deviceConfirmationExpired }),
+      () =>
+        problem(401, 'Enter your two-factor code.', {
+          identityCode: 'TwoFactorRequired',
+          userId: 'u1',
+          twoFactorTicket: 'tk',
+        }),
+    ];
+    const { client } = fakeAccountApi({ 'POST /phone-sign-in/confirmation': () => answers.shift()!() });
+
+    const denied = await client.confirmPhoneSignIn(request);
+    const expired = await client.confirmPhoneSignIn(request);
+    const challenged = await client.confirmPhoneSignIn(request);
+
+    expect(!denied.ok && isIdentityCode(denied.failure, IdentityErrorCodeConstants.deviceConfirmationDenied)).toBe(true);
+    expect(!expired.ok && isIdentityCode(expired.failure, IdentityErrorCodeConstants.deviceConfirmationExpired)).toBe(true);
+    expect(!challenged.ok && readTwoFactorChallenge(challenged.failure)).toMatchObject({
+      userId: 'u1',
+      twoFactorTicket: 'tk',
+    });
   });
 });
 

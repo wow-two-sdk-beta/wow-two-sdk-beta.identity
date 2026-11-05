@@ -1,6 +1,6 @@
 # Trusted contacts
 
-*Last updated: 2026-11-03*
+*Last updated: 2026-11-05*
 
 > Another person of the instance receives a person's sign-in codes, for when the person has no phone of their own yet or
 > it is out of reach. Asks and rules: the developer, 2026-11-02 and 2026-11-03; first requirements from `ocharo-platform`,
@@ -64,6 +64,43 @@
 - Managers set a contact only on an invitation, never on an existing member's account: that would be a takeover path.
 - The console's members view shows each member's contacts and whether their phone is confirmed.
 
+## New devices
+
+- A browser or device the account hasn't used needs a contact's press before a sign-in by the account's own code
+  (developer, 2026-11-05: "any new browser or device", which also catches a recycled SIM logged in to the old Telegram).
+- The check runs after the code, on an account with at least one deliverable contact. Any one contact's press is enough.
+- `Identity:TrustedContacts:IsNewDeviceConfirmationRequired` (default on) turns it off; trusted contacts off turn it off too.
+
+| Sign-in | What happens |
+|---|---|
+| Own code, known browser | signs straight in |
+| Own code, new browser, a deliverable contact | waits for a contact's press |
+| Own code, nobody deliverable to ask | signs straight in: an instance role holder, or no contact linked to the bot |
+| A code a contact received, or a sign-up through one | asks nobody, since the contact was in the loop; the browser becomes known |
+| A number's own code picking the person's own account | as own code |
+| A bot contact share joining a known person through an invitation | signs nobody in on a new browser; the person signs in by code |
+| A bearer client | always a new device, since it keeps no cookie |
+
+- A browser is known by the `__Host-identity-device` cookie: 32 random bytes, `HttpOnly`, 400 days, renewed at each sign-in.
+- The instance keeps only its SHA-256, per account (`identity_known_devices`), so one browser may be known to several accounts.
+- The wait lasts 10 minutes (`identity_device_confirmations`); a new request from the account replaces an open one.
+
+### The contact's press
+
+- Each deliverable contact's Telegram gets a notice: the account's name, the app, the device, the masked network and the time.
+- Approve makes the browser known, and the page signs in on its next poll; Deny stops the request, and the sign-in log records `device_denied`.
+- A press after the end of the request, after another contact's answer, or by a person no longer a contact changes nothing.
+- A request reaches nobody when every contact's chat refuses the notice: `409`, and the person tries again.
+
+### Limits
+
+- Password, passkey and email sign-ins don't ask: a SIM doesn't reach them, and only a phone-only instance has contacts today.
+- An account with no deliverable contact is not protected: nobody can answer for it.
+- A person whose every contact is out of reach can't sign in from a new device; a known browser still can.
+- The SIM's holder in the old Telegram can press "Revoke trust" on a notice under a day old, leaving nobody to ask.
+- A contact approves on what the request says: the device and network come from the request itself, so they can be forged.
+- No list of known devices yet: a lost laptop stays known until its cookie runs out.
+
 ## Bot message cleanup
 
 - Telegram lets a bot delete its own messages only within 48 hours; editing has no limit, and `sendMessage` has no TTL.
@@ -89,6 +126,8 @@ Fixed for the backend and the hosted pages alike; a change goes through this fil
 | `POST phone-sign-in/send` | body gains `targetId?`, one of those ids; without it, today's behaviour |
 | `POST phone-sign-in` | when the number's person is a trusted contact, `200` with `accountChoice: { token, accounts: [{ userId, displayName, pictureUrl?, isSelf }] }` and no session |
 | `POST phone-sign-in/choose` | new: `{ token, userId, isPersistent }` → `204` with the session cookie, or the token answer for bearer clients |
+| `POST phone-sign-in`, `phone-sign-in/choose` | on a new device, `200` with `deviceConfirmation: { token, expiresAt, contacts: [label] }` and no session; `409 DeviceConfirmationUnavailable` when no contact's chat took the notice |
+| `POST phone-sign-in/confirmation` | new, polled, not rate-limited: `{ token, isPersistent }` → `200 { status: "pending" }`; once approved, as `phone-sign-in`: `204` with the session cookie, the token answer, or the `401` second factor challenge; `403 DeviceConfirmationDenied`; `401 DeviceConfirmationExpired` for an unknown, spent or expired token |
 | `GET manage/trusted-contacts` | new: `{ canRevoke, items: [{ userId, displayName, phoneHint, isDeliverable, createdAt }] }` |
 | `DELETE manage/trusted-contacts/{userId}` | new: `204`; `403 MainPhoneRequired` outside an own-phone session |
 | `GET manage/trusted-by` | new: `[{ userId, displayName, createdAt, canLeave }]` |
@@ -101,9 +140,10 @@ Fixed for the backend and the hosted pages alike; a change goes through this fil
 ## Settings
 
 - `Identity:TrustedContacts:IsEnabled` (default off) and `MaxPerPerson` (default 3).
+- `Identity:TrustedContacts:IsNewDeviceConfirmationRequired` (default on, read only while trusted contacts are on).
 - `Identity:Telegram:NoticeLifetime` (default `1.00:00:00`, below 48 hours).
 - Bot texts come in `en`, `ru` and `uz`; hosted pages and the console stay English, as they all are today.
 
 ## Later
 
-- A new device or a Telegram change waiting for a contact's confirmation (developer, 2026-11-03; meaning open).
+- A person listing and forgetting their known devices.

@@ -67,4 +67,10 @@ export const IdentityErrorCodeConstants = {
    * API table writes it `last_trusted_contact`; `isIdentityCode` reads either spelling.
    */
   lastTrustedContact: 'LastTrustedContact',
+  /** `403` of `phone-sign-in/confirmation`: a contact pressed Deny, so the sign-in stops. */
+  deviceConfirmationDenied: 'DeviceConfirmationDenied',
+  /** `401` of `phone-sign-in/confirmation`: the token is unknown, spent, replaced or past its end. */
+  deviceConfirmationExpired: 'DeviceConfirmationExpired',
+  /** `409` of `phone-sign-in` and `phone-sign-in/choose`: no contact's chat took the notice; the person tries again. */
+  deviceConfirmationUnavailable: 'DeviceConfirmationUnavailable',
 } as const;

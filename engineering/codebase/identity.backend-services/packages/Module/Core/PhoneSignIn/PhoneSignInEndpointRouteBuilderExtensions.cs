@@ -54,7 +54,13 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
     ///     contact answers <c>200</c> <c>{ accountChoice: { token, accounts } }</c> with no session; <c>phone-sign-in/choose</c>
     ///     takes <c>{ token, userId, isPersistent }</c> and signs in as the account picked, as <c>phone-sign-in</c> does
     ///     (<c>401</c> <c>InvalidAccountChoice</c>)
-    ///   - every route takes the per-address <see cref="AccountRateLimitPolicyConstants.Credentials"/> policy
+    ///   - a new device (<see cref="DeviceConfirmationService"/>): the account's own code on a browser it hasn't used answers
+    ///     <c>200</c> <c>{ deviceConfirmation: { token, expiresAt, contacts } }</c> with no session, or <c>409</c>
+    ///     <c>DeviceConfirmationUnavailable</c> when no contact's chat took the notice; <c>phone-sign-in/confirmation</c> takes
+    ///     <c>{ token, isPersistent }</c> and answers <c>200</c> <c>{ status: "pending" }</c>, then signs in as <c>phone-sign-in</c>
+    ///     does once a contact approved; <c>403</c> <c>DeviceConfirmationDenied</c>, <c>401</c> <c>DeviceConfirmationExpired</c>
+    ///   - every route but the polled <c>phone-sign-in/confirmation</c>, whose token is 32 random bytes, takes the per-address
+    ///     <see cref="AccountRateLimitPolicyConstants.Credentials"/> policy
     /// </remarks>
     /// <param name="endpoints">The account API's route group.</param>
     public static IEndpointRouteBuilder MapPhoneSignInEndpoints(this IEndpointRouteBuilder endpoints)
@@ -66,6 +72,7 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
         {
             endpoints.MapPost("/phone-sign-in/targets", TargetsAsync).LimitCredentials(endpoints);
             endpoints.MapPost("/phone-sign-in/choose", ChooseAsync).LimitCredentials(endpoints);
+            endpoints.MapPost("/phone-sign-in/confirmation", ConfirmationAsync);
         }
 
         return endpoints;
@@ -93,6 +100,30 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
         var chosen = await services.GetRequiredService<TrustedContactService>().ChooseAsync(request.Token, request.UserId, cancellationToken)
             ?? throw CodedError(AppErrorType.Unauthorized, "The account choice has expired or does not offer that account; sign in again.", TrustedContactErrorCodeConstants.InvalidAccountChoice).ToException();
         return await SignInPersonAsync(chosen.User, chosen.TrustedContactUserId, useCookies, request.IsPersistent, http, cancellationToken);
+    }
+
+    private static async Task<IResult> ConfirmationAsync(PhoneSignInConfirmationApiRequest request, bool? useCookies, string? clientId, HttpContext http, CancellationToken cancellationToken)
+    {
+        _ = ServiceOf(http);
+        var services = http.RequestServices;
+        if (useCookies != true && services.GetService<ITokenIssuer>() is null)
+            throw CodedError(AppErrorType.Validation, "Bearer sign-in is not enabled on this instance; sign in with ?useCookies=true.", AccountApiErrorCodeConstants.BearerSignInUnsupported).ToException();
+        if (!string.IsNullOrWhiteSpace(clientId) && services.GetService<SignInLogService>() is { } log)
+            log.ClientId = clientId;
+
+        var poll = await services.GetRequiredService<DeviceConfirmationService>().PollAsync(request.Token, useCookies == true, cancellationToken);
+        switch (poll.State)
+        {
+            case DeviceConfirmationState.Pending:
+                return Results.Ok(ApiResponse<DeviceConfirmationPendingDto>.Ok(new DeviceConfirmationPendingDto()));
+            case DeviceConfirmationState.Approved:
+                return await SignInPersonAsync(poll.User!, trustedContactUserId: null, useCookies, request.IsPersistent, http, cancellationToken, isDeviceConfirmed: true);
+            case DeviceConfirmationState.Denied:
+                await RecordRefusalAsync(services, poll.User?.PhoneNumber, SignInReasonConstants.DeviceDenied, cancellationToken, userId: poll.User?.Id);
+                throw CodedError(AppErrorType.Forbidden, "Your trusted contact did not confirm this device.", TrustedContactErrorCodeConstants.DeviceConfirmationDenied).ToException();
+            default:
+                throw CodedError(AppErrorType.Unauthorized, "The confirmation has expired; sign in again.", TrustedContactErrorCodeConstants.DeviceConfirmationExpired).ToException();
+        }
     }
 
     private static async Task<IResult> SendAsync(PhoneSignInSendApiRequest request, HttpContext http, CancellationToken cancellationToken)
@@ -200,11 +231,30 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
 
     /// <summary>
     /// Signs <paramref name="user"/> in after a verified phone code: their own (<c>phone_code</c>), or one a trusted contact
-    /// received (<c>trusted_contact_code</c>, the session naming the contact, a notice to the account's own chat).
+    /// received (<c>trusted_contact_code</c>, the session naming the contact, a notice to the account's own chat). The person's
+    /// own code on a new device waits for a contact's press first, unless <paramref name="isDeviceConfirmed"/>.
     /// </summary>
-    private static async Task<IResult> SignInPersonAsync(IdentityUser user, Guid? trustedContactUserId, bool? useCookies, bool isPersistent, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> SignInPersonAsync(
+        IdentityUser user, Guid? trustedContactUserId, bool? useCookies, bool isPersistent, HttpContext http, CancellationToken cancellationToken, bool isDeviceConfirmed = false)
     {
         var services = http.RequestServices;
+        var devices = services.GetService<DeviceConfirmationService>();
+        if (devices is { IsEnabled: true } && trustedContactUserId is null && !isDeviceConfirmed)
+        {
+            var (ipMasked, userAgent) = PersonalDataMasks.Describe(http);
+            var check = await devices.CheckAsync(user, DeviceCookie.Ensure(http, useCookies == true), ipMasked, userAgent, cancellationToken);
+            switch (check.Status)
+            {
+                case DeviceCheckStatus.Waiting:
+                    return Results.Ok(ApiResponse<PhoneSignInDeviceConfirmationDto>.Ok(new PhoneSignInDeviceConfirmationDto
+                    {
+                        DeviceConfirmation = new DeviceConfirmationDto { Token = check.Token!, ExpiresAt = check.ExpiresAt!.Value, Contacts = check.Contacts },
+                    }));
+                case DeviceCheckStatus.Unavailable:
+                    throw CodedError(AppErrorType.Conflict, "Your trusted contacts cannot be reached now; try again later or sign in from a device you have used.", TrustedContactErrorCodeConstants.DeviceConfirmationUnavailable).ToException();
+            }
+        }
+
         if (trustedContactUserId is not null && services.GetService<SignInLogService>() is { } log)
             log.TrustedContactUserId = trustedContactUserId;
 
@@ -216,7 +266,12 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
             throw FailureOf(result).ToException();
 
         if (trustedContactUserId is { } contactId && services.GetService<TrustedContactService>() is { } trusted)
+        {
             await trusted.NotifySignInAsync(user, contactId, cancellationToken);
+            if (devices is { IsEnabled: true } && useCookies == true)
+                await devices.RememberThroughContactAsync(user.Id, contactId, DeviceCookie.Ensure(http, isCookieClient: true), cancellationToken);
+        }
+
         return await SessionAsync(result, user, useCookies, isPersistent, trustedContactUserId, http, cancellationToken);
     }
 

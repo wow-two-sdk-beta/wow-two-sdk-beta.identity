@@ -12,5 +12,7 @@ export const PhoneSignInStep = {
   SecondFactor: 'second-factor',
   /** Refers to picking the account a trusted contact signs in as, once the code checked out. */
   Account: 'account',
+  /** Refers to waiting for a trusted contact's press in Telegram, which a browser new to the account needs. */
+  DeviceConfirmation: 'device-confirmation',
 } as const;
 export type PhoneSignInStep = (typeof PhoneSignInStep)[keyof typeof PhoneSignInStep];

@@ -2,14 +2,16 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.TrustedContacts;
 
-/// <summary>Removes a deleted person's trusted contacts, and their place as anyone's contact, with the account.</summary>
+/// <summary>Removes a deleted person's trusted contacts, their place as anyone's contact, and their known browsers, with the account.</summary>
 /// <param name="repository">The contacts.</param>
-public sealed class TrustedContactDeletionHandler(ITrustedContactRepository repository) : IAccountDeletionHandler
+/// <param name="devices">The known browsers and waiting requests.</param>
+public sealed class TrustedContactDeletionHandler(ITrustedContactRepository repository, IDeviceConfirmationRepository devices) : IAccountDeletionHandler
 {
     /// <inheritdoc />
-    public Task HandleAsync(IdentityUser user, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
-        return repository.RemoveAllOfAsync(user.Id, cancellationToken);
+        await repository.RemoveAllOfAsync(user.Id, cancellationToken);
+        await devices.RemoveAllOfAsync(user.Id, cancellationToken);
     }
 }

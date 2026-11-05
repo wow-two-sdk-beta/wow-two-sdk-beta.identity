@@ -24,6 +24,9 @@ public static class SignInReasonConstants
     /// <summary>The email link or code was invalid, spent or expired.</summary>
     public const string InvalidLinkOrCode = "invalid_link_or_code";
 
+    /// <summary>A trusted contact denied the new device the sign-in waited on.</summary>
+    public const string DeviceDenied = "device_denied";
+
     /// <summary>The account was already inside a lockout window.</summary>
     public const string LockedOut = "locked_out";
 

@@ -1,5 +1,5 @@
 import { flushPromises } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PasswordSignIn, PhoneCodeSignIn } from '../src/kit';
 import { fakeAccountApi, noContent, problem } from './FakeAccountApi';
 import { button, render } from './Mounting';
@@ -643,5 +643,275 @@ describe('phone code sign-in with trusted contacts', () => {
 
     expect(received.at(-1)?.body).toMatchObject({ userId: 'u2', ticket: 'tk-2fa', twoFactorCode: '654321' });
     expect(wrapper.emitted('signedIn')).toEqual([[]]);
+  });
+});
+
+describe('phone code sign-in on a new device', () => {
+  const now = '2026-11-05T10:00:00Z';
+  const sent = () => Response.json({ data: { isCodeSent: true, telegramLinkUrl: null } });
+  const pendingAnswer = () => Response.json({ data: { status: 'pending' } });
+  const confirmationPath = 'POST /phone-sign-in/confirmation';
+  const waiting =
+    (expiresAt = '2026-11-05T10:10:00Z') =>
+    () =>
+      Response.json({ data: { deviceConfirmation: { token: 'dc-1', expiresAt, contacts: ['L*** K.', 'A*** B.'] } } });
+  const choice = {
+    token: 'choice-1',
+    accounts: [
+      { userId: 'u1', displayName: 'Anvar', pictureUrl: null, isSelf: true },
+      { userId: 'u2', displayName: 'Lola', pictureUrl: null, isSelf: false },
+    ],
+  };
+
+  // The test utils flush with setImmediate, so only the timers and the clock are faked.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(new Date(now));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const polls = (received: { url: URL; body: unknown }[]) =>
+    received.filter((request) => request.url.pathname.endsWith('/confirmation'));
+
+  async function reachWait(answers: Parameters<typeof fakeAccountApi>[0], isPersistenceOffered = false) {
+    const api = fakeAccountApi({ 'POST /phone-sign-in/send': sent, ...answers });
+    const wrapper = render(PhoneCodeSignIn, {
+      props: { client: api.client, countries: ['UZ'], clientId: 'desk', isPersistenceOffered },
+    });
+    await wrapper.get('input[type="tel"]').setValue('901234567');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    await wrapper.get('input[name="code"]').setValue('123456');
+    if (isPersistenceOffered) await wrapper.get('input[type="checkbox"]').setValue(true);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    return { ...api, wrapper };
+  }
+
+  it('waits for a contact’s press after the code, polls every 3 seconds, and signs in on approval', async () => {
+    const answers = [pendingAnswer, pendingAnswer, noContent];
+    const { wrapper, received } = await reachWait(
+      { 'POST /phone-sign-in': waiting(), [confirmationPath]: () => answers.shift()!() },
+      true,
+    );
+
+    expect(wrapper.text()).toContain(
+      'This is a new device. We asked L*** K., A*** B. to confirm it’s you in Telegram. This page continues on its own.',
+    );
+    expect(wrapper.find('input[name="code"]').exists()).toBe(false);
+    expect(polls(received)).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(polls(received)).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(polls(received)).toHaveLength(1);
+    expect(polls(received)[0]?.url.search).toBe('?useCookies=true&clientId=desk');
+    expect(polls(received)[0]?.body).toEqual({ token: 'dc-1', isPersistent: true });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(polls(received)).toHaveLength(2);
+    expect(wrapper.emitted('signedIn')).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(polls(received)).toHaveLength(3);
+    expect(wrapper.emitted('signedIn')).toEqual([[]]);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(polls(received)).toHaveLength(3);
+  });
+
+  it('keeps one request in flight at most, however long the answer takes', async () => {
+    let release: (answer: Response) => void = () => undefined;
+    const slow = new Promise<Response>((resolve) => (release = resolve));
+    const { received, fetch, wrapper } = await reachWait({
+      'POST /phone-sign-in': waiting(),
+      [confirmationPath]: pendingAnswer,
+    });
+    const original = fetch.getMockImplementation()!;
+    fetch.mockImplementation(async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/confirmation')) {
+        received.push({ method: 'POST', url, body: undefined });
+        return slow;
+      }
+      return original(input, init);
+    });
+
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(polls(received)).toHaveLength(1);
+    release(noContent());
+    await flushPromises();
+
+    expect(wrapper.emitted('signedIn')).toEqual([[]]);
+  });
+
+  it('keeps polling after a poll that never reached the service', async () => {
+    const answers = [
+      () => {
+        throw new TypeError('Failed to fetch');
+      },
+      () => problem(503, 'Try again in a minute.'),
+      noContent,
+    ];
+    const { wrapper, received } = await reachWait({
+      'POST /phone-sign-in': waiting(),
+      [confirmationPath]: () => answers.shift()!(),
+    });
+
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(wrapper.text()).not.toContain('Start again');
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(wrapper.text()).not.toContain('Try again in a minute.');
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(polls(received)).toHaveLength(3);
+    expect(wrapper.emitted('signedIn')).toEqual([[]]);
+  });
+
+  it('shows a denial, stops polling, and starts again with a new code', async () => {
+    const { wrapper, received } = await reachWait({
+      'POST /phone-sign-in': waiting(),
+      [confirmationPath]: () =>
+        problem(403, 'A contact denied this sign-in.', { identityCode: 'DeviceConfirmationDenied' }),
+    });
+
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(wrapper.text()).toContain('A contact denied this sign-in.');
+    expect(wrapper.emitted('signedIn')).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(polls(received)).toHaveLength(1);
+    await button(wrapper, 'Start again').trigger('click');
+    await flushPromises();
+
+    expect(received.filter((request) => request.url.pathname.endsWith('/send'))).toHaveLength(2);
+    expect(wrapper.find('input[name="code"]').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain('A contact denied this sign-in.');
+  });
+
+  it('offers another number after a denial', async () => {
+    const { wrapper } = await reachWait({
+      'POST /phone-sign-in': waiting(),
+      [confirmationPath]: () => problem(403, 'Denied.', { identityCode: 'DeviceConfirmationDenied' }),
+    });
+
+    await vi.advanceTimersByTimeAsync(3000);
+    await button(wrapper, 'Use another number').trigger('click');
+
+    expect(wrapper.find('input[type="tel"]').exists()).toBe(true);
+  });
+
+  it('shows that the request ended when the service says so', async () => {
+    const { wrapper, received } = await reachWait({
+      'POST /phone-sign-in': waiting(),
+      [confirmationPath]: () => problem(401, 'This request has ended.', { identityCode: 'DeviceConfirmationExpired' }),
+    });
+
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(wrapper.text()).toContain('This request has ended.');
+    expect(button(wrapper, 'Start again').exists()).toBe(true);
+    expect(button(wrapper, 'Use another number').exists()).toBe(true);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(polls(received)).toHaveLength(1);
+  });
+
+  it('stops at the end of the request on its own and offers to start again', async () => {
+    const { wrapper, received } = await reachWait({
+      'POST /phone-sign-in': waiting('2026-11-05T10:00:10Z'),
+      [confirmationPath]: pendingAnswer,
+    });
+
+    await vi.advanceTimersByTimeAsync(9000);
+    expect(polls(received)).toHaveLength(3);
+    expect(wrapper.text()).not.toContain('Start again');
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(wrapper.text()).toContain('The request has ended.');
+    expect(button(wrapper, 'Start again').exists()).toBe(true);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(polls(received)).toHaveLength(3);
+    expect(wrapper.emitted('signedIn')).toBeUndefined();
+  });
+
+  it('goes to the second factor when the confirmed account has one', async () => {
+    const { wrapper, received } = await reachWait({
+      'POST /phone-sign-in': waiting(),
+      [confirmationPath]: () =>
+        problem(401, 'Enter your two-factor code.', {
+          identityCode: 'TwoFactorRequired',
+          twoFactorMethod: 'authenticator',
+          userId: 'u1',
+          twoFactorTicket: 'tk-2fa',
+        }),
+      'POST /sign-in/two-factor': noContent,
+    });
+
+    await vi.advanceTimersByTimeAsync(3000);
+    await wrapper.get('input[name="twoFactorCode"]').setValue('654321');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(received.at(-1)?.body).toMatchObject({ userId: 'u1', ticket: 'tk-2fa', twoFactorCode: '654321' });
+    expect(wrapper.emitted('signedIn')).toEqual([[]]);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(polls(received)).toHaveLength(1);
+  });
+
+  it('stops polling when the person leaves for another number', async () => {
+    const { wrapper, received } = await reachWait({
+      'POST /phone-sign-in': waiting(),
+      [confirmationPath]: pendingAnswer,
+    });
+
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(polls(received)).toHaveLength(1);
+    await button(wrapper, 'Use another number').trigger('click');
+    await vi.advanceTimersByTimeAsync(30000);
+
+    expect(polls(received)).toHaveLength(1);
+    expect(wrapper.find('input[type="tel"]').exists()).toBe(true);
+  });
+
+  it('stops polling when the page goes away', async () => {
+    const { wrapper, received } = await reachWait({
+      'POST /phone-sign-in': waiting(),
+      [confirmationPath]: pendingAnswer,
+    });
+
+    await vi.advanceTimersByTimeAsync(3000);
+    wrapper.unmount();
+    await vi.advanceTimersByTimeAsync(30000);
+
+    expect(polls(received)).toHaveLength(1);
+  });
+
+  it('waits after the account choice, keeping the choice’s persistence', async () => {
+    const { wrapper, received } = await reachWait(
+      {
+        'POST /phone-sign-in': () => Response.json({ data: { accountChoice: choice } }),
+        'POST /phone-sign-in/choose': waiting(),
+        [confirmationPath]: noContent,
+      },
+      true,
+    );
+
+    await wrapper.findAll('li')[1]?.get('button').trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('We asked L*** K., A*** B. to confirm it’s you in Telegram.');
+    expect(wrapper.emitted('signedIn')).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(polls(received)[0]?.body).toEqual({ token: 'dc-1', isPersistent: true });
+    expect(wrapper.emitted('signedIn')).toEqual([[]]);
+  });
+
+  it('shows that no contact could be asked, like any other failure', async () => {
+    const { wrapper, received } = await reachWait({
+      'POST /phone-sign-in': () =>
+        problem(409, 'Nobody could be asked. Try again.', { identityCode: 'DeviceConfirmationUnavailable' }),
+    });
+
+    expect(wrapper.text()).toContain('Nobody could be asked. Try again.');
+    expect(wrapper.find('input[name="code"]').exists()).toBe(true);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(polls(received)).toHaveLength(0);
   });
 });

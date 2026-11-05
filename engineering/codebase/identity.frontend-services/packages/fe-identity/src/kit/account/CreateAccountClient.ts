@@ -6,6 +6,7 @@ import {
   type AccountInfoDto,
   type AccountPhoneDto,
   type ConfirmEmailApiRequest,
+  type DeviceConfirmationDto,
   type EmailAddressApiRequest,
   type InvitationPreviewDto,
   type InvitationStatus,
@@ -23,6 +24,7 @@ import {
   type PhoneSignInAccountDto,
   type PhoneSignInApiRequest,
   type PhoneSignInChooseApiRequest,
+  type PhoneSignInConfirmationApiRequest,
   type PhoneSignInSendApiRequest,
   type PhoneSignInSentDto,
   type PhoneSignInTargetDto,
@@ -47,6 +49,9 @@ import {
   type TrustedContactsDto,
   type TwoFactorSignInApiRequest,
 } from '../../contracts';
+
+/** What a phone sign-in answers instead of a session: the account to pick, or a new device's confirmation to wait for. */
+export type PhoneSignInContinuation = PhoneSignInAccountChoiceDto | DeviceConfirmationDto;
 
 /** Configures where the account API is reached. */
 export interface AccountClientOptions {
@@ -176,19 +181,34 @@ export interface AccountClient {
     signal?: AbortSignal,
   ): Promise<Result<PhoneSignInTargetsDto, ApiFailure>>;
   /**
-   * Signs in with a phone and its code: `null` once the session cookie is set, or the account choice of a phone whose
-   * person is another's trusted contact, which sets no session until `choosePhoneSignInAccount`. A second factor answers
-   * `401` `TwoFactorRequired` with the ticket `signInWithSecondFactor` takes.
+   * Signs in with a phone and its code: `null` once the session cookie is set, the account choice of a phone whose
+   * person is another's trusted contact, which sets no session until `choosePhoneSignInAccount`, or the device
+   * confirmation of a browser new to the account, which sets none until `confirmPhoneSignIn` answers `true`. A second
+   * factor answers `401` `TwoFactorRequired` with the ticket `signInWithSecondFactor` takes; `409`
+   * `DeviceConfirmationUnavailable` when no contact's chat took the notice.
    */
   signInWithPhone(
     request: PhoneSignInApiRequest,
     options?: AccountSignInOptions,
-  ): Promise<Result<PhoneSignInAccountChoiceDto | null, ApiFailure>>;
-  /** Signs in as the account picked from an account choice, with the choice's token, and sets the session cookie. */
+  ): Promise<Result<PhoneSignInContinuation | null, ApiFailure>>;
+  /**
+   * Signs in as the account picked from an account choice, with the choice's token: `null` once the session cookie is
+   * set, or the device confirmation of a browser new to that account, as at `signInWithPhone`.
+   */
   choosePhoneSignInAccount(
     request: PhoneSignInChooseApiRequest,
     options?: AccountSignInOptions,
-  ): Promise<Result<void, ApiFailure>>;
+  ): Promise<Result<DeviceConfirmationDto | null, ApiFailure>>;
+  /**
+   * Asks where a new device's confirmation stands, with the confirmation's token: `true` once a contact approved and the
+   * session cookie is set, `false` while it waits. Polled until then. A second factor answers `401` `TwoFactorRequired` as
+   * `signInWithPhone` does; `403` `DeviceConfirmationDenied` once a contact denied; `401` `DeviceConfirmationExpired` for
+   * an unknown, spent or ended token. An answer that is neither is a `protocol` failure, never a sign-in.
+   */
+  confirmPhoneSignIn(
+    request: PhoneSignInConfirmationApiRequest,
+    options?: AccountSignInOptions,
+  ): Promise<Result<boolean, ApiFailure>>;
   /** Reads the signed-in account's own phone and whether this session may change it. */
   getPhone(signal?: AbortSignal): Promise<Result<AccountPhoneDto, ApiFailure>>;
   /**
@@ -389,24 +409,61 @@ function decodeAccountChoice(value: unknown): PhoneSignInAccountChoiceDto | null
   return token && accounts && accounts.length > 0 ? { token, accounts } : null;
 }
 
-/**
- * Reads a cookie phone sign-in's answer: `204` set the session; a body with an `accountChoice`, enveloped or bare, holds
- * the choice of a trusted contact instead, and no session. A choice that does not decode is never taken for a sign-in.
- */
-function decodePhoneSignedIn(answer: string): Decoded<PhoneSignInAccountChoiceDto | null> {
-  if (answer.trim() === '') return ResultExtensions.ok(null);
+function decodeDeviceConfirmation(value: unknown): DeviceConfirmationDto | null {
+  const body = record(value);
+  const token = filled(body?.token);
+  const expiresAt = filled(body?.expiresAt);
+  const contacts = strings(body?.contacts);
+  return token && expiresAt && contacts && Number.isFinite(Date.parse(expiresAt))
+    ? { token, expiresAt, contacts }
+    : null;
+}
+
+/** Parses an answer's JSON and unwraps its `data` envelope when it has one; `null` for text that is no object. */
+function readAnswer(answer: string): Readonly<Record<string, unknown>> | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(answer);
   } catch {
-    return protocolFailure();
+    return null;
   }
   const outer = record(parsed);
-  const body = record(outer?.data) ?? outer;
+  return record(outer?.data) ?? outer;
+}
+
+/**
+ * Reads a cookie phone sign-in's answer: `204` set the session; a body with an `accountChoice` or a
+ * `deviceConfirmation`, enveloped or bare, holds that instead, and no session. One that does not decode is never taken
+ * for a sign-in.
+ */
+function decodePhoneSignedIn(answer: string): Decoded<PhoneSignInContinuation | null> {
+  if (answer.trim() === '') return ResultExtensions.ok(null);
+  const body = readAnswer(answer);
   if (!body) return protocolFailure();
-  if (body.accountChoice == null) return ResultExtensions.ok(null);
-  const choice = decodeAccountChoice(body.accountChoice);
-  return choice ? ResultExtensions.ok(choice) : protocolFailure();
+  if (body.accountChoice != null) {
+    const choice = decodeAccountChoice(body.accountChoice);
+    return choice ? ResultExtensions.ok(choice) : protocolFailure();
+  }
+  if (body.deviceConfirmation != null) {
+    const confirmation = decodeDeviceConfirmation(body.deviceConfirmation);
+    return confirmation ? ResultExtensions.ok(confirmation) : protocolFailure();
+  }
+  return ResultExtensions.ok(null);
+}
+
+/** Reads the answer of an account choice's pick: `204` set the session, or a new device's confirmation comes first. */
+function decodeChosen(answer: string): Decoded<DeviceConfirmationDto | null> {
+  const decoded = decodePhoneSignedIn(answer);
+  if (!decoded.ok) return decoded;
+  // A choice answering a choice is no sign-in either.
+  return decoded.value === null || 'contacts' in decoded.value ? ResultExtensions.ok(decoded.value) : protocolFailure();
+}
+
+/** Reads a confirmation poll: `204` set the session (`true`), `status` `pending` waits (`false`); anything else fails. */
+function decodeConfirmationPoll(answer: string): Decoded<boolean> {
+  if (answer.trim() === '') return ResultExtensions.ok(true);
+  const body = readAnswer(answer);
+  return body?.status === 'pending' ? ResultExtensions.ok(false) : protocolFailure();
 }
 
 function decodePhone(value: unknown): Decoded<AccountPhoneDto> {
@@ -713,13 +770,24 @@ export function createAccountClient(options: AccountClientOptions = {}): Account
       });
       return answered.ok ? decodePhoneSignedIn(answered.value) : answered;
     },
-    choosePhoneSignInAccount: (request, { clientId, signal } = {}) =>
-      client.post(AccountRouteConstants.phoneSignInChoose, {
+    async choosePhoneSignInAccount(request, { clientId, signal } = {}) {
+      const answered = await client.post(AccountRouteConstants.phoneSignInChoose, {
         query: signInQuery(clientId),
         body: request,
-        response: 'empty',
+        response: 'text',
         signal,
-      }),
+      });
+      return answered.ok ? decodeChosen(answered.value) : answered;
+    },
+    async confirmPhoneSignIn(request, { clientId, signal } = {}) {
+      const answered = await client.post(AccountRouteConstants.phoneSignInConfirmation, {
+        query: signInQuery(clientId),
+        body: request,
+        response: 'text',
+        signal,
+      });
+      return answered.ok ? decodeConfirmationPoll(answered.value) : answered;
+    },
     getPhone: (signal) => client.get(AccountRouteConstants.managePhone, { signal, decode: decodePhone }),
     createPhoneTelegramLink: (signal) =>
       client.post(AccountRouteConstants.managePhoneTelegramLink, { signal, decode: decodePhoneLink }),

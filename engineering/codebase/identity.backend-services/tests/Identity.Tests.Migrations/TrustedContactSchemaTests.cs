@@ -44,12 +44,12 @@ public sealed class TrustedContactSchemaTests(MigratorPostgresFixture fixture) :
             await insert.ExecuteNonQueryAsync();
         }
 
-        (await runner.RollbackAsync(targetOrdinal: 9)).ValueOrThrow().Should().Equal("010-trusted-contacts");
+        (await runner.RollbackAsync(targetOrdinal: 9)).ValueOrThrow().Should().Equal("011-device-confirmations", "010-trusted-contacts");
         (await migrator.HasTableAsync(IdentitySchemaTests.Schema, "identity_trusted_contacts")).Should().BeFalse();
         foreach (var table in new[] { "identity_invitations", "identity_sessions", "identity_sign_in_log" })
             (await IdentitySchemaTests.HasColumnAsync(migrator, table, "trusted_contact_user_id")).Should().BeFalse($"the rollback drops {table}'s contact");
 
-        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("010-trusted-contacts");
+        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("010-trusted-contacts", "011-device-confirmations");
         (await migrator.HasTableAsync(IdentitySchemaTests.Schema, "identity_trusted_contacts")).Should().BeTrue();
         await using var check = await migrator.OpenConnectionAsync();
         await using var count = new NpgsqlCommand("select count(*) from identity.identity_sessions where trusted_contact_user_id is null", (NpgsqlConnection)check);

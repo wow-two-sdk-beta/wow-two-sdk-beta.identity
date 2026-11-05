@@ -2,6 +2,7 @@ export type { AccountInfoDto } from './AccountInfoDto';
 export type { AccountPhoneDto } from './AccountPhoneDto';
 export { AccountRouteConstants } from './AccountRouteConstants';
 export type { ConfirmEmailApiRequest } from './ConfirmEmailApiRequest';
+export type { DeviceConfirmationDto } from './DeviceConfirmationDto';
 export type { EmailAddressApiRequest } from './EmailAddressApiRequest';
 export { HostedPageRouteConstants } from './HostedPageRouteConstants';
 export { IdentityErrorCodeConstants } from './IdentityErrorCodeConstants';
@@ -29,6 +30,7 @@ export type { PhoneSignInAccountChoiceDto } from './PhoneSignInAccountChoiceDto'
 export type { PhoneSignInAccountDto } from './PhoneSignInAccountDto';
 export type { PhoneSignInApiRequest } from './PhoneSignInApiRequest';
 export type { PhoneSignInChooseApiRequest } from './PhoneSignInChooseApiRequest';
+export type { PhoneSignInConfirmationApiRequest } from './PhoneSignInConfirmationApiRequest';
 export type { PhoneSignInSendApiRequest } from './PhoneSignInSendApiRequest';
 export type { PhoneSignInSentDto } from './PhoneSignInSentDto';
 export type { PhoneSignInTargetDto } from './PhoneSignInTargetDto';

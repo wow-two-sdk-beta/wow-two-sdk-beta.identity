@@ -108,6 +108,7 @@ services:
         Identity:Methods:Email:IsEnabled: { type: boolean, default: true }
         Identity:TrustedContacts:IsEnabled: { type: boolean, default: false }
         Identity:TrustedContacts:MaxPerPerson: { type: number, default: 3 }
+        Identity:TrustedContacts:IsNewDeviceConfirmationRequired: { type: boolean, default: true }
         Identity:Telegram:NoticeLifetime: {}
         Identity:Server:Keys:Signing:0: { secret: true, required: true }
         Identity:Server:Keys:Encryption:0: { secret: true, required: true }

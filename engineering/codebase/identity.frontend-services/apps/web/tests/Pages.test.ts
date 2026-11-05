@@ -1487,6 +1487,44 @@ describe('sign-in with trusted contacts', () => {
     expect(chosen?.body).toEqual({ token: 'choice-1', userId: 'u2', isPersistent: false });
     expect(assign).toHaveBeenCalledWith(authorize);
   });
+
+  it('waits for a trusted contact on a new device and continues once they approve', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    try {
+      const assign = vi.spyOn(hostedNavigation, 'assign').mockImplementation(() => undefined);
+      const received = stubApi({
+        'GET /api/account/sign-in-options': trusted,
+        'POST /api/account/phone-sign-in/targets': () => Response.json({ data: { trustedContacts: [] } }),
+        'POST /api/account/phone-sign-in/send': sent,
+        'POST /api/account/phone-sign-in': () =>
+          Response.json({
+            data: {
+              deviceConfirmation: {
+                token: 'dc-1',
+                expiresAt: new Date(Date.now() + 600_000).toISOString(),
+                contacts: ['L*** K.'],
+              },
+            },
+          }),
+        'POST /api/account/phone-sign-in/confirmation': noContent,
+      });
+      const { wrapper } = await renderAt(`/sign-in?returnUrl=${encodeURIComponent(authorize)}`);
+
+      await enterPhone(wrapper);
+      await enterCode(wrapper);
+
+      expect(wrapper.text()).toContain('We asked L*** K. to confirm it’s you in Telegram.');
+      expect(assign).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(3000);
+
+      const polled = received.find((request) => request.url.pathname === '/api/account/phone-sign-in/confirmation');
+      expect(polled?.url.search).toBe('?useCookies=true&clientId=desk');
+      expect(polled?.body).toEqual({ token: 'dc-1', isPersistent: false });
+      expect(assign).toHaveBeenCalledWith(authorize);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('sign-up by a trusted contact', () => {

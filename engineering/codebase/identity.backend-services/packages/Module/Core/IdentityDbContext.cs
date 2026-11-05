@@ -129,6 +129,12 @@ public sealed class IdentityDbContext : AppDbContextBase
     /// <summary>Accounts' trusted contacts (<c>identity_trusted_contacts</c>).</summary>
     public DbSet<IdentityTrustedContact> TrustedContacts => Set<IdentityTrustedContact>();
 
+    /// <summary>The browsers accounts may sign in from with no contact's press (<c>identity_known_devices</c>).</summary>
+    public DbSet<IdentityKnownDevice> KnownDevices => Set<IdentityKnownDevice>();
+
+    /// <summary>The sign-ins waiting for a contact's press (<c>identity_device_confirmations</c>).</summary>
+    public DbSet<IdentityDeviceConfirmation> DeviceConfirmations => Set<IdentityDeviceConfirmation>();
+
     /// <inheritdoc />
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -295,6 +301,26 @@ public sealed class IdentityDbContext : AppDbContextBase
             contact.ToTable("identity_trusted_contacts");
             contact.HasKey(c => new { c.UserId, c.ContactUserId });
             contact.HasIndex(c => c.ContactUserId);
+        });
+
+        // 011-device-confirmations: known browsers, and sign-ins waiting for a contact's press.
+        modelBuilder.Entity<IdentityKnownDevice>(device =>
+        {
+            device.ToTable("identity_known_devices");
+            device.HasKey(d => new { d.UserId, d.DeviceHash });
+            device.Property(d => d.DeviceHash).HasMaxLength(64);
+        });
+
+        modelBuilder.Entity<IdentityDeviceConfirmation>(confirmation =>
+        {
+            confirmation.ToTable("identity_device_confirmations");
+            confirmation.HasKey(c => c.Id);
+            confirmation.Property(c => c.Id).ValueGeneratedNever();
+            confirmation.HasIndex(c => c.TokenHash).IsUnique();
+            confirmation.HasIndex(c => c.UserId);
+            confirmation.HasIndex(c => c.ExpiresAt);
+            confirmation.Property(c => c.DeviceHash).HasMaxLength(64);
+            confirmation.Property(c => c.TokenHash).HasMaxLength(64);
         });
 
         modelBuilder.Entity<IdentitySignUpRequest>(request =>

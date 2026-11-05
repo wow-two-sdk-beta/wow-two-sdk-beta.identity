@@ -46,7 +46,8 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         (await migrator.HasTableAsync(Schema, "identity_trusted_contacts")).Should().BeTrue("010-trusted-contacts adds the contacts");
         foreach (var table in new[] { "identity_invitations", "identity_sessions", "identity_sign_in_log" })
             (await HasColumnAsync(migrator, table, "trusted_contact_user_id")).Should().BeTrue($"010-trusted-contacts names the contact on {table}");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        (await migrator.HasTableAsync(Schema, "identity_device_confirmations")).Should().BeTrue("011-device-confirmations adds the waiting sign-ins");
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
@@ -56,6 +57,10 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         await using var migrator = CreateMigrator(fixture);
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
+
+        (await runner.RollbackAsync(targetOrdinal: 10)).ValueOrThrow().Should().Equal("011-device-confirmations");
+        (await migrator.HasTableAsync(Schema, "identity_known_devices")).Should().BeFalse("rolling 011-device-confirmations back drops the known devices");
+        (await migrator.HasTableAsync(Schema, "identity_trusted_contacts")).Should().BeTrue("the contacts stay");
 
         (await runner.RollbackAsync(targetOrdinal: 9)).ValueOrThrow().Should().Equal("010-trusted-contacts");
         (await migrator.HasTableAsync(Schema, "identity_trusted_contacts")).Should().BeFalse("rolling 010-trusted-contacts back drops the contacts");

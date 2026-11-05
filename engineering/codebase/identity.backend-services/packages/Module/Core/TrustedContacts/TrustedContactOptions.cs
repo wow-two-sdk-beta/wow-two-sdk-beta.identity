@@ -22,4 +22,10 @@ public sealed record TrustedContactOptions
 
     /// <summary>Gets or sets how many trusted contacts one account may have, 1–<see cref="MaxPerPersonLimit"/>. Default 3.</summary>
     public int MaxPerPerson { get; set; } = 3;
+
+    /// <summary>
+    /// Gets or sets whether a browser an account hasn't used waits for a contact's press before a sign-in by the account's
+    /// own code. Read only while trusted contacts are on; an account with no deliverable contact is never asked. Default <c>true</c>.
+    /// </summary>
+    public bool IsNewDeviceConfirmationRequired { get; set; } = true;
 }

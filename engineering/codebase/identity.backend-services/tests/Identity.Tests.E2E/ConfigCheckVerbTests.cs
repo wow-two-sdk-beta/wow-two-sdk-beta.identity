@@ -236,6 +236,7 @@ public sealed partial class ConfigCheckVerbTests
             ["Identity:Methods:Email:IsEnabled"] = "false",
             ["Identity:TrustedContacts:IsEnabled"] = "true",
             ["Identity:TrustedContacts:MaxPerPerson"] = "3",
+            ["Identity:TrustedContacts:IsNewDeviceConfirmationRequired"] = "true",
             ["Identity:Telegram:NoticeLifetime"] = "1.00:00:00",
         ["Identity:Server:ServiceTokenLifetime"] = "00:05:00",
         ["Identity:Server:Signals:RequireHttps"] = "true",

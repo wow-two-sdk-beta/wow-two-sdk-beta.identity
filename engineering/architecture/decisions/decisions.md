@@ -112,6 +112,7 @@
 | 2026-11-05 | a role or permission change signs nobody out, for organization and instance roles alike: no stamp rotates and no session ends; the next token carries it, the cookie reads roles from the store on each request, and a signal stops old tokens at the services. Replaces the rows making a role change end sessions | developer, `identity-cutover.md` #52 |
 | 2026-11-05 | revocation signals are `IEvent`s over be sdk `Messaging/Webhooks`, signed with the token key under a `key-signed` scheme and verified through JWKS, with no shared secret; a lost signal is bounded by the token lifetime | developer; orchestrator |
 | 2026-11-05 | introspection stands for what holds now, and any client granted it may ask; it replaces OpenIddict's presenter-or-audience rule, since a service's client id is not its resource URI | developer; orchestrator |
+| 2026-11-05 | a browser or device an account hasn't used waits for a trusted contact's press before a sign-in by the account's own code, the developer picking "any new browser or device" over only a new Telegram account, since that also catches a recycled SIM logged in to the old Telegram; a sign-in through a contact asks nobody, an account with no deliverable contact passes, and every contact's chat refusing refuses the sign-in | developer |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).
