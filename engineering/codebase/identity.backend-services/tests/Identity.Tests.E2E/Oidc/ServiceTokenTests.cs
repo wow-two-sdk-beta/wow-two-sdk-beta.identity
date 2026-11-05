@@ -174,6 +174,38 @@ public sealed class ServiceTokenTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TokenExchange_ShouldRefuse_OnceThePersonLeftTheSubjectTokensOrganization_NotActInAnother()
+    {
+        using var client = _server.CreateClient();
+        var person = await client.SignUpAndSignInAsync($"left-{Guid.NewGuid():N}@example.test", Password);
+        var left = await JoinOrganizationAsync(person);
+        _server.Host.Clock.Advance(TimeSpan.FromSeconds(1));
+        var stays = await JoinOrganizationAsync(person);
+        var tokens = await client.SignInToAppAsync();
+        (await client.ValidateAsync(tokens.AccessToken, OidcHost.Audience)).GetClaim("org_id").Value.Should().Be(left.ToString("D"), "the oldest membership is the active one");
+        await LeaveOrganizationAsync(person, left);
+
+        await ShouldFailAsync(await ExchangeAsync(client, tokens.AccessToken, Files, "files.read"), "invalid_grant");
+
+        var refreshed = await client.SignInToAppAsync();
+        using var response = await ExchangeAsync(client, refreshed.AccessToken, Files, "files.read");
+        var token = await client.ValidateAsync((await ReadAsync(response)).GetProperty("access_token").GetString()!, Files);
+        token.GetClaim("org_id").Value.Should().Be(stays.ToString("D"), "a subject token naming the other organization still exchanges");
+    }
+
+    [Fact]
+    public async Task TokenExchange_ShouldRefuse_OnceThePersonLeftTheirOnlyOrganization()
+    {
+        using var client = _server.CreateClient();
+        var person = await client.SignUpAndSignInAsync($"gone-{Guid.NewGuid():N}@example.test", Password);
+        var only = await JoinOrganizationAsync(person);
+        var tokens = await client.SignInToAppAsync();
+        await LeaveOrganizationAsync(person, only);
+
+        await ShouldFailAsync(await ExchangeAsync(client, tokens.AccessToken, Files, "files.read"), "invalid_grant");
+    }
+
+    [Fact]
     public async Task TokenExchange_ShouldRefuseAServiceToken_AnExchangedToken_AndAnotherAppsToken()
     {
         using var client = _server.CreateClient();
@@ -260,6 +292,14 @@ public sealed class ServiceTokenTests : IAsyncLifetime
         var organization = new IdentityOrganization { Name = "Exchange", Slug = $"exchange-{Guid.NewGuid():N}"[..20] };
         (await scope.ServiceProvider.GetRequiredService<OrganizationService>().CreateAsync(organization, owner)).IsSuccess.Should().BeTrue();
         return organization.Id;
+    }
+
+    private async Task LeaveOrganizationAsync(Guid person, Guid organization)
+    {
+        await using var scope = _server.Host.Services.CreateAsyncScope();
+        var organizations = scope.ServiceProvider.GetRequiredService<OrganizationService>();
+        var member = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(person))!;
+        (await organizations.RemoveMemberAsync((await organizations.FindByIdAsync(organization))!, member)).IsSuccess.Should().BeTrue();
     }
 
     private async Task RowsShouldBeAsync(int expected)

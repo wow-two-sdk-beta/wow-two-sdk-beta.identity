@@ -1,4 +1,5 @@
 using WoW.Two.Sdk.Beta.Be.Foundation.Naming;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Emails;
@@ -10,10 +11,12 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Emails;
 /// <param name="repository">The core user store.</param>
 /// <param name="accounts">The core account service, for the uniqueness rule.</param>
 /// <param name="tokens">The purpose-token issuer.</param>
+/// <param name="sessions">The sessions slice, which a moved address ends at once; null without it.</param>
 public sealed class UserEmailService(
     IUserRepository repository,
     UserAccountService accounts,
-    UserTokenIssuer tokens)
+    UserTokenIssuer tokens,
+    UserSessionService? sessions = null)
 {
     /// <summary>Issue a token confirming the user's current email address.</summary>
     /// <param name="user">The user.</param>
@@ -67,8 +70,7 @@ public sealed class UserEmailService(
         user.Email = newEmail;
         user.NormalizedEmail = normalized;
         user.IsEmailConfirmed = true;
-        user.RotateSecurityStamp();
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.RotateSecurityStampAsync(user, sessions, cancellationToken);
         return IdentityResult.Success;
     }
 
@@ -87,8 +89,7 @@ public sealed class UserEmailService(
         user.Email = email;
         user.NormalizedEmail = normalized;
         user.IsEmailConfirmed = false;
-        user.RotateSecurityStamp();
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.RotateSecurityStampAsync(user, sessions, cancellationToken);
         return IdentityResult.Success;
     }
 

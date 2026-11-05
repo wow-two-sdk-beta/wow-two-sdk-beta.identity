@@ -1,3 +1,5 @@
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
+
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>Applies the stamp and lockout column rules shared by the identity slices.</summary>
@@ -7,6 +9,22 @@ internal static class IdentityUserExtensions
     /// <param name="user">The user whose stamp rotates.</param>
     internal static void RotateSecurityStamp(this IdentityUser user)
         => user.SecurityStamp = Guid.NewGuid().ToString("N");
+
+    /// <summary>
+    /// Rotates and saves the stamp, then ends at once the sessions it voided, so every <see cref="ISessionRevocationHandler"/>
+    /// hears now rather than at each session's next check, which a stolen token never has to reach.
+    /// </summary>
+    /// <param name="repository">The core user store.</param>
+    /// <param name="user">The user whose stamp rotates, with the rest of the change already applied.</param>
+    /// <param name="sessions">The sessions slice; null when the host has none to end.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    internal static async Task RotateSecurityStampAsync(this IUserRepository repository, IdentityUser user, UserSessionService? sessions, CancellationToken cancellationToken)
+    {
+        user.RotateSecurityStamp();
+        await repository.UpdateAsync(user, cancellationToken);
+        if (sessions is not null)
+            await sessions.EndStaleAsync(user, cancellationToken);
+    }
 
     /// <summary>Whether the user is inside an active lockout window at <paramref name="now"/>.</summary>
     /// <param name="user">The user to inspect.</param>

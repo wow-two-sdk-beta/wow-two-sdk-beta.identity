@@ -10,7 +10,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 /// </summary>
 /// <remarks>
 ///   - a session lives while unrevoked, unexpired and its stamp equals the person's: a stamp rotation ends every
-///     session, marked <see cref="SessionRevokeReasonConstants.SecurityStamp"/> when next seen
+///     session at once, marked <see cref="SessionRevokeReasonConstants.SecurityStamp"/>; one still found stale ends when next seen
 ///   - <c>last_seen_at</c> moves at most once per <see cref="SessionOptions.ActivityInterval"/>; a sliding session's end moves with it
 /// </remarks>
 /// <param name="sessions">The session store.</param>
@@ -99,6 +99,19 @@ public sealed class UserSessionService(
         var session = await sessions.FindAsync(sessionId, cancellationToken);
         if (session is not null && session.UserId == user.Id)
             await sessions.SetSecurityStampAsync(sessionId, user.SecurityStamp, cancellationToken);
+    }
+
+    /// <summary>End every session the person's current stamp voided, marked <see cref="SessionRevokeReasonConstants.SecurityStamp"/>; returns how many ended.</summary>
+    /// <param name="user">The person, with the rotated stamp.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<int> EndStaleAsync(IdentityUser user, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        var stale = (await sessions.ListUnrevokedAsync(user.Id, time.GetUtcNow(), cancellationToken))
+            .Where(session => !IsCurrent(session, user))
+            .Select(session => session.Id)
+            .ToList();
+        return stale.Count == 0 ? 0 : (await EndAsync(stale, SessionRevokeReasonConstants.SecurityStamp, cancellationToken)).Count;
     }
 
     /// <summary>Whether <paramref name="sessionId"/> is a live session of <paramref name="userId"/>, recording the use; a stamp-stale one ends on the way.</summary>

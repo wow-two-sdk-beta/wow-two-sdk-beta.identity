@@ -19,6 +19,10 @@
 | `SessionEndedEvent` | `SessionId` (`sid`), `Subject` (`sub`), `At`, `TokensExpireBy`, `Issuer` | what the session issued stops counting |
 | `AccessChangedEvent` | `Subject`, `OrganizationId` (`org_id`), `Kind`, `At`, `TokensExpireBy`, `Issuer` | `Changed`: joined or re-roled. `Removed`: left, or the organization went |
 
+- A session ends on a sign-out, a revoke, a stamp rotation (password, email, phone, two-factor, an unlinked provider, a removed
+  claim) and an account's deletion. Each signals at once; no later request or refresh is needed. A password change keeps the
+  session it was made in.
+- An account's erasure also raises `Removed` for each organization it belonged to. A soft delete raises only the session's end.
 - They live in `Identity.Abstractions` as `IEvent`; a receiver is an `IEventHandler<T>`, so a broker can replace the delivery
   with no handler touched.
 - `TokensExpireBy` is when the last token from before has expired; a receiver can forget the signal then.
@@ -40,7 +44,8 @@ session revoked / access changed → local event bus → OidcSignalForwarder →
 - Each target is delivered to at once on its own retries, so a dead or slow service holds up no other; an attempt takes at most
   `Signals:RequestTimeout` (5 seconds), and up to 8 events run at a time.
 - A signal lost after its retries is logged and dropped: the token's lifetime is the limit.
-- A receiver answers `401` for a bad signature, which isn't retried, and `503` while it can't fetch the issuer's keys, which is.
+- A receiver answers `401` for a bad signature, which isn't retried, and `503` while it can't fetch the issuer's keys or they
+  don't list the signing key yet, which is. A forged key id reads the same way, and changes nothing.
 
 ## Registry
 
@@ -91,6 +96,8 @@ app.MapIdentitySignals("/signals/identity");
 - `AddIdentityBff` with `SignalUrl` set maps `POST {prefix}/signal`, verified against `Authority`.
 - Session ended: the BFF session ends. Access changed: its next request refreshes first, so it carries fresh claims.
 - The change is timed by the BFF's own clock when it hears the signal, so clock skew with the instance can't hide it.
+- A refresh under way can't undo either: a session ended meanwhile stays ended, and a change heard meanwhile refreshes once more.
+  A store shared across replicas narrows that race to the moment before the save; the signal's own gate is per process.
 - A host that is both a BFF and a resource lists both URLs (`IdentitySignalReceiverOptions.Audiences`).
 
 ### Long operations
@@ -111,4 +118,6 @@ app.MapIdentitySignals("/signals/identity");
 ## Limits
 
 - SignalR stays out; it serves browsers later.
+- The sender's retries span seconds and a receiver asks for new keys at most once per 5 minutes, so a key rotated inside that
+  minimum, or during a longer JWKS outage, can still lose the signal; the token's lifetime bounds it.
 - A signal is at-least-once, so handlers are idempotent; the receiver also drops a repeated delivery id.

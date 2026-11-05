@@ -27,4 +27,5 @@ builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IAccountDeletionHandl
   tolerate running again after a failure.
 - Sign-in log rows stay until their retention ends (`Identity:SignInLog:RetentionDays`); they hold the masked identifier
   and address only.
-- Issued access tokens stay valid until they expire; keep their lifetime short.
+- Each session's end and each membership's removal raise their signals, so a service hearing them refuses the person's tokens at
+  once. One that doesn't hear still accepts them until they expire; keep their lifetime short.

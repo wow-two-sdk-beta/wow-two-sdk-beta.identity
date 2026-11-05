@@ -1,4 +1,8 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.AccessChanges;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Signals;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 
@@ -11,11 +15,15 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 /// <param name="exporters">The product's sections, and roles when that slice is registered.</param>
 /// <param name="handlers">The product's deletion handlers.</param>
 /// <param name="time">Stamps the export and the erasure.</param>
+/// <param name="sessions">The sessions slice, which an erasure ends at once; null without it.</param>
+/// <param name="accessChanges">What hears the account left each organization; null tells nobody.</param>
 public sealed class UserPersonalDataService(
     IdentityDbContext context,
     IEnumerable<IPersonalDataExporter> exporters,
     IEnumerable<IAccountDeletionHandler> handlers,
-    TimeProvider time)
+    TimeProvider time,
+    UserSessionService? sessions = null,
+    IEnumerable<IAccessChangeHandler>? accessChanges = null)
 {
     /// <summary>Exports the user's identity data and every product section.</summary>
     /// <param name="user">The user.</param>
@@ -62,7 +70,8 @@ public sealed class UserPersonalDataService(
     /// sessions, passkeys and organization memberships leave, and the user row is scrubbed in place — names, email,
     /// phone and password hash cleared, flags reset, the stamps replaced and <see cref="IdentityUser.DeletedAt"/> set
     /// unless it already was. The row stays, so a product's key into <c>identity_users</c> never blocks; it resolves no
-    /// more. Issued access tokens live until they expire; sign-in log rows stay until their retention ends.
+    /// more. Each session's end and each membership's removal tell their handlers, so a service that hears refuses the person's
+    /// issued tokens at once; one that doesn't accepts them until they expire. Sign-in log rows stay until their retention ends.
     /// </summary>
     /// <remarks>Runs again safely after a failure, and on an account that was soft-deleted before.</remarks>
     /// <param name="user">The user.</param>
@@ -73,6 +82,11 @@ public sealed class UserPersonalDataService(
         foreach (var handler in handlers)
             await handler.HandleAsync(user, cancellationToken);
 
+        // Before the rows go: an ended session stays ended whatever becomes of the rest, and a second run finds none to tell of.
+        if (sessions is not null)
+            await sessions.RevokeAllAsync(user, keep: null, SessionRevokeReasonConstants.AccountDeleted, cancellationToken);
+
+        var organizations = await context.Set<IdentityMembership>().AsNoTracking().Where(row => row.UserId == user.Id).Select(row => row.OrganizationId).ToListAsync(cancellationToken);
         await using var transaction = context.Database.CurrentTransaction is null && context.Database.IsRelational()
             ? await context.Database.BeginTransactionAsync(cancellationToken)
             : null;
@@ -91,6 +105,23 @@ public sealed class UserPersonalDataService(
         // A tracked copy would still carry the erased values; the next read goes to the scrubbed row.
         if (context.ChangeTracker.Entries<IdentityUser>().FirstOrDefault(entry => entry.Entity.Id == user.Id) is { } tracked)
             tracked.State = EntityState.Detached;
+
+        foreach (var organization in organizations)
+            await TellRemovedAsync(user.Id, organization, cancellationToken);
+    }
+
+    /// <summary>Tells every handler the account no longer belongs to <paramref name="organizationId"/>.</summary>
+    private async Task TellRemovedAsync(Guid userId, Guid organizationId, CancellationToken cancellationToken)
+    {
+        var change = new AccessChangedEvent
+        {
+            Subject = userId.ToString("D", CultureInfo.InvariantCulture),
+            OrganizationId = organizationId.ToString("D", CultureInfo.InvariantCulture),
+            Kind = AccessChangeKind.Removed,
+            At = time.GetUtcNow(),
+        };
+        foreach (var handler in accessChanges ?? [])
+            await handler.HandleAsync(change, cancellationToken);
     }
 
     /// <summary>Clears the account's personal columns in place, deleted rows included; the row and its id stay.</summary>

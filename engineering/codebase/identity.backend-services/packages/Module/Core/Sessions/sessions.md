@@ -52,7 +52,8 @@ app.MapGroup("/api/account").MapUserAccountEndpoints();  // sign-in?useCookies=t
   session's end, reissuing the cookie. The OIDC token endpoint validates the same way, so an app's refresh uses the
   session too.
 - Live means unrevoked, unexpired and stamped with the person's current security stamp. A stamp rotation (password
-  change, sign-out everywhere) ends every session; the row is marked `security_stamp` when next seen.
+  change, sign-out everywhere) ends every session at once, marks the rows `security_stamp` and runs every
+  `ISessionRevocationHandler`; a rotation that kept its own session rebinds it first.
 - A role change (`../Roles/roles.md` § Role changes) ends no session; `roles_changed` stays only on rows from before.
 - End: `RevokeAsync` (one, reason `revoked`; `sign_out` from the sign-out and end-session routes) and `RevokeAllAsync`
   (reason `revoked_all`, or the one given, optionally keeping one) mark the rows, then run every `ISessionRevocationHandler`.
@@ -65,7 +66,7 @@ app.MapGroup("/api/account").MapUserAccountEndpoints();  // sign-in?useCookies=t
 | `UserSessionService` | start, validate, list, revoke one, revoke all |
 | `IUserSessionRepository` · `EfUserSessionRepository` | the store over `IdentityDbContext`; touches and revocations are conditional updates |
 | `ISessionRevocationHandler` | what else ends with a session; the OIDC server's revokes the session's authorizations and tokens |
-| `SessionRevokeReasonConstants` | `sign_out`, `revoked`, `revoked_all`, `security_stamp`, `roles_changed`, `trusted_contact_revoked` |
+| `SessionRevokeReasonConstants` | `sign_out`, `revoked`, `revoked_all`, `account_deleted`, `security_stamp`, `roles_changed`, `trusted_contact_revoked` |
 
 ## Notes
 

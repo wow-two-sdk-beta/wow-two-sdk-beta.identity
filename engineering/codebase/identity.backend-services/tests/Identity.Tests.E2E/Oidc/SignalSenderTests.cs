@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -8,6 +9,8 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Signals;
 using WoW.Two.Sdk.Beta.Be.Messaging.Webhooks;
 
@@ -53,7 +56,12 @@ public sealed class SignalSenderTests : IAsyncLifetime
                 ["Identity:Server:Clients:1:Scopes:0"] = "files.read",
                 ["Identity:Server:Clients:1:CanIntrospect"] = "true",
             },
-            services => services.AddHttpClient(WebhookDefaultConstants.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => _signals));
+            services =>
+            {
+                // The service leaves erasure to a host that asks for it; this one does, to hear what it sends.
+                services.AddScoped<UserPersonalDataService>();
+                services.AddHttpClient(WebhookDefaultConstants.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => _signals);
+            });
         return Task.CompletedTask;
     }
 
@@ -103,6 +111,53 @@ public sealed class SignalSenderTests : IAsyncLifetime
         (await _signals.WaitForAsync(nameof(AccessChangedEvent), 2)).Should().OnlyContain(signal => Kind(signal) == nameof(AccessChangeKind.Removed));
         (await member.Http.GetAsync("/api/account/manage/info")).StatusCode.Should().Be(HttpStatusCode.OK);
         _signals.All.Should().NotContain(signal => signal.Event == nameof(SessionEndedEvent));
+    }
+
+    [Fact]
+    public async Task PasswordReset_ShouldSignalTheSession_WithNoRefreshOrLaterRequest()
+    {
+        using var client = _server.CreateClient();
+        var email = $"reset-{Guid.NewGuid():N}@example.test";
+        var person = await client.SignUpAndSignInAsync(email, Password);
+        var tokens = await client.SignInToAppAsync();
+        var sid = (await client.ValidateAsync(tokens.AccessToken, OidcHost.Audience)).GetClaim("sid").Value;
+        await using (var scope = _server.Host.Services.CreateAsyncScope())
+        {
+            var user = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(person))!;
+            var resetToken = scope.ServiceProvider.GetRequiredService<UserPasswordService>().IssuePasswordResetToken(user);
+            using var anonymous = _server.CreateClient();
+            using var reset = await anonymous.Http.PostAsJsonAsync("/api/account/reset-password", new { email, resetToken, newPassword = "e2e-a-brand-new-passphrase" });
+            reset.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        }
+
+        var received = await _signals.WaitForAsync(nameof(SessionEndedEvent), 2);
+        received.Select(signal => signal.Url).Should().BeEquivalentTo(FilesSignals, DeskSignals);
+        using var body = JsonDocument.Parse(received[0].Body);
+        body.RootElement.GetProperty(nameof(SessionEndedEvent.SessionId)).GetString().Should().Be(sid);
+    }
+
+    [Fact]
+    public async Task AccountDeletion_ShouldSignalItsSession_AndEachOrganization()
+    {
+        using var client = _server.CreateClient();
+        var person = await client.SignUpAndSignInAsync($"erase-{Guid.NewGuid():N}@example.test", Password);
+        var organization = await CreateOrganizationAsync(person);
+        var tokens = await client.SignInToAppAsync();
+        var sid = (await client.ValidateAsync(tokens.AccessToken, OidcHost.Audience)).GetClaim("sid").Value;
+
+        await using (var scope = _server.Host.Services.CreateAsyncScope())
+        {
+            var user = (await scope.ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(person))!;
+            await scope.ServiceProvider.GetRequiredService<UserPersonalDataService>().DeleteAsync(user);
+        }
+
+        var ended = await _signals.WaitForAsync(nameof(SessionEndedEvent), 2);
+        using (var body = JsonDocument.Parse(ended[0].Body))
+            body.RootElement.GetProperty(nameof(SessionEndedEvent.SessionId)).GetString().Should().Be(sid);
+        var changed = await _signals.WaitForAsync(nameof(AccessChangedEvent), 2);
+        changed.Should().OnlyContain(signal => Kind(signal) == nameof(AccessChangeKind.Removed));
+        using var change = JsonDocument.Parse(changed[0].Body);
+        change.RootElement.GetProperty(nameof(AccessChangedEvent.OrganizationId)).GetString().Should().Be(organization.ToString("D"));
     }
 
     [Fact]

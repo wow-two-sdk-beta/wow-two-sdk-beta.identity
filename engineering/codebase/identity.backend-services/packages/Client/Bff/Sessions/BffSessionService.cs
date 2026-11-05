@@ -29,6 +29,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 ///     keeps its tokens until they run out, since a role change signs nobody out
 ///   - a refresh and the save of its tokens run apart from the request, bounded by <see cref="RefreshTimeout"/>: the
 ///     instance rotates the refresh token as it answers, so a browser that leaves mid-refresh must not strand the new one
+///   - a refresh undoes neither signal: it doesn't save a session that ended meanwhile, and its claims date from when it asked,
+///     so a change heard meanwhile refreshes once more; ending takes the same gate, so it can't slip between the check and the save
 /// </remarks>
 /// <param name="repository">The session store.</param>
 /// <param name="protector">The payload protector.</param>
@@ -136,7 +138,7 @@ internal sealed partial class BffSessionService(
         if (session is null || !await NeedsRefreshAsync(session.State, cancellationToken))
             return session;
 
-        var gate = _gates[(uint)StringComparer.Ordinal.GetHashCode(reference.SessionId) % (uint)_gates.Length];
+        var gate = GateOf(reference.SessionId);
         await gate.WaitAsync(cancellationToken);
         try
         {
@@ -156,7 +158,22 @@ internal sealed partial class BffSessionService(
     public async Task EndAsync(string sessionId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(sessionId);
+
+        // At once, so no request opens it while a refresh finishes.
         await repository.RemoveAsync(sessionId, cancellationToken);
+
+        // Once more behind the gate, whatever became of the request: a refresh past its check would write the session back.
+        var gate = GateOf(sessionId);
+        await gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            await repository.RemoveAsync(sessionId, CancellationToken.None);
+        }
+        finally
+        {
+            gate.Release();
+        }
+
         LogEnded(logger, "signed out");
     }
 
@@ -217,6 +234,9 @@ internal sealed partial class BffSessionService(
         // Read first: the tokens this refresh brings are from after any change already recorded.
         var changedAt = await AccessChangedAtAsync(state, CancellationToken.None);
 
+        // The claims date from here: a change heard while the instance answers may not be in them.
+        var askedAt = time.GetUtcNow();
+
         BffTokenRefreshResult refreshed;
         using (var timeout = new CancellationTokenSource(RefreshTimeout, time))
         {
@@ -257,15 +277,26 @@ internal sealed partial class BffSessionService(
                 IdentityToken = refreshed.IdentityToken ?? state.IdentityToken,
                 ExpiresAt = refreshed.SessionLifetime is { } remaining ? now + remaining : state.ExpiresAt,
 
-                // The change names the instance's clock: one ahead of this host's must not refresh every request until they meet.
-                ClaimsAsOf = changedAt > now ? changedAt : now,
+                // A marker ahead of this host's clock, from a replica's, must not refresh every request until they meet.
+                ClaimsAsOf = changedAt > askedAt ? changedAt : askedAt,
             },
         };
+
+        // Ended while the instance answered: saving would bring it back.
+        if (await repository.FindAsync(session.SessionId, CancellationToken.None) is null)
+        {
+            LogEnded(logger, "ended during a refresh");
+            return null;
+        }
+
         // The instance already rotated the refresh token: the save must land whatever became of the request.
         await SaveAsync(renewed, CancellationToken.None);
         LogRefreshed(logger);
         return renewed;
     }
+
+    private SemaphoreSlim GateOf(string sessionId)
+        => _gates[(uint)StringComparer.Ordinal.GetHashCode(sessionId) % (uint)_gates.Length];
 
     private async ValueTask<bool> NeedsRefreshAsync(BffSessionState state, CancellationToken cancellationToken)
     {

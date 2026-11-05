@@ -93,6 +93,70 @@ public sealed class IdentitySignalReceiverTests
     }
 
     [Fact]
+    public async Task RotatedKey_ShouldAnswer503_WhileDiscoveryCantShowIt_SoTheSenderRetries()
+    {
+        using var discovery = new DiscoveryStub("https://id.example.test");
+        discovery.Publish(_key);
+        await using var host = await StartAsync(options =>
+        {
+            options.TrustedIssuers.Clear();
+            options.TrustedIssuers.Add(new TrustedIssuer { Issuer = Issuer });
+            options.BackchannelHttpHandler = discovery;
+        });
+        using (var known = await host.Client.SendAsync(Signals.Post(Signals.SessionEnded("sid-1", "person-1"))))
+            known.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var rotated = new SignalRequests(SignedTokens.NewKey(), Issuer, Target, Route);
+
+        discovery.IsDown = true;
+        using (var failing = await host.Client.SendAsync(rotated.Post(rotated.SessionEnded("sid-2", "person-1"))))
+            failing.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, "the refresh failed and the old keys came back without an error");
+
+        discovery.IsDown = false;
+        using (var early = await host.Client.SendAsync(rotated.Post(rotated.SessionEnded("sid-3", "person-1"))))
+            early.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, "inside the minimum between refreshes nothing is asked");
+    }
+
+    [Fact]
+    public async Task RotatedKey_ShouldPass_OnceDiscoveryShowsIt()
+    {
+        using var discovery = new DiscoveryStub("https://id.example.test");
+        discovery.Publish(_key);
+        await using var host = await StartAsync(options =>
+        {
+            options.TrustedIssuers.Clear();
+            options.TrustedIssuers.Add(new TrustedIssuer { Issuer = Issuer });
+            options.BackchannelHttpHandler = discovery;
+        });
+        using (var known = await host.Client.SendAsync(Signals.Post(Signals.SessionEnded("sid-1", "person-1"))))
+            known.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var key = SignedTokens.NewKey();
+        var rotated = new SignalRequests(key, Issuer, Target, Route);
+        discovery.Publish(_key, key);
+
+        using var response = await host.Client.SendAsync(rotated.Post(rotated.SessionEnded("sid-2", "person-1")));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+
+    [Fact]
+    public async Task AKnownKeyIdWithAnotherKey_ShouldAnswer401_ThroughDiscovery()
+    {
+        using var discovery = new DiscoveryStub("https://id.example.test");
+        discovery.Publish(_key);
+        await using var host = await StartAsync(options =>
+        {
+            options.TrustedIssuers.Clear();
+            options.TrustedIssuers.Add(new TrustedIssuer { Issuer = Issuer });
+            options.BackchannelHttpHandler = discovery;
+        });
+        var forged = new SignalRequests(SignedTokens.NewKey(_key.KeyId), Issuer, Target, Route);
+
+        using var response = await host.Client.SendAsync(forged.Post(forged.SessionEnded("sid-1", "person-1")));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "a key the issuer lists didn't sign it, and no refresh changes that");
+    }
+
+    [Fact]
     public async Task Signature_ShouldAnswer401_WhenItFailsAnyCheck_AndReachNoHandler()
     {
         await using var host = await StartAsync();

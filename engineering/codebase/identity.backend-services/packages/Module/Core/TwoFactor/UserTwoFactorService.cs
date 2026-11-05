@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using OtpNet;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 using WoW.Two.Sdk.Beta.Be.Identity.Mfa.Totp;
 
@@ -15,11 +16,13 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.TwoFactor;
 /// <param name="tokens">The stored-token repository.</param>
 /// <param name="totp">Computes and verifies authenticator codes.</param>
 /// <param name="options">Authenticator label and recovery-code count.</param>
+/// <param name="sessions">The sessions slice, which a rotated stamp ends at once; null without it.</param>
 public sealed class UserTwoFactorService(
     IUserRepository repository,
     IUserTokenRepository tokens,
     ITotpService totp,
-    TwoFactorOptions options)
+    TwoFactorOptions options,
+    UserSessionService? sessions = null)
 {
     /// <summary>The provider name ASP.NET Identity stores its own tokens under.</summary>
     public const string TokenProvider = "[AspNetUserStore]";
@@ -39,8 +42,7 @@ public sealed class UserTwoFactorService(
         ArgumentNullException.ThrowIfNull(user);
         var key = totp.ToBase32(totp.GenerateSecret());
         await tokens.SetAsync(user.Id, TokenProvider, AuthenticatorKeyName, key, cancellationToken);
-        user.RotateSecurityStamp();
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.RotateSecurityStampAsync(user, sessions, cancellationToken);
         return key;
     }
 
@@ -87,8 +89,7 @@ public sealed class UserTwoFactorService(
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidAuthenticatorCode, "The authenticator code is invalid.");
 
         user.IsTwoFactorEnabled = true;
-        user.RotateSecurityStamp();
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.RotateSecurityStampAsync(user, sessions, cancellationToken);
         return IdentityResult.Success;
     }
 
@@ -102,8 +103,7 @@ public sealed class UserTwoFactorService(
         await tokens.RemoveAsync(user.Id, TokenProvider, RecoveryCodesName, cancellationToken);
         await tokens.RemoveAsync(user.Id, TokenProvider, PreferredMethodName, cancellationToken);
         user.IsTwoFactorEnabled = false;
-        user.RotateSecurityStamp();
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.RotateSecurityStampAsync(user, sessions, cancellationToken);
         return IdentityResult.Success;
     }
 

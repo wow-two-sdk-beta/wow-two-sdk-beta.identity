@@ -18,6 +18,9 @@ public static class SessionRevokeReasonConstants
     /// <summary>The person's roles changed, on rows from before a role change stopped ending sessions; nothing new writes it.</summary>
     public const string RolesChanged = "roles_changed";
 
+    /// <summary>The person's account was deleted.</summary>
+    public const string AccountDeleted = "account_deleted";
+
     /// <summary>The trusted contact the session's sign-in went through was revoked, or left.</summary>
     public const string TrustedContactRevoked = "trusted_contact_revoked";
 }

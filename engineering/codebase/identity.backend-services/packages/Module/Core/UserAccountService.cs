@@ -1,5 +1,6 @@
 using System.Net.Mail;
 using WoW.Two.Sdk.Beta.Be.Foundation.Naming;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
@@ -11,7 +12,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 /// <param name="repository">The core user store.</param>
 /// <param name="options">Identity options.</param>
 /// <param name="time">The clock new ids take their instant from.</param>
-public sealed class UserAccountService(IUserRepository repository, IdentityCoreOptions options, TimeProvider time)
+/// <param name="sessions">The sessions slice, which a rotation or a deletion ends at once; null without it.</param>
+public sealed class UserAccountService(IUserRepository repository, IdentityCoreOptions options, TimeProvider time, UserSessionService? sessions = null)
 {
     /// <summary>The longest user name the store keeps.</summary>
     public const int UserNameMaxLength = 256;
@@ -71,8 +73,7 @@ public sealed class UserAccountService(IUserRepository repository, IdentityCoreO
     public async Task<IdentityResult> RotateSecurityStampAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
-        user.RotateSecurityStamp();
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.RotateSecurityStampAsync(user, sessions, cancellationToken);
         return IdentityResult.Success;
     }
 
@@ -90,13 +91,19 @@ public sealed class UserAccountService(IUserRepository repository, IdentityCoreO
     }
 
     /// <summary>Delete a user: a soft delete that keeps the row, so no lookup, sign-in or token finds the account again.</summary>
-    /// <remarks>Its user name and email become free for a new account. Erasing personal data is <c>UserPersonalDataService.DeleteAsync</c>.</remarks>
+    /// <remarks>
+    /// Its user name and email become free for a new account, and its sessions end at once. Memberships stay on the row, so no
+    /// access change is told; erasing personal data, which tells it, is <c>UserPersonalDataService.DeleteAsync</c>.
+    /// </remarks>
     /// <param name="user">The user to delete.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<IdentityResult> DeleteAsync(IdentityUser user, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         await repository.DeleteAsync(user, cancellationToken);
+        if (sessions is not null)
+            await sessions.RevokeAllAsync(user, keep: null, SessionRevokeReasonConstants.AccountDeleted, cancellationToken);
+
         return IdentityResult.Success;
     }
 

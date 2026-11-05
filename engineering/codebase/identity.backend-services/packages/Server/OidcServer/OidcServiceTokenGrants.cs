@@ -88,6 +88,13 @@ internal static class OidcServiceTokenGrants
             identity.SetClaim(OrganizationClaimTypeConstants.Id, organization);
 
         var principal = await services.GetRequiredService<OidcClaimMapper>().ApplyAsync(identity, person, profile, cancellationToken);
+
+        // The mapper moves a person who left to another organization. A caller caches this token under the subject's, so a call
+        // made there would act elsewhere; the next subject token names the new one.
+        if (subject.GetClaim(OrganizationClaimTypeConstants.Id) is { } named
+            && !string.Equals(principal.GetClaim(OrganizationClaimTypeConstants.Id), named, StringComparison.Ordinal))
+            return OidcServerEndpointRouteBuilderExtensions.Forbid(Errors.InvalidGrant, "The person no longer belongs to the organization the subject token names.");
+
         var now = (services.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow();
         principal.SetAccessTokenLifetime(session is { ExpiresAt: { } end } && end - now < options.ServiceTokenLifetime ? end - now : options.ServiceTokenLifetime);
         return Results.SignIn(principal, authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);

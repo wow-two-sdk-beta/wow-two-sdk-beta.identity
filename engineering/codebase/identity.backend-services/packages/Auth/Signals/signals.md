@@ -26,8 +26,9 @@ app.MapIdentitySignals("/signals/identity");
 | `event` equals `X-Webhook-Event`; `body_sha256` equals the raw body's hash; `jti` is present | `401` |
 | the body's `Issuer` equals `iss`; a body with none, or not a JSON object, fails | `401` |
 
-- A bad signature answers `401`, which the sender doesn't retry. A signature that can't be checked yet, with the issuer's
-  discovery down, answers `503`, which it does.
+- A bad signature answers `401`, which the sender doesn't retry. A signature that can't be checked yet answers `503`, which it
+  does: the issuer's discovery is down, or its keys don't list the signing key yet (a rotation inside the 5-minute minimum between
+  refreshes, or a refresh that failed). A pinned `SigningKeys` has nothing to wait for, so an unknown key there answers `401`.
 - The delivery id is the signed `jti`, never the plain `X-Webhook-Id`, so a repeat can't dodge the drop by changing a header.
 - `TrustedIssuer.Audiences` and `Partition` describe an issuer's tokens, and are ignored for a signal; the keys come from its
   `SigningKeys`, or its discovery through `BackchannelHttpHandler`.

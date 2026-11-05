@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.ExternalAccounts;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp.Models;
@@ -21,6 +22,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.TwoFactor;
 /// <param name="options">The methods; <c>Identity:TwoFactor</c> reloads live.</param>
 /// <param name="otpOptions">The default code lifetime.</param>
 /// <param name="externalAccounts">The external-account slice, for methods addressed to an external account; null when absent.</param>
+/// <param name="sessions">The sessions slice, which a rotated stamp ends at once; null without it.</param>
 public sealed class UserTwoFactorMethodService(
     IUserRepository repository,
     IUserTokenRepository tokens,
@@ -30,7 +32,8 @@ public sealed class UserTwoFactorMethodService(
     IOtpMessageFormatter formatter,
     IOptionsMonitor<TwoFactorOptions> options,
     OtpOptions otpOptions,
-    IExternalAccountRepository? externalAccounts = null)
+    IExternalAccountRepository? externalAccounts = null,
+    UserSessionService? sessions = null)
 {
     /// <summary>The purpose delivered codes are worded for, as <see cref="IOtpMessageFormatter"/> templates key it.</summary>
     public const string MessagePurpose = "two-factor";
@@ -170,8 +173,7 @@ public sealed class UserTwoFactorMethodService(
             return IdentityUserExtensions.Failure(IdentityErrorCodeConstants.InvalidTwoFactorCode, "The code is invalid or has expired.");
 
         user.IsTwoFactorEnabled = true;
-        user.RotateSecurityStamp();
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.RotateSecurityStampAsync(user, sessions, cancellationToken);
         return await SetPreferredMethodAsync(user, method, cancellationToken);
     }
 

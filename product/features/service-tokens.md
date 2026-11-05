@@ -62,6 +62,8 @@
 | `sid` · `amr` | no | the subject token's |
 | `act` | no | `{ "sub": "<client id>" }` |
 
+- A subject token naming an organization the person left is refused with `invalid_grant`; no other organization stands in, since a
+  caller caches the answer under that one.
 - OpenIddict validates `resource` and checks the client's permission, but never turns `resource` into `aud`; `aud` comes from the registry.
 - A request names exactly one `resource`; none, several, or one this client's grant doesn't reach answers `invalid_target` (RFC 8707).
 - One token per person and target, never one per action (developer, 2026-11-05): a `scope` parameter is checked, not

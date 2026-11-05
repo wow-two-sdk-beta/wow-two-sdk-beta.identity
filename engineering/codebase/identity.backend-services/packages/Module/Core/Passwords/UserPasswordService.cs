@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Tokens;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
@@ -12,12 +13,14 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Passwords;
 /// <param name="hasher">The password hasher; Argon2id unless the host registered another.</param>
 /// <param name="validators">The registered password checks, run in registration order.</param>
 /// <param name="tokens">The purpose-token issuer; null until <c>.AddUserTokens()</c> registers one.</param>
+/// <param name="sessions">The sessions slice, which a stored password ends at once; null without it.</param>
 public sealed class UserPasswordService(
     IUserRepository repository,
     UserAccountService accounts,
     IPasswordHasher<IdentityUser> hasher,
     IEnumerable<IUserPasswordValidator> validators,
-    UserTokenIssuer? tokens = null)
+    UserTokenIssuer? tokens = null,
+    UserSessionService? sessions = null)
 {
     /// <summary>Whether <paramref name="user"/> has a password.</summary>
     /// <param name="user">The user to inspect.</param>
@@ -102,8 +105,7 @@ public sealed class UserPasswordService(
     {
         ArgumentNullException.ThrowIfNull(user);
         user.PasswordHash = null;
-        user.RotateSecurityStamp();
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.RotateSecurityStampAsync(user, sessions, cancellationToken);
         return IdentityResult.Success;
     }
 
@@ -143,7 +145,8 @@ public sealed class UserPasswordService(
 
     /// <summary>
     /// Replace the password with one the caller already ran through <see cref="ValidateAsync"/> and authorized by other proof
-    /// (a spent code or link, a forced-change ticket); rotates the security stamp.
+    /// (a spent code or link, a forced-change ticket); rotates the security stamp and ends no session, since the caller
+    /// chooses which one to keep and ends the rest.
     /// </summary>
     /// <param name="user">The user.</param>
     /// <param name="newPassword">The replacement password, already validated.</param>
@@ -173,8 +176,7 @@ public sealed class UserPasswordService(
             return validation;
 
         user.PasswordHash = hasher.HashPassword(user, password);
-        user.RotateSecurityStamp();
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.RotateSecurityStampAsync(user, sessions, cancellationToken);
         return IdentityResult.Success;
     }
 

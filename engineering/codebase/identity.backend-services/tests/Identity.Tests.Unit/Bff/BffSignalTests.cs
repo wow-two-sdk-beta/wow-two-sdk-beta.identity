@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
@@ -96,7 +97,7 @@ public sealed class BffSignalTests
 
         using var audience = await host.Client.SendAsync(Signals.Post(signal, new SignalShape { Audience = "https://files.example.test/signals/identity" }));
         using var issuer = await host.Client.SendAsync(stranger.Post(stranger.SessionEnded("sid-1", "person-1")));
-        using var key = await host.Client.SendAsync(new SignalRequests(SignedTokens.NewKey(), Issuer, SignalUrl, Route).Post(signal));
+        using var key = await host.Client.SendAsync(new SignalRequests(SignedTokens.NewKey(_key.KeyId), Issuer, SignalUrl, Route).Post(signal));
 
         audience.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         issuer.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -200,6 +201,64 @@ public sealed class BffSignalTests
     }
 
     [Fact]
+    public async Task SessionEndedWhileTheInstanceAnswersARefresh_ShouldStayEnded_AndRefuseTheRequest()
+    {
+        await using var host = await BffSignalHost.StartAsync(_key, SignalUrl);
+        using var signedIn = await host.Client.PostAsync("/test/sign-in", null);
+        await ChangeAccessAsync(host);
+        var refreshing = host.Instance.HoldNextRefresh();
+        var request = host.Client.GetAsync("/api/me");
+        await refreshing.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        using var signal = await host.Sender.SendAsync(Signals.Post(Signals.SessionEnded("sid-1", "person-1")));
+        signal.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        await SignalCapture.UntilAsync(async () => await host.StoredAsync("sid-1") is null, "the signal ends the session");
+        refreshing.Release.TrySetResult();
+
+        using var response = await request.WaitAsync(TimeSpan.FromSeconds(10));
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "the session ended before the refresh came back");
+        (await host.StoredAsync("sid-1")).Should().BeNull("the refresh's save must not bring it back");
+    }
+
+    [Fact]
+    public async Task SessionEndedWhileARefreshSaves_ShouldStayEnded()
+    {
+        var store = new HoldingSessionStore();
+        await using var host = await BffSignalHost.StartAsync(_key, SignalUrl, before: services => services.AddSingleton<IBffSessionRepository>(store));
+        using var signedIn = await host.Client.PostAsync("/test/sign-in", null);
+        await ChangeAccessAsync(host);
+        store.HoldNextSave();
+        var request = host.Client.GetAsync("/api/me");
+        await store.SaveEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var ending = host.Services.GetRequiredService<BffSessionService>().EndAsync("sid-1", CancellationToken.None);
+        store.ReleaseSave.TrySetResult();
+
+        await ending.WaitAsync(TimeSpan.FromSeconds(10));
+        using var response = await request.WaitAsync(TimeSpan.FromSeconds(10));
+        (await host.StoredAsync("sid-1")).Should().BeNull("the end waits for the save it raced, then removes what it wrote");
+    }
+
+    [Fact]
+    public async Task ChangeHeardDuringARefresh_ShouldRefreshAgainOnTheNextRequest()
+    {
+        await using var host = await BffSignalHost.StartAsync(_key, SignalUrl);
+        using var signedIn = await host.Client.PostAsync("/test/sign-in", null);
+        await ChangeAccessAsync(host);
+        var refreshing = host.Instance.HoldNextRefresh();
+        var request = host.Client.GetStringAsync("/api/token");
+        await refreshing.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await ChangeAccessAsync(host);
+        refreshing.Release.TrySetResult();
+
+        (await request.WaitAsync(TimeSpan.FromSeconds(10))).Should().Be("access-1");
+        (await host.Client.GetStringAsync("/api/token")).Should().Be("access-2", "the instance may have written access-1's claims before the change");
+        (await host.Client.GetStringAsync("/api/token")).Should().Be("access-2", "one more refresh spends the change");
+        host.Instance.TokenCalls.Should().Be(2);
+    }
+
+    [Fact]
     public async Task LateChange_ShouldNotMoveTheMarkerBack()
     {
         await using var host = await BffSignalHost.StartAsync(_key, SignalUrl);
@@ -250,10 +309,22 @@ public sealed class BffSignalTests
         failure.FailureMessage.Should().Contain(nameof(IdentityBffOptions.SignalUrl));
     }
 
+    /// <summary>Sends a changed access through the real route and waits until this host recorded it.</summary>
+    private async Task ChangeAccessAsync(BffSignalHost host)
+    {
+        var before = await host.AccessChangedAtAsync("person-1");
+        using var response = await host.Sender.SendAsync(Signals.Post(Signals.AccessChanged("person-1", "org-1", AccessChangeKind.Changed)));
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        await SignalCapture.UntilAsync(async () => await host.AccessChangedAtAsync("person-1") is { } at && at != before, "the change is recorded");
+    }
+
     /// <summary>A BFF on a real pipeline, signed in by a test route as the code flow's callback would.</summary>
     private sealed class BffSignalHost(WebApplication app, HttpClient client, StandInInstance instance, SignalCapture capture) : IAsyncDisposable
     {
         public HttpClient Client { get; } = client;
+
+        /// <summary>Gets a client as the instance is one: it carries no session cookie.</summary>
+        public HttpClient Sender { get; } = new(app.GetTestServer().CreateHandler()) { BaseAddress = new Uri("https://app.example.test") };
 
         public IServiceProvider Services => app.Services;
 
@@ -265,7 +336,8 @@ public sealed class BffSignalTests
             RsaSecurityKey key,
             string? signalUrl,
             bool viaSection = false,
-            Action<IdentitySignalReceiverOptions>? receiver = null)
+            Action<IdentitySignalReceiverOptions>? receiver = null,
+            Action<IServiceCollection>? before = null)
         {
             var instance = new StandInInstance(key);
             var capture = new SignalCapture();
@@ -284,6 +356,7 @@ public sealed class BffSignalTests
             builder.Configuration.AddInMemoryCollection(section);
             builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
             builder.Services.AddProblemDetails();
+            before?.Invoke(builder.Services);
             builder.Services.AddIdentityBff(options =>
             {
                 options.BackchannelHttpHandler = instance;
@@ -337,6 +410,7 @@ public sealed class BffSignalTests
         public async ValueTask DisposeAsync()
         {
             Client.Dispose();
+            Sender.Dispose();
             await app.DisposeAsync();
             Instance.Dispose();
         }
@@ -346,10 +420,14 @@ public sealed class BffSignalTests
     private sealed class StandInInstance(RsaSecurityKey key) : HttpMessageHandler
     {
         private int _tokenCalls;
+        private volatile RefreshHold? _hold;
 
         public int TokenCalls => _tokenCalls;
 
         public bool RefusesRefresh { get; set; }
+
+        /// <summary>Makes the next token call wait, so a test can act while a refresh is under way.</summary>
+        public RefreshHold HoldNextRefresh() => _hold = new RefreshHold();
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -389,16 +467,27 @@ public sealed class BffSignalTests
                         });
                     }
 
-                    var call = Interlocked.Increment(ref _tokenCalls);
-                    return Json(new Dictionary<string, object>
-                    {
-                        ["access_token"] = $"access-{call}",
-                        ["refresh_token"] = $"refresh-{call}",
-                        ["expires_in"] = 600,
-                    });
+                    return RefreshAsync(cancellationToken);
                 default:
                     return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
             }
+        }
+
+        private async Task<HttpResponseMessage> RefreshAsync(CancellationToken cancellationToken)
+        {
+            var call = Interlocked.Increment(ref _tokenCalls);
+            if (Interlocked.Exchange(ref _hold, null) is { } hold)
+            {
+                hold.Entered.TrySetResult();
+                await hold.Release.Task.WaitAsync(cancellationToken);
+            }
+
+            return await Json(new Dictionary<string, object>
+            {
+                ["access_token"] = $"access-{call}",
+                ["refresh_token"] = $"refresh-{call}",
+                ["expires_in"] = 600,
+            });
         }
 
         private static Task<HttpResponseMessage> Json<TBody>(TBody body)
@@ -406,5 +495,47 @@ public sealed class BffSignalTests
             {
                 Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"),
             });
+    }
+
+    /// <summary>One held refresh: when it reached the instance, and what lets it answer.</summary>
+    private sealed class RefreshHold
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    /// <summary>A session store whose next save waits, so a test can act between a refresh's last read and its write.</summary>
+    private sealed class HoldingSessionStore : IBffSessionRepository
+    {
+        private readonly ConcurrentDictionary<string, BffSessionRecord> _records = new(StringComparer.Ordinal);
+        private volatile bool _isHolding;
+
+        public TaskCompletionSource SaveEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ReleaseSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void HoldNextSave() => _isHolding = true;
+
+        public Task<BffSessionRecord?> FindAsync(string sessionId, CancellationToken cancellationToken = default)
+            => Task.FromResult<BffSessionRecord?>(_records.GetValueOrDefault(sessionId));
+
+        public async Task SaveAsync(BffSessionRecord record, CancellationToken cancellationToken = default)
+        {
+            if (_isHolding)
+            {
+                _isHolding = false;
+                SaveEntered.TrySetResult();
+                await ReleaseSave.Task.WaitAsync(cancellationToken);
+            }
+
+            _records[record.SessionId] = record;
+        }
+
+        public Task RemoveAsync(string sessionId, CancellationToken cancellationToken = default)
+        {
+            _records.TryRemove(sessionId, out _);
+            return Task.CompletedTask;
+        }
     }
 }

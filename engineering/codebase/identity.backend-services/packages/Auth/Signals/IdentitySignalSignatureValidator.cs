@@ -19,8 +19,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Signals;
 /// <summary>
 /// Validates a revocation signal under <see cref="WebhookSchemeNameConstants.KeySigned"/>: the signature JWT against the keys of
 /// the issuer it names, its <c>typ</c>, <c>aud</c> and lifetime, then that it covers this event and this body. A bad signature
-/// is a failed result; a signature that can't be checked yet, with the issuer's discovery down, also marks the request, so the
-/// gate answers <c>503</c> and the sender retries. The delivery id comes from the signed <c>jti</c>, never the plain header.
+/// is a failed result; a signature that can't be checked yet, with the issuer's discovery down or its keys not listing the
+/// signing key, also marks the request, so the gate answers <c>503</c> and the sender retries. The delivery id comes from the
+/// signed <c>jti</c>, never the plain header.
 /// </summary>
 internal sealed partial class IdentitySignalSignatureValidator : IWebhookSignatureValidator, IDisposable
 {
@@ -32,6 +33,7 @@ internal sealed partial class IdentitySignalSignatureValidator : IWebhookSignatu
     private readonly TokenValidationParameters _parameters;
     private readonly ILogger<IdentitySignalSignatureValidator> _logger;
     private readonly IHttpContextAccessor _httpContext;
+    private readonly HashSet<string> _discovered;
 
     /// <param name="options">The signal URLs and the issuers.</param>
     /// <param name="scopes">The token handler's scope factory; no resolver runs here.</param>
@@ -52,6 +54,7 @@ internal sealed partial class IdentitySignalSignatureValidator : IWebhookSignatu
             .DistinctBy(issuer => issuer.Issuer, StringComparer.Ordinal)
             .Select(issuer => issuer with { Audiences = [], Partition = null })
             .ToArray();
+        _discovered = issuers.Where(issuer => issuer.SigningKeys is null).Select(issuer => issuer.Issuer).ToHashSet(StringComparer.Ordinal);
 
         // A discovery of its own: the bearer scheme's has its own handler and its own HTTPS rule.
         _discovery = new TrustedIssuerDiscovery(settings.BackchannelHttpHandler, requireHttps: !settings.IsInsecureMetadataAllowedInDevelopment);
@@ -89,12 +92,12 @@ internal sealed partial class IdentitySignalSignatureValidator : IWebhookSignatu
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            LogUncheckable(_logger, exception.GetType().Name);
-            if (_httpContext.HttpContext is { } http)
-                http.Items[IdentitySignalReceiverConstants.UncheckableItem] = true;
-
-            return WebhookSignatureResult.Failed(WebhookSignatureFailure.Mismatch);
+            return Uncheckable(exception.GetType().Name);
         }
+
+        // Discovery answers the old keys without an error when its refresh fails or sits inside its minimum: a rotation looks like this.
+        if (validated.Exception is SecurityTokenSignatureKeyNotFoundException notListed && _discovered.Contains(_tokens.ReadJsonWebToken(signature).Issuer))
+            return Uncheckable(notListed.GetType().Name);
 
         if (!validated.IsValid || validated.SecurityToken is not JsonWebToken token)
             return WebhookSignatureResult.Failed(IsLifetimeFailure(validated.Exception) ? WebhookSignatureFailure.Stale : WebhookSignatureFailure.Mismatch);
@@ -118,6 +121,16 @@ internal sealed partial class IdentitySignalSignatureValidator : IWebhookSignatu
 
     /// <inheritdoc />
     public void Dispose() => _discovery.Dispose();
+
+    /// <summary>Refuses a signature that can't be checked yet, and marks the request so the gate answers <c>503</c>.</summary>
+    private WebhookSignatureResult Uncheckable(string failure)
+    {
+        LogUncheckable(_logger, failure);
+        if (_httpContext.HttpContext is { } http)
+            http.Items[IdentitySignalReceiverConstants.UncheckableItem] = true;
+
+        return WebhookSignatureResult.Failed(WebhookSignatureFailure.Mismatch);
+    }
 
     /// <summary>The parameters for one signal: the lifetime is measured against the receiver's clock, not the machine's.</summary>
     private TokenValidationParameters ParametersAt(DateTimeOffset now)

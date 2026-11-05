@@ -1,3 +1,4 @@
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
@@ -8,7 +9,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
 /// </summary>
 /// <param name="repository">The core user store.</param>
 /// <param name="otp">Creates and verifies one-time codes.</param>
-public sealed class UserPhoneService(IUserRepository repository, IOtpService otp)
+/// <param name="sessions">The sessions slice, which a changed number ends at once; null without it.</param>
+public sealed class UserPhoneService(IUserRepository repository, IOtpService otp, UserSessionService? sessions = null)
 {
     /// <summary>The OTP scope of confirmation codes.</summary>
     public const string ConfirmationScope = "identity.phone-confirmation";
@@ -25,8 +27,7 @@ public sealed class UserPhoneService(IUserRepository repository, IOtpService otp
         ArgumentNullException.ThrowIfNull(user);
         user.PhoneNumber = string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber.Trim();
         user.IsPhoneNumberConfirmed = false;
-        user.RotateSecurityStamp();
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.RotateSecurityStampAsync(user, sessions, cancellationToken);
         return IdentityResult.Success;
     }
 
