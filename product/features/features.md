@@ -16,4 +16,5 @@
 | Admin console | [admin-console.md](admin-console.md) | members, sessions, sign-in log, counts |
 | Member self-service | [self-service.md](self-service.md) | sessions and recent sign-ins |
 | Trusted contacts | [trusted-contacts.md](trusted-contacts.md) | the inviter receives an invitee's codes; one-click revoke; bot message cleanup |
+| Service tokens | [service-tokens.md](service-tokens.md) | client credentials and token exchange, one audience per service, several trusted issuers, a fake issuer for tests |
 | Developer surface | [developer-surface.md](developer-surface.md) | the OIDC client, phone + code screens, test kit, `admin create`, claims hook |

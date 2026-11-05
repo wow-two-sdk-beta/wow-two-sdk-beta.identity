@@ -32,9 +32,18 @@ public sealed record OidcServerOptions
     /// </summary>
     public TimeSpan RefreshTokenLifetime { get; set; } = TimeSpan.FromHours(12);
 
+    /// <summary>
+    /// Gets or sets how long a service token stays valid, from client credentials or token exchange; no refresh token goes
+    /// with it, so the caller asks again. At most 10 minutes. Default 5 minutes.
+    /// </summary>
+    public TimeSpan ServiceTokenLifetime { get; set; } = TimeSpan.FromMinutes(5);
+
     /// <summary>Gets or sets where the signing and encryption certificates come from (<c>Identity:Server:Keys</c>).</summary>
     public ServerKeyOptions Keys { get; set; } = new();
 
     /// <summary>Gets or sets the registered clients, seeded at startup (<c>Identity:Server:Clients</c>).</summary>
     public List<OidcClientOptions> Clients { get; set; } = [];
+
+    /// <summary>Gets or sets the APIs service tokens may be issued for (<c>Identity:Server:Resources</c>).</summary>
+    public List<OidcResourceOptions> Resources { get; set; } = [];
 }

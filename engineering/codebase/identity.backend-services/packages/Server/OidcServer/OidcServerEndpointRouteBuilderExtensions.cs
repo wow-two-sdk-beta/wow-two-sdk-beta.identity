@@ -45,7 +45,8 @@ public static class OidcServerEndpointRouteBuilderExtensions
     /// Map the endpoints OpenIddict validates and hands to our logic: <see cref="OidcServerPathConstants.Authorization"/>
     /// signs in the person of the cookie session (or sends them to <see cref="OidcServerOptions.SignInPath"/>) and ties
     /// the grant to that session's <c>sid</c>, <see cref="OidcServerPathConstants.Token"/> re-checks the person and the
-    /// session and refreshes their claims, <see cref="OidcServerPathConstants.UserInfo"/> answers their current profile
+    /// session and refreshes their claims, or issues a service token (<see cref="OidcServiceTokenGrants"/>),
+    /// <see cref="OidcServerPathConstants.UserInfo"/> answers their current profile
     /// and <see cref="OidcServerPathConstants.EndSession"/> ends the session and the app's tokens. Discovery and the JWKS
     /// are OpenIddict's own. Map them on the root, behind <c>UseAuthentication</c>.
     /// </summary>
@@ -114,15 +115,19 @@ public static class OidcServerEndpointRouteBuilderExtensions
     private static async Task<IResult> ExchangeAsync(HttpContext http, CancellationToken cancellationToken)
     {
         var request = RequestOf(http);
+        var services = http.RequestServices;
+        var client = await OidcClientProfile.FindAsync(services.GetRequiredService<IOpenIddictApplicationManager>(), request.ClientId, cancellationToken);
+        if (client is not null && request.IsClientCredentialsGrantType())
+            return OidcServiceTokenGrants.ClientCredentials(http, request, client);
+        if (client is not null && request.IsTokenExchangeGrantType())
+            return await OidcServiceTokenGrants.TokenExchangeAsync(http, request, client, cancellationToken);
         if (!request.IsAuthorizationCodeGrantType() && !request.IsRefreshTokenGrantType())
-            return Forbid(Errors.UnsupportedGrantType, "Only the authorization code and refresh token grants are served.");
+            return Forbid(Errors.UnsupportedGrantType, "Only the authorization code, refresh token, client credentials and token exchange grants are served.");
 
         // The principal sealed in the code or refresh token: its scopes, audience, methods, authorization and stamp.
-        var services = http.RequestServices;
         var time = services.GetService<TimeProvider>() ?? TimeProvider.System;
         var grant = await http.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         var user = grant.Principal is { } sealedPrincipal ? await FindPersonAsync(services, sealedPrincipal, sessionClaims: false, cancellationToken) : null;
-        var client = await OidcClientProfile.FindAsync(services.GetRequiredService<IOpenIddictApplicationManager>(), request.ClientId, cancellationToken);
         if (user is null || client is null)
             return Forbid(Errors.InvalidGrant, "The sign-in behind this grant is no longer valid.");
         var (isLive, session) = await SessionOfAsync(services, grant.Principal!, user, cancellationToken);
@@ -243,7 +248,7 @@ public static class OidcServerEndpointRouteBuilderExtensions
     /// to end it: it refuses new credential attempts only, so failed guesses by someone else never sign the person out of
     /// their apps; ending sessions takes a stamp rotation or a session revocation.
     /// </summary>
-    private static async Task<IdentityUser?> FindPersonAsync(IServiceProvider services, ClaimsPrincipal principal, bool sessionClaims, CancellationToken cancellationToken)
+    internal static async Task<IdentityUser?> FindPersonAsync(IServiceProvider services, ClaimsPrincipal principal, bool sessionClaims, CancellationToken cancellationToken)
     {
         var claims = services.GetRequiredService<IdentityCoreOptions>().Claims;
         var id = principal.FindFirst(sessionClaims ? claims.UserIdClaimType : Claims.Subject)?.Value;
@@ -318,7 +323,7 @@ public static class OidcServerEndpointRouteBuilderExtensions
         => (await SessionOfAsync(services, principal, user, cancellationToken)).IsLive;
 
     /// <summary>The live sign-in session a grant or token names, its use recorded; live with no session when it names none.</summary>
-    private static async Task<(bool IsLive, IdentitySession? Session)> SessionOfAsync(IServiceProvider services, ClaimsPrincipal principal, IdentityUser user, CancellationToken cancellationToken)
+    internal static async Task<(bool IsLive, IdentitySession? Session)> SessionOfAsync(IServiceProvider services, ClaimsPrincipal principal, IdentityUser user, CancellationToken cancellationToken)
     {
         var presented = principal.GetClaim(SessionClaimTypeConstants.SessionId);
         if (presented is null || services.GetService<UserSessionService>() is not { } sessions)
@@ -352,7 +357,7 @@ public static class OidcServerEndpointRouteBuilderExtensions
         => http.GetOpenIddictServerRequest()
             ?? throw new InvalidOperationException("No OpenID Connect request reached this endpoint; map it behind UseAuthentication with AddOidcServer registered.");
 
-    private static IResult Forbid(string error, string description)
+    internal static IResult Forbid(string error, string description)
         => Results.Forbid(Properties(error, description), [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
 
     private static AuthenticationProperties Properties(string error, string description)

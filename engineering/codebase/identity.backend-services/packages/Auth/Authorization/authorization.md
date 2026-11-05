@@ -11,6 +11,15 @@ Provider-agnostic ASP.NET Core authorization primitives for self-hosted, single-
   - Single named scheme (the cookie) → clean **401**, not an external-IdP **302**.
   - `/health`-style anonymous endpoints **must** use `[AllowAnonymous]`.
 
+- **Scope and audience** — `RequireScope` and `RequireAudience` on `AuthorizationPolicyBuilder`, over the public `ClaimsPrincipal` extensions `HasScope` and `HasAudience`. Each implies an authenticated user and needs no handler registration (`RequireAssertion`): no token answers **401**, a token without it **403**.
+  - `RequireScope`: repeated calls all apply. A scope comes from `scope` or `scp` claims, split on spaces and compared ordinally, so one space-delimited JWT claim and one-claim-per-scope API keys both work, and a policy never branches by scheme.
+  - `RequireAudience`: for an endpoint narrower than the host, which already checks its audiences at validation.
+
+```csharp
+app.MapGet("/files", GetFiles).RequireAuthorization(policy => policy.RequireScope("files.read"));
+app.MapPost("/admin/purge", Purge).RequireAuthorization(policy => policy.RequireAudience("https://files.example.com/admin").RequireScope("files.admin"));
+```
+
 **Compose:** `withAllowlist: true` makes the fallback require *authenticated* **and** *allowlisted*; empty allowlist keeps it authenticated-only.
 
 ## Canonical wiring order

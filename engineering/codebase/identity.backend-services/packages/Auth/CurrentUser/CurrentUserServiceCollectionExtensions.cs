@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using WoW.Two.Sdk.Beta.Be.Identity.CurrentPrincipal;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.CurrentUser;
 
@@ -24,6 +25,22 @@ public static class CurrentUserServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddHttpContextAccessor();
         services.TryAddSingleton<ICurrentUserService, CookieCurrentUserService>();
+        return services;
+    }
+
+    /// <summary>
+    /// Registers <see cref="ICurrentPrincipal"/> backed by <see cref="HttpCurrentPrincipal"/>, beside <see cref="ICurrentUserService"/>:
+    /// the caller as person, service, key, guest or anonymous, over one normalizer for JWT, cookie and API key.
+    /// </summary>
+    /// <param name="services">The service collection to configure.</param>
+    /// <param name="configure">Optional override of the guest-cookie name and subject-claim type.</param>
+    public static IServiceCollection AddCurrentPrincipal(
+        this IServiceCollection services,
+        Action<CurrentUserOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddCurrentUser(configure);
+        services.TryAddSingleton<ICurrentPrincipal, HttpCurrentPrincipal>();
         return services;
     }
 }

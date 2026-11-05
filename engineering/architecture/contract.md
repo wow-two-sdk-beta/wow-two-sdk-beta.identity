@@ -12,9 +12,10 @@
   moved from the be sdk exposes services and store ports, not brokers.
 - ✅ Contract package: `Abstractions` holds what the moved code already shared across forms — the error catalogue and
   the organization claims — referencing the kernel only.
-- ⬜ Conformance: `Identity.Tests.Conformance` and `packages/Testing` are empty until the first broker exists.
+- ⬜ Conformance: `Identity.Tests.Conformance` and the broker fakes in `packages/Testing` wait for the first broker.
 - ✅ OIDC wire: the Server package makes the service an OpenID Connect provider (code + PKCE, rotating refresh,
-  discovery, JWKS, userinfo, end-session) whose tokens carry the claims below; Forms 2/3 sign in against it.
+  client credentials, token exchange, discovery, JWKS, userinfo, end-session) whose tokens carry the claims below; Forms
+  2/3 sign in against it, and services call each other with its tokens ([service tokens](../../product/features/service-tokens.md)).
 
 ## Abstractions — the contract as moved
 

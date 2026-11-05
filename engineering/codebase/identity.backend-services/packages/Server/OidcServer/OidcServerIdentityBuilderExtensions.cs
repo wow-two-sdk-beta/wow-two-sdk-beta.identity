@@ -17,12 +17,12 @@ public static class OidcServerIdentityBuilderExtensions
     /// <summary>
     /// Register the OpenID Connect server over the Module's store: OpenIddict's server with its EF Core stores on
     /// <see cref="IdentityDbContext"/>, the authorization code flow with PKCE (S256 only) and rotating refresh tokens,
-    /// discovery, JWKS, userinfo and end-session; keys from <see cref="ISigningKeySource"/> (the settings by default),
+    /// client credentials and token exchange for the clients that name them, discovery, JWKS, userinfo and end-session; keys from <see cref="ISigningKeySource"/> (the settings by default),
     /// checked at boot; and the clients of <see cref="OidcServerOptions.Clients"/>, seeded at startup. Map the
     /// pass-through endpoints with <c>MapOidcServerEndpoints</c> behind <c>UseAuthentication</c>.
     /// </summary>
     /// <remarks>
-    ///   - no implicit, password or client-credentials grant; access tokens are unencrypted JWTs that resource servers
+    ///   - no implicit or password grant; access tokens are unencrypted JWTs that resource servers
     ///     verify offline against the JWKS, while codes and refresh tokens stay encrypted
     ///   - the authorization endpoint reads the cookie sign-in session (<c>MapUserAccountEndpoints</c> with
     ///     <c>useCookies</c>) and sends a person without one to <see cref="OidcServerOptions.SignInPath"/>
@@ -61,6 +61,8 @@ public static class OidcServerIdentityBuilderExtensions
 
                 server.AllowAuthorizationCodeFlow()
                     .AllowRefreshTokenFlow()
+                    .AllowClientCredentialsFlow()
+                    .AllowTokenExchangeFlow()
                     .RequireProofKeyForCodeExchange()
                     .DisableAccessTokenEncryption();
 
@@ -69,9 +71,10 @@ public static class OidcServerIdentityBuilderExtensions
                     Claims.Subject, SessionClaimTypeConstants.SessionId, Claims.Name, Claims.Email, Claims.EmailVerified, Claims.PhoneNumber,
                     Claims.PhoneNumberVerified, Claims.AuthenticationMethodReference,
                     Claims.AuthenticationTime, OrganizationClaimTypeConstants.Id, OrganizationClaimTypeConstants.Role,
-                    OrganizationClaimTypeConstants.Permission);
+                    OrganizationClaimTypeConstants.Permission, ServiceClaimTypeConstants.Actor);
 
                 server.AddEventHandler(ActiveKeySelectionHandler.Descriptor);
+                server.AddEventHandler(OidcServiceTokenEntryHandler.Descriptor);
                 server.UseAspNetCore()
                     .EnableAuthorizationEndpointPassthrough()
                     .EnableTokenEndpointPassthrough()
@@ -90,6 +93,13 @@ public static class OidcServerIdentityBuilderExtensions
                 server.RefreshTokenLifetime = options.RefreshTokenLifetime;
                 server.CodeChallengeMethods.Clear();
                 server.CodeChallengeMethods.Add(CodeChallengeMethods.Sha256);
+
+                // Only a person's access token can be exchanged, the authenticated client is the actor, and only registered resources and scopes pass.
+                server.SubjectTokenTypes.Clear();
+                server.SubjectTokenTypes.Add(TokenTypeIdentifiers.AccessToken);
+                server.ActorTokenTypes.Clear();
+                server.Resources.UnionWith(options.Resources.Where(resource => Uri.IsWellFormedUriString(resource.Uri, UriKind.Absolute)).Select(resource => new Uri(resource.Uri, UriKind.Absolute)));
+                server.Scopes.UnionWith(options.Resources.SelectMany(resource => resource.Scopes));
             })
             .ValidateOnStart();
         services.AddSingleton<IConfigureOptions<OpenIddictServerOptions>, ServerKeyConfiguration>();

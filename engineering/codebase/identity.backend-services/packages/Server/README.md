@@ -3,8 +3,9 @@
 The OpenID Connect provider the Identity service runs over the Form 1 module: OpenIddict 7.7.2 with its EF Core stores
 on the Module's `IdentityDbContext`, the pass-through endpoints on the Module's sign-in session, the client registry
 seeded from configuration, certificates from the settings (inline PEM bundles or file paths) checked at boot, and the
-instance's Data Protection ring in its database. Products do not reference it; the Identity service does. The
-back-channel sender and exchange grants (I19) come later.
+instance's Data Protection ring in its database. Tokens between services come from it too: client credentials and token
+exchange over a registry of resources ([service tokens](../../../../../product/features/service-tokens.md)). Products do
+not reference it; the Identity service does. The back-channel sender comes later.
 
 ```csharp
 services.AddUserAccounts(configureDatabase: database => database.SchemaOwner = IdentitySchemaOwnerConstants.Service)

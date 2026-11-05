@@ -71,7 +71,8 @@ services:
     # certificate value is the PEM bundle `keys generate` prints, pasted as is: a vault secret the settings render
     # carries, never a file on a volume. The Data Protection ring lives in the database, wrapped by its own
     # certificate (`keys generate --role data-protection`); a deployed boot refuses to start without one. Clients
-    # (Identity:Server:Clients:N:…) are owner keys, added per environment. Self sign-up stays off unless an environment
+    # (Identity:Server:Clients:N:…) and the APIs service tokens are issued for (Identity:Server:Resources:N:…) are owner
+    # keys, added per environment. Self sign-up stays off unless an environment
     # turns it on: off, POST /api/account/sign-up answers 403; the image's `admin create` makes the instance admin, who
     # creates organizations and sends invitations in the console.
     #
@@ -96,6 +97,7 @@ services:
         DatabaseSettings:ConnectionString: { required: true }
         Identity:Server:Issuer: { type: url, required: true }
         Identity:Server:Keys:IsEphemeral: { type: boolean, default: false }
+        Identity:Server:ServiceTokenLifetime: {}
         Identity:SignUp:Mode: { type: choice, values: [Invite, Open], default: Invite }
         Identity:SignUp:Profile:DisplayName: { type: choice, values: [Off, Optional, Required], default: Off }
         Identity:SignUp:Profile:Picture: { type: choice, values: [Off, Optional, Required], default: Off }

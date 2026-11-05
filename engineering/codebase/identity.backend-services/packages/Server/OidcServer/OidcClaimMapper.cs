@@ -219,7 +219,7 @@ internal sealed class OidcClaimMapper(
     /// <summary>
     /// Where a claim goes. <c>sub</c>, <c>sid</c>, <c>amr</c> and the organization claims reach both tokens; <c>name</c> follows the
     /// <c>profile</c> scope, <c>email</c> with <c>email_verified</c> the <c>email</c> scope and <c>phone_number</c> with
-    /// <c>phone_number_verified</c> the <c>phone</c> scope; <c>auth_time</c> reaches the ID token only. Everything else, the security stamp included, stays inside codes and refresh tokens.
+    /// <c>phone_number_verified</c> the <c>phone</c> scope; <c>auth_time</c> reaches the ID token only and <c>act</c> the access token only. Everything else, the security stamp included, stays inside codes and refresh tokens.
     /// </summary>
     /// <param name="claim">The claim, whose identity carries the granted scopes.</param>
     public static IEnumerable<string> GetDestinations(Claim claim)
@@ -235,6 +235,7 @@ internal sealed class OidcClaimMapper(
             Claims.Email or Claims.EmailVerified => claim.Subject?.HasScope(Scopes.Email) == true ? both : [],
             Claims.PhoneNumber or Claims.PhoneNumberVerified => claim.Subject?.HasScope(Scopes.Phone) == true ? both : [],
             Claims.AuthenticationTime => [Destinations.IdentityToken],
+            ServiceClaimTypeConstants.Actor => [Destinations.AccessToken],
             _ => [],
         };
     }

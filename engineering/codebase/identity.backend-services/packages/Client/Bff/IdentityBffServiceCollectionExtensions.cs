@@ -11,6 +11,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using WoW.Two.Sdk.Beta.Be.Http.Auth.OAuth2TokenExchange;
 using WoW.Two.Sdk.Beta.Be.Identity.Bff.Antiforgery;
 using WoW.Two.Sdk.Beta.Be.Identity.Bff.Authorization;
 using WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
@@ -34,6 +35,7 @@ public static class IdentityBffServiceCollectionExtensions
     ///   - API requests (<see cref="IdentityBffOptions.ApiPathPrefixes"/>) answer 401 and 403 problems; a page request
     ///     without a session is redirected to <c>{prefix}/sign-in</c>; the session routes sit under <c>/api</c> by
     ///     default, and <c>{prefix}/sign-in</c> and <c>{prefix}/callback</c> still redirect, as a browser navigates to them
+    ///   - an HTTP client with <c>AddOAuth2TokenExchange</c> acts for the session's person: its subject token comes from the session
     ///   - the session refreshes its tokens and ends with the instance's sign-in session (<see cref="IdentityBffOptions.SessionLifetime"/>
     ///     when the instance names no end)
     ///   - unsafe API requests of a session need <c>X-Csrf-Token</c>, bound to the session's <c>sid</c>
@@ -58,6 +60,9 @@ public static class IdentityBffServiceCollectionExtensions
         services.AddDistributedMemoryCache();
         services.AddHttpContextAccessor();
         services.TryAddSingleton<IBffSessionRepository, DistributedCacheBffSessionRepository>();
+
+        // A BFF's person sits in its session, not in a bearer header, whichever order the HTTP clients register in.
+        services.Replace(ServiceDescriptor.Singleton<IOAuth2SubjectTokenSource, BffSubjectTokenSource>());
         services.TryAddSingleton<BffSessionProtector>();
         services.TryAddSingleton<BffTokenClient>();
         services.TryAddSingleton<BffSessionService>();

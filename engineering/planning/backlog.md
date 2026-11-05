@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Backlog
 
-*Last updated: 2026-11-03*
+*Last updated: 2026-11-05*
 
 Every unbuilt item, grouped; top of each group = next. Shipped work lives in [`version-track/`](version-track/).
 Shape: wow-two-ws/conventions/planning/version-track/version-track.md
@@ -39,7 +39,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | console layout review | product | with the developer once Ocharo's capabilities are verified; the console starts on Wheelhouse's layout |
 | Ocharo's instance as Ocharo's service | product | the image pinned by tag in Ocharo's `deploy.yml`, its first `migrate:` item when `access.*` moves (Q66); Wheelhouse v0.11 generates its keys and links the client secret (`deployment.md` § Pinning the instance) |
 | generated keys in its own `deploy.yml` | feature | `generate` on the three certificates and `from` on the issuer once pipelines `v0.14.0` ships, for wow2's shared instance |
-| client credentials and API scopes | feature | service calls that carry the actor, with audiences or scopes beyond one `aud` per client (G8, G10); Ocharo P1 |
+| service tokens | feature | v0.5 iteration 11 ([spec](../../product/features/service-tokens.md)); left: Desk, Editorial and Files adopt it (G8, G10); Wheelhouse generating client key pairs; revocation signals, not decided |
 | agent tokens | feature | a person issues a revocable token to an agent, bound to their membership: OAuth for MCP or personal access tokens; Ocharo P1 |
 | conformance in CI | feature | OpenID Foundation suite against the image in `Testing` mode |
 | broker conformance | feature | the module, the client and the fake pass the same broker cases |

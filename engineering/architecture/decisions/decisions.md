@@ -1,6 +1,6 @@
 # decisions/
 
-*Last updated: 2026-11-03*
+*Last updated: 2026-11-05*
 
 > Identity's confirmed architecture decisions, newest last; a decision that needs its own record becomes
 > `NNNN-{slug}.md` beside this doc. Decisions spanning capabilities: `wow-two-ws/docs/platform-decisions.md`.
@@ -106,6 +106,9 @@
 | 2026-11-03 | an own-phone session went through no contact and was started by a `phone_code` or `phone_contact` sign-in, read from the sign-in log row tied to it; changing an own phone and revoking a contact need one, the notice's one-press button excepted; adding a first phone works from any session through the bot's `add-phone` link, which re-checks at completion and rotates no stamp | developer, implementation |
 | 2026-11-03 | revoking a contact, or the contact leaving, ends every session started through them; a contact may not leave while the last contact of an account with no own phone; a notice with "Revoke trust" reaches an account's own chat only when it has its own phone and a sign-in went through one of its contacts | developer |
 | 2026-11-03 | a sign-up through the invitation's contact asks no phone or email the invitation names (the contact's code is the proof), and a person with neither email nor phone meets `IsConfirmedEmailRequired` through the contact who signs it in | implementation, open for the developer |
+| 2026-11-05 | one mechanism between services: client credentials for a job with no person, token exchange for a call made for one; a token names one resource URI as its only `aud` and `{service}.{action}` scopes, lives 5 minutes (10 at most), has no refresh token and no row; API keys stay for callers outside Identity | developer, `identity-cutover.md` #52 |
+| 2026-11-05 | a client names its grants, resources and scopes in `Identity:Server:Clients`, each resource under the grant that reaches it; `Identity:Server:Resources` is the registry; a client authenticates with its secret by default or a key set under `private_key_jwt`, per client and unknown to calling code | developer, 2026-11-05; T8 C3, C4 |
+| 2026-11-05 | token exchange takes only a person's own access token, issued to the caller, while its session lives; the result keeps the person, writes permissions for the resource's namespace and adds `act`; a token that already has `act` can't be exchanged again | developer; T8 C6 |
 
 - proposed, not confirmed: one registration reading `Identity:Mode = Module | Oidc`, with a shared `IdentityMode` enum
   in Abstractions and options bound from configuration, overridable in code (Q2).

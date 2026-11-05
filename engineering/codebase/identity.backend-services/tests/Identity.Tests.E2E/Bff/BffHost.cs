@@ -44,7 +44,14 @@ public sealed class BffHost : IAsyncDisposable
     /// <param name="identity">The instance.</param>
     /// <param name="configure">Code configuration of the BFF, applied after its settings.</param>
     /// <param name="time">The BFF's clock; null keeps the system clock.</param>
-    public static async Task<BffHost> StartAsync(OidcHost identity, Action<IdentityBffOptions>? configure = null, TimeProvider? time = null)
+    /// <param name="services">More of the BFF's services.</param>
+    /// <param name="routes">More of the BFF's routes.</param>
+    public static async Task<BffHost> StartAsync(
+        OidcHost identity,
+        Action<IdentityBffOptions>? configure = null,
+        TimeProvider? time = null,
+        Action<IServiceCollection>? services = null,
+        Action<WebApplication>? routes = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
@@ -64,9 +71,12 @@ public sealed class BffHost : IAsyncDisposable
             BffAuthenticationSchemeConstants.OpenIdConnect,
             options => options.BackchannelHttpHandler = identity.Host.Server.CreateHandler());
 
+        services?.Invoke(builder.Services);
+
         var app = builder.Build();
         app.UseIdentityBff();
         app.MapIdentityBffEndpoints();
+        routes?.Invoke(app);
         app.MapGet("/desk", () => "desk").RequireAuthorization();
         var api = app.MapGroup("/api");
         api.MapGet("/me", (ClaimsPrincipal user) => Results.Ok(new { sub = user.FindFirst("sub")?.Value })).RequireAuthorization();

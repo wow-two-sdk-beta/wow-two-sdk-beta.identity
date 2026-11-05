@@ -1,6 +1,7 @@
 using WoW.Two.Sdk.Beta.Be.Identity.Guest.Serializers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.DataProtection;
+using WoW.Two.Sdk.Beta.Be.Identity.CurrentPrincipal;
 using WoW.Two.Sdk.Beta.Be.Identity.Guest;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.CurrentUser;
@@ -40,12 +41,16 @@ public sealed class CookieCurrentUserService : ICurrentUserService
         if (http is null)
             return (null, UserKind.Anonymous);
 
-        // Registered account: the authenticated principal carries the account id in its subject claim.
-        if (http.User.Identity?.IsAuthenticated == true)
+        // An authenticated caller: a person's subject is the account id; a service or key has no account behind it.
+        var caller = ClaimsPrincipalNormalizer.Normalize(http.User, _options.SubjectClaimType);
+        switch (caller.Kind)
         {
-            var subject = http.User.FindFirst(_options.SubjectClaimType)?.Value;
-            var userId = Guid.TryParse(subject, out var parsed) ? parsed : (Guid?)null;
-            return (userId, UserKind.User);
+            case PrincipalKind.Person:
+                return (Guid.TryParse(caller.Subject, out var parsed) ? parsed : null, UserKind.User);
+            case PrincipalKind.Service:
+                return (null, UserKind.Service);
+            case PrincipalKind.ApiKey:
+                return (null, UserKind.ApiKey);
         }
 
         if (http.ReadGuest(_options.GuestCookieName, _serializer) is { } guestId)

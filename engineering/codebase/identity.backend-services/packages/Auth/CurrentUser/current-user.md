@@ -6,7 +6,8 @@ in one injectable. Resolves the ambient request on each access and never writes 
 | Seam | Default |
 |---|---|
 | `ICurrentUserService` | `CookieCurrentUserService` — authenticated (subject claim) → guest (guest cookie) → anonymous |
-| `UserKind` | `User` · `Guest` · `Anonymous` |
+| `UserKind` | `User` · `Guest` · `Anonymous` · `Service` · `ApiKey` |
+| `ICurrentPrincipal` (`AddCurrentPrincipal`) | `HttpCurrentPrincipal`: who is calling and what they hold, over `ClaimsPrincipalNormalizer` |
 
 ```csharp
 builder.Services.AddCurrentUser(o =>
@@ -25,7 +26,10 @@ switch (_currentUser.Kind)
 ```
 
 - Resolution order: an authenticated principal wins; else a valid protected, unexpired guest cookie; else anonymous.
-- `Id` is the account id when authenticated, the guest id when guest, `null` when anonymous.
+- `Id` is the account id of a person, the guest id when guest, `null` for a service, a key or anonymous.
+- `ICurrentPrincipal` is the wider seam: `Subject`, `Kind`, `Issuer`, `ClientId`, `OrganizationId`, `Roles`, `Permissions`,
+  `Scopes`, `Actor`, `Partition`. `ClaimsPrincipalNormalizer` is the one reader of claims behind it and behind `Kind` here.
+- A service is a token whose `sub` is its `client_id`; a person's token under exchange has `Actor` set.
 - Pair with [`../Guest`](../Guest/guest.md) (issues the guest cookie) on the **same** cookie name.
 - Singleton and request-safe: it retains no principal between requests.
 - Outside an HTTP request it reports anonymous with a null id, so background saves remain unstamped.

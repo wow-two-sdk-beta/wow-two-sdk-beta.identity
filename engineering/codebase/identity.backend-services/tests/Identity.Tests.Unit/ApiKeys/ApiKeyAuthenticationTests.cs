@@ -72,6 +72,32 @@ public sealed class ApiKeyAuthenticationTests
     }
 
     [Fact]
+    public async Task Key_ShouldCarryItsAppOrganizationAndPartition_UnderTheSharedClaimNames()
+    {
+        await using var host = await Host.StartAsync();
+        var secrets = host.AddKey("Tenant key");
+        var id = host.Store.Keys[secrets.Hash].Id;
+        host.Store.Keys[secrets.Hash] = host.Store.Keys[secrets.Hash] with { ClientId = "desk", OrganizationId = "org-1", Partition = "tenant-a" };
+
+        using var response = await host.Client.SendAsync(Remote("/api/claims", bearer: secrets.Secret));
+
+        var claims = await response.Content.ReadAsStringAsync();
+        claims.Split('\n').Should().Contain([$"sub={id}", "client_id=desk", "org_id=org-1", "partition=tenant-a"]);
+    }
+
+    [Fact]
+    public async Task Key_ShouldStopWorking_OnceItExpired()
+    {
+        await using var host = await Host.StartAsync();
+        var key = host.AddKey("Short lived");
+        host.Store.Keys[key.Hash] = host.Store.Keys[key.Hash] with { ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
+
+        using var response = await host.Client.SendAsync(Remote("/api/who", bearer: key.Secret));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task Gate_ShouldAnswer401_WhenAnUnknownKeyIsPresentedEvenLocally()
     {
         await using var host = await Host.StartAsync();
@@ -210,6 +236,7 @@ public sealed class ApiKeyAuthenticationTests
             app.MapGet("/api/who", (ClaimsPrincipal user) => user.Identity?.Name ?? "anonymous");
             app.MapGet("/api/scopes", (ClaimsPrincipal user) =>
                 string.Join(' ', user.FindAll(ApiKeyAuthenticationDefaults.ScopeClaim).Select(claim => claim.Value)));
+            app.MapGet("/api/claims", (ClaimsPrincipal user) => string.Join('\n', user.Claims.Select(claim => $"{claim.Type}={claim.Value}")));
             app.MapGet("/api/catalog", () => "catalog").RequireAuthorization("catalog");
             app.MapGet("/api/keys", () => "keys");
             app.MapGet("/api/status", () => "ok");

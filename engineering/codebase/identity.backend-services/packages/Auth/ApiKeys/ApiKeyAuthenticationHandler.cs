@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
+using WoW.Two.Sdk.Beta.Be.Identity.Core;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.ApiKeys;
 
@@ -39,13 +42,20 @@ public sealed class ApiKeyAuthenticationHandler(
             return AuthenticateResult.Fail(NotValid);
 
         var now = time.GetUtcNow();
+        if (key.ExpiresAt is { } expiresAt && expiresAt <= now)
+            return AuthenticateResult.Fail(NotValid);
+
         if (key.LastUsedAt is not { } lastUsed || now - lastUsed >= keyOptions.Value.TouchInterval)
             await store.TouchAsync(key.Id, now, Context.RequestAborted);
 
         Claim[] claims =
         [
             new Claim(ApiKeyAuthenticationDefaults.KeyIdClaim, key.Id),
+            new Claim(JwtRegisteredClaimNames.Sub, key.Id),
             new Claim(ClaimTypes.Name, key.Name),
+            .. Optional(ServiceClaimTypeConstants.ClientId, key.ClientId),
+            .. Optional(OrganizationClaimTypeConstants.Id, key.OrganizationId),
+            .. Optional(ServiceClaimTypeConstants.Partition, key.Partition),
             .. key.Scopes
                 .Where(scope => !string.IsNullOrWhiteSpace(scope))
                 .Distinct(StringComparer.Ordinal)
@@ -54,4 +64,7 @@ public sealed class ApiKeyAuthenticationHandler(
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name));
     }
+
+    private static IEnumerable<Claim> Optional(string type, string? value)
+        => string.IsNullOrWhiteSpace(value) ? [] : [new Claim(type, value)];
 }

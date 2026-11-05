@@ -31,6 +31,8 @@ app.MapGroup("/api/orgs/{organizationId:guid}/desks")
 - The cookie carries only the session reference; the tokens and claims live in `IBffSessionRepository` (the
   distributed cache by default), keyed on the instance's `sid`, encrypted with Data Protection. Several instances
   share a distributed cache and a Data Protection key ring.
+- Calling another service for the person: `AddHttpClient("files").AddOAuth2TokenExchange(…)` takes its subject token from the
+  session, with no bearer header needed ([service tokens](../../../../../product/features/service-tokens.md)).
 - A sign-in callback that fails lands back at `returnUrl` with `signInError=callback_failed`; for 10 s after it the
   sign-in route and page redirects answer a 401 problem (`code` `SignInFailed`) instead of starting the sign-in again,
   so a misconfigured client ends at an error rather than in a redirect loop.

@@ -146,7 +146,7 @@ public sealed class OidcCodeFlowTests(OidcHostFixture fixture)
 
         var discovery = await client.DiscoverAsync();
 
-        Strings(discovery, "grant_types_supported").Should().BeEquivalentTo("authorization_code", "refresh_token");
+        Strings(discovery, "grant_types_supported").Should().BeEquivalentTo("authorization_code", "refresh_token", "client_credentials", "urn:ietf:params:oauth:grant-type:token-exchange");
         Strings(discovery, "response_types_supported").Should().Equal("code");
         Strings(discovery, "code_challenge_methods_supported").Should().Equal("S256");
         Strings(discovery, "id_token_signing_alg_values_supported").Should().Contain("RS256");

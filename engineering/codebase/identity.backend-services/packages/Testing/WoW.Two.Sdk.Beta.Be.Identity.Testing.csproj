@@ -1,21 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The Identity test kit: fakes over the contract, personas, the OTP code sink and the broker conformance bases. Empty
-    until the T4 brokers exist in Abstractions; it references the contract and the be sdk test kit only.
+    The Identity test kit: the fake token issuer today; fakes over the contract, personas, the OTP code sink and the broker
+    conformance bases once the T4 brokers exist in Abstractions. It references the contract, the edge whose JWT
+    validation its fake stands in for, and the be sdk test kit.
   -->
   <PropertyGroup>
     <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
-    <Description>Identity test kit: fakes over the Identity contract and the conformance bases every implementation passes. Reserved until the contract's brokers exist.</Description>
+    <Description>Identity test kit: a fake token issuer that signs person, service and exchanged tokens, so a consumer tests with no Identity running. Fakes over the contract and the conformance bases land with the contract's brokers.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="WoW2.Sdk.Beta.Be.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Abstractions\WoW.Two.Sdk.Beta.Be.Identity.Abstractions.csproj" />
+    <ProjectReference Include="..\Auth\WoW.Two.Sdk.Beta.Be.Identity.Auth.csproj" />
   </ItemGroup>
 
 </Project>

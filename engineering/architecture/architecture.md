@@ -76,7 +76,7 @@ flowchart BT
 | edge | `Auth` | contract, core |
 | forms | `Module` · `Client` | edge, contract, core |
 | extension | `Providers` · `Server` | forms or core |
-| test kit | `Testing` | contract, `WoW2.Sdk.Beta.Be.Testing` |
+| test kit | `Testing` | contract, edge, `WoW2.Sdk.Beta.Be.Testing` |
 | service | `service/Identity.Api` | any package above, by `ProjectReference` |
 | fe | `@wow-two-beta/fe-identity` | peers `@wow-two-beta/fe` and `vue`; exports `./contracts`, `./kit`, `./admin` |
 
@@ -84,7 +84,7 @@ flowchart BT
 - a Form 3 product pulls none of OpenIddict, Fido2, Otp.NET, Argon2, Telegram.Bot or the OAuth set; a Form 1 product
   pulls only OpenIddict's dependency-free entity classes, for the OIDC tables its schema carries.
 - every package exists: the moved code fills `Auth`, `Module`, `Client` and `Providers`, `Server` carries the OIDC
-  provider, and `Testing` stays empty until the contract has brokers.
+  provider, and `Testing` holds the fake token issuer; its broker fakes wait for the contract's brokers.
 
 ---
 

@@ -25,6 +25,7 @@ app.MapOidcServerEndpoints();
     "AccessTokenLifetime": "00:10:00",
     "IdentityTokenLifetime": "00:05:00",
     "RefreshTokenLifetime": "12:00:00",           // absolute: rotation never extends it
+    "ServiceTokenLifetime": "00:05:00",           // client credentials and token exchange; at most 10 minutes
     "Keys": { "Signing": [ "…" ], "Encryption": [ "…" ] },   // ../Keys/keys.md
     "Clients": [
       {
@@ -35,7 +36,8 @@ app.MapOidcServerEndpoints();
         "Audience": "wheelhouse",                  // null uses the client id
         "PermissionNamespace": "wheelhouse"        // null carries every permission of the role
       }
-    ]
+    ],
+    "Resources": []                                // see Service tokens
   }
 }
 ```
@@ -46,7 +48,7 @@ app.MapOidcServerEndpoints();
 |---|---|---|
 | `/.well-known/openid-configuration` · `/.well-known/jwks` | OpenIddict | discovery (code flow, S256, the claims below) and the signing keys |
 | `/connect/authorize` | pass-through | reads the cookie session; none, `prompt=login` or an exceeded `max_age` redirects to `SignInPath?returnUrl=…`, where the return URL trades `prompt` and `max_age` for `fresh_sign_in`, the request's instant sealed with Data Protection: back from the sign-in page, the request passes only for a session signed in after it (a missing or forged marker asks again). `prompt=none` answers `login_required`; ties the grant to the session's `sid` |
-| `/connect/token` | pass-through | code and refresh grants only; re-checks the person (exists, same stamp) and the session behind the grant, and writes fresh claims; a lockout does not end a grant |
+| `/connect/token` | pass-through | code and refresh grants re-check the person (exists, same stamp) and the session behind the grant, and write fresh claims; a lockout does not end a grant. Client credentials and token exchange issue a service token (below) |
 | `/connect/userinfo` | pass-through | the current profile and organization claims for the access token, while its session lives |
 | `/connect/endsession` | pass-through | with a valid `id_token_hint`, ends the cookie and its session (when they are the hint's person) and revokes the app's authorizations and tokens for that person; a `POST` from this origin (`Sec-Fetch-Site: same-origin`, or a matching `Origin`) ends the cookie and its session without a hint; anything else, such as a bare `GET` another site sends, ends nothing; every case returns to the validated `post_logout_redirect_uri` |
 
@@ -86,16 +88,32 @@ session that made it:
   its refresh chains end at once
 - a grant without `sid` (issued before sessions, or by a host without the slice) passes the session check
 
+## Service tokens
+
+Spec, claims and refusals: [service tokens](../../../../../../product/features/service-tokens.md). `OidcServiceTokenGrants` serves both grants.
+
+- `Identity:Server:Resources` is the registry: a name, the URI that becomes the only `aud`, the `{service}.{action}` scopes
+  and an optional permission namespace. OpenIddict validates `resource` and the client's permission; `aud` comes from here.
+- A client names what it may do: `Grants`, `Resources` (as itself), `ExchangeResources` (for a person), `Scopes`, and
+  optionally `OrganizationId`. Empty `Grants` means the code flow alone, as every client had before.
+- `OidcClientSeeder` writes the grant, `rsrc:` and `scp:` permissions, and the `service_access` property the token endpoint
+  reads to tell which grant reaches which resource.
+- `OidcServiceTokenEntryHandler` keeps these tokens out of `identity_oidc_tokens`; they end with `ServiceTokenLifetime`.
+- A client authenticates with `ClientSecret`, or with `JsonWebKeySet` instead (`private_key_jwt`, public keys only). The
+  assertion's `aud` is the issuer and its `typ` is `client-authentication+jwt`, as OpenIddict 7 requires.
+- A boot refuses a resource URI not written as `Uri.AbsoluteUri` (`https://files.example/`, with its slash), a scope that
+  is not `{service}.{action}`, a client whose grants, resources and scopes disagree, and a lifetime above 10 minutes.
+
 ## Clients
 
 - `Identity:Server:Clients` is seeded at startup by `OidcClientSeeder`: created when new, updated when changed, left
   alone when unchanged (a matching secret keeps its stored hash), and deleted with its grants when it leaves
   configuration. Clients registered another way are never touched.
-- Every client is confidential and first-party (no consent): code flow with PKCE required, refresh tokens, the
-  `openid`, `profile`, `email` and `offline_access` scopes, exact redirect and post-sign-out URIs (HTTPS, or HTTP on a
-  loopback host), its own audience. Secrets are stored as OpenIddict's hash.
-- The boot refuses a client without a secret or redirect URI, a duplicate id, a loose URI, a blank audience, a
-  namespace holding `:`, a non-positive lifetime or a sign-in path that is not local.
+- Every client is confidential and first-party (no consent). One that signs people in has the code flow with PKCE
+  required, refresh tokens, the `openid`, `profile`, `email` and `offline_access` scopes, exact redirect and post-sign-out
+  URIs (HTTPS, or HTTP on a loopback host) and its own audience. Secrets are stored as OpenIddict's hash.
+- The boot refuses a client without exactly one of a secret and a key set, a key set holding a private key, one signing people in without a redirect URI, a duplicate id, a loose URI, a
+  blank audience, a namespace holding `:`, a non-positive lifetime or a sign-in path that is not local.
 
 ## Notes
 
