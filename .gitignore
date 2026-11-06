@@ -33,6 +33,7 @@ engineering/codebase/identity.backend-services/service/Identity.Api/wwwroot/*
 
 # IDE / OS
 .idea/
+*.DotSettings.user
 .vs/
 .vscode/*
 .DS_Store
