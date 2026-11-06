@@ -813,22 +813,41 @@ describe('phone code sign-in on a new device', () => {
     expect(polls(received)).toHaveLength(1);
   });
 
-  it('stops at the end of the request on its own and offers to start again', async () => {
+  it('keeps waiting on a browser whose clock runs ahead, and signs in on approval', async () => {
+    vi.setSystemTime(new Date('2026-11-05T11:00:00Z'));
+    const answers = [pendingAnswer, noContent];
     const { wrapper, received } = await reachWait({
-      'POST /phone-sign-in': waiting('2026-11-05T10:00:10Z'),
-      [confirmationPath]: pendingAnswer,
+      'POST /phone-sign-in': waiting('2026-11-05T10:10:00Z'),
+      [confirmationPath]: () => answers.shift()!(),
     });
 
-    await vi.advanceTimersByTimeAsync(9000);
-    expect(polls(received)).toHaveLength(3);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(polls(received)).toHaveLength(1);
     expect(wrapper.text()).not.toContain('Start again');
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(3000);
 
-    expect(wrapper.text()).toContain('The request has ended.');
+    expect(polls(received)).toHaveLength(2);
+    expect(wrapper.emitted('signedIn')).toEqual([[]]);
+  });
+
+  it('leaves the end of the request to the service, past `expiresAt` on the browser’s clock', async () => {
+    let isEnded = false;
+    const { wrapper, received } = await reachWait({
+      'POST /phone-sign-in': waiting('2026-11-05T10:00:10Z'),
+      [confirmationPath]: () =>
+        isEnded ? problem(401, 'This request has ended.', { identityCode: 'DeviceConfirmationExpired' }) : pendingAnswer(),
+    });
+
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(polls(received)).toHaveLength(10);
+    expect(wrapper.text()).not.toContain('Start again');
+    isEnded = true;
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(wrapper.text()).toContain('This request has ended.');
     expect(button(wrapper, 'Start again').exists()).toBe(true);
     await vi.advanceTimersByTimeAsync(30000);
-    expect(polls(received)).toHaveLength(3);
-    expect(wrapper.emitted('signedIn')).toBeUndefined();
+    expect(polls(received)).toHaveLength(11);
   });
 
   it('goes to the second factor when the confirmed account has one', async () => {

@@ -42,7 +42,8 @@ import { PhoneSignInStep } from './PhoneSignInStep';
  *
  * A browser new to the account first waits for a trusted contact's press in Telegram, after the code or the account
  * choice: the page polls the confirmation every 3 seconds until a contact approves, then fires `signedIn` or continues
- * to the second factor; a denial or the end of the request shows why and offers to start again.
+ * to the second factor; a denial or the end of the request shows why and offers to start again. The service's answer alone
+ * ends the wait, never the browser's clock; while the service can't be reached the page keeps asking.
  */
 defineOptions({ name: 'PhoneCodeSignIn' });
 
@@ -123,7 +124,6 @@ const waiting = shallowRef<WaitingDevice | null>(null);
 const waitFailure = shallowRef<AppError | null>(null);
 const isStartingAgain = shallowRef(false);
 let pollTimer: ReturnType<typeof setTimeout> | undefined;
-let expiryTimer: ReturnType<typeof setTimeout> | undefined;
 let pollAbort: AbortController | null = null;
 
 /** The id of the contact the picked destination names; none for the phone's own Telegram. */
@@ -141,12 +141,10 @@ const waitingContacts = computed(
   () => waiting.value?.contacts.join(', ') || t('PhoneCodeSignIn.contactsFallback', 'your trusted contacts'),
 );
 
-/** Stops asking: clears the timers and cancels the request in flight. */
+/** Stops asking: clears the timer and cancels the request in flight. */
 function stopWaiting() {
   clearTimeout(pollTimer);
-  clearTimeout(expiryTimer);
   pollTimer = undefined;
-  expiryTimer = undefined;
   pollAbort?.abort();
   pollAbort = null;
 }
@@ -201,25 +199,13 @@ async function poll(current: WaitingDevice) {
   waitFailure.value = result.failure;
 }
 
-/** Waits for a trusted contact to confirm the new device, asking from now every `pollInterval` until `expiresAt`. */
+/** Waits for a trusted contact to confirm the new device, asking from now every `pollInterval` until the service answers. */
 function waitForDevice(confirmation: DeviceConfirmationDto, isPersistent: boolean) {
   stopWaiting();
   const current = { ...confirmation, isPersistent };
   waiting.value = current;
   waitFailure.value = null;
   step.value = PhoneSignInStep.DeviceConfirmation;
-  const remaining = Date.parse(current.expiresAt) - Date.now();
-  expiryTimer = setTimeout(
-    () => {
-      if (waiting.value !== current) return;
-      stopWaiting();
-      waitFailure.value = {
-        ...AppErrorFactory.unavailable(),
-        message: t('PhoneCodeSignIn.deviceExpired', 'The request has ended. Start again to get a new one.'),
-      };
-    },
-    Math.min(Math.max(remaining, 0), 2 ** 31 - 1),
-  );
   schedulePoll(current);
 }
 
