@@ -97,6 +97,7 @@ app.MapIdentitySignals("/signals/identity");
 - Session ended: the BFF session ends. Access changed: its next request refreshes first, so it carries fresh claims.
 - The change is timed by the BFF's own clock when it hears the signal, so clock skew with the instance can't hide it.
 - A refresh under way can't undo either: a session ended meanwhile stays ended, and a change heard meanwhile refreshes once more.
+- A sign-in's claims date from before its code exchange, so a change heard during it refreshes too. An end heard during it finds no session yet; the first refresh, refused, ends it.
   A store shared across replicas narrows that race to the moment before the save; the signal's own gate is per process.
 - A host that is both a BFF and a resource lists both URLs (`IdentitySignalReceiverOptions.Audiences`).
 

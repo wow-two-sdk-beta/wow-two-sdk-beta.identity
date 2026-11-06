@@ -9,13 +9,24 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 /// Keeps the end the instance names for the sign-in session (<c>refresh_token_expires_in</c>), so the BFF session ends with
 /// it, and handles a failed code callback (a refused sign-in, a replayed or expired callback) by sending the browser back
 /// to its return URL, signed out, with <c>signInError=callback_failed</c>; the failure holds the next sign-in back for a
-/// few seconds (<see cref="BffSignInFailure"/>), so a callback that keeps failing ends at an error, not in a redirect loop.
+/// few seconds (<see cref="BffSignInFailure"/>), so a callback that keeps failing ends at an error, not in a redirect loop. It also
+/// notes when the code exchange began, which the session's claims date from.
 /// </summary>
 /// <param name="time">The clock the end is counted from.</param>
 /// <param name="options">The BFF options.</param>
 /// <param name="logger">The logger.</param>
 internal sealed partial class BffOpenIdConnectEvents(TimeProvider time, IOptions<IdentityBffOptions> options, ILogger<BffOpenIdConnectEvents> logger) : OpenIdConnectEvents
 {
+    /// <inheritdoc />
+    public override Task AuthorizationCodeReceived(AuthorizationCodeReceivedContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        // A change heard while the instance answers may not be in these tokens.
+        BffSessionService.WriteClaimsAskedAt(context.Properties!, time.GetUtcNow());
+        return Task.CompletedTask;
+    }
+
     /// <inheritdoc />
     public override Task TokenResponseReceived(TokenResponseReceivedContext context)
     {

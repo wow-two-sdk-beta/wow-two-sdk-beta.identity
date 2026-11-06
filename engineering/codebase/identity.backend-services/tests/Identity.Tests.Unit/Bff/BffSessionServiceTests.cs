@@ -6,6 +6,7 @@ using AwesomeAssertions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -123,6 +124,32 @@ public sealed class BffSessionServiceTests
 
         slid!.State.ExpiresAt.Should().Be(_time.GetUtcNow().AddDays(5), "a sliding instance session moved its end, and the BFF session follows");
         (await _repository.FindAsync("sid-1"))!.ExpiresAt.Should().Be(slid.State.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task Start_ShouldDateItsClaimsFromTheCodeExchange_SoAChangeHeardDuringItStillRefreshes()
+    {
+        var options = Options.Create(new IdentityBffOptions { Authority = Issuer, ClientId = ClientId });
+        var events = new BffOpenIdConnectEvents(_time, options, NullLogger<BffOpenIdConnectEvents>.Instance);
+        var tokens = Tokens(expiresIn: TimeSpan.FromMinutes(10));
+        var scheme = new AuthenticationScheme("oidc", null, typeof(OpenIdConnectHandler));
+
+        await events.AuthorizationCodeReceived(new AuthorizationCodeReceivedContext(new DefaultHttpContext(), scheme, new OpenIdConnectOptions(), tokens));
+        var askedAt = _time.GetUtcNow();
+        _time.Advance(TimeSpan.FromSeconds(2));
+
+        var session = await Service().StartAsync(Person("person-1"), tokens, CancellationToken.None);
+
+        session.State.ClaimsAsOf.Should().Be(askedAt, "the tokens may predate a change heard while the instance answered");
+        session.State.SignedInAt.Should().Be(_time.GetUtcNow());
+    }
+
+    [Fact]
+    public async Task Start_WithNoCodeExchangeOnRecord_ShouldDateItsClaimsFromNow()
+    {
+        var session = await Service().StartAsync(Person("person-1"), Tokens(expiresIn: TimeSpan.FromMinutes(10)), CancellationToken.None);
+
+        session.State.ClaimsAsOf.Should().Be(_time.GetUtcNow());
     }
 
     [Fact]

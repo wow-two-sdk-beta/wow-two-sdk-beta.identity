@@ -31,6 +31,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Bff.Sessions;
 ///     instance rotates the refresh token as it answers, so a browser that leaves mid-refresh must not strand the new one
 ///   - a refresh undoes neither signal: it doesn't save a session that ended meanwhile, and its claims date from when it asked,
 ///     so a change heard meanwhile refreshes once more; ending takes the same gate, so it can't slip between the check and the save
+///   - a sign-in's claims date from before its code exchange, so a change heard during it refreshes too
 /// </remarks>
 /// <param name="repository">The session store.</param>
 /// <param name="protector">The payload protector.</param>
@@ -53,6 +54,9 @@ internal sealed partial class BffSessionService(
 
     /// <summary>The sign-in property holding the instance session's end, from the code exchange's token response.</summary>
     private const string InstanceEndItem = ".bff.instance_session_end";
+
+    /// <summary>The sign-in property holding when the code exchange began, the latest its tokens are sure to include.</summary>
+    private const string ClaimsAskedItem = ".bff.claims_asked_at";
 
     /// <summary>How long one refresh may take, the save of its tokens excluded; past it the session keeps its tokens.</summary>
     public static readonly TimeSpan RefreshTimeout = TimeSpan.FromSeconds(30);
@@ -89,8 +93,17 @@ internal sealed partial class BffSessionService(
         properties.Items[InstanceEndItem] = end.ToString("o", CultureInfo.InvariantCulture);
     }
 
-    private static DateTimeOffset? ReadInstanceEnd(AuthenticationProperties properties)
-        => properties.Items.TryGetValue(InstanceEndItem, out var value)
+    /// <summary>Record in the sign-in's <paramref name="properties"/> when the code exchange began.</summary>
+    /// <param name="properties">The code flow's properties.</param>
+    /// <param name="at">The instant, on this host's clock.</param>
+    public static void WriteClaimsAskedAt(AuthenticationProperties properties, DateTimeOffset at)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+        properties.Items[ClaimsAskedItem] = at.ToString("o", CultureInfo.InvariantCulture);
+    }
+
+    private static DateTimeOffset? ReadInstant(AuthenticationProperties properties, string item)
+        => properties.Items.TryGetValue(item, out var value)
            && DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var end)
             ? end
             : null;
@@ -115,8 +128,8 @@ internal sealed partial class BffSessionService(
             RefreshToken = properties.GetTokenValue("refresh_token"),
             IdentityToken = properties.GetTokenValue("id_token"),
             SignedInAt = now,
-            ClaimsAsOf = now,
-            ExpiresAt = ReadInstanceEnd(properties) ?? now + options.Value.SessionLifetime,
+            ClaimsAsOf = ReadInstant(properties, ClaimsAskedItem) ?? now,
+            ExpiresAt = ReadInstant(properties, InstanceEndItem) ?? now + options.Value.SessionLifetime,
         };
 
         var session = new BffSession { SessionId = sessionId, State = state };

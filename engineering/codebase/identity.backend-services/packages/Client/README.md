@@ -54,6 +54,8 @@ app.MapGroup("/api/orgs/{organizationId:guid}/desks")
 - A refresh the instance refuses still ends the session. A session with no refresh token keeps its tokens until they run out, since
   a role change signs nobody out.
 - A refresh under way undoes neither signal: a session ended meanwhile stays ended, and a change heard meanwhile refreshes once more.
+- A sign-in's claims date from before its code exchange, so a change heard during it refreshes too. A session's end heard during it finds
+  no session yet; the first refresh, refused, ends it.
 - Only `Authority`'s own signals reach a session: a `sid` or `sub` from another issuer the host trusts as a resource doesn't.
 - `AddIdentityBff` registers the receiver and an in-memory event bus either way, because `SignalUrl` may come from configuration.
   A broker registers before it, or it is silently ignored ([signals](../Auth/Signals/signals.md#the-bus)).
