@@ -34,12 +34,12 @@ public sealed class TelegramMessageSchemaTests(MigratorPostgresFixture fixture) 
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
 
-        (await runner.RollbackAsync(targetOrdinal: 8)).ValueOrThrow().Should().Equal("011-device-confirmations", "010-trusted-contacts", "009-telegram-messages");
+        (await runner.RollbackAsync(targetOrdinal: 8)).ValueOrThrow().Should().Equal("012-device-confirmation-request", "011-device-confirmations", "010-trusted-contacts", "009-telegram-messages");
         foreach (var table in SchemaShape.TelegramMessageTables)
             (await migrator.HasTableAsync(IdentitySchemaTests.Schema, table)).Should().BeFalse($"the rollback drops {table}");
         (await migrator.HasTableAsync(IdentitySchemaTests.Schema, "identity_telegram_link_changes")).Should().BeTrue("008-telegram-link-changes stays");
 
-        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("009-telegram-messages", "010-trusted-contacts", "011-device-confirmations");
+        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("009-telegram-messages", "010-trusted-contacts", "011-device-confirmations", "012-device-confirmation-request");
         foreach (var table in SchemaShape.TelegramMessageTables)
             (await migrator.HasTableAsync(IdentitySchemaTests.Schema, table)).Should().BeTrue($"the second apply recreates {table}");
     }

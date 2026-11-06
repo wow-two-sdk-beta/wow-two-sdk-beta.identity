@@ -70,7 +70,7 @@ public static class SchemaShape
         [.. AccountTables.Concat(OidcTables).Concat(SpineTables).Concat(PhoneSignInTables).Concat(InvitationTables).Concat(InviteSignUpTables).Concat(TelegramLinkChangeTables).Concat(TelegramMessageTables).Concat(TrustedContactTables).Concat(DeviceConfirmationTables).Order(StringComparer.Ordinal)];
 
     /// <summary>The set's migrations in apply order.</summary>
-    public static readonly IReadOnlyList<string> Migrations = ["001-accounts", "002-oidc", "003-spine", "004-phone-sign-in", "005-display-name", "006-invitations", "007-invite-sign-up", "008-telegram-link-changes", "009-telegram-messages", "010-trusted-contacts", "011-device-confirmations"];
+    public static readonly IReadOnlyList<string> Migrations = ["001-accounts", "002-oidc", "003-spine", "004-phone-sign-in", "005-display-name", "006-invitations", "007-invite-sign-up", "008-telegram-link-changes", "009-telegram-messages", "010-trusted-contacts", "011-device-confirmations", "012-device-confirmation-request"];
 
     /// <summary>The identity set's own history table, which the model does not map.</summary>
     private const string MigrationHistoryTable = $"{IdentityDatabaseOptions.MigrationSetName}_migration_history";

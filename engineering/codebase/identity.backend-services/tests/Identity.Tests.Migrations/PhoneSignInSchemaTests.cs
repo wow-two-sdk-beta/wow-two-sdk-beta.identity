@@ -32,7 +32,7 @@ public sealed class PhoneSignInSchemaTests(MigratorPostgresFixture fixture) : IA
         await using var migrator = IdentitySchemaTests.CreateMigrator(fixture);
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
-        (await runner.RollbackAsync(targetOrdinal: 4)).ValueOrThrow().Should().Equal("011-device-confirmations", "010-trusted-contacts", "009-telegram-messages", "008-telegram-link-changes", "007-invite-sign-up", "006-invitations", "005-display-name");
+        (await runner.RollbackAsync(targetOrdinal: 4)).ValueOrThrow().Should().Equal("012-device-confirmation-request", "011-device-confirmations", "010-trusted-contacts", "009-telegram-messages", "008-telegram-link-changes", "007-invite-sign-up", "006-invitations", "005-display-name");
 
         (await runner.RollbackAsync(targetOrdinal: 3)).ValueOrThrow().Should().Equal("004-phone-sign-in");
         foreach (var table in SchemaShape.PhoneSignInTables)
@@ -40,7 +40,7 @@ public sealed class PhoneSignInSchemaTests(MigratorPostgresFixture fixture) : IA
         foreach (var table in SchemaShape.SpineTables)
             (await migrator.HasTableAsync(IdentitySchemaTests.Schema, table)).Should().BeTrue($"003-spine keeps {table}");
 
-        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("004-phone-sign-in", "005-display-name", "006-invitations", "007-invite-sign-up", "008-telegram-link-changes", "009-telegram-messages", "010-trusted-contacts", "011-device-confirmations");
+        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("004-phone-sign-in", "005-display-name", "006-invitations", "007-invite-sign-up", "008-telegram-link-changes", "009-telegram-messages", "010-trusted-contacts", "011-device-confirmations", "012-device-confirmation-request");
         foreach (var table in SchemaShape.PhoneSignInTables)
             (await migrator.HasTableAsync(IdentitySchemaTests.Schema, table)).Should().BeTrue($"the second apply recreates {table}");
     }

@@ -47,7 +47,7 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         foreach (var table in new[] { "identity_invitations", "identity_sessions", "identity_sign_in_log" })
             (await HasColumnAsync(migrator, table, "trusted_contact_user_id")).Should().BeTrue($"010-trusted-contacts names the contact on {table}");
         (await migrator.HasTableAsync(Schema, "identity_device_confirmations")).Should().BeTrue("011-device-confirmations adds the waiting sign-ins");
-        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
+        (await migrator.ReadHistoryAsync(IdentityDatabaseOptions.MigrationSetName)).Select(row => row.Ordinal).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
         (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().BeEmpty("an applied set is current");
     }
 
@@ -58,7 +58,7 @@ public sealed class IdentitySchemaTests(MigratorPostgresFixture fixture) : IAsyn
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
 
-        (await runner.RollbackAsync(targetOrdinal: 10)).ValueOrThrow().Should().Equal("011-device-confirmations");
+        (await runner.RollbackAsync(targetOrdinal: 10)).ValueOrThrow().Should().Equal("012-device-confirmation-request", "011-device-confirmations");
         (await migrator.HasTableAsync(Schema, "identity_known_devices")).Should().BeFalse("rolling 011-device-confirmations back drops the known devices");
         (await migrator.HasTableAsync(Schema, "identity_trusted_contacts")).Should().BeTrue("the contacts stay");
 

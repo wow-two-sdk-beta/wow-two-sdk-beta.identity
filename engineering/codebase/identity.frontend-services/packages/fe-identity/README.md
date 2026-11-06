@@ -65,7 +65,7 @@ Trusted contacts (another person of the instance who receives a person's sign-in
   Telegram, and the code typed on the form (`verifyInviteSignUp`) finishes the sign-up with no phone on the new account.
   It takes `codeRules` and `isPersistenceOffered` for that code step.
 - `PhoneSettings` adds or changes the signed-in account's own phone through the bot's `add-phone` link and polls until
-  the number shows; `TrustedContactsList` lists the account's contacts and revokes one (`canRevoke`, from a session
+  the number shows, or fires `signedOut` once a changed number ended the session; `TrustedContactsList` lists the account's contacts and revokes one (`canRevoke`, from a session
   signed in with the own phone); `TrustedByList` lists the accounts that trust the person and leaves one (`canLeave`);
   `SessionList` lists the live sessions and the contact one went through. Each renders nothing while its route answers
   `404`.

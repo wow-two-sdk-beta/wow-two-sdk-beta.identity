@@ -15,6 +15,7 @@ using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Invitations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.Sessions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.TrustedContacts;
 using WoW.Two.Sdk.Beta.Be.Identity.Jwt.Issuance;
 using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
@@ -37,6 +38,8 @@ public sealed class NewDeviceConfirmationApiTests
     private const long ContactChat = 9101;
     private const string SecondContactPhone = "+998905555555";
     private const long SecondContactChat = 9202;
+    private const string NewPhone = "+998906666666";
+    private const long NewChat = 9505;
     private const string Browser = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
     [Fact]
@@ -383,13 +386,162 @@ public sealed class NewDeviceConfirmationApiTests
         });
     }
 
-    private static async Task WithHostAsync(Func<WebApiTestHost<Program>, FakeTelegramBotClient, Task> test, bool isRequired = true, bool hasBearer = false)
+    [Fact]
+    public async Task Deny_ShouldLogAtThePress_ThoughThePageIsGone_NamingTheBrowserThatAsked()
+    {
+        await WithHostAsync(async (host, bot) =>
+        {
+            var (account, _, _) = await SeedAsync(host);
+            using var browser = Client(host);
+            var waiting = await OwnCodeAsync(host, bot, browser);
+            using var telegram = host.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+
+            await PressAsync(telegram, ContactChat, bot, "Deny");
+
+            // Nobody polled: the press alone leaves the record, with the asking browser's device rather than Telegram's request.
+            var denial = (await DenialsAsync(host, account)).Should().ContainSingle().Subject;
+            denial.UserAgent.Should().Contain("Chrome/130");
+
+            // A page still open hears it, and adds no second row.
+            (await CodeOfAsync(await PollAsync(browser, waiting))).Should().Be("DeviceConfirmationDenied");
+            (await DenialsAsync(host, account)).Should().ContainSingle();
+        });
+    }
+
+    [Fact]
+    public async Task Approve_ShouldMakeTheBrowserKnownAtThePress_SoAReloadNeedsNoSecondPress()
+    {
+        await WithHostAsync(async (host, bot) =>
+        {
+            var (account, contact, _) = await SeedAsync(host);
+            using var browser = Client(host);
+
+            // The token is dropped here, as a reload drops it from the page's memory.
+            await OwnCodeAsync(host, bot, browser);
+            await PressAsync(browser, ContactChat, bot, "Approve");
+
+            await using (var scope = host.Services.CreateAsyncScope())
+                (await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().KnownDevices.SingleAsync(d => d.UserId == account)).ConfirmedByUserId.Should().Be(contact);
+
+            var notices = bot.To(ContactChat).Count;
+            using var again = await OwnCodeAnswerAsync(host, bot, browser);
+            again.StatusCode.Should().Be(HttpStatusCode.NoContent, await again.Content.ReadAsStringAsync());
+            bot.To(ContactChat).Count.Should().Be(notices, "the contact already read that the device can sign in");
+        });
+    }
+
+    [Fact]
+    public async Task AnotherBrowser_HoldingTheToken_ShouldGetNothing_AndLeaveTheWaitAlone()
+    {
+        await WithHostAsync(async (host, bot) =>
+        {
+            await SeedAsync(host);
+            using var browser = Client(host);
+            var waiting = await OwnCodeAsync(host, bot, browser);
+            using var other = Client(host);
+
+            (await CodeOfAsync(await PollAsync(other, waiting))).Should().Be("DeviceConfirmationExpired", "another browser doesn't learn how the request stands");
+            await StatusAsync(browser, waiting, "pending");
+            await PressAsync(browser, ContactChat, bot, "Approve");
+
+            (await CodeOfAsync(await PollAsync(other, waiting))).Should().Be("DeviceConfirmationExpired");
+            (await other.GetAsync("/api/account/manage/info")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+            (await PollAsync(browser, waiting)).StatusCode.Should().Be(HttpStatusCode.NoContent, "the wait still belongs to the browser that asked");
+        });
+    }
+
+    [Fact]
+    public async Task TheToken_InTheOtherClientMode_ShouldGetNothing()
+    {
+        await WithHostAsync(
+            async (host, bot) =>
+            {
+                await SeedAsync(host);
+                using var browser = Client(host);
+                var waiting = await OwnCodeAsync(host, bot, browser);
+                await PressAsync(browser, ContactChat, bot, "Approve");
+                using var other = Client(host);
+
+                // Dropping useCookies doesn't turn a browser's wait into a token pair.
+                using var asBearer = await other.PostAsJsonAsync("/api/account/phone-sign-in/confirmation", new { token = waiting.GetProperty("token").GetString() });
+                (await CodeOfAsync(asBearer)).Should().Be("DeviceConfirmationExpired");
+                (await PollAsync(browser, waiting)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+                // Adding useCookies doesn't turn a bearer client's wait into a session.
+                using var api = Client(host);
+                (await DataAsync(await api.PostAsJsonAsync("/api/account/phone-sign-in/send", new { phone = AccountPhone }))).GetProperty("isCodeSent").GetBoolean().Should().BeTrue();
+                var bearerWaiting = (await DataAsync(await api.PostAsJsonAsync("/api/account/phone-sign-in", new { phone = AccountPhone, code = bot.LastCode(AccountChat) }))).GetProperty("deviceConfirmation");
+                await PressAsync(api, ContactChat, bot, "Approve");
+
+                (await CodeOfAsync(await PollAsync(other, bearerWaiting))).Should().Be("DeviceConfirmationExpired");
+                var polled = await api.PostAsJsonAsync("/api/account/phone-sign-in/confirmation", new { token = bearerWaiting.GetProperty("token").GetString() });
+                (await DataAsync(polled)).GetProperty("accessToken").GetString().Should().Be(FixedTokenIssuer.Token, "the token is all a bearer client holds");
+            },
+            hasBearer: true);
+    }
+
+    [Fact]
+    public async Task ChangedOwnPhone_ShouldEndEverySession_TellTheHandlers_AndCloseOpenRequests()
+    {
+        var revocations = new RevocationLog();
+        await WithHostAsync(
+            async (host, bot) =>
+            {
+                var (account, _, _) = await SeedAsync(host);
+                using var laptop = await SignedInAsync(host, bot);
+
+                // The number it already holds changes nothing.
+                await ShareAsync(laptop, await PhoneLinkAsync(laptop), AccountChat, AccountPhone);
+                (await laptop.GetAsync("/api/account/manage/info")).StatusCode.Should().Be(HttpStatusCode.OK);
+                revocations.Sessions.Should().BeEmpty();
+
+                using var other = Client(host);
+                var open = await OwnCodeAsync(host, bot, other);
+
+                await ShareAsync(laptop, await PhoneLinkAsync(laptop), NewChat, NewPhone);
+
+                bot.To(NewChat).Last().Text.Should().Contain("now on your account");
+                (await host.Services.CreateAsyncScope().ServiceProvider.GetRequiredService<UserAccountService>().FindByIdAsync(account))!.PhoneNumber.Should().Be(NewPhone);
+                revocations.Sessions.Should().ContainSingle("a session signed in with the old number stops counting, and services hear at once");
+                (await laptop.GetAsync("/api/account/manage/info")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+                // Whoever held the old number gets nothing from a press now.
+                await PressAsync(laptop, ContactChat, bot, "Approve");
+                bot.TextEdits.Last().Text.Should().Contain("expired");
+                (await CodeOfAsync(await PollAsync(other, open))).Should().Be("DeviceConfirmationExpired");
+                await using var scope = host.Services.CreateAsyncScope();
+                var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+                (await context.DeviceConfirmations.AnyAsync(c => c.UserId == account)).Should().BeFalse();
+                (await context.KnownDevices.CountAsync(d => d.UserId == account)).Should().Be(1, "only the laptop was approved");
+            },
+            services: services => services.AddScoped<ISessionRevocationHandler>(_ => revocations));
+    }
+
+    [Fact]
+    public async Task ChangedOwnPhone_ShouldCloseAnApprovedRequestNobodyCollected()
+    {
+        await WithHostAsync(async (host, bot) =>
+        {
+            await SeedAsync(host);
+            using var laptop = await SignedInAsync(host, bot);
+            using var other = Client(host);
+            var approved = await OwnCodeAsync(host, bot, other);
+            await PressAsync(other, ContactChat, bot, "Approve");
+
+            await ShareAsync(laptop, await PhoneLinkAsync(laptop), NewChat, NewPhone);
+
+            (await CodeOfAsync(await PollAsync(other, approved))).Should().Be("DeviceConfirmationExpired");
+            (await other.GetAsync("/api/account/manage/info")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        });
+    }
+
+    private static async Task WithHostAsync(Func<WebApiTestHost<Program>, FakeTelegramBotClient, Task> test, bool isRequired = true, bool hasBearer = false, Action<IServiceCollection>? services = null)
     {
         var connectionString = await PostgresTestServer.CreateDatabaseAsync();
         try
         {
             var bot = new FakeTelegramBotClient();
-            await using var host = CreateHost(connectionString, bot, isRequired, hasBearer);
+            await using var host = CreateHost(connectionString, bot, isRequired, hasBearer, services);
             await test(host, bot);
         }
         finally
@@ -398,7 +550,7 @@ public sealed class NewDeviceConfirmationApiTests
         }
     }
 
-    private static WebApiTestHost<Program> CreateHost(string connectionString, FakeTelegramBotClient bot, bool isRequired, bool hasBearer)
+    private static WebApiTestHost<Program> CreateHost(string connectionString, FakeTelegramBotClient bot, bool isRequired, bool hasBearer, Action<IServiceCollection>? configure)
     {
         var host = new WebApiTestHost<Program>
         {
@@ -429,6 +581,7 @@ public sealed class NewDeviceConfirmationApiTests
                 services.AddSingleton<ITelegramBotClient>(bot);
                 if (hasBearer)
                     services.AddSingleton<ITokenIssuer, FixedTokenIssuer>();
+                configure?.Invoke(services);
             },
         };
         host.Clock.SetUtcNow(DateTimeOffset.UtcNow);
@@ -485,6 +638,25 @@ public sealed class NewDeviceConfirmationApiTests
     private static async Task<JsonElement> OwnCodeAsync(WebApiTestHost<Program> host, FakeTelegramBotClient bot, HttpClient client)
     {
         return (await DataAsync(await OwnCodeAnswerAsync(host, bot, client))).GetProperty("deviceConfirmation");
+    }
+
+    /// <summary>A browser the account signed in on with its own code, approved by the first contact.</summary>
+    private static async Task<HttpClient> SignedInAsync(WebApiTestHost<Program> host, FakeTelegramBotClient bot)
+    {
+        var browser = Client(host);
+        var waiting = await OwnCodeAsync(host, bot, browser);
+        await PressAsync(browser, ContactChat, bot, "Approve");
+        (await PollAsync(browser, waiting)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        return browser;
+    }
+
+    private static async Task<string> PhoneLinkAsync(HttpClient client)
+        => (await DataAsync(await client.PostAsync("/api/account/manage/phone/telegram-link", null))).GetProperty("telegramLinkUrl").GetString()!;
+
+    private static async Task<List<IdentitySignInLogEntry>> DenialsAsync(WebApiTestHost<Program> host, Guid account)
+    {
+        await using var scope = host.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().SignInLog.AsNoTracking().Where(e => e.UserId == account && e.Reason == "device_denied").ToListAsync();
     }
 
     private static Task<HttpResponseMessage> PollAsync(HttpClient client, JsonElement waiting)
@@ -562,6 +734,19 @@ public sealed class NewDeviceConfirmationApiTests
             var body = await response.Content.ReadAsStringAsync();
             using var problem = JsonDocument.Parse(body);
             return problem.RootElement.TryGetProperty("identityCode", out var code) ? code.GetString() : body;
+        }
+    }
+
+    /// <summary>Keeps the sessions a stamp rotation ended, as a service told of them would hear.</summary>
+    private sealed class RevocationLog : ISessionRevocationHandler
+    {
+        public List<Guid> Sessions { get; } = [];
+
+        /// <inheritdoc />
+        public Task HandleAsync(IReadOnlyList<IdentitySession> sessions, CancellationToken cancellationToken = default)
+        {
+            Sessions.AddRange(sessions.Select(session => session.Id));
+            return Task.CompletedTask;
         }
     }
 

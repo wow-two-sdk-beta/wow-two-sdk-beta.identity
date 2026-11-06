@@ -37,7 +37,7 @@ public sealed partial class SignInLogService(
     public async Task<long?> RecordAsync(SignInAttempt attempt, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(attempt);
-        var (ipMasked, userAgent) = PersonalDataMasks.Describe(http?.HttpContext);
+        var (ipMasked, userAgent) = attempt.Origin ?? PersonalDataMasks.Describe(http?.HttpContext);
         var entry = new IdentitySignInLogEntry
         {
             OccurredAt = time.GetUtcNow(),

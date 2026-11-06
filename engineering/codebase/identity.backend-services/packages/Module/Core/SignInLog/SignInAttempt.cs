@@ -18,6 +18,12 @@ public sealed record SignInAttempt
     /// <summary>The identifier as typed (user name, email or phone); stored masked, never in full.</summary>
     public string? Subject { get; init; }
 
+    /// <summary>
+    /// The masked network and user agent of the request the attempt came from, when that isn't the current one: a contact's denial
+    /// reaches the instance through Telegram. Null takes the current request's.
+    /// </summary>
+    public (string? IpMasked, string? UserAgent)? Origin { get; init; }
+
     /// <summary>The trusted contact the attempt went through; null takes <see cref="SignInLogService.TrustedContactUserId"/>.</summary>
     public Guid? TrustedContactUserId { get; init; }
 }

@@ -13,8 +13,9 @@ import { FailureAlert } from '../../feedback/failureAlert';
  * Shows the signed-in account's own phone and adds or changes it through the Telegram bot: the bot's `add-phone` link
  * opens, sharing the contact there confirms the number, and the block polls the account's phone every 2 s until it shows
  * the new number or 5 minutes pass. An account with no phone adds one from any session; changing one needs a session
- * signed in with the own phone (`canChange`), else the block says so. The block renders nothing while the service has
- * no phone route (`404`).
+ * signed in with the own phone (`canChange`), else the block says so. A changed number ends every session, this one's
+ * included, so the wait ends there too: the block says to sign in again and fires `signedOut`. The block renders nothing
+ * while the service has no phone route (`404`).
  */
 defineOptions({ name: 'PhoneSettings' });
 
@@ -31,6 +32,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   /** Fires once the account's phone is saved, with the phone as the service now shows it. */
   changed: [phone: AccountPhoneDto];
+  /** Fires once the session ended during the wait, as a changed number ends it. */
+  signedOut: [];
 }>();
 
 /** How long the block waits between two polls of the phone. */
@@ -49,6 +52,7 @@ const startFailure = shallowRef<AppError | null>(null);
 const link = shallowRef<string | null>(null);
 const isSaved = shallowRef(false);
 const isTimedOut = shallowRef(false);
+const isSignedOut = shallowRef(false);
 const controller = new AbortController();
 let pollTimer: ReturnType<typeof setTimeout> | undefined;
 let isDisposed = false;
@@ -117,6 +121,12 @@ async function poll(before: AccountPhoneDto | null, deadline: number) {
     emit('changed', result.value);
     return;
   }
+  if (!result.ok && result.failure.status === 401) {
+    stopWaiting();
+    isSignedOut.value = true;
+    emit('signedOut');
+    return;
+  }
   if (Date.now() >= deadline) {
     stopWaiting();
     isTimedOut.value = true;
@@ -155,6 +165,9 @@ onScopeDispose(() => {
       <AlertSimple v-if="isTimedOut" severity="warning">
         {{ t('PhoneSettings.timedOut', 'We did not get your contact in time. Try again.') }}
       </AlertSimple>
+      <AlertSimple v-if="isSignedOut" severity="warning">
+        {{ t('PhoneSettings.signedOut', 'A changed phone ends every session. Sign in again with your phone.') }}
+      </AlertSimple>
       <div v-if="link" class="flex flex-col gap-3">
         <p class="text-sm text-muted-foreground">
           {{
@@ -178,7 +191,7 @@ onScopeDispose(() => {
           {{ t('PhoneSettings.cancel', 'Cancel') }}
         </Button>
       </div>
-      <template v-else>
+      <template v-else-if="!isSignedOut">
         <div v-if="phone.canChange">
           <Button type="button" variant="outline" tone="neutral" :is-loading="isStarting" @click="start">
             {{ phone.isConfirmed ? t('PhoneSettings.change', 'Change phone') : t('PhoneSettings.add', 'Add a phone') }}

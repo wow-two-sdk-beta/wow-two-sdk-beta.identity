@@ -65,7 +65,8 @@ var alice   = await service.FindByNameAsync("ALICE");   // case-insensitive via 
   `identity_telegram_callbacks` (their inline buttons by token digest; `../Telegram/`); `010-trusted-contacts` adds
   `identity_trusted_contacts` (one row per account and contact) and `trusted_contact_user_id` on invitations, sessions and
   the sign-in log (`TrustedContacts/`); `011-device-confirmations` adds `identity_known_devices` (browsers an account may
-  sign in from with no contact's press) and `identity_device_confirmations` (sign-ins waiting for one; `TrustedContacts/`).
+  sign in from with no contact's press) and `identity_device_confirmations` (sign-ins waiting for one; `TrustedContacts/`);
+  `012-device-confirmation-request` adds what such a sign-in keeps of its request: how the client proves itself, its network and device.
   None is published to products.
 - The SQL owns the schema: `../Migrations/Postgres/NNN-name/{Apply,Rollback}.sql`, embedded and run as the be sdk
   migration set `identity` (history `identity_migration_history`, its own advisory lock). EF only maps.

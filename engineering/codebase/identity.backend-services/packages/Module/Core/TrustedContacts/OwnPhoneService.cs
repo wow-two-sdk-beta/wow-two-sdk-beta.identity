@@ -13,13 +13,17 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.TrustedContacts;
 ///     row that started it is a <c>phone_code</c> or <c>phone_contact</c> sign-in (<c>Identity:SignInLog</c> keeps it)
 ///   - a link carries the session that asked for it, so its completion checks the rule again: an account that gained an own
 ///     phone meanwhile is changed only from a session signed in with it
-///   - setting the phone rotates no stamp: the sessions stay, the asking browser included
+///   - a first phone ends no session, the asking browser's included
+///   - a changed number rotates the stamp, ending every session at once and telling services, since a session signed in with the
+///     old number no longer proves the account; the asking browser signs in again, with the new number
+///   - a changed number closes the account's requests waiting for a contact's press, so no press signs in whoever held the old one
 /// </remarks>
 /// <param name="repository">The sessions and the sign-in log.</param>
 /// <param name="users">Finds the person holding a number confirmed.</param>
 /// <param name="accounts">Reads and updates the account.</param>
 /// <param name="phones">The allowed countries.</param>
 /// <param name="telegram">Makes the start link.</param>
+/// <param name="devices">The requests a changed number closes.</param>
 /// <param name="time">The clock a session's end is judged against.</param>
 public sealed class OwnPhoneService(
     ITrustedContactRepository repository,
@@ -27,6 +31,7 @@ public sealed class OwnPhoneService(
     UserAccountService accounts,
     PhoneNumberPolicy phones,
     TelegramLinkService telegram,
+    IDeviceConfirmationRepository devices,
     TimeProvider time)
 {
     /// <summary>Whether <paramref name="user"/> holds an own phone: a confirmed number.</summary>
@@ -119,9 +124,19 @@ public sealed class OwnPhoneService(
         if (holder is null && HasOwnPhone(user) && !mayChange)
             return TelegramBotMessageKeyConstants.AddPhoneFailed;
 
+        var isChange = HasOwnPhone(user) && !string.Equals(user.PhoneNumber, phoneNumber, StringComparison.Ordinal);
         user.PhoneNumber = phoneNumber;
         user.IsPhoneNumberConfirmed = true;
         var updated = await accounts.UpdateAsync(user, cancellationToken);
-        return updated.IsSuccess ? TelegramBotMessageKeyConstants.AddPhoneDone : TelegramBotMessageKeyConstants.AddPhoneFailed;
+        if (!updated.IsSuccess)
+            return TelegramBotMessageKeyConstants.AddPhoneFailed;
+
+        if (isChange)
+        {
+            await devices.RemoveRequestsOfAsync(user.Id, cancellationToken);
+            await accounts.RotateSecurityStampAsync(user, cancellationToken);
+        }
+
+        return TelegramBotMessageKeyConstants.AddPhoneDone;
     }
 }

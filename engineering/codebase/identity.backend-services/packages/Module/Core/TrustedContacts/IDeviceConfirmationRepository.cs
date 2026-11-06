@@ -42,6 +42,11 @@ public interface IDeviceConfirmationRepository
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<bool> TryRemoveAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>Deletes every request of the account, answered or not, when its own phone changes.</summary>
+    /// <param name="userId">The account.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task RemoveRequestsOfAsync(Guid userId, CancellationToken cancellationToken = default);
+
     /// <summary>Deletes the account's known browsers and requests, with the account.</summary>
     /// <param name="userId">The account.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

@@ -321,6 +321,8 @@ public sealed class IdentityDbContext : AppDbContextBase
             confirmation.HasIndex(c => c.ExpiresAt);
             confirmation.Property(c => c.DeviceHash).HasMaxLength(64);
             confirmation.Property(c => c.TokenHash).HasMaxLength(64);
+            confirmation.Property(c => c.IpMasked).HasMaxLength(64);
+            confirmation.Property(c => c.UserAgent).HasMaxLength(256);
         });
 
         modelBuilder.Entity<IdentitySignUpRequest>(request =>

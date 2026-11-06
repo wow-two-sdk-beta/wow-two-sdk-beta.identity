@@ -132,6 +132,29 @@ describe('phone settings', () => {
     expect(reads(received)).toHaveLength(1);
   });
 
+  it('says to sign in again when the changed number ended the session, and stops asking', async () => {
+    const held = { phoneHint: '+998*******45', isConfirmed: true, canChange: true };
+    let isEnded = false;
+    const { wrapper, received } = await mountPhone([held], {
+      'GET /manage/phone': () => (isEnded ? problem(401, 'Sign in to continue.') : phoneOf(held)()),
+    });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    await button(wrapper, 'Change phone').trigger('click');
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(wrapper.text()).toContain('Waiting for your contact');
+
+    isEnded = true;
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(wrapper.text()).toContain('Sign in again with your phone.');
+    expect(wrapper.text()).not.toContain('Waiting for your contact');
+    expect(wrapper.emitted('signedOut')).toEqual([[]]);
+    const asked = reads(received).length;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(reads(received)).toHaveLength(asked);
+  });
+
   it('shows nothing while the service has no phone route, and the failure of any other answer', async () => {
     const absent = fakeAccountApi({});
     const none = render(PhoneSettings, { props: { client: absent.client } });

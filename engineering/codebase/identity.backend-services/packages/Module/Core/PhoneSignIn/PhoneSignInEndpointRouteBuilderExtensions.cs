@@ -58,7 +58,9 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
     ///     <c>200</c> <c>{ deviceConfirmation: { token, expiresAt, contacts } }</c> with no session, or <c>409</c>
     ///     <c>DeviceConfirmationUnavailable</c> when no contact's chat took the notice; <c>phone-sign-in/confirmation</c> takes
     ///     <c>{ token, isPersistent }</c> and answers <c>200</c> <c>{ status: "pending" }</c>, then signs in as <c>phone-sign-in</c>
-    ///     does once a contact approved; <c>403</c> <c>DeviceConfirmationDenied</c>, <c>401</c> <c>DeviceConfirmationExpired</c>
+    ///     does once a contact approved; <c>403</c> <c>DeviceConfirmationDenied</c>, <c>401</c> <c>DeviceConfirmationExpired</c>,
+    ///     which also answers any client but the one that asked: a browser polls with its device cookie, a bearer client with the
+    ///     token alone, and neither mode collects a wait the other began
     ///   - every route but the polled <c>phone-sign-in/confirmation</c>, whose token is 32 random bytes, takes the per-address
     ///     <see cref="AccountRateLimitPolicyConstants.Credentials"/> policy
     /// </remarks>
@@ -111,7 +113,7 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
         if (!string.IsNullOrWhiteSpace(clientId) && services.GetService<SignInLogService>() is { } log)
             log.ClientId = clientId;
 
-        var poll = await services.GetRequiredService<DeviceConfirmationService>().PollAsync(request.Token, useCookies == true, cancellationToken);
+        var poll = await services.GetRequiredService<DeviceConfirmationService>().PollAsync(request.Token, DeviceCookie.Read(http), useCookies == true, cancellationToken);
         switch (poll.State)
         {
             case DeviceConfirmationState.Pending:
@@ -119,7 +121,6 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
             case DeviceConfirmationState.Approved:
                 return await SignInPersonAsync(poll.User!, trustedContactUserId: null, useCookies, request.IsPersistent, http, cancellationToken, isDeviceConfirmed: true);
             case DeviceConfirmationState.Denied:
-                await RecordRefusalAsync(services, poll.User?.PhoneNumber, SignInReasonConstants.DeviceDenied, cancellationToken, userId: poll.User?.Id);
                 throw CodedError(AppErrorType.Forbidden, "Your trusted contact did not confirm this device.", TrustedContactErrorCodeConstants.DeviceConfirmationDenied).ToException();
             default:
                 throw CodedError(AppErrorType.Unauthorized, "The confirmation has expired; sign in again.", TrustedContactErrorCodeConstants.DeviceConfirmationExpired).ToException();
@@ -242,7 +243,7 @@ public static class PhoneSignInEndpointRouteBuilderExtensions
         if (devices is { IsEnabled: true } && trustedContactUserId is null && !isDeviceConfirmed)
         {
             var (ipMasked, userAgent) = PersonalDataMasks.Describe(http);
-            var check = await devices.CheckAsync(user, DeviceCookie.Ensure(http, useCookies == true), ipMasked, userAgent, cancellationToken);
+            var check = await devices.CheckAsync(user, DeviceCookie.Ensure(http, useCookies == true), useCookies == true, ipMasked, userAgent, cancellationToken);
             switch (check.Status)
             {
                 case DeviceCheckStatus.Waiting:

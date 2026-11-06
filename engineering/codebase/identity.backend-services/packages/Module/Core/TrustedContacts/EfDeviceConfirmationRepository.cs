@@ -74,9 +74,13 @@ public sealed class EfDeviceConfirmationRepository(IdentityDbContext context) : 
         => await Confirmations.Where(c => c.Id == id).ExecuteDeleteAsync(cancellationToken) > 0;
 
     /// <inheritdoc />
+    public async Task RemoveRequestsOfAsync(Guid userId, CancellationToken cancellationToken = default)
+        => await Confirmations.Where(c => c.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+
+    /// <inheritdoc />
     public async Task RemoveAllOfAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         await Devices.Where(d => d.UserId == userId).ExecuteDeleteAsync(cancellationToken);
-        await Confirmations.Where(c => c.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await RemoveRequestsOfAsync(userId, cancellationToken);
     }
 }

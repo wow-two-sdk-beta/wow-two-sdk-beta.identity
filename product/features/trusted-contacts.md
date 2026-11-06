@@ -57,6 +57,8 @@
 
 - An account with no phone adds one from account security through a bot `add-phone` link, from any session.
 - Changing an existing own phone needs a session signed in with that own phone.
+- A changed number ends every session of the account at once, the asking browser's included, and tells services; a first phone, or the number already held, ends none.
+- A changed number closes the account's requests waiting for a press, answered or not. Known browsers stay, since codes now reach only the new number.
 - Revoking a trusted contact needs a session signed in with the own phone, or the notice's button.
 - So an account with no own phone can't revoke its contacts.
 - Revoking a contact ends every session started through it.
@@ -84,11 +86,14 @@
 - A browser is known by the `__Host-identity-device` cookie: 32 random bytes, `HttpOnly`, 400 days, renewed at each sign-in.
 - The instance keeps only its SHA-256, per account (`identity_known_devices`), so one browser may be known to several accounts.
 - The wait lasts 10 minutes (`identity_device_confirmations`); a new request from the account replaces an open one.
+- Only the client that asked reads the answer: a browser by its device cookie, a bearer client by the token, all it holds. Neither mode collects a wait the other began.
+- The page ends the wait on the service's answer, never its own clock; while the service can't be reached it keeps asking.
 
 ### The contact's press
 
 - Each deliverable contact's Telegram gets a notice: the account's name, the app, the device, the masked network and the time.
-- Approve makes the browser known, and the page signs in on its next poll; Deny stops the request, and the sign-in log records `device_denied`.
+- A press takes effect by itself, so the page may be gone: Approve makes a browser known, so a reload needs no second press, and the page signs in on its next poll.
+- Deny stops the request, and the sign-in log records `device_denied` at once, with the asking browser's network and device.
 - A press after the end of the request, after another contact's answer, or by a person no longer a contact changes nothing.
 - A request reaches nobody when every contact's chat refuses the notice: `409`, and the person tries again.
 
@@ -100,6 +105,7 @@
 - The SIM's holder in the old Telegram can press "Revoke trust" on a notice under a day old, leaving nobody to ask.
 - A contact approves on what the request says: the device and network come from the request itself, so they can be forged.
 - No list of known devices yet: a lost laptop stays known until its cookie runs out.
+- A contact changing their own number leaves a notice already sent pressable from their old Telegram, for the rest of its 10 minutes.
 
 ## Bot message cleanup
 
@@ -127,7 +133,7 @@ Fixed for the backend and the hosted pages alike; a change goes through this fil
 | `POST phone-sign-in` | when the number's person is a trusted contact, `200` with `accountChoice: { token, accounts: [{ userId, displayName, pictureUrl?, isSelf }] }` and no session |
 | `POST phone-sign-in/choose` | new: `{ token, userId, isPersistent }` → `204` with the session cookie, or the token answer for bearer clients |
 | `POST phone-sign-in`, `phone-sign-in/choose` | on a new device, `200` with `deviceConfirmation: { token, expiresAt, contacts: [label] }` and no session; `409 DeviceConfirmationUnavailable` when no contact's chat took the notice |
-| `POST phone-sign-in/confirmation` | new, polled, not rate-limited: `{ token, isPersistent }` → `200 { status: "pending" }`; once approved, as `phone-sign-in`: `204` with the session cookie, the token answer, or the `401` second factor challenge; `403 DeviceConfirmationDenied`; `401 DeviceConfirmationExpired` for an unknown, spent or expired token |
+| `POST phone-sign-in/confirmation` | new, polled, not rate-limited: `{ token, isPersistent }` → `200 { status: "pending" }`; once approved, as `phone-sign-in`: `204` with the session cookie, the token answer, or the `401` second factor challenge; `403 DeviceConfirmationDenied`; `401 DeviceConfirmationExpired` for an unknown, spent or expired token, or any client but the one that asked |
 | `GET manage/trusted-contacts` | new: `{ canRevoke, items: [{ userId, displayName, phoneHint, isDeliverable, createdAt }] }` |
 | `DELETE manage/trusted-contacts/{userId}` | new: `204`; `403 MainPhoneRequired` outside an own-phone session |
 | `GET manage/trusted-by` | new: `[{ userId, displayName, createdAt, canLeave }]` |

@@ -11,8 +11,9 @@ using WoW.Two.Sdk.Beta.Be.Testing.Data.Migrations;
 namespace Identity.Tests.Migrations;
 
 /// <summary>
-/// <c>011-device-confirmations</c> on its own: rollback → apply over the rest, a known browser and a request round-tripping
-/// through <see cref="IdentityDbContext"/>, one row per account and browser, and one request per token.
+/// <c>011-device-confirmations</c> and <c>012-device-confirmation-request</c> on their own: rollback → apply over the rest, a known
+/// browser and a request round-tripping through <see cref="IdentityDbContext"/>, one row per account and browser, one request per
+/// token, and a request waiting across <c>012</c> counting as a browser's.
 /// </summary>
 /// <param name="fixture">The shared container.</param>
 [Collection(PostgresMigratorCollection.Name)]
@@ -43,17 +44,44 @@ public sealed class DeviceConfirmationSchemaTests(MigratorPostgresFixture fixtur
             await insert.ExecuteNonQueryAsync();
         }
 
-        (await runner.RollbackAsync(targetOrdinal: 10)).ValueOrThrow().Should().Equal("011-device-confirmations");
+        (await runner.RollbackAsync(targetOrdinal: 10)).ValueOrThrow().Should().Equal("012-device-confirmation-request", "011-device-confirmations");
         foreach (var table in SchemaShape.DeviceConfirmationTables)
             (await migrator.HasTableAsync(IdentitySchemaTests.Schema, table)).Should().BeFalse();
 
-        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("011-device-confirmations");
+        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("011-device-confirmations", "012-device-confirmation-request");
         foreach (var table in SchemaShape.DeviceConfirmationTables)
             (await migrator.HasTableAsync(IdentitySchemaTests.Schema, table)).Should().BeTrue();
 
         await using var check = await migrator.OpenConnectionAsync();
         await using var count = new NpgsqlCommand("select count(*) from identity.identity_trusted_contacts", (NpgsqlConnection)check);
         ((long)(await count.ExecuteScalarAsync())!).Should().Be(1, "the contact row stays");
+    }
+
+    [Fact]
+    public async Task RollbackApply012_ShouldKeepAWaitingRequest_CountingAsABrowsers()
+    {
+        await using var migrator = IdentitySchemaTests.CreateMigrator(fixture);
+        var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
+        (await migrator.ApplyAllAsync()).ValueOrThrow();
+        (await runner.RollbackAsync(targetOrdinal: 11)).ValueOrThrow().Should().Equal("012-device-confirmation-request");
+        await using (var connection = await migrator.OpenConnectionAsync())
+        {
+            await using var insert = new NpgsqlCommand(
+                "insert into identity.identity_device_confirmations (id, user_id, device_hash, token_hash, created_at, expires_at) values (@id, @user, @device, @token, @at, @at)",
+                (NpgsqlConnection)connection);
+            insert.Parameters.AddWithValue("id", Guid.CreateVersion7(At));
+            insert.Parameters.AddWithValue("user", Guid.CreateVersion7(At));
+            insert.Parameters.AddWithValue("device", new string('b', 64));
+            insert.Parameters.AddWithValue("token", new string('c', 64));
+            insert.Parameters.AddWithValue("at", At);
+            await insert.ExecuteNonQueryAsync();
+        }
+
+        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("012-device-confirmation-request");
+
+        await using var check = await migrator.OpenConnectionAsync();
+        await using var read = new NpgsqlCommand("select is_cookie_client from identity.identity_device_confirmations", (NpgsqlConnection)check);
+        ((bool)(await read.ExecuteScalarAsync())!).Should().BeTrue();
     }
 
     [Fact]
@@ -74,6 +102,9 @@ public sealed class DeviceConfirmationSchemaTests(MigratorPostgresFixture fixtur
             UserId = account,
             DeviceHash = new string('b', 64),
             TokenHash = new string('c', 64),
+            IsCookieClient = true,
+            IpMasked = "203.0.113.0",
+            UserAgent = "Mozilla/5.0",
             IsApproved = true,
             DecidedByUserId = contact,
             DecidedAt = At.AddMinutes(1),

@@ -16,9 +16,10 @@ import HostedPage from '../../common/layout/HostedPage.vue';
 /**
  * Shows the signed-in person's security settings: the password change, under the instance's confirmation, while the
  * instance signs in by password (a phone-only instance has no password to change); the own phone, added or changed
- * through the Telegram bot; the trusted contacts who receive the person's sign-in codes, revoked from a session signed
- * in with the own phone; the accounts that trust the person, which they can leave; and the live sessions, naming the
- * trusted contact one went through. A block whose route the service lacks stays out.
+ * through the Telegram bot, a changed number sending the person to sign in again; the trusted contacts who receive the
+ * person's sign-in codes, revoked from a session signed in with the own phone; the accounts that trust the person, which
+ * they can leave; and the live sessions, naming the trusted contact one went through. A block whose route the service
+ * lacks stays out.
  */
 defineOptions({ name: 'AccountSecurityPage' });
 
@@ -49,7 +50,7 @@ const isPasswordOn = computed(
       <p v-else class="text-sm text-muted-foreground">
         You sign in with your phone number; there is no password to change.
       </p>
-      <PhoneSettings />
+      <PhoneSettings @signed-out="onSignInRequired()" />
       <TrustedContactsList :is-empty-shown="options?.isTrustedContactSignInEnabled === true" />
       <TrustedByList />
       <SessionList />

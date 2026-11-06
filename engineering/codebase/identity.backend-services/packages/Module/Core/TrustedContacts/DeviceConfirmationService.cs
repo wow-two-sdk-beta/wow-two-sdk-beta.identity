@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
+using WoW.Two.Sdk.Beta.Be.Identity.Core.SignInLog;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
 using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
@@ -19,6 +20,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core.TrustedContacts;
 ///   - a new request replaces the account's open one, and the notice sender spends the older notice's buttons
 ///   - a bearer client keeps no device cookie, so it is asked every time
 ///   - the notice names the instance's app, never the request's <c>clientId</c>, which whoever is signing in writes
+///   - the press itself takes effect: Approve makes the browser known and Deny logs, so neither needs the page still open
+///   - only the client that asked reads the answer: a browser by its device cookie, a bearer client by the token, all it holds
 /// </remarks>
 /// <param name="repository">The known browsers and waiting requests.</param>
 /// <param name="contacts">Whether a presser is still a contact.</param>
@@ -76,10 +79,11 @@ public sealed partial class DeviceConfirmationService(
     /// </summary>
     /// <param name="user">The account.</param>
     /// <param name="deviceValue">The browser's device value (<see cref="DeviceCookie.Ensure"/>).</param>
-    /// <param name="ipMasked">The request's masked network, for the notice.</param>
-    /// <param name="userAgent">The request's user agent, for the notice.</param>
+    /// <param name="isCookieClient">Whether the client keeps the device cookie, which it then polls with.</param>
+    /// <param name="ipMasked">The request's masked network, for the notice and a denial's log row.</param>
+    /// <param name="userAgent">The request's user agent, for the notice and a denial's log row.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<DeviceCheck> CheckAsync(IdentityUser user, string deviceValue, string? ipMasked, string? userAgent, CancellationToken cancellationToken = default)
+    public async Task<DeviceCheck> CheckAsync(IdentityUser user, string deviceValue, bool isCookieClient, string? ipMasked, string? userAgent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         if (!IsEnabled)
@@ -98,6 +102,9 @@ public sealed partial class DeviceConfirmationService(
             UserId = user.Id,
             DeviceHash = deviceHash,
             TokenHash = DeviceCookie.HashOf(token),
+            IsCookieClient = isCookieClient,
+            IpMasked = ipMasked,
+            UserAgent = userAgent,
             CreatedAt = now,
             ExpiresAt = now + Lifetime,
         };
@@ -118,13 +125,14 @@ public sealed partial class DeviceConfirmationService(
     }
 
     /// <summary>
-    /// Reads where a waiting sign-in stands. An approved one is spent here and its browser becomes known, so exactly one poll gets
-    /// <see cref="DeviceConfirmationState.Approved"/> and must sign in; a denied one is spent too, so it is logged once.
+    /// Reads where a waiting sign-in stands, for the client that asked: anyone else holding the token finds it gone, and the wait goes
+    /// on. An answered one is spent here, so exactly one poll gets <see cref="DeviceConfirmationState.Approved"/> and must sign in.
     /// </summary>
     /// <param name="token">The token <see cref="CheckAsync"/> gave.</param>
-    /// <param name="isCookieClient">Whether the client keeps the device cookie; a bearer client's value is never remembered.</param>
+    /// <param name="deviceValue">The device value the polling request carries (<see cref="DeviceCookie.Read"/>).</param>
+    /// <param name="isCookieClient">Whether the polling request signs in with cookies; a wait keeps to the mode it began in.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<DeviceConfirmationPoll> PollAsync(string? token, bool isCookieClient, CancellationToken cancellationToken = default)
+    public async Task<DeviceConfirmationPoll> PollAsync(string? token, string? deviceValue, bool isCookieClient, CancellationToken cancellationToken = default)
     {
         var gone = new DeviceConfirmationPoll { State = DeviceConfirmationState.Gone };
         if (!IsEnabled || string.IsNullOrWhiteSpace(token))
@@ -132,28 +140,24 @@ public sealed partial class DeviceConfirmationService(
 
         var now = time.GetUtcNow();
         var confirmation = await repository.FindByTokenAsync(DeviceCookie.HashOf(token), cancellationToken);
-        if (confirmation is null || confirmation.ExpiresAt <= now)
+        if (confirmation is null || confirmation.ExpiresAt <= now || !IsAskedBy(confirmation, deviceValue, isCookieClient))
             return gone;
         if (confirmation.DecidedAt is null)
             return new DeviceConfirmationPoll { State = DeviceConfirmationState.Pending };
-        if (!await repository.TryRemoveAsync(confirmation.Id, cancellationToken)
-            || await accounts.FindByIdAsync(confirmation.UserId, cancellationToken) is not { } user)
+        if (!await repository.TryRemoveAsync(confirmation.Id, cancellationToken))
             return gone;
         if (confirmation.IsApproved != true)
-            return new DeviceConfirmationPoll { State = DeviceConfirmationState.Denied, User = user };
+            return new DeviceConfirmationPoll { State = DeviceConfirmationState.Denied };
 
-        if (isCookieClient)
-        {
-            await repository.RememberAsync(
-                new IdentityKnownDevice { UserId = user.Id, DeviceHash = confirmation.DeviceHash, ConfirmedByUserId = confirmation.DecidedByUserId!.Value, CreatedAt = now },
-                cancellationToken);
-        }
-
-        return new DeviceConfirmationPoll { State = DeviceConfirmationState.Approved, User = user };
+        return await accounts.FindByIdAsync(confirmation.UserId, cancellationToken) is { } user
+            ? new DeviceConfirmationPoll { State = DeviceConfirmationState.Approved, User = user }
+            : gone;
     }
 
     /// <summary>
-    /// Records a contact's press. It changes nothing when the request ended or was answered, or the presser is no longer a contact.
+    /// Records a contact's press, which takes effect here: Approve makes a browser known, so a reload needs no second press, and Deny
+    /// logs, though the page may be gone. It changes nothing when the request ended or was answered, or the presser is no longer a
+    /// contact.
     /// </summary>
     /// <param name="id">The request the button names.</param>
     /// <param name="contactUserId">The contact the button is for.</param>
@@ -173,7 +177,20 @@ public sealed partial class DeviceConfirmationService(
             return DeviceDecision.NoLongerOpen;
         }
 
-        return isApproved ? DeviceDecision.Approved : DeviceDecision.Denied;
+        if (!isApproved)
+        {
+            await LogDenialAsync(confirmation, cancellationToken);
+            return DeviceDecision.Denied;
+        }
+
+        if (confirmation.IsCookieClient)
+        {
+            await repository.RememberAsync(
+                new IdentityKnownDevice { UserId = confirmation.UserId, DeviceHash = confirmation.DeviceHash, ConfirmedByUserId = contactUserId, CreatedAt = now },
+                cancellationToken);
+        }
+
+        return DeviceDecision.Approved;
     }
 
     /// <summary>Makes the browser known after a sign-in or sign-up through a contact, who answered for it by giving the code.</summary>
@@ -185,6 +202,30 @@ public sealed partial class DeviceConfirmationService(
         => repository.RememberAsync(
             new IdentityKnownDevice { UserId = userId, DeviceHash = DeviceCookie.HashOf(deviceValue), ConfirmedByUserId = contactUserId, CreatedAt = time.GetUtcNow() },
             cancellationToken);
+
+    private static bool IsAskedBy(IdentityDeviceConfirmation confirmation, string? deviceValue, bool isCookieClient)
+        => confirmation.IsCookieClient == isCookieClient
+            && (!isCookieClient || (deviceValue is not null && DeviceCookie.HashOf(deviceValue) == confirmation.DeviceHash));
+
+    /// <summary>Logs a denial with the asking request's network and device: the press reaches the instance through Telegram.</summary>
+    private async Task LogDenialAsync(IdentityDeviceConfirmation confirmation, CancellationToken cancellationToken)
+    {
+        if (services.GetService<SignInLogService>() is not { } log)
+            return;
+
+        var user = await accounts.FindByIdAsync(confirmation.UserId, cancellationToken);
+        await log.RecordAsync(
+            new SignInAttempt
+            {
+                Method = SignInMethodConstants.PhoneCode,
+                Result = SignInResultConstants.Failed,
+                Reason = SignInReasonConstants.DeviceDenied,
+                Subject = user?.PhoneNumber,
+                UserId = confirmation.UserId,
+                Origin = (confirmation.IpMasked, confirmation.UserAgent),
+            },
+            cancellationToken);
+    }
 
     private async Task<bool> NotifyAsync(IdentityUser contact, IdentityUser account, IdentityDeviceConfirmation confirmation, string? ipMasked, string? userAgent, CancellationToken cancellationToken)
     {

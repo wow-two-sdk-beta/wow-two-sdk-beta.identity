@@ -33,12 +33,12 @@ public sealed class TelegramLinkChangeSchemaTests(MigratorPostgresFixture fixtur
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
 
-        (await runner.RollbackAsync(targetOrdinal: 7)).ValueOrThrow().Should().Equal("011-device-confirmations", "010-trusted-contacts", "009-telegram-messages", "008-telegram-link-changes");
+        (await runner.RollbackAsync(targetOrdinal: 7)).ValueOrThrow().Should().Equal("012-device-confirmation-request", "011-device-confirmations", "010-trusted-contacts", "009-telegram-messages", "008-telegram-link-changes");
         (await migrator.HasTableAsync(IdentitySchemaTests.Schema, "identity_telegram_link_changes")).Should().BeFalse();
         foreach (var table in SchemaShape.PhoneSignInTables)
             (await migrator.HasTableAsync(IdentitySchemaTests.Schema, table)).Should().BeTrue($"004-phone-sign-in keeps {table}");
 
-        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("008-telegram-link-changes", "009-telegram-messages", "010-trusted-contacts", "011-device-confirmations");
+        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("008-telegram-link-changes", "009-telegram-messages", "010-trusted-contacts", "011-device-confirmations", "012-device-confirmation-request");
         (await migrator.HasTableAsync(IdentitySchemaTests.Schema, "identity_telegram_link_changes")).Should().BeTrue();
     }
 

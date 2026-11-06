@@ -4,8 +4,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
 
 /// <summary>
 /// One sign-in waiting for a trusted contact's press (<c>identity_device_confirmations</c>,
-/// <c>011-device-confirmations</c>): the account's own code checked out on a browser the account hasn't used. A new request
-/// from the account replaces its open one; an approved row goes when the page signs in with it.
+/// <c>011-device-confirmations</c>, <c>012-device-confirmation-request</c>): the account's own code checked out on a browser the
+/// account hasn't used. A new request from the account replaces its open one; an answered row goes when the client that asked
+/// reads it, and every row of the account goes when its own phone changes.
 /// </summary>
 public sealed class IdentityDeviceConfirmation : IKeyedEntity<Guid>
 {
@@ -20,6 +21,15 @@ public sealed class IdentityDeviceConfirmation : IKeyedEntity<Guid>
 
     /// <summary>The hex SHA-256 of the token the page polls with.</summary>
     public string TokenHash { get; set; } = string.Empty;
+
+    /// <summary>Whether a browser asked, which then polls with the device cookie of <see cref="DeviceHash"/>; a bearer client holds only the token.</summary>
+    public bool IsCookieClient { get; set; }
+
+    /// <summary>The asking request's masked network, for the sign-in log when a contact denies it; a press reaches the instance through Telegram.</summary>
+    public string? IpMasked { get; set; }
+
+    /// <summary>The asking request's user agent, for the sign-in log when a contact denies it.</summary>
+    public string? UserAgent { get; set; }
 
     /// <summary>The contact's answer; null while nobody answered.</summary>
     public bool? IsApproved { get; set; }

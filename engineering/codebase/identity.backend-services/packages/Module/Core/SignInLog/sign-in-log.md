@@ -39,6 +39,8 @@ identity.AddArgon2Passwords().AddLockout().AddSignIn().AddSignInLog(o => o.Reten
   (`SignInResult.SignInLogEntryId`); the account API records the ones it refuses first (a spent email link, a missing
   two-factor ticket) and ties a cookie sign-in's row to its session.
 - A two-factor sign-in is two rows: the first factor (`two_factor_required`), then the second (`2fa:…`).
+- A contact's denial of a new device (`device_denied`) is recorded at the press, with the network and device the waiting request
+  kept, and no client: the press comes through Telegram, not from the browser that asked.
 - A failed write is logged and swallowed: the log never blocks a sign-in.
 - The cleanup is one `DELETE … WHERE occurred_at < cut-off`, idempotent, so every replica may run it; no lock needed.
 - A plain table for now; monthly partitions (T10 row 21) wait until the volume asks for them. `country` waits for a

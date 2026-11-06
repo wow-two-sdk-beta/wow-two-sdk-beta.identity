@@ -30,12 +30,20 @@ public static class DeviceCookie
         if (!isCookieClient)
             return NewValue();
 
-        var value = http.Request.Cookies[Name] is { } sent && sent.Length == ValueLength ? sent : NewValue();
+        var value = Read(http) ?? NewValue();
         http.Response.Cookies.Append(
             Name,
             value,
             new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax, Path = "/", MaxAge = Lifetime, IsEssential = true });
         return value;
+    }
+
+    /// <summary>The device value the request's cookie carries; null with no cookie of the right shape.</summary>
+    /// <param name="http">The current request.</param>
+    public static string? Read(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        return http.Request.Cookies[Name] is { } sent && sent.Length == ValueLength ? sent : null;
     }
 
     /// <summary>A new random value, for a device or a poll token.</summary>

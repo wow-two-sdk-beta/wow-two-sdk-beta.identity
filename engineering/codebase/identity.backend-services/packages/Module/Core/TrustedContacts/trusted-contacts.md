@@ -41,7 +41,7 @@ account.MapPhoneSignInEndpoints()                      // + phone-sign-in/target
 | `POST phone-sign-in` | a contact's code signs in through them; a contact's own number answers `200` `{ accountChoice: { token, accounts } }` and no session |
 | `POST phone-sign-in/choose` | `{ token, userId, isPersistent }` → `204` with the cookie, or the token answer; `401` `InvalidAccountChoice` |
 | `POST phone-sign-in`, `phone-sign-in/choose` | a new device answers `200` `{ deviceConfirmation: { token, expiresAt, contacts } }` and no session; `409` `DeviceConfirmationUnavailable` when no contact's chat took the notice |
-| `POST phone-sign-in/confirmation` | polled, not rate-limited: `{ token, isPersistent }` → `200` `{ status: "pending" }`, then signs in as `phone-sign-in`; `403` `DeviceConfirmationDenied`, `401` `DeviceConfirmationExpired` |
+| `POST phone-sign-in/confirmation` | polled, not rate-limited: `{ token, isPersistent }` → `200` `{ status: "pending" }`, then signs in as `phone-sign-in`; `403` `DeviceConfirmationDenied`; `401` `DeviceConfirmationExpired`, for any client but the one that asked too |
 | `GET manage/trusted-contacts` | `{ canRevoke, items: [{ userId, displayName, phoneHint, isDeliverable, createdAt }] }` |
 | `DELETE manage/trusted-contacts/{userId}` | `204`; `403` `MainPhoneRequired` outside an own-phone session |
 | `GET manage/trusted-by` | `[{ userId, displayName, createdAt, canLeave }]` |
@@ -62,6 +62,8 @@ Account routes sit under `/api/account`; answers use the `ApiResponse` envelope,
 - `SignInPersonAsync` of the phone routes runs the check after the code and before the sign-in, so a second factor still follows.
 - A bot share joining a known person through an invitation signs nobody in on a new device; the person signs in by code.
 - The notice names the app from settings and a fixed device label: `clientId` and the user agent are the signer's own words.
+- A press takes effect in `DecideAsync`: Approve makes a browser known, and Deny logs with the network and device the request kept (`012-device-confirmation-request`), since the press comes through Telegram.
+- `PollAsync` answers only the client that asked: a browser by its device cookie (`DeviceCookie.Read`), a bearer client by the token.
 - Who is asked, what passes and the limits: the spec.
 
 ## Rules
@@ -94,7 +96,8 @@ Account routes sit under `/api/account`; answers use the `ApiResponse` envelope,
   account with no own phone cannot revoke its contacts. Adding a first phone works from any session.
 - The `add-phone` link (bot purpose `add-phone`) carries the session that asked for it; its completion checks again: a
   number another account holds confirmed is refused (`add-phone-taken`), and an account that gained an own phone
-  meanwhile changes only from an own-phone session (`add-phone-failed`). Setting the phone rotates no stamp.
+  meanwhile changes only from an own-phone session (`add-phone-failed`). A first phone ends no session; a changed number rotates
+  the stamp, ending every session and telling services, and closes the account's waiting new device requests.
 - A contact leaves from any session, unless they are the last contact of an account with no own phone.
 - Revoking a contact, or the contact leaving, ends every session started through them (`trusted_contact_revoked`).
 - An account holding an instance role has no contact in slice 1: none is recorded for it, `targets` lists none, and it

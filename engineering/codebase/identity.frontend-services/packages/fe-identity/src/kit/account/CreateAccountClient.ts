@@ -203,7 +203,8 @@ export interface AccountClient {
    * Asks where a new device's confirmation stands, with the confirmation's token: `true` once a contact approved and the
    * session cookie is set, `false` while it waits. Polled until then. A second factor answers `401` `TwoFactorRequired` as
    * `signInWithPhone` does; `403` `DeviceConfirmationDenied` once a contact denied; `401` `DeviceConfirmationExpired` for
-   * an unknown, spent or ended token. An answer that is neither is a `protocol` failure, never a sign-in.
+   * an unknown, spent or ended token, or one another browser asked with. An answer that is neither is a `protocol` failure,
+   * never a sign-in.
    */
   confirmPhoneSignIn(
     request: PhoneSignInConfirmationApiRequest,

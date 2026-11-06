@@ -12,6 +12,6 @@ public enum DeviceConfirmationState
     /// <summary>A contact denied.</summary>
     Denied,
 
-    /// <summary>The token is unknown, spent, replaced or expired.</summary>
+    /// <summary>The token is unknown, spent, replaced, expired or another client's.</summary>
     Gone,
 }

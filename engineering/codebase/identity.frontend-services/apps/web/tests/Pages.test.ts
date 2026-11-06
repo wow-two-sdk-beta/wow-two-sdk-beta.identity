@@ -1650,6 +1650,34 @@ describe('account security', () => {
     expect(sessions[1]?.text()).toContain('Signed in through Anvar');
   });
 
+  it('sends the person to the sign-in and back once a changed phone ended the session', async () => {
+    const held = phone({ phoneHint: '+998*******67', isConfirmed: true, canChange: true });
+    let isEnded = false;
+    vi.stubGlobal('open', vi.fn());
+    stubApi(
+      account({
+        'GET /api/account/manage/phone': () => (isEnded ? unauthorized() : held()),
+        'POST /api/account/manage/phone/telegram-link': () =>
+          Response.json({ data: { telegramLinkUrl: 'https://t.me/ocharo_bot?start=ap-1' } }),
+      }),
+    );
+    const { wrapper, router } = await renderAt('/account/security');
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+
+    await wrapper
+      .get('section[aria-label="Phone"]')
+      .findAll('button')
+      .find((button) => button.text() === 'Change phone')
+      ?.trigger('click');
+    await flushPromises();
+    isEnded = true;
+    await vi.advanceTimersByTimeAsync(2000);
+    await flushPromises();
+
+    expect(router.currentRoute.value.path).toBe('/sign-in');
+    expect(router.currentRoute.value.query).toEqual({ returnUrl: '/account/security' });
+  });
+
   it('revokes a trusted contact from a session signed in with the own phone', async () => {
     const received = stubApi(account({ 'DELETE /api/account/manage/trusted-contacts/u2': noContent }));
     const { wrapper } = await renderAt('/account/security');
