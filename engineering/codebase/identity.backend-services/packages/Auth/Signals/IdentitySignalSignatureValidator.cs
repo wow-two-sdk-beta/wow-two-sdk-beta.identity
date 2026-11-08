@@ -21,7 +21,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Signals;
 /// the issuer it names, its <c>typ</c>, <c>aud</c> and lifetime, then that it covers this event and this body. A bad signature
 /// is a failed result; a signature that can't be checked yet, with the issuer's discovery down or its keys not listing the
 /// signing key, also marks the request, so the gate answers <c>503</c> and the sender retries. The delivery id comes from the
-/// signed <c>jti</c>, never the plain header.
+/// signed <c>jti</c>, never the plain header. Issuers come from the listed ones and, when the host registers an
+/// <see cref="ITrustedIssuerResolver"/>, from it too, so a tenant added at runtime is heard with no restart.
 /// </summary>
 internal sealed partial class IdentitySignalSignatureValidator : IWebhookSignatureValidator, IDisposable
 {
@@ -33,15 +34,16 @@ internal sealed partial class IdentitySignalSignatureValidator : IWebhookSignatu
     private readonly TokenValidationParameters _parameters;
     private readonly ILogger<IdentitySignalSignatureValidator> _logger;
     private readonly IHttpContextAccessor _httpContext;
-    private readonly HashSet<string> _discovered;
 
     /// <param name="options">The signal URLs and the issuers.</param>
-    /// <param name="scopes">The token handler's scope factory; no resolver runs here.</param>
+    /// <param name="scopes">Opens the scope each resolver call runs in.</param>
+    /// <param name="services">Tells whether the host registered an <see cref="ITrustedIssuerResolver"/>.</param>
     /// <param name="httpContext">Supplies the request's abort signal to the token handler.</param>
     /// <param name="logger">Records a signature that could not be checked at all.</param>
     public IdentitySignalSignatureValidator(
         IOptions<IdentitySignalReceiverOptions> options,
         IServiceScopeFactory scopes,
+        IServiceProviderIsService services,
         IHttpContextAccessor httpContext,
         ILogger<IdentitySignalSignatureValidator> logger)
     {
@@ -49,16 +51,20 @@ internal sealed partial class IdentitySignalSignatureValidator : IWebhookSignatu
         _logger = logger;
         _httpContext = httpContext;
 
-        // An issuer's audiences describe its tokens: left in place they would replace the signal URL in the handler.
-        var issuers = settings.TrustedIssuers
-            .DistinctBy(issuer => issuer.Issuer, StringComparer.Ordinal)
-            .Select(issuer => issuer with { Audiences = [], Partition = null })
-            .ToArray();
-        _discovered = issuers.Where(issuer => issuer.SigningKeys is null).Select(issuer => issuer.Issuer).ToHashSet(StringComparer.Ordinal);
+        var issuers = settings.TrustedIssuers.DistinctBy(issuer => issuer.Issuer, StringComparer.Ordinal).ToArray();
+        var hasResolver = services.IsService(typeof(ITrustedIssuerResolver));
 
-        // A discovery of its own: the bearer scheme's has its own handler and its own HTTPS rule.
+        // A discovery of its own: the bearer scheme's has its own handler and its own HTTPS rule. An issuer's audiences and
+        // partition describe its tokens, listed or resolved: left in place the audiences would replace the signal URL.
         _discovery = new TrustedIssuerDiscovery(settings.BackchannelHttpHandler, requireHttps: !settings.IsInsecureMetadataAllowedInDevelopment);
-        _tokens = new TrustedIssuerTokenHandler(issuers, settings.AcceptedAudiences, hasResolver: false, scopes, _discovery, httpContext);
+        _tokens = new TrustedIssuerTokenHandler(
+            issuers,
+            settings.AcceptedAudiences,
+            hasResolver,
+            scopes,
+            _discovery,
+            httpContext,
+            adapt: issuer => issuer with { Audiences = [], Partition = null });
         _parameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -96,7 +102,7 @@ internal sealed partial class IdentitySignalSignatureValidator : IWebhookSignatu
         }
 
         // Discovery answers the old keys without an error when its refresh fails or sits inside its minimum: a rotation looks like this.
-        if (validated.Exception is SecurityTokenSignatureKeyNotFoundException notListed && _discovered.Contains(_tokens.ReadJsonWebToken(signature).Issuer))
+        if (validated.Exception is TrustedIssuerKeyNotListedException notListed)
             return Uncheckable(notListed.GetType().Name);
 
         if (!validated.IsValid || validated.SecurityToken is not JsonWebToken token)

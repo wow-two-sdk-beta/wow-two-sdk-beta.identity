@@ -1,6 +1,6 @@
 # Revocation signals
 
-*Last updated: 2026-11-05*
+*Last updated: 2026-11-08*
 
 > Identity tells the services holding its tokens when a session ended or a person's access changed, so a token verified
 > offline stops counting before it expires. Asks and scope: the developer, 2026-11-05 (`identity-cutover.md` #52); this is
@@ -83,6 +83,9 @@ services.AddIdentitySignalReceiver(o =>
 services.AddTokenDenyList();                                     // refuses matching bearer tokens
 app.MapIdentitySignals("/signals/identity");
 ```
+
+- A host that resolves issuers at runtime (`UseTrustedIssuerResolver`) hears their signals through the same resolver, so a tenant
+  added without a restart is also revoked without one.
 
 ### Deny list
 

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Identity.Jwt;
 
@@ -7,7 +8,8 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Signals;
 /// Validates <see cref="IdentitySignalReceiverOptions"/> at boot. Nothing configured passes, since a BFF with no signal URL
 /// registers the receiver too; <c>MapIdentitySignals</c> refuses a route with nothing configured.
 /// </summary>
-internal sealed class IdentitySignalReceiverOptionsValidator : IValidateOptions<IdentitySignalReceiverOptions>
+/// <param name="services">Tells whether the host registered an <see cref="ITrustedIssuerResolver"/>, which stands in for listed issuers.</param>
+internal sealed class IdentitySignalReceiverOptionsValidator(IServiceProviderIsService services) : IValidateOptions<IdentitySignalReceiverOptions>
 {
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, IdentitySignalReceiverOptions options)
@@ -20,8 +22,8 @@ internal sealed class IdentitySignalReceiverOptionsValidator : IValidateOptions<
         var failures = new List<string>();
         if (audiences.Count == 0)
             failures.Add($"{nameof(IdentitySignalReceiverOptions)}.{nameof(IdentitySignalReceiverOptions.Audience)} is required: this service's own signal URL.");
-        if (options.TrustedIssuers.Count == 0)
-            failures.Add($"{nameof(IdentitySignalReceiverOptions)}.{nameof(IdentitySignalReceiverOptions.TrustedIssuers)} needs an issuer.");
+        if (options.TrustedIssuers.Count == 0 && !services.IsService(typeof(ITrustedIssuerResolver)))
+            failures.Add($"{nameof(IdentitySignalReceiverOptions)}.{nameof(IdentitySignalReceiverOptions.TrustedIssuers)} needs an issuer, or the host an {nameof(ITrustedIssuerResolver)}.");
 
         foreach (var audience in audiences)
         {

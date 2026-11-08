@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Signals;
+using WoW.Two.Sdk.Beta.Be.Identity.Jwt;
 using WoW.Two.Sdk.Beta.Be.Messaging;
 using WoW.Two.Sdk.Beta.Be.Messaging.Buses;
 using WoW.Two.Sdk.Beta.Be.Messaging.Webhooks.Inbound;
@@ -25,13 +26,14 @@ public static class IdentitySignalEndpointRouteBuilderExtensions
     /// <param name="endpoints">The route builder.</param>
     /// <param name="path">The route, whose public URL is the signal URL registered at the issuer.</param>
     /// <returns>The route's builder.</returns>
-    /// <exception cref="InvalidOperationException"><c>AddIdentitySignalReceiver</c> did not name a signal URL and an issuer.</exception>
+    /// <exception cref="InvalidOperationException"><c>AddIdentitySignalReceiver</c> did not name a signal URL and an issuer, listed or resolved.</exception>
     public static RouteHandlerBuilder MapIdentitySignals(this IEndpointRouteBuilder endpoints, [StringSyntax("Route")] string path)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        if (!endpoints.ServiceProvider.GetRequiredService<IOptions<IdentitySignalReceiverOptions>>().Value.IsConfigured)
-            throw new InvalidOperationException($"{nameof(MapIdentitySignals)} needs AddIdentitySignalReceiver with a signal URL and a trusted issuer.");
+        var hasResolver = endpoints.ServiceProvider.GetRequiredService<IServiceProviderIsService>().IsService(typeof(ITrustedIssuerResolver));
+        if (!endpoints.ServiceProvider.GetRequiredService<IOptions<IdentitySignalReceiverOptions>>().Value.IsConfiguredWith(hasResolver))
+            throw new InvalidOperationException($"{nameof(MapIdentitySignals)} needs AddIdentitySignalReceiver with a signal URL and a trusted issuer, listed or resolved.");
 
         return endpoints.MapPost(path, ReceiveAsync)
             .AddEndpointFilter<RouteHandlerBuilder, IdentitySignalGateFilter>()

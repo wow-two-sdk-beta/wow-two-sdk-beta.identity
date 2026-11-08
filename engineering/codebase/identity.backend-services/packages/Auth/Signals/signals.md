@@ -32,6 +32,9 @@ app.MapIdentitySignals("/signals/identity");
 - The delivery id is the signed `jti`, never the plain `X-Webhook-Id`, so a repeat can't dodge the drop by changing a header.
 - `TrustedIssuer.Audiences` and `Partition` describe an issuer's tokens, and are ignored for a signal; the keys come from its
   `SigningKeys`, or its discovery through `BackchannelHttpHandler`.
+- Issuers come from `TrustedIssuers` and, when the host registers an `ITrustedIssuerResolver` (as `UseTrustedIssuerResolver`
+  does), from it too: a tenant whose tokens the resolver admits is heard with no restart, and a resolver alone stands in for
+  listed issuers (`files-integration #19`). A listed issuer never reaches the resolver.
 - The route answers `401` and `409` itself rather than leave them to a host's global `AppException` mapping. `413` comes from core.
 - A known event whose verified body can't be read answers `400`; an unknown event type answers `202` and is ignored.
 - A verified signal goes onto `IEventBus` under its delivery id as message id, and handling runs off the request.

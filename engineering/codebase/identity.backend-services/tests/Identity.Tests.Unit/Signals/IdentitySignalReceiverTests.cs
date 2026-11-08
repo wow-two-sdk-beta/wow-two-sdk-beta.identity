@@ -217,6 +217,57 @@ public sealed class IdentitySignalReceiverTests
     }
 
     [Fact]
+    public async Task ResolvedIssuer_ShouldBeHeard_WhileTheHostRuns_WithTheSignalUrlItsOnlyAudience()
+    {
+        const string tenantIssuer = "https://tenant.example.test/";
+        var tenantKey = SignedTokens.NewKey();
+        var tenant = new SignalRequests(tenantKey, tenantIssuer, Target, Route);
+        var store = new TrustedIssuerStore();
+        await using var host = await StartAsync(extra: services => services.AddSingleton(store).AddScoped<ITrustedIssuerResolver, StoreIssuerResolver>());
+        var body = tenant.SessionEnded("sid-1", "person-1");
+
+        using (var before = await host.Client.SendAsync(tenant.Post(body)))
+            before.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "the store doesn't know the tenant yet");
+        store.Issuers[tenantIssuer] = new TrustedIssuer
+        {
+            Issuer = tenantIssuer,
+            SigningKeys = [SignedTokens.PublicOf(tenantKey)],
+            Audiences = ["https://files.example.test/"],
+            Partition = "tenant",
+        };
+        using var tokenAudience = await host.Client.SendAsync(tenant.Post(body, new SignalShape { Audience = "https://files.example.test/" }));
+        using var signalUrl = await host.Client.SendAsync(tenant.Post(body));
+
+        tokenAudience.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "a resolved issuer's audiences describe its tokens too");
+        signalUrl.StatusCode.Should().Be(HttpStatusCode.Accepted, "a tenant added at runtime is heard with no restart");
+        await SignalCapture.UntilAsync(() => !_capture.Sessions.IsEmpty, "the signal reaches the bus");
+        _capture.Sessions.Single().Should().BeEquivalentTo(body);
+    }
+
+    [Fact]
+    public async Task ResolvedIssuer_ShouldAnswer503_OnAKeyItsDiscoveryDoesntListYet()
+    {
+        using var discovery = new DiscoveryStub("https://id.example.test");
+        discovery.Publish(_key);
+        var store = new TrustedIssuerStore();
+        store.Issuers[Issuer] = new TrustedIssuer { Issuer = Issuer };
+        await using var host = await StartAsync(
+            options =>
+            {
+                options.TrustedIssuers.Clear();
+                options.BackchannelHttpHandler = discovery;
+            },
+            extra: services => services.AddSingleton(store).AddScoped<ITrustedIssuerResolver, StoreIssuerResolver>());
+        var rotated = new SignalRequests(SignedTokens.NewKey(), Issuer, Target, Route);
+
+        using var known = await host.Client.SendAsync(Signals.Post(Signals.SessionEnded("sid-1", "person-1")));
+        using var unlisted = await host.Client.SendAsync(rotated.Post(rotated.SessionEnded("sid-2", "person-1")));
+
+        known.StatusCode.Should().Be(HttpStatusCode.Accepted, "a resolver alone stands in for listed issuers");
+        unlisted.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, "a resolved issuer's rotation is retried like a listed one's");
+    }
+
+    [Fact]
     public async Task RepeatedDeliveryId_ShouldAnswerAsTheFirst_AndBeHandledOnce()
     {
         await using var host = await StartAsync();
@@ -368,6 +419,24 @@ public sealed class IdentitySignalReceiverTests
         var read = () => provider.GetRequiredService<IOptions<IdentitySignalReceiverOptions>>().Value;
 
         read.Should().Throw<OptionsValidationException>().WithMessage("*signal URL*");
+    }
+
+    [Fact]
+    public void Options_ShouldRefuseASignalUrlWithNoIssuer_UnlessAResolverIsRegistered()
+    {
+        var bare = new ServiceCollection().AddIdentitySignalReceiver(options => options.Audience = Target);
+        var resolved = new ServiceCollection()
+            .AddSingleton(new TrustedIssuerStore())
+            .AddScoped<ITrustedIssuerResolver, StoreIssuerResolver>()
+            .AddIdentitySignalReceiver(options => options.Audience = Target);
+        using var withoutResolver = bare.BuildServiceProvider();
+        using var withResolver = resolved.BuildServiceProvider();
+
+        var readBare = () => withoutResolver.GetRequiredService<IOptions<IdentitySignalReceiverOptions>>().Value;
+        var readResolved = () => withResolver.GetRequiredService<IOptions<IdentitySignalReceiverOptions>>().Value;
+
+        readBare.Should().Throw<OptionsValidationException>().WithMessage("*ITrustedIssuerResolver*");
+        readResolved.Should().NotThrow();
     }
 
     [Fact]

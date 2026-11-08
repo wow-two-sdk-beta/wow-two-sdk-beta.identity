@@ -15,8 +15,9 @@ public sealed record IdentitySignalReceiverOptions
     public List<string> Audiences { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets the issuers signals are accepted from. Each keeps its key source; its <see cref="TrustedIssuer.Audiences"/> and
-    /// <see cref="TrustedIssuer.Partition"/> describe its tokens and are ignored for a signal.
+    /// Gets or sets the issuers signals are accepted from, beside those the host's <see cref="ITrustedIssuerResolver"/> answers when
+    /// one is registered (as <see cref="JwtOptions.UseTrustedIssuerResolver{TResolver}"/> does). Each keeps its key source; its
+    /// <see cref="TrustedIssuer.Audiences"/> and <see cref="TrustedIssuer.Partition"/> describe its tokens and are ignored for a signal.
     /// </summary>
     public List<TrustedIssuer> TrustedIssuers { get; set; } = [];
 
@@ -33,6 +34,10 @@ public sealed record IdentitySignalReceiverOptions
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
-    /// <summary>Gets whether this host names both a signal URL and an issuer, the least a mapped route needs.</summary>
-    internal bool IsConfigured => (!string.IsNullOrWhiteSpace(Audience) || Audiences.Count > 0) && TrustedIssuers.Count > 0;
+    /// <summary>Gets whether this host names a signal URL.</summary>
+    internal bool HasSignalUrl => !string.IsNullOrWhiteSpace(Audience) || Audiences.Count > 0;
+
+    /// <summary>Gets whether this host names a signal URL and an issuer, listed or resolved, the least a mapped route needs.</summary>
+    /// <param name="hasResolver">Whether the host registered an <see cref="ITrustedIssuerResolver"/>.</param>
+    internal bool IsConfiguredWith(bool hasResolver) => HasSignalUrl && (TrustedIssuers.Count > 0 || hasResolver);
 }

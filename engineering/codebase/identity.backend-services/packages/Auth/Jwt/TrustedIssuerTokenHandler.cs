@@ -22,6 +22,7 @@ internal sealed class TrustedIssuerTokenHandler : JsonWebTokenHandler
     private readonly IServiceScopeFactory _scopes;
     private readonly TrustedIssuerDiscovery _discovery;
     private readonly IHttpContextAccessor _httpContext;
+    private readonly Func<TrustedIssuer, TrustedIssuer>? _adapt;
 
     /// <param name="listed">The issuers known at boot; the boot refused duplicates.</param>
     /// <param name="audiences">The audiences of an issuer that names none.</param>
@@ -29,13 +30,15 @@ internal sealed class TrustedIssuerTokenHandler : JsonWebTokenHandler
     /// <param name="scopes">Opens the scope each resolver call runs in.</param>
     /// <param name="discovery">The discovery cache.</param>
     /// <param name="httpContext">Supplies the request's abort signal, which the handler signature leaves out.</param>
+    /// <param name="adapt">Reshapes every issuer found, listed or resolved, before its token is checked; null keeps it as it is.</param>
     public TrustedIssuerTokenHandler(
         IEnumerable<TrustedIssuer> listed,
         IReadOnlyList<string> audiences,
         bool hasResolver,
         IServiceScopeFactory scopes,
         TrustedIssuerDiscovery discovery,
-        IHttpContextAccessor httpContext)
+        IHttpContextAccessor httpContext,
+        Func<TrustedIssuer, TrustedIssuer>? adapt = null)
     {
         _listed = listed.ToDictionary(issuer => issuer.Issuer, StringComparer.Ordinal);
         _audiences = audiences;
@@ -43,6 +46,7 @@ internal sealed class TrustedIssuerTokenHandler : JsonWebTokenHandler
         _scopes = scopes;
         _discovery = discovery;
         _httpContext = httpContext;
+        _adapt = adapt;
         MapInboundClaims = false;
     }
 
@@ -60,8 +64,10 @@ internal sealed class TrustedIssuerTokenHandler : JsonWebTokenHandler
         var cancellationToken = _httpContext.HttpContext?.RequestAborted ?? CancellationToken.None;
 
         // InvalidIssuer stays unset: the bearer handler quotes it in WWW-Authenticate, and this value is unverified.
-        if (await FindIssuerAsync(name, cancellationToken) is not { } issuer)
+        if (await FindIssuerAsync(name, cancellationToken) is not { } found)
             return Refuse(new SecurityTokenInvalidIssuerException("The token's issuer is not trusted."));
+
+        var issuer = _adapt?.Invoke(found) ?? found;
 
         IEnumerable<SecurityKey> keys = issuer.SigningKeys is { } own
             ? own
@@ -73,6 +79,10 @@ internal sealed class TrustedIssuerTokenHandler : JsonWebTokenHandler
             var fresh = await _discovery.RefreshKeysAsync(MetadataAddressOf(issuer), cancellationToken);
             if (!ReferenceEquals(fresh, keys))
                 result = await base.ValidateTokenAsync(token, ParametersFor(validationParameters, issuer, fresh));
+
+            // Still missing after the refresh: a rotation discovery can't show yet, or a forged key id. Marked, so a caller can tell it apart.
+            if (result.Exception is SecurityTokenSignatureKeyNotFoundException missing)
+                return Refuse(new TrustedIssuerKeyNotListedException(missing.Message, missing));
         }
 
         if (result.IsValid)
