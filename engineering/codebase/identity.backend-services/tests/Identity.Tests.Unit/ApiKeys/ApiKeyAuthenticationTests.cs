@@ -26,12 +26,66 @@ public sealed class ApiKeyAuthenticationTests
 
         var key = factory.Create();
 
-        key.Secret.Should().StartWith(Marker).And.HaveLength(Marker.Length + 32);
+        key.Secret.Should().StartWith(Marker).And.HaveLength(Marker.Length + 32 + ApiKeyOptions.ChecksumLength);
         key.Prefix.Should().Be(key.Secret[..11]);
         key.Hash.Should().MatchRegex("^[0-9a-f]{64}$").And.Be(ApiKeySecretFactory.ToHash(key.Secret));
         factory.IsSecretShaped(key.Secret).Should().BeTrue();
         factory.IsSecretShaped(Marker + "short").Should().BeFalse();
         factory.IsSecretShaped(Marker + new string('!', 32)).Should().BeFalse();
+        factory.IsSecretShaped(Retyped(key.Secret, Marker.Length + 5)).Should().BeFalse("one changed character breaks the check characters");
+        factory.IsSecretShaped(Retyped(key.Secret, key.Secret.Length - 1)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsSecretShaped_ShouldTakeAKeyMintedBeforeChecksums_UntilTurnedOff()
+    {
+        var before = Marker + new string('a', 32);
+        var accepting = new ApiKeySecretFactory(Options.Create(new ApiKeyOptions { Marker = Marker }));
+        var strict = new ApiKeySecretFactory(Options.Create(new ApiKeyOptions { Marker = Marker, AcceptsKeysWithoutChecksum = false }));
+
+        accepting.IsSecretShaped(before).Should().BeTrue("keys minted before checksums still work by default");
+        strict.IsSecretShaped(before).Should().BeFalse();
+        strict.IsSecretShaped(strict.Create().Secret).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Key_WithBrokenCheckCharacters_ShouldAnswer401_WithNoLookup()
+    {
+        await using var host = await Host.StartAsync();
+        var key = host.AddKey("Research notebook");
+
+        using var response = await host.Client.SendAsync(Remote("/api/who", bearer: Retyped(key.Secret, key.Secret.Length - 1)));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        host.Store.Lookups.Should().Be(0, "the check characters refuse it before the store is asked");
+    }
+
+    [Fact]
+    public async Task Key_MintedBeforeChecksums_ShouldStillAuthenticate()
+    {
+        await using var host = await Host.StartAsync();
+        var before = Marker + new string('b', 32);
+        host.Store.Keys[ApiKeySecretFactory.ToHash(before)] = new ApiKeyRecord { Id = "old-key", Name = "Old key" };
+
+        using var response = await host.Client.SendAsync(Remote("/api/who", bearer: before));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Be("Old key");
+    }
+
+    [Fact]
+    public async Task Key_ShouldNameTheConfiguredIssuer_AsIss_AndNoneByDefault()
+    {
+        await using var named = await Host.StartAsync(keys => keys.Issuer = "https://files.example.test/");
+        await using var unnamed = await Host.StartAsync();
+        var namedKey = named.AddKey("Tenant key");
+        var unnamedKey = unnamed.AddKey("Tenant key");
+
+        using var withIssuer = await named.Client.SendAsync(Remote("/api/claims", bearer: namedKey.Secret));
+        using var withoutIssuer = await unnamed.Client.SendAsync(Remote("/api/claims", bearer: unnamedKey.Secret));
+
+        (await withIssuer.Content.ReadAsStringAsync()).Split('\n').Should().Contain("iss=https://files.example.test/");
+        (await withoutIssuer.Content.ReadAsStringAsync()).Split('\n').Should().NotContain(claim => claim.StartsWith("iss=", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -187,6 +241,10 @@ public sealed class ApiKeyAuthenticationTests
         principal.GetApiKeyName().Should().Be("Script");
     }
 
+    /// <summary>Changes one character of a secret to another of the alphabet.</summary>
+    private static string Retyped(string secret, int index)
+        => string.Concat(secret.AsSpan(0, index), secret[index] == 'A' ? "B" : "A", secret.AsSpan(index + 1));
+
     /// <summary>Builds a request the host sees as coming from another machine.</summary>
     private static HttpRequestMessage Remote(string path, string? bearer = null, string? header = null)
     {
@@ -206,7 +264,7 @@ public sealed class ApiKeyAuthenticationTests
 
         public DictionaryApiKeyRepository Store => store;
 
-        public static async Task<Host> StartAsync()
+        public static async Task<Host> StartAsync(Action<ApiKeyOptions>? configureKeys = null)
         {
             var store = new DictionaryApiKeyRepository();
             var builder = WebApplication.CreateSlimBuilder();
@@ -216,7 +274,11 @@ public sealed class ApiKeyAuthenticationTests
             builder.Services.AddAuthorization(options =>
                 options.AddPolicy("catalog", policy => policy.RequireApiKeyScope("catalog:read")));
             builder.Services.AddApiKeyAuthentication(
-                keys => keys.Marker = Marker,
+                keys =>
+                {
+                    keys.Marker = Marker;
+                    configureKeys?.Invoke(keys);
+                },
                 gate =>
                 {
                     gate.OpenPaths.Add("/api/status");

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Options;
@@ -17,10 +18,13 @@ public sealed class ApiKeySecretFactory(IOptions<ApiKeyOptions> options)
 
     /// <summary>Creates a secret from the cryptographic random generator.</summary>
     /// <returns>The secret with its prefix and hash; store the hash and prefix, show the secret once.</returns>
+    /// <remarks>The secret is the marker, <see cref="ApiKeyOptions.RandomLength"/> random characters, then
+    /// <see cref="ApiKeyOptions.ChecksumLength"/> check characters over both.</remarks>
     public ApiKeySecret Create()
     {
-        var secret = Shape.Marker
+        var body = Shape.Marker
             + new string(RandomNumberGenerator.GetItems<char>(ApiKeyOptions.Alphabet, Shape.RandomLength));
+        var secret = body + ChecksumOf(body);
         return new ApiKeySecret { Secret = secret, Prefix = ToPrefix(secret), Hash = ToHash(secret) };
     }
 
@@ -53,12 +57,37 @@ public sealed class ApiKeySecretFactory(IOptions<ApiKeyOptions> options)
 
     /// <summary>Checks whether text has a secret's shape before any lookup.</summary>
     /// <param name="candidate">The presented text.</param>
-    /// <returns><c>true</c> for the marker followed by the configured number of letters and digits.</returns>
+    /// <returns>
+    /// <c>true</c> for the marker followed by the configured number of letters and digits and check characters that match them;
+    /// without check characters only while <see cref="ApiKeyOptions.AcceptsKeysWithoutChecksum"/> holds.
+    /// </returns>
     public bool IsSecretShaped(string candidate)
     {
         ArgumentNullException.ThrowIfNull(candidate);
-        return candidate.Length == Shape.Marker.Length + Shape.RandomLength
-            && HasMarker(candidate)
-            && !candidate.AsSpan(Shape.Marker.Length).ContainsAnyExcept(AlphabetValues);
+        if (!HasMarker(candidate) || candidate.AsSpan(Shape.Marker.Length).ContainsAnyExcept(AlphabetValues))
+            return false;
+
+        var length = candidate.Length - Shape.Marker.Length;
+        if (length == Shape.RandomLength)
+            return Shape.AcceptsKeysWithoutChecksum;
+
+        var split = candidate.Length - ApiKeyOptions.ChecksumLength;
+        return length == Shape.RandomLength + ApiKeyOptions.ChecksumLength
+            && string.Equals(candidate[split..], ChecksumOf(candidate[..split]), StringComparison.Ordinal);
+    }
+
+    /// <summary>Maps a secret's marker and random part to its check characters: the first four bytes of their SHA-256, in base 62.</summary>
+    /// <param name="body">The marker and the random characters.</param>
+    private static string ChecksumOf(string body)
+    {
+        var value = BinaryPrimitives.ReadUInt32BigEndian(SHA256.HashData(Encoding.UTF8.GetBytes(body)));
+        Span<char> check = stackalloc char[ApiKeyOptions.ChecksumLength];
+        for (var index = check.Length - 1; index >= 0; index--)
+        {
+            check[index] = ApiKeyOptions.Alphabet[(int)(value % (uint)ApiKeyOptions.Alphabet.Length)];
+            value /= (uint)ApiKeyOptions.Alphabet.Length;
+        }
+
+        return new string(check);
     }
 }

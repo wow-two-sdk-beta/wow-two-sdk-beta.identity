@@ -53,6 +53,7 @@ public sealed class ApiKeyAuthenticationHandler(
             new Claim(ApiKeyAuthenticationDefaults.KeyIdClaim, key.Id),
             new Claim(JwtRegisteredClaimNames.Sub, key.Id),
             new Claim(ClaimTypes.Name, key.Name),
+            .. Optional(JwtRegisteredClaimNames.Iss, keyOptions.Value.Issuer),
             .. Optional(ServiceClaimTypeConstants.ClientId, key.ClientId),
             .. Optional(OrganizationClaimTypeConstants.Id, key.OrganizationId),
             .. Optional(ServiceClaimTypeConstants.Partition, key.Partition),
