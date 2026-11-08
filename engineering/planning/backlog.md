@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Backlog
 
-*Last updated: 2026-11-05*
+*Last updated: 2026-11-08*
 
 Every unbuilt item, grouped; top of each group = next. Shipped work lives in [`version-track/`](version-track/).
 Shape: wow-two-ws/conventions/planning/version-track/version-track.md
@@ -23,7 +23,7 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 
 | Item | Type | Notes |
 |---|---|---|
-| admin recovery and account edge cases | analysis | `admin create` now makes only the instance admin, once (2026-11-03); open: how a new admin is made when the old one loses access; other edge cases (a lost phone, a hijacked Telegram account or a recycled SIM logging into the old Telegram account, a person in no organization whose Telegram change nobody can approve); would revise the decision rows 2026-11-01 "the host CLI creates the first admin only", 2026-11-01 `admin create` exits, 2026-11-02 instance roles and 2026-11-02 invitations in the console only |
+| admin recovery and account edge cases | analysis | `admin create` now makes only the instance admin, once (2026-11-03); parked (developer, 2026-11-08: "yes park it"): how a new admin is made when the old one loses access; still open, other edge cases (a lost phone, a hijacked Telegram account or a recycled SIM logging into the old Telegram account, a person in no organization whose Telegram change nobody can approve); would revise the decision rows 2026-11-01 "the host CLI creates the first admin only", 2026-11-01 `admin create` exits, 2026-11-02 instance roles and 2026-11-02 invitations in the console only |
 | trusted devices and contacts | feature | slice 1 in v0.5 iteration 10 ([spec](../../product/features/trusted-contacts.md)); left: a person listing and forgetting known devices; revoking a contact ending bearer sign-ins made through them; the contact mark surviving a second factor; the contact's bot message in the account's language |
 | open sign-up | feature | C13: the person joins as a guest (no organization role) through an email-first form that turns into sign-in or sign-up |
 | hosted pages layout | product | C14: what the developer names; with the console layout review below |
