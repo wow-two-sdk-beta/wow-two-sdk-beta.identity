@@ -208,7 +208,7 @@
 | encryption key | retention | keep the old key until the last refresh token it sealed expires (absolute lifetime + 1 day) |
 
 - Fallback if the JWKS omits future-dated certificates: activate K2 at once; our own client module refetches on an unknown `kid`, so only foreign relying parties lose.
-- 24 h covers foreign caches; our client module caches JWKS for at most 1 h and refetches on an unknown `kid`, at most once a minute.
+- 24 h covers foreign caches; our validators (`Auth` `TrustedIssuerDiscovery` and the bearer default) refresh JWKS every 12 h and on an unknown `kid` at most every 5 minutes (corrected 2026-11-08: the 1 h and once-a-minute figures were a proposal the code never took; `deployment.md` § Key rotation states the rule).
 - Cadence (proposal): signing every 90 days, encryption every 180 days; the vault's expiry flag raises each (it already flags old and expiring secrets).
 - ASVS 13.1.4 (L3) asks for a documented schedule; adopt it at L2.
 - Access tokens stay unencrypted JWTs (`DisableAccessTokenEncryption`) so resource servers verify offline from JWKS; codes and refresh tokens stay encrypted.

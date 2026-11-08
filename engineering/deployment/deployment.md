@@ -224,6 +224,11 @@ sites:
 5. Ring: add the next `data-protection` certificate as `Certificates:1` and deploy; it wraps new ring keys, the old one
    still unwraps the old keys; remove the old one once the ring has rolled past them (the ring rolls every 90 days).
 
+- Why a day each way (`files-integration #14`): a validator on this repository's `Auth` package holds an issuer's JWKS for up
+  to 12 hours and asks again on an unknown `kid` at most every 5 minutes, so a certificate published a day ahead is cached
+  everywhere before it signs. No token outlives 10 minutes (`AccessTokenLifetime`; `ServiceTokenLifetime` is capped there),
+  so a day after activation no live token names the old key. A longer cache or lifetime moves the rule, not the steps:
+  publish at least the longest validator cache ahead, retire at least the longest token lifetime plus 5 minutes after.
 - Cadence: signing every 90 days (certificates default to 120 days), encryption every 180 (210 days).
 - A leaked key skips the overlap: T6 § 3 *Compromise runbook*
   (`engineering/research/identity-analysis-2026-10/t6-hosting-security.md`).
