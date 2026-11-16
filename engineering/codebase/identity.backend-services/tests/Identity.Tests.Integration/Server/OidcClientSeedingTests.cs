@@ -68,6 +68,28 @@ public sealed class OidcClientSeedingTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Seed_ShouldPersistANativeRegistrationWithoutASecret_AndLeaveItAloneWhenUnchanged()
+    {
+        Options.Clients[0] = new OidcClientOptions
+        {
+            ClientId = "app",
+            Type = OidcClientType.Native,
+            RedirectUris = ["com.example.app:/signin"],
+        };
+
+        await SeedAsync();
+        var first = await RowAsync();
+        await SeedAsync();
+        var second = await RowAsync();
+
+        first.ApplicationType.Should().Be(OpenIddictConstants.ApplicationTypes.Native);
+        first.ClientType.Should().Be(OpenIddictConstants.ClientTypes.Public);
+        first.ClientSecret.Should().BeNull();
+        first.RedirectUris.Should().Contain("com.example.app:/signin");
+        second.ConcurrencyToken.Should().Be(first.ConcurrencyToken);
+    }
+
+    [Fact]
     public async Task Seed_ShouldDeleteItsOwnClientsThatLeftConfiguration_AndNoOthers()
     {
         await SeedAsync();

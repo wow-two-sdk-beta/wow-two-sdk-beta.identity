@@ -122,11 +122,23 @@ Spec: [revocation signals](../../../../../../product/features/revocation-signals
 - `Identity:Server:Clients` is seeded at startup by `OidcClientSeeder`: created when new, updated when changed, left
   alone when unchanged (a matching secret keeps its stored hash), and deleted with its grants when it leaves
   configuration. Clients registered another way are never touched.
-- Every client is confidential and first-party (no consent). One that signs people in has the code flow with PKCE
-  required, refresh tokens, the `openid`, `profile`, `email` and `offline_access` scopes, exact redirect and post-sign-out
-  URIs (HTTPS, or HTTP on a loopback host) and its own audience. Secrets are stored as OpenIddict's hash.
-- The boot refuses a client without exactly one of a secret and a key set, a key set holding a private key, one signing people in without a redirect URI, a duplicate id, a loose URI, a
-  blank audience, a namespace holding `:`, a non-positive lifetime or a sign-in path that is not local.
+- `Type: Web` (default) registers a confidential client. Configure one of `ClientSecret` and `JsonWebKeySet` (public keys
+  only). Redirects use HTTPS, or HTTP on a loopback host. Secrets are stored as OpenIddict's hash.
+- `Type: Native` registers a public client. Omit both credential settings. Use an exact HTTPS redirect claimed by the
+  app, or a reverse-domain private-use scheme with one slash, such as `com.example.app:/signin`
+  ([RFC 8252](https://www.rfc-editor.org/rfc/rfc8252.html)). The same rules apply to post-sign-out redirects.
+  Native clients cannot use service grants or introspection.
+- First-party clients skip consent. Sign-in clients use the code flow with S256 PKCE, rotating refresh tokens, and
+  their own access token audience; the audience defaults to the client id. The boot refuses a duplicate id, an invalid
+  credential or callback, or a sign-in client without a redirect URI.
+
+```json
+{
+  "ClientId": "example-native",
+  "Type": "Native",
+  "RedirectUris": ["com.example.app:/signin"]
+}
+```
 
 ## Notes
 

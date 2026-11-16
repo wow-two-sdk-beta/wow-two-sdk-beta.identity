@@ -1,16 +1,18 @@
 namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 
 /// <summary>
-/// One registered client: a confidential, first-party app that signs people in with the code flow and PKCE, calls APIs as
-/// itself, or both (<see cref="Grants"/>). Seeded into the client registry at startup; the secret is stored as OpenIddict's
-/// hash only.
+/// One registered client: a confidential web client or a public native app. Seeded into the registry at startup;
+/// when configured, a client secret is stored as OpenIddict's hash only.
 /// </summary>
 public sealed record OidcClientOptions
 {
     /// <summary>Gets or sets the client id, such as <c>wheelhouse</c>; unique.</summary>
     public string ClientId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the client secret the app authenticates with at the token endpoint; the owner generates it. Set this or <see cref="JsonWebKeySet"/>.</summary>
+    /// <summary>Gets or sets whether this is a confidential <c>Web</c> client (the default) or a public <c>Native</c> app.</summary>
+    public OidcClientType Type { get; set; } = OidcClientType.Web;
+
+    /// <summary>Gets or sets the confidential client's token endpoint credential. Set this or <see cref="JsonWebKeySet"/> for web clients only.</summary>
     public string? ClientSecret { get; set; }
 
     /// <summary>
@@ -29,10 +31,10 @@ public sealed record OidcClientOptions
     /// </summary>
     public List<string> Grants { get; set; } = [];
 
-    /// <summary>Gets or sets the exact redirect URIs the app receives codes at; HTTPS, or HTTP on a loopback host.</summary>
+    /// <summary>Gets or sets the exact URIs that receive codes: HTTPS, a native private-use scheme, or loopback HTTP for web clients.</summary>
     public List<string> RedirectUris { get; set; } = [];
 
-    /// <summary>Gets or sets the exact URIs end-session may return to; HTTPS, or HTTP on a loopback host.</summary>
+    /// <summary>Gets or sets the exact URIs end-session may return to, with the same requirements as <see cref="RedirectUris"/>.</summary>
     public List<string> PostSignOutRedirectUris { get; set; } = [];
 
     /// <summary>Gets or sets the audience (<c>aud</c>) of the app's access tokens; null uses the client id. The app accepts only its own.</summary>

@@ -1,6 +1,6 @@
 # Identity — Product Context
 
-*Last updated: 2026-11-02*
+*Last updated: 2026-11-16*
 
 > Current state — changes often. Durable definition: [product.md](product.md).
 
@@ -67,6 +67,8 @@ through Ocharo's own instance with the `Client` BFF. Track: [v0.5](../engineerin
 
 ## Decisions
 
+- 2026-11-16 — native app registrations use public clients without credentials, with S256 PKCE and exact HTTPS or
+  reverse-domain redirects. Web and server clients remain confidential by default.
 - 2026-10-21 — build our own Identity on our own store; Ocharo first, with phone + Telegram bot code and
   admin-managed members.
 - 2026-10-21 — D1: OpenIddict carries the protocol; D2: one instance per owner, Ocharo runs its own; D3: one person

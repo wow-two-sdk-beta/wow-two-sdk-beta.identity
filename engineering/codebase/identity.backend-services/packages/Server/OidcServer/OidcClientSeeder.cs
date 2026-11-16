@@ -66,26 +66,27 @@ internal sealed partial class OidcClientSeeder(IOpenIddictApplicationManager app
     }
 
     /// <summary>
-    /// The registration of <paramref name="client"/>: confidential and first-party, with the code flow, PKCE and refresh
-    /// tokens while it signs people in, and each service grant it names with its resources and scopes.
+    /// The registration of <paramref name="client"/>: code, PKCE and refresh tokens for sign-in, or configured service
+    /// grants for a confidential client.
     /// </summary>
     /// <param name="client">The configured client.</param>
     /// <param name="resources">The resources its names refer to.</param>
     internal static OpenIddictApplicationDescriptor CreateDescriptor(OidcClientOptions client, IReadOnlyList<OidcResourceOptions>? resources = null)
     {
+        var isNative = client.Type is OidcClientType.Native;
         var descriptor = new OpenIddictApplicationDescriptor
         {
-            ApplicationType = ApplicationTypes.Web,
+            ApplicationType = isNative ? ApplicationTypes.Native : ApplicationTypes.Web,
             ClientId = client.ClientId,
-            ClientSecret = client.ClientSecret,
-            JsonWebKeySet = client.JsonWebKeySet is { } keys ? Microsoft.IdentityModel.Tokens.JsonWebKeySet.Create(keys) : null,
-            ClientType = ClientTypes.Confidential,
+            ClientSecret = isNative ? null : client.ClientSecret,
+            JsonWebKeySet = !isNative && client.JsonWebKeySet is { } keys ? Microsoft.IdentityModel.Tokens.JsonWebKeySet.Create(keys) : null,
+            ClientType = isNative ? ClientTypes.Public : ClientTypes.Confidential,
             ConsentType = ConsentTypes.Implicit,
             DisplayName = client.DisplayName ?? client.ClientId,
         };
 
         descriptor.Permissions.Add(Permissions.Endpoints.Token);
-        if (client.Grants.Count == 0 || client.Grants.Contains(OidcClientGrantConstants.AuthorizationCode))
+        if (isNative || client.Grants.Count == 0 || client.Grants.Contains(OidcClientGrantConstants.AuthorizationCode))
         {
             descriptor.Permissions.UnionWith(
             [
@@ -108,10 +109,12 @@ internal sealed partial class OidcClientSeeder(IOpenIddictApplicationManager app
         if (client.PermissionNamespace is { } permissionNamespace)
             descriptor.Properties[OidcClientProfile.PermissionNamespaceProperty] = JsonSerializer.SerializeToElement(permissionNamespace);
 
-        if (client.CanIntrospect)
-            descriptor.Permissions.Add(Permissions.Endpoints.Introspection);
-
-        AddServiceAccess(descriptor, client, resources ?? []);
+        if (!isNative)
+        {
+            if (client.CanIntrospect)
+                descriptor.Permissions.Add(Permissions.Endpoints.Introspection);
+            AddServiceAccess(descriptor, client, resources ?? []);
+        }
         return descriptor;
     }
 

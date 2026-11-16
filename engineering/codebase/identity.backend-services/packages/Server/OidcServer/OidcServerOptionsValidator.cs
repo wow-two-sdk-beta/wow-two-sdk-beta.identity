@@ -109,12 +109,8 @@ internal sealed partial class OidcServerOptionsValidator(IServiceProvider? servi
         var label = string.IsNullOrWhiteSpace(client.ClientId) ? "A client" : $"Client '{client.ClientId}'";
         if (string.IsNullOrWhiteSpace(client.ClientId))
             yield return "A client has no ClientId.";
-        if (string.IsNullOrWhiteSpace(client.ClientSecret) && string.IsNullOrWhiteSpace(client.JsonWebKeySet))
-            yield return $"{label} has no ClientSecret or JsonWebKeySet; every client is confidential.";
-        if (!string.IsNullOrWhiteSpace(client.ClientSecret) && !string.IsNullOrWhiteSpace(client.JsonWebKeySet))
-            yield return $"{label} has both a ClientSecret and a JsonWebKeySet; it authenticates one way.";
-        if (!string.IsNullOrWhiteSpace(client.JsonWebKeySet) && CheckKeySet(client.JsonWebKeySet) is { } keyProblem)
-            yield return $"{label} has a JsonWebKeySet that {keyProblem}.";
+        foreach (var problem in CheckClientAuthentication(client, label))
+            yield return problem;
 
         var signsPeopleIn = client.Grants.Count == 0 || client.Grants.Contains(OidcClientGrantConstants.AuthorizationCode);
         if (signsPeopleIn && client.RedirectUris.Count == 0)
@@ -132,9 +128,51 @@ internal sealed partial class OidcServerOptionsValidator(IServiceProvider? servi
 
         foreach (var uri in client.RedirectUris.Concat(client.PostSignOutRedirectUris))
         {
-            if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed) || !IsAllowedScheme(parsed) || !string.IsNullOrEmpty(parsed.Fragment))
+            if (client.Type is OidcClientType.Native)
+            {
+                if (!IsAllowedNativeRedirect(uri))
+                    yield return $"{label} must use an absolute HTTPS URI or a reverse-domain private-use redirect with one slash after the scheme, without a fragment.";
+            }
+            else if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed) || !IsAllowedScheme(parsed) || !string.IsNullOrEmpty(parsed.Fragment))
                 yield return $"{label} lists '{uri}', which is not an absolute HTTPS URI (HTTP only on a loopback host) without a fragment.";
         }
+    }
+
+    private static IEnumerable<string> CheckClientAuthentication(OidcClientOptions client, string label)
+    {
+        if (client.Type is OidcClientType.Native)
+        {
+            if (client.ClientSecret is not null || client.JsonWebKeySet is not null)
+                yield return $"{label} is Native and must omit ClientSecret and JsonWebKeySet.";
+            if (client.Grants.Any(grant => grant != OidcClientGrantConstants.AuthorizationCode))
+                yield return $"{label} is Native and may use only the {OidcClientGrantConstants.AuthorizationCode} grant.";
+            if (client.CanIntrospect)
+                yield return $"{label} is Native and cannot use token introspection.";
+            yield break;
+        }
+
+        if (client.Type is not OidcClientType.Web)
+            yield return $"{label} must set Type to Web or Native.";
+        if (string.IsNullOrWhiteSpace(client.ClientSecret) && string.IsNullOrWhiteSpace(client.JsonWebKeySet))
+            yield return $"{label} has no ClientSecret or JsonWebKeySet; Web clients are confidential.";
+        if (!string.IsNullOrWhiteSpace(client.ClientSecret) && !string.IsNullOrWhiteSpace(client.JsonWebKeySet))
+            yield return $"{label} has both a ClientSecret and a JsonWebKeySet; it authenticates one way.";
+        if (!string.IsNullOrWhiteSpace(client.JsonWebKeySet) && CheckKeySet(client.JsonWebKeySet) is { } keyProblem)
+            yield return $"{label} has a JsonWebKeySet that {keyProblem}.";
+    }
+
+    private static bool IsAllowedNativeRedirect(string value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || !uri.IsWellFormedOriginalString()
+            || uri.Fragment.Length != 0 || uri.UserInfo.Length != 0)
+            return false;
+
+        if (uri.Scheme == Uri.UriSchemeHttps)
+            return uri.Host.Length != 0;
+
+        var path = value.AsSpan(uri.Scheme.Length + 1);
+        return PrivateRedirectScheme().IsMatch(uri.Scheme)
+            && path.StartsWith("/", StringComparison.Ordinal) && !path.StartsWith("//", StringComparison.Ordinal);
     }
 
     /// <summary>What is wrong with a client's key set: it must parse and hold only public RSA or EC signing keys.</summary>
@@ -196,4 +234,7 @@ internal sealed partial class OidcServerOptionsValidator(IServiceProvider? servi
 
     [GeneratedRegex("^[a-z][a-z0-9-]*\\.[a-z][a-z0-9-]*$", RegexOptions.CultureInvariant)]
     private static partial Regex ScopeName();
+
+    [GeneratedRegex("^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$", RegexOptions.CultureInvariant)]
+    private static partial Regex PrivateRedirectScheme();
 }
