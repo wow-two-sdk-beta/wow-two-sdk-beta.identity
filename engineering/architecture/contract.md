@@ -149,6 +149,14 @@ registered. Sign-in by phone maps apart, with `MapPhoneSignInEndpoints`.
   `ITokenIssuer`: its tokens come from the OIDC server, so bearer sign-in answers `400` and the routes of unregistered
   slices are not served.
 
+### Service account deletion
+
+`DELETE /api/service/people/{personId}` accepts a person UUID. The route is enabled by `Identity:AccountDeletion:ClientId`
+and `Identity:AccountDeletion:Audience`. Register this confidential client for client credentials with the dedicated HTTPS
+resource as its audience and the `accounts.delete` scope. The route checks the issuer, audience, active token entry, scope,
+and exact client identity. It revokes the person's sessions and uses the personal-data deletion service to erase the account.
+An absent account also returns `204`, so callers can retry a request after a lost response.
+
 ## Forms map
 
 | Form | Implementation today | Wire |
