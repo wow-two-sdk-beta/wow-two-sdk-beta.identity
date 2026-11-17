@@ -25,6 +25,7 @@ public static partial class HostConfiguration
             .AddIdentityModule()
             .AddAccountDeletion()
             .AddAppNoticeRoute()
+            .AddMemberRoute()
             .AddPhoneSignInByTelegram()
             .AddSignInSession()
             .AddControllers();
@@ -47,6 +48,7 @@ public static partial class HostConfiguration
         app.MapIdentityEndpoints();
         app.MapAccountDeletion();
         app.MapAppNotices();
+        app.MapMembers();
         app.MapPhoneSignInByTelegram();
         app.MapControllers();
 

@@ -23,6 +23,20 @@ public sealed class EfTelegramLinkRepository(IdentityDbContext context) : ITeleg
         => Links.AsNoTracking().FirstOrDefaultAsync(l => l.BotUserName == botUserName && l.PhoneNumber == phoneNumber, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlySet<string>> FindLinkedNumbersAsync(string botUserName, IReadOnlyCollection<string> phoneNumbers, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(phoneNumbers);
+        if (phoneNumbers.Count == 0)
+            return new HashSet<string>(StringComparer.Ordinal);
+
+        var linked = await Links.AsNoTracking()
+            .Where(l => l.BotUserName == botUserName && phoneNumbers.Contains(l.PhoneNumber))
+            .Select(l => l.PhoneNumber)
+            .ToListAsync(cancellationToken);
+        return linked.ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<IdentityTelegramLink>> FindLinksOfUserAsync(string botUserName, long telegramUserId, CancellationToken cancellationToken = default)
         => await Links.AsNoTracking().Where(l => l.BotUserName == botUserName && l.TelegramUserId == telegramUserId).ToListAsync(cancellationToken);
 

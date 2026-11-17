@@ -345,6 +345,7 @@ public sealed partial class ConfigCheckVerbTests
         ["Identity:Notices:IdempotencyWindow"] = "7.00:00:00",
         ["Identity:Notices:MaxPaceWait"] = "00:00:05",
         ["Identity:Notices:LocalClientId"] = "app",
+        ["Identity:Members:Audience"] = "https://id.example.test/api/identity/",
     };
 
     private static string Base64Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');

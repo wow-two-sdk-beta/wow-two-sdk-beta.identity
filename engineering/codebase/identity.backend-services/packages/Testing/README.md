@@ -1,6 +1,6 @@
 # WoW2.Sdk.Beta.Be.Identity.Testing
 
-The Identity test kit: the fake token issuer, and for app notices a fake broker and the broker's conformance suite;
+The Identity test kit: the fake token issuer, and for app notices and organization members a fake broker and the broker's conformance suite each;
 personas, the OTP code sink and the other brokers' fakes and suites land with those brokers. It references the contract, `WoW2.Sdk.Beta.Be.Identity.Auth`
 and `WoW2.Sdk.Beta.Be.Testing`.
 
@@ -67,3 +67,21 @@ notices.FailNext(error);                                                // the n
 
 `AppNoticeBrokerConformance` holds the broker's cases; `Identity.Tests.Conformance` runs it against the Module, the Client
 over the service, and this fake. A subclass gives the broker and arranges linked, unlinked and muted people.
+
+## Organization members
+
+`FakeMemberBroker` stands in for `IMemberBroker` with no instance, under the contract's rules (catalog roles, earliest added
+first, `OrganizationNotFound` and `UnknownOrganizationRole` in `identityCode`):
+
+```csharp
+var members = new FakeMemberBroker()
+    .AddMember(organizationId, ownerSub, "owner")
+    .AddMember(organizationId, viewerSub, "viewer", hasTelegramLink: false);
+services.AddSingleton<IMemberBroker>(members);
+// … run the job …
+members.Asked.Should().ContainSingle();                                 // (organizationId, role) per call
+members.FailNext(error);                                                // the next list fails with error
+```
+
+`MemberBrokerConformance` holds the broker's cases; `Identity.Tests.Conformance` runs it against the Module, the Client
+over the service, and this fake. A subclass gives the broker and arranges organizations and members.

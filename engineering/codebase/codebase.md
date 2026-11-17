@@ -8,8 +8,8 @@ The code lives in `identity.backend-services/` (.NET) and `identity.frontend-ser
 - `packages/` holds the NuGet family `WoW2.Sdk.Beta.Be.Identity.*`, moved out of the be sdk with namespaces kept:
   `Abstractions` (the contract), `Auth` (store-less auth), `Module` (Form 1), `Client` (Forms 2/3), `Providers`
   (upstream sign-in), `Server` (the OIDC server: `OidcServer/`, `Keys/` and `DataProtection/`) and `Testing` (the test
-  kit: the fake token issuer, and the app notice fake and conformance suite). App notices, the first broker, sit in
-  `Notices/` of `Abstractions`, `Module`, `Client` and `Testing`.
+  kit: the fake token issuer, and the broker fakes and conformance suites). App notices, the first broker, sit in
+  `Notices/` of `Abstractions`, `Module`, `Client` and `Testing`; organization members (`IMemberBroker`) in `Members/`.
   Each folder under a
   package is a namespace below `WoW.Two.Sdk.Beta.Be.Identity`, with its lead doc beside the code
   (`packages/Module/Core/core.md`). Inventory: `engineering/architecture/package-registry.md`.
@@ -25,7 +25,8 @@ The code lives in `identity.backend-services/` (.NET) and `identity.frontend-ser
   Telegram bot, `AddOidcServer` and `AddDataProtectionRing`; the cookie session on that database ring; the account API
   at `/api/account` (bearer sign-in refused: its tokens come from the OIDC server), the bot's webhook at
   `/api/telegram/webhook`, app notices at `/api/identity/v1/notices` for client-credentials tokens with
-  `identity.notices.send`, and the OIDC endpoints (`/connect/*`, `/.well-known/*`); `SystemController`; and the pages in
+  `identity.notices.send`, organization members at `/api/identity/v1/organizations/{id}/members` for tokens with
+  `identity.members.read`, and the OIDC endpoints (`/connect/*`, `/.well-known/*`); `SystemController`; and the pages in
   `wwwroot/` (filled by the `BuildSpa` target; `-p:BuildSpa=false` skips it). A local boot applies the set; a deployed boot only verifies it;
   `dotnet Identity.Api.dll migrate` applies it as the deploy step and exits `0` applied or current, `1` refused, `2` a
   script failed. `dotnet Identity.Api.dll keys generate --role signing|encryption|data-protection` prints one PEM

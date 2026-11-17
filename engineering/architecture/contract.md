@@ -8,14 +8,15 @@
 
 ## Status
 
-- 🔄 Brokers: the first one, `IAppNoticeBroker` (app notices, below), ships in every form; the T4 contract
-  (`IMemberBroker` and five more, `ActorModel`, 7 `IEvent` records) is not built, and the code moved from the be sdk
-  exposes services and store ports, not brokers.
+- 🔄 Brokers: `IAppNoticeBroker` (app notices, below) and `IMemberBroker`'s first operation, `ListAsync` (organization
+  members, below), ship in every form; the rest of the T4 contract (`IMemberBroker`'s other operations and five more
+  brokers, `ActorModel`, 7 `IEvent` records) is not built, and the code moved from the be sdk exposes services and store
+  ports, not brokers.
 - ✅ Contract package: `Abstractions` holds what the moved code already shared across forms — the error catalogue and
   the organization claims — referencing the kernel only.
-- 🔄 Conformance: `AppNoticeBrokerConformance` (`packages/Testing`) runs in `Identity.Tests.Conformance` against the
-  Module over PostgreSQL, the Client against the service in process, and `FakeAppNoticeBroker`; the T4 brokers' suites
-  wait for them.
+- 🔄 Conformance: `AppNoticeBrokerConformance` and `MemberBrokerConformance` (`packages/Testing`) run in
+  `Identity.Tests.Conformance` against the Module over PostgreSQL, the Client against the service in process, and the
+  fakes (`FakeAppNoticeBroker`, `FakeMemberBroker`); the other T4 brokers' suites wait for them.
 - ✅ OIDC wire: the Server package makes the service an OpenID Connect provider (code + PKCE, rotating refresh,
   client credentials, token exchange, discovery, JWKS, userinfo, end-session) whose tokens carry the claims below; Forms
   2/3 sign in against it, and services call each other with its tokens ([service tokens](../../product/features/service-tokens.md)).
@@ -114,6 +115,7 @@ Namespaces are unchanged from the be sdk. Entities are not generic: one `Identit
 | `AddDatabaseOtpStore` | `EfOtpRepository` |
 | `AddPhoneSignIn` (+ `AddTelegramLinks`) | `UserPhoneSignInService`, `TelegramLinkService` |
 | `AddAppNotices` | `AppNoticeService`, `IAppNoticeBroker` (`TelegramAppNoticeBroker`) |
+| `AddOrganizations` | `OrganizationService`, `IMemberBroker` (`IdentityCoreMemberBroker`) |
 | `AddRefreshTokens` | `RefreshTokenService` |
 | `AddSessions` | `UserSessionService` |
 | `AddSignInLog` | `SignInLogService` |
@@ -205,10 +207,46 @@ Authorization: Bearer <client-credentials token: aud = Identity:Notices:Audience
 - An app notice stays in the chat (no cleanup) and replaces no earlier one; pressing its mute button drops its buttons, the
   links included. Deleting the account drops its keys, mutes and the notices' ledger rows.
 
+### Organization members
+
+A service's read of who belongs to an organization, in which role, and whether the instance's Telegram bot reaches them,
+so it can address people by role at run time (WoW2 Events' digests, `role:member`). Built as the first operation of the
+T4 `IMemberBroker`; the others wait.
+
+| Form | Entry | Reads as |
+|---|---|---|
+| 1 | `AddOrganizations()` on the identity builder; `IMemberBroker` is `IdentityCoreMemberBroker` | the host |
+| 2/3 | `services.AddIdentityMembers(new Uri("https://id.example/")).AddOAuth2ClientCredentials(o => { …; o.Resource = audience; o.Scope = "identity.members.read"; })`; `IMemberBroker` is `IdentityServiceMemberBroker` | the token's `client_id` |
+| tests | `FakeMemberBroker` (`Testing`): `AddOrganization(id)`, `AddMember(id, sub, role, hasTelegramLink)`, `FailNext(error)`, `Asked` | — |
+
+```http
+GET /api/identity/v1/organizations/{organizationId}/members?role=editor
+Authorization: Bearer <client-credentials token: aud = Identity:Members:Audience, scope identity.members.read>
+```
+
+| Answer | Body | Broker reads |
+|---|---|---|
+| `200` | `{ "data": [ { "sub": "<person uuid>", "role": "owner", "hasTelegramLink": true }, … ] }`, earliest joined first | `Ok`, the list |
+| `400` | problem, `identityCode` `UnknownOrganizationRole`: `role` outside the catalog | `Fail`, the code in `identityCode` metadata |
+| `404` | problem, `identityCode` `OrganizationNotFound`: no such organization, or a client bound to another (its token's `org_id`) | `Fail`, the code in `identityCode` metadata |
+| `401` · `403` | no token · a token without the scope, a person's token, or one acting for a person | `Fail`, `identityCode` `http_401` / `http_403` |
+| none | the instance cannot be reached | `Fail`, `identityCode` `MembersUnavailable` |
+
+- Setup at the instance: `Identity:Members:Audience` names an `Identity:Server:Resources` entry listing
+  `identity.members.read`; each reading client gets `client_credentials`, that resource and the scope. No audience, no
+  route. The app notice resource may list both scopes and serve as both audiences.
+- `role` is optional: a catalog role (`owner`, `admin`, `editor`, `viewer`, `billing`) in any case; none lists everyone.
+- A member carries only `sub`, `role` and `hasTelegramLink` — no name, phone, email or chat. `hasTelegramLink` is the check
+  an app notice makes (a confirmed phone linked to the bot's chat), so a member reading false answers a notice
+  `not_linked`; a mute does not show.
+- Not paged, as the management API's member list isn't.
+- A token holds every scope its client is granted on the resource, whichever it asked for (service tokens), so a client
+  granted both scopes reaches both routes with one token; asking for a scope the client lacks fails the token request.
+
 ## Forms map
 
 | Form | Implementation today | Wire |
 |---|---|---|
 | 1 | Module services over the consumer's `DbContext` | in process |
-| 2/3 | Client: OIDC sign-in against an instance; `IdentityServiceNoticeBroker` | OIDC (`/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/endsession`, discovery, JWKS) served by Server; `POST /api/identity/v1/notices` |
+| 2/3 | Client: OIDC sign-in against an instance; `IdentityServiceNoticeBroker`, `IdentityServiceMemberBroker` | OIDC (`/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/endsession`, discovery, JWKS) served by Server; `POST /api/identity/v1/notices`; `GET /api/identity/v1/organizations/{organizationId}/members` |
 | fe | `@wow-two-beta/fe/auth` strategies in the fe sdk (default paths `/api/identity/*`); `fe-identity` holds the account client and the sign-in and password components the hosted pages render | the host's session routes |

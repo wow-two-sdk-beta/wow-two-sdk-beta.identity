@@ -72,3 +72,9 @@ principal.HasOrganizationPermission(ocharo.Id, "can-edit");
   else; an owner or admin resolves anyone's, an owner's included.
 - Managers set a trusted contact only on an invitation, never on an existing member's account
   (`../TrustedContacts/trusted-contacts.md`).
+
+## Service read
+
+`AddOrganizations` also registers `IMemberBroker` (`IdentityCoreMemberBroker`): an organization's members as a service reads
+them — `sub`, role and Telegram flag only — and the service's `GET /api/identity/v1/organizations/{id}/members` for
+client-credentials tokens with `identity.members.read` (`../../Members/members.md`).

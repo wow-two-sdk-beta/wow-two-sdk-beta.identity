@@ -14,6 +14,12 @@ public interface ITelegramLinkRepository
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     Task<IdentityTelegramLink?> FindLinkAsync(string botUserName, string phoneNumber, CancellationToken cancellationToken = default);
 
+    /// <summary>The numbers among <paramref name="phoneNumbers"/> linked to a chat of <paramref name="botUserName"/>.</summary>
+    /// <param name="botUserName">The bot's normalized user name.</param>
+    /// <param name="phoneNumbers">The numbers in E.164.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task<IReadOnlySet<string>> FindLinkedNumbersAsync(string botUserName, IReadOnlyCollection<string> phoneNumbers, CancellationToken cancellationToken = default);
+
     /// <summary>The links of <paramref name="botUserName"/> whose chat belongs to <paramref name="telegramUserId"/>.</summary>
     /// <param name="botUserName">The bot's normalized user name.</param>
     /// <param name="telegramUserId">The Telegram user who shared the numbers.</param>

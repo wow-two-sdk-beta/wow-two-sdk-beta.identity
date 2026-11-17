@@ -59,6 +59,29 @@ var status = result.Match(delivery => delivery.Status, _ => AppNoticeStatusConst
   `NoticeNotLinked` reads `not_linked`, anything else fails with the problem's `identityCode`, `reason` and `Retry-After`.
 - The route, rules and pace: [contract](../../../../architecture/contract.md#app-notices).
 
+## Organization members
+
+```csharp
+builder.Services.AddIdentityMembers(new Uri("https://id.example.com/"))         // IMemberBroker over the instance
+    .AddOAuth2ClientCredentials(o =>
+    {
+        o.TokenEndpoint = new Uri("https://id.example.com/connect/token");
+        o.ClientId = "ocharo-events";                                            // granted identity.members.read
+        o.ClientSecret = secret;
+        o.Resource = "https://id.example.com/api/identity/";                     // the instance's Identity:Members:Audience
+        o.Scope = MemberConstants.Scope;
+    });
+
+var members = await broker.ListAsync(organizationId);                            // or ListAsync(organizationId, "editor")
+// [{ Subject = "<uuid>", Role = "owner", HasTelegramLink = true }, …], earliest joined first
+```
+
+- `IdentityServiceMemberBroker` reads `GET /api/identity/v1/organizations/{organizationId}/members[?role=]`; `200` reads the
+  body's `data`, anything else fails with the problem's `identityCode` (`OrganizationNotFound`, `UnknownOrganizationRole`,
+  `http_{status}`), and no answer with `MembersUnavailable`.
+- Its own typed client asks its own scope, so a client the instance has not granted `identity.members.read` yet loses only
+  this call, not its app notices. The route and rules: [contract](../../../../architecture/contract.md#organization-members).
+
 ## Revocation signals
 
 ```jsonc

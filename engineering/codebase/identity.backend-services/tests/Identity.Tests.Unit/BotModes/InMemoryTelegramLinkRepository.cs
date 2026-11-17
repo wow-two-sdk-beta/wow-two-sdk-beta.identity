@@ -59,6 +59,19 @@ internal sealed class InMemoryTelegramLinkRepository : ITelegramLinkRepository
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlySet<string>> FindLinkedNumbersAsync(string botUserName, IReadOnlyCollection<string> phoneNumbers, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlySet<string> linked = _links
+                .Where(l => l.BotUserName == botUserName && phoneNumbers.Contains(l.PhoneNumber))
+                .Select(l => l.PhoneNumber)
+                .ToHashSet(StringComparer.Ordinal);
+            return Task.FromResult(linked);
+        }
+    }
+
+    /// <inheritdoc />
     public Task SaveLinkAsync(IdentityTelegramLink link, CancellationToken cancellationToken = default)
     {
         lock (_gate)

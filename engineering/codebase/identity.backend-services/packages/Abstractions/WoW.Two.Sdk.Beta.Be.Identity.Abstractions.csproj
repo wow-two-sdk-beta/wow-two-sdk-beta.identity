@@ -2,14 +2,14 @@
 
   <!--
     The Identity contract (layer 1): the error codes and their ru/uz texts, the organization claim types and readers, and
-    the first broker, app notices (Notices/).
+    the brokers built so far: app notices (Notices/) and organization members (Members/).
     It references the kernel WoW2.Sdk.Beta.Be.Abstractions only (Result, AppError, IEvent) — no core, no framework
     reference, no third-party package — and holds no options binding, DI registration or I/O. The broker interfaces,
     models and events of the T4 contract land here.
   -->
   <PropertyGroup>
     <RootNamespace>WoW.Two.Sdk.Beta.Be.Identity</RootNamespace>
-    <Description>Identity contract: the error codes and their ru/uz texts, the organization claim types and readers, and the app notice broker every Identity form and consumer shares.</Description>
+    <Description>Identity contract: the error codes and their ru/uz texts, the organization claim types and readers, and the app notice and member brokers every Identity form and consumer shares.</Description>
   </PropertyGroup>
 
   <ItemGroup>
