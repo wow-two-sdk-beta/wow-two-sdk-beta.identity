@@ -45,6 +45,13 @@ internal sealed class InMemoryTelegramLinkRepository : ITelegramLinkRepository
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<IdentityTelegramLink>> FindLinksOfUserAsync(string botUserName, long telegramUserId, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+            return Task.FromResult<IReadOnlyList<IdentityTelegramLink>>([.. _links.Where(l => l.BotUserName == botUserName && l.TelegramUserId == telegramUserId)]);
+    }
+
+    /// <inheritdoc />
     public Task<IdentityTelegramLink?> FindLinkAsync(string botUserName, string phoneNumber, CancellationToken cancellationToken = default)
     {
         lock (_gate)

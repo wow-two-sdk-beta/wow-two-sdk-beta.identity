@@ -7,6 +7,7 @@ using WoW.Two.Sdk.Beta.Be.Foundation.Options;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Channels;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
+using WoW.Two.Sdk.Beta.Be.Identity.Notices;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp.Telegram;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
@@ -25,8 +26,10 @@ public static class TelegramIdentityBuilderExtensions
     /// presses' <see cref="TelegramCallbackRouter"/>, and <see cref="TelegramMessageSweepService"/>, which cleans up due
     /// messages each minute while the bot is on; and the two update services, which each act only in their own
     /// <see cref="TelegramBotOptions.UpdateMode"/>: <see cref="TelegramPollingService"/> and, on a deployed boot,
-    /// <see cref="TelegramWebhookRegistrationService"/>. Map the webhook with <c>MapTelegramWebhook</c>; register button
-    /// actions with <see cref="AddTelegramCallbackHandler{THandler}"/>.
+    /// <see cref="TelegramWebhookRegistrationService"/>; and people's mutes of app notices (<see cref="IAppNoticeRepository"/>),
+    /// set by <c>/stop</c> or a notice's mute button and lifted by a bare <c>/start</c>. Map the webhook with
+    /// <c>MapTelegramWebhook</c>; register button actions with <see cref="AddTelegramCallbackHandler{THandler}"/>; send app
+    /// notices with <see cref="AppNoticeIdentityBuilderExtensions.AddAppNotices"/>.
     /// </summary>
     /// <param name="builder">The identity builder.</param>
     /// <param name="configure">The switch, the bot, the webhook secret, the link and notice lifetimes and the wording.</param>
@@ -59,6 +62,10 @@ public static class TelegramIdentityBuilderExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TelegramPollingService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TelegramWebhookRegistrationService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TelegramMessageSweepService>());
+        services.TryAddScoped<IAppNoticeRepository, EfAppNoticeRepository>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAccountDeletionHandler, AppNoticeDeletionHandler>());
+        if (!services.Any(descriptor => descriptor.IsKeyedService && Equals(descriptor.ServiceKey, AppNoticeService.MuteAction)))
+            builder.AddTelegramCallbackHandler<AppNoticeMuteHandler>(AppNoticeService.MuteAction);
         return builder;
     }
 

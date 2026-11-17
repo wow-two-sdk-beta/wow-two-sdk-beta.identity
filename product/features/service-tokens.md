@@ -23,7 +23,7 @@
       {
         "Name": "files",                    // clients refer to this, the same in every environment
         "Uri": "https://files.example.com/", // the `resource` a caller sends and the only `aud` of its tokens
-        "Scopes": [ "files.read", "files.write" ], // {service}.{action}
+        "Scopes": [ "files.read", "files.write" ], // {service}.{action}, or {service}.{area}.{action}
         "PermissionNamespace": "files"      // an exchanged token's org_permission; null keeps every permission
       }
     ],

@@ -110,6 +110,19 @@ internal sealed class InMemoryTelegramMessageLedger : ITelegramMessageLedger
     }
 
     /// <inheritdoc />
+    public Task RemoveKeptAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            var kept = _messages.Where(m => m.UserId == userId && m.DeleteAt is null).Select(m => m.Id).ToHashSet();
+            _callbacks.RemoveAll(c => kept.Contains(c.MessageRecordId));
+            _messages.RemoveAll(m => kept.Contains(m.Id));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
     public Task<TelegramCallbackRecord?> FindCallbackAsync(string tokenHash, CancellationToken cancellationToken = default)
     {
         lock (_gate)

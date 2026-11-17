@@ -42,7 +42,7 @@ public sealed class TelegramMessageLedgerTests
             var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
             var message = await context.TelegramMessages.AsNoTracking().SingleAsync();
             message.Should().BeEquivalentTo(new { BotUserName = "ocharo_bot", ChatId = Chat, Kind = TelegramMessageKindConstants.Code, UserId = (Guid?)null, SentAt = host.Time.GetUtcNow() });
-            (await context.OtpCodes.AsNoTracking().Select(c => c.ExpiresAt).ToListAsync()).Should().Contain(message.DeleteAt, "a code message is cleaned up when its code expires");
+            (await context.OtpCodes.AsNoTracking().Select(c => c.ExpiresAt).ToListAsync()).Should().Contain(message.DeleteAt!.Value, "a code message is cleaned up when its code expires");
             bot.To(Chat).Should().Contain(m => m.Text.Contains(bot.LastCode(Chat)));
         }
 

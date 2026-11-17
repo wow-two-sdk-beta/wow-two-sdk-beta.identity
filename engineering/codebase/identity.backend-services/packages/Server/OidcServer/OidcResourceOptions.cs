@@ -16,7 +16,7 @@ public sealed record OidcResourceOptions
     /// </summary>
     public string Uri { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the scopes it understands, each <c>{service}.{action}</c>, such as <c>files.read</c>.</summary>
+    /// <summary>Gets or sets the scopes it understands, each <c>{service}.{action}</c> or <c>{service}.{area}.{action}</c>, such as <c>files.read</c> or <c>identity.notices.send</c>.</summary>
     public List<string> Scopes { get; set; } = [];
 
     /// <summary>

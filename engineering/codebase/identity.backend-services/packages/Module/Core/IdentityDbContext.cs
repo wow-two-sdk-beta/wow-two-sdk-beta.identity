@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using WoW.Two.Sdk.Beta.Be.Data.EntityFrameworkCore;
 using WoW.Two.Sdk.Beta.Be.Foundation.Naming;
+using WoW.Two.Sdk.Beta.Be.Identity.Notices;
 using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Core;
@@ -134,6 +135,12 @@ public sealed class IdentityDbContext : AppDbContextBase
 
     /// <summary>The sign-ins waiting for a contact's press (<c>identity_device_confirmations</c>).</summary>
     public DbSet<IdentityDeviceConfirmation> DeviceConfirmations => Set<IdentityDeviceConfirmation>();
+
+    /// <summary>Apps' notices by idempotency key (<c>identity_app_notices</c>).</summary>
+    public DbSet<IdentityAppNotice> AppNotices => Set<IdentityAppNotice>();
+
+    /// <summary>People's mutes of apps' notices (<c>identity_notice_mutes</c>).</summary>
+    public DbSet<IdentityNoticeMute> NoticeMutes => Set<IdentityNoticeMute>();
 
     /// <inheritdoc />
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -533,6 +540,28 @@ public sealed class IdentityDbContext : AppDbContextBase
             callback.Property(c => c.TokenHash).HasMaxLength(64);
             callback.Property(c => c.Action).HasMaxLength(64);
             callback.Property(c => c.Payload).HasMaxLength(256);
+        });
+
+        // 013-app-notices: apps' notices by idempotency key, and people's mutes of them.
+        modelBuilder.Entity<IdentityAppNotice>(notice =>
+        {
+            notice.ToTable("identity_app_notices");
+            notice.HasKey(n => n.Id);
+            notice.Property(n => n.Id).ValueGeneratedNever();
+            notice.HasIndex(n => new { n.ClientId, n.IdempotencyKey }).IsUnique();
+            notice.HasIndex(n => n.UserId);
+            notice.HasIndex(n => n.CreatedAt);
+            notice.Property(n => n.ClientId).HasMaxLength(AppNoticeOptions.MaxClientIdLength);
+            notice.Property(n => n.IdempotencyKey).HasMaxLength(AppNoticeConstants.MaxIdempotencyKeyLength);
+            notice.Property(n => n.RequestHash).HasMaxLength(64);
+            notice.Property(n => n.Status).HasMaxLength(16);
+        });
+
+        modelBuilder.Entity<IdentityNoticeMute>(mute =>
+        {
+            mute.ToTable("identity_notice_mutes");
+            mute.HasKey(m => new { m.UserId, m.ClientId });
+            mute.Property(m => m.ClientId).HasMaxLength(AppNoticeOptions.MaxClientIdLength);
         });
     }
 

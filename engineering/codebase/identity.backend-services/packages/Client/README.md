@@ -39,6 +39,26 @@ app.MapGroup("/api/orgs/{organizationId:guid}/desks")
   sign-in route and page redirects answer a 401 problem (`code` `SignInFailed`) instead of starting the sign-in again,
   so a misconfigured client ends at an error rather than in a redirect loop.
 
+## App notices
+
+```csharp
+builder.Services.AddIdentityAppNotices(new Uri("https://id.example.com/"))     // IAppNoticeBroker over the instance
+    .AddOAuth2ClientCredentials(o =>
+    {
+        o.TokenEndpoint = new Uri("https://id.example.com/connect/token");
+        o.ClientId = "ocharo-events";                                            // granted identity.notices.send
+        o.ClientSecret = secret;
+        o.Resource = "https://id.example.com/api/identity/";                     // the instance's Identity:Notices:Audience
+    });
+
+var result = await notices.SendNoticeAsync(new AppNotice { Subject = sub, Text = "<b>…</b>", IdempotencyKey = key });
+var status = result.Match(delivery => delivery.Status, _ => AppNoticeStatusConstants.Failed);   // sent | muted | not_linked | failed
+```
+
+- `IdentityServiceNoticeBroker` posts to `POST /api/identity/v1/notices`; `202` and `200` read the body's status, `404`
+  `NoticeNotLinked` reads `not_linked`, anything else fails with the problem's `identityCode`, `reason` and `Retry-After`.
+- The route, rules and pace: [contract](../../../../architecture/contract.md#app-notices).
+
 ## Revocation signals
 
 ```jsonc
@@ -78,4 +98,4 @@ builder.Services.AddIdentityBff();
 - Protect the persisted ring at rest (`ProtectKeysWithCertificate`) where the store is shared.
 - API requests answer 401, 403 and 404 RFC 7807 problems with a `code`; page requests are redirected to sign in.
 
-Namespace: `WoW.Two.Sdk.Beta.Be.Identity.Bff`.
+Namespaces: `WoW.Two.Sdk.Beta.Be.Identity.Bff`, `WoW.Two.Sdk.Beta.Be.Identity.Notices`.

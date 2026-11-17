@@ -86,7 +86,8 @@ await notices.SendAsync(new TelegramNotice                 // ITelegramNoticeSen
 ```
 
 - A sent notice makes the account's older notices of the same kind in the chat due at once and spends their buttons, then is recorded due after
-  `NoticeLifetime`. A refusal (a blocked bot is a `403`) is returned, not thrown, and changes nothing; with the bot off
+  `NoticeLifetime`. A kept notice (`IsKept`, an app notice) replaces nothing and is recorded with no `delete_at`, so it stays in
+  the chat; `IsHtml` sends the text in Telegram's HTML subset, and `Links` adds URL buttons above the callback ones. A refusal (a blocked bot is a `403`) is returned, not thrown, and changes nothing; with the bot off
   nothing is sent (`bot_disabled`).
 - A button's `callback_data` is 32 random bytes in base64url (43 characters, within Telegram's 64); only its SHA-256 is
   stored, in `identity_telegram_callbacks`, beside the action (at most 64 characters), the payload (at most 256) and the
@@ -128,8 +129,11 @@ await notices.SendAsync(new TelegramNotice                 // ITelegramNoticeSen
 - A start link is `https://t.me/{BotUserName}?start={token}` with 32 random characters; only the token's SHA-256 is stored,
   and the link expires after `LinkLifetime`. Making one is rate-limited per number by `Identity:Otp:RateLimitWindow` (30 s) and per origin by
   `Identity:Otp:OriginRateLimitWindow` (5 s).
+- `/stop` mutes every app's notices for the sender's people and a bare `/start` lifts the mutes
+  (`../Notices/notices.md`); codes and the bot's own notices never read them.
 - The bot's own texts (welcome, share prompt, mismatch, expired, pending link change, the expired-message stub, the
-  button answers, and the trusted contact codes, notice and `add-phone` replies) come in `en`, `ru` and `uz`;
+  button answers, the trusted contact codes, notice and `add-phone` replies, and the app notices' mute button and `/stop`
+  and `/start` answers) come in `en`, `ru` and `uz`;
   `Identity:Telegram:Messages:{culture}:{key}` overrides them. `TelegramBotMessages.Format` fills `{name}` placeholders.
 - Start link purposes: `phone-sign-in`, `invite-sign-up` and `add-phone` (trusted contacts: the shared number becomes the
   account's own confirmed phone).

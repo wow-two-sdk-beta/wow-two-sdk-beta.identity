@@ -6,6 +6,7 @@ using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.Phones;
+using WoW.Two.Sdk.Beta.Be.Identity.Notices;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
@@ -14,7 +15,9 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 /// pending start link and asks for the person's own contact in the purpose's words; a shared contact whose user is the
 /// sender, holding the link's number or, for a link that names none, any number, completes it once, saves the number's
 /// link to the chat and hands over to the purpose's handler. A press of a notice's inline button (<c>callback_query</c>)
-/// goes to the <see cref="TelegramCallbackRouter"/>, which always answers it. Everything else is left unanswered.
+/// goes to the <see cref="TelegramCallbackRouter"/>, which always answers it. <c>/stop</c> mutes every app's notices for the
+/// people whose numbers the sender linked, and a bare <c>/start</c> lifts their mutes; codes and the bot's own security
+/// notices never stop. Everything else is left unanswered.
 /// </summary>
 /// <remarks>
 /// A number a person holds confirmed and already links to another Telegram user (<c>telegram_user_id</c>, stable per
@@ -29,6 +32,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 /// <param name="messages">The person's culture.</param>
 /// <param name="handlers">What follows a completed link, per purpose.</param>
 /// <param name="callbacks">Routes button presses.</param>
+/// <param name="notices">People's mutes of app notices.</param>
 /// <param name="options">The bot; <c>Identity:Telegram</c> reloads live.</param>
 /// <param name="time">The clock expiry is judged against.</param>
 /// <param name="logger">Logs a completed link no handler serves.</param>
@@ -39,11 +43,13 @@ public sealed partial class TelegramUpdateHandler(
     TelegramBotMessages messages,
     IEnumerable<ITelegramLinkCompletionHandler> handlers,
     TelegramCallbackRouter callbacks,
+    IAppNoticeRepository notices,
     IOptionsMonitor<TelegramBotOptions> options,
     TimeProvider time,
     ILogger<TelegramUpdateHandler> logger)
 {
     private const string StartCommand = "/start";
+    private const string StopCommand = "/stop";
 
     /// <summary>The update types the instance asks Telegram for, by webhook and by polling alike.</summary>
     internal static readonly UpdateType[] AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery];
@@ -66,21 +72,23 @@ public sealed partial class TelegramUpdateHandler(
         var culture = messages.CultureOf(from.LanguageCode);
         if (message.Contact is { } contact)
             await OnContactAsync(contact, chat.Id, from.Id, culture, cancellationToken);
-        else if (StartTokenOf(message.Text) is { } token)
+        else if (ArgumentOf(message.Text, StartCommand) is { } token)
             await OnStartAsync(token, chat.Id, from.Id, culture, cancellationToken);
+        else if (ArgumentOf(message.Text, StopCommand) is not null)
+            await OnStopAsync(chat.Id, from.Id, culture, cancellationToken);
     }
 
-    /// <summary>The token of a <c>/start</c> command: empty for a bare one, null for any other text.</summary>
-    private static string? StartTokenOf(string? text)
+    /// <summary>The argument of the command <paramref name="command"/>: empty for a bare one, null for any other text.</summary>
+    private static string? ArgumentOf(string? text, string command)
     {
         if (string.IsNullOrWhiteSpace(text))
             return null;
 
         var trimmed = text.Trim();
-        var command = trimmed.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        var name = command[0].Split('@', 2)[0];
-        return string.Equals(name, StartCommand, StringComparison.OrdinalIgnoreCase)
-            ? (command.Length > 1 ? command[1].Trim() : string.Empty)
+        var parts = trimmed.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        var name = parts[0].Split('@', 2)[0];
+        return string.Equals(name, command, StringComparison.OrdinalIgnoreCase)
+            ? (parts.Length > 1 ? parts[1].Trim() : string.Empty)
             : null;
     }
 
@@ -88,7 +96,8 @@ public sealed partial class TelegramUpdateHandler(
     {
         if (token.Length == 0)
         {
-            await ReplyAsync(chatId, TelegramBotMessageKeyConstants.Welcome, culture, null, cancellationToken);
+            var resumed = await notices.UnmuteAsync(await PeopleOfAsync(telegramUserId, cancellationToken), cancellationToken);
+            await ReplyAsync(chatId, resumed > 0 ? TelegramBotMessageKeyConstants.NoticesResumed : TelegramBotMessageKeyConstants.Welcome, culture, null, cancellationToken);
             return;
         }
 
@@ -180,6 +189,29 @@ public sealed partial class TelegramUpdateHandler(
         }
 
         await handler.HandleAsync(completion, cancellationToken);
+    }
+
+    /// <summary>Mutes every app's notices for the sender's people; a sender with none hears the welcome.</summary>
+    private async Task OnStopAsync(long chatId, long telegramUserId, CultureInfo culture, CancellationToken cancellationToken)
+    {
+        var people = await PeopleOfAsync(telegramUserId, cancellationToken);
+        var now = time.GetUtcNow();
+        foreach (var person in people)
+            await notices.MuteAsync(person, IdentityNoticeMute.AllClients, now, cancellationToken);
+        await ReplyAsync(chatId, people.Count > 0 ? TelegramBotMessageKeyConstants.NoticesStopped : TelegramBotMessageKeyConstants.Welcome, culture, null, cancellationToken);
+    }
+
+    /// <summary>The people holding confirmed a number the Telegram user linked to the bot.</summary>
+    private async Task<IReadOnlyList<Guid>> PeopleOfAsync(long telegramUserId, CancellationToken cancellationToken)
+    {
+        var people = new List<Guid>();
+        foreach (var link in await repository.FindLinksOfUserAsync(BotUserName, telegramUserId, cancellationToken))
+        {
+            if (await users.FindByConfirmedPhoneNumberAsync(link.PhoneNumber, cancellationToken) is { } person && !people.Contains(person.Id))
+                people.Add(person.Id);
+        }
+
+        return people;
     }
 
     /// <summary>Whether the number links to another Telegram user while a person holds it confirmed, so it must not move.</summary>

@@ -9,6 +9,7 @@ Form 1 of Identity: user accounts in the consumer's process, over the consumer's
   OpenIddict's four `identity_oidc_*` tables (the Identity service's OIDC server uses them), created by embedded
   PostgreSQL SQL that runs as the be sdk migration set `identity`; uuid v7 keys, no generic entities
 - OTP with email, SMS, Telegram, Telegram Gateway and WhatsApp channels; TOTP; WebAuthn; Argon2 hashing
+- app notices through the instance's Telegram bot (`AddAppNotices`, the in-process `IAppNoticeBroker`; `Notices/notices.md`)
 - the ru/uz texts of the identity error codes, contributed to error translation by `AddUserAccounts`
 - `AdminCommand`, the host verb `admin create`: the instance admin, once per instance, idempotent, one `admin-result`
   line (`Core/Admin/admin.md`)
@@ -22,4 +23,5 @@ services.AddUserAccounts();                                  // Identity:Databas
 await app.Services.MigrateBespokeOnStartupAsync();           // a local boot applies the set; a deployed boot verifies it
 ```
 
-Namespaces are unchanged from the be sdk: `WoW.Two.Sdk.Beta.Be.Identity.{Core,Otp,Mfa,PasswordHashing}`.
+Namespaces are unchanged from the be sdk: `WoW.Two.Sdk.Beta.Be.Identity.{Core,Otp,Mfa,PasswordHashing}`; app notices
+are `WoW.Two.Sdk.Beta.Be.Identity.Notices`.

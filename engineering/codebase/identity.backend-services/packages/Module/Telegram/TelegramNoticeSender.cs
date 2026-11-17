@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
+using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Telegram;
@@ -39,24 +40,32 @@ public sealed partial class TelegramNoticeSender(
             return new TelegramNoticeResult { FailureReason = "bot_disabled" };
 
         var tokens = notice.Buttons.Select(_ => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(TokenBytes))).ToList();
-        var keyboard = notice.Buttons.Count == 0
-            ? null
-            : new InlineKeyboardMarkup(notice.Buttons.Select((button, index) => new[] { InlineKeyboardButton.WithCallbackData(button.Label, tokens[index]) }));
+        var rows = notice.Links.Select(link => new[] { InlineKeyboardButton.WithUrl(link.Label, link.Url) })
+            .Concat(notice.Buttons.Select((button, index) => new[] { InlineKeyboardButton.WithCallbackData(button.Label, tokens[index]) }))
+            .ToList();
+        var keyboard = rows.Count == 0 ? null : new InlineKeyboardMarkup(rows);
 
         int messageId;
         try
         {
-            messageId = (await bot.SendMessage(notice.ChatId, notice.Text, replyMarkup: keyboard, cancellationToken: cancellationToken)).Id;
+            messageId = (await bot.SendMessage(notice.ChatId, notice.Text, notice.IsHtml ? ParseMode.Html : ParseMode.None, replyMarkup: keyboard, cancellationToken: cancellationToken)).Id;
         }
         catch (RequestException exception)
         {
             LogRefused(logger, notice.Kind, exception.Message);
-            return new TelegramNoticeResult { FailureReason = exception.Message };
+            var refusal = exception as ApiRequestException;
+            return new TelegramNoticeResult
+            {
+                FailureReason = exception.Message,
+                ErrorCode = refusal?.ErrorCode,
+                RetryAfter = refusal?.Parameters?.RetryAfter is { } seconds ? TimeSpan.FromSeconds(seconds) : null,
+            };
         }
 
         var now = time.GetUtcNow();
         var botUserName = current.NormalizedBotUserName;
-        await ledger.MakeDueAsync(botUserName, notice.ChatId, notice.Kind, notice.UserId, now, cancellationToken);
+        if (!notice.IsKept)
+            await ledger.MakeDueAsync(botUserName, notice.ChatId, notice.Kind, notice.UserId, now, cancellationToken);
 
         var record = new IdentityTelegramMessage
         {
@@ -68,7 +77,7 @@ public sealed partial class TelegramNoticeSender(
             UserId = notice.UserId,
             Culture = string.IsNullOrWhiteSpace(notice.Culture) || notice.Culture.Length > TelegramCodeMessageRecorder.MaxCultureLength ? null : notice.Culture,
             SentAt = now,
-            DeleteAt = now + current.NoticeLifetime,
+            DeleteAt = notice.IsKept ? null : now + current.NoticeLifetime,
         };
         var callbacks = notice.Buttons
             .Select((button, index) => new IdentityTelegramCallback
@@ -82,7 +91,7 @@ public sealed partial class TelegramNoticeSender(
             })
             .ToList();
         await ledger.AddAsync(record, callbacks, cancellationToken);
-        return new TelegramNoticeResult { IsSent = true, MessageId = messageId };
+        return new TelegramNoticeResult { IsSent = true, MessageId = messageId, RecordId = record.Id };
     }
 
     /// <summary>The hex SHA-256 a button's callback data is stored and looked up by.</summary>
@@ -95,7 +104,15 @@ public sealed partial class TelegramNoticeSender(
         ArgumentException.ThrowIfNullOrWhiteSpace(notice.Kind);
         ArgumentException.ThrowIfNullOrWhiteSpace(notice.Text);
         ArgumentNullException.ThrowIfNull(notice.Buttons);
+        ArgumentNullException.ThrowIfNull(notice.Links);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(notice.Kind.Length, MaxNameLength, nameof(notice));
+        foreach (var link in notice.Links)
+        {
+            ArgumentNullException.ThrowIfNull(link, nameof(notice));
+            ArgumentException.ThrowIfNullOrWhiteSpace(link.Label, nameof(notice));
+            ArgumentException.ThrowIfNullOrWhiteSpace(link.Url, nameof(notice));
+        }
+
         foreach (var button in notice.Buttons)
         {
             ArgumentNullException.ThrowIfNull(button, nameof(notice));

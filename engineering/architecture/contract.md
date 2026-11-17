@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Contract
 
-*Last updated: 2026-11-01*
+*Last updated: 2026-11-17*
 
 > One broker per capability, the same in every form. Rules: wow-two-ws/conventions/development/capability-forms.md
 > § Contract. Target shape: [integration modes](../research/identity-analysis-2026-10/t4-integration-modes.md) (T4)
@@ -8,11 +8,14 @@
 
 ## Status
 
-- ⬜ Brokers: the T4 contract (`IMemberBroker` and five more, `ActorModel`, 7 `IEvent` records) is not built; the code
-  moved from the be sdk exposes services and store ports, not brokers.
+- 🔄 Brokers: the first one, `IAppNoticeBroker` (app notices, below), ships in every form; the T4 contract
+  (`IMemberBroker` and five more, `ActorModel`, 7 `IEvent` records) is not built, and the code moved from the be sdk
+  exposes services and store ports, not brokers.
 - ✅ Contract package: `Abstractions` holds what the moved code already shared across forms — the error catalogue and
   the organization claims — referencing the kernel only.
-- ⬜ Conformance: `Identity.Tests.Conformance` and the broker fakes in `packages/Testing` wait for the first broker.
+- 🔄 Conformance: `AppNoticeBrokerConformance` (`packages/Testing`) runs in `Identity.Tests.Conformance` against the
+  Module over PostgreSQL, the Client against the service in process, and `FakeAppNoticeBroker`; the T4 brokers' suites
+  wait for them.
 - ✅ OIDC wire: the Server package makes the service an OpenID Connect provider (code + PKCE, rotating refresh,
   client credentials, token exchange, discovery, JWKS, userinfo, end-session) whose tokens carry the claims below; Forms
   2/3 sign in against it, and services call each other with its tokens ([service tokens](../../product/features/service-tokens.md)).
@@ -110,6 +113,7 @@ Namespaces are unchanged from the be sdk. Entities are not generic: one `Identit
 | `AddPhoneNumbers` | `UserPhoneService`, `PhoneNumberPolicy` |
 | `AddDatabaseOtpStore` | `EfOtpRepository` |
 | `AddPhoneSignIn` (+ `AddTelegramLinks`) | `UserPhoneSignInService`, `TelegramLinkService` |
+| `AddAppNotices` | `AppNoticeService`, `IAppNoticeBroker` (`TelegramAppNoticeBroker`) |
 | `AddRefreshTokens` | `RefreshTokenService` |
 | `AddSessions` | `UserSessionService` |
 | `AddSignInLog` | `SignInLogService` |
@@ -157,10 +161,54 @@ resource as its audience and the `accounts.delete` scope. The route checks the i
 and exact client identity. It revokes the person's sessions and uses the personal-data deletion service to erase the account.
 An absent account also returns `204`, so callers can retry a request after a lost response.
 
+### App notices
+
+An app's message to one person through the instance's own Telegram bot, to the chat the person's confirmed phone is linked
+to. Apps never talk to the bot. Groups and channels are out of scope.
+
+| Form | Entry | Sends as |
+|---|---|---|
+| 1 | `AddAppNotices(o => o.LocalClientId = "desk")` on the identity builder; `IAppNoticeBroker` is `TelegramAppNoticeBroker` | `Identity:Notices:LocalClientId` |
+| 2/3 | `services.AddIdentityAppNotices(new Uri("https://id.example/")).AddOAuth2ClientCredentials(o => { …; o.Resource = audience; })`; `IAppNoticeBroker` is `IdentityServiceNoticeBroker` | the token's `client_id` |
+| tests | `FakeAppNoticeBroker` (`Testing`): `Link(sub)`, `Mute(sub)`, `FailNext(error)`, `Sent` | — |
+
+```http
+POST /api/identity/v1/notices
+Authorization: Bearer <client-credentials token: aud = Identity:Notices:Audience, scope identity.notices.send>
+
+{ "sub": "<person uuid>", "text": "<b>Fashion week</b> opens Monday", "buttons": [ { "text": "Open", "url": "https://…" } ],
+  "idempotencyKey": "digest-42:<person uuid>", "culture": "uz-Latn" }
+```
+
+| Answer | Body | Broker reads | Caller records |
+|---|---|---|---|
+| `202` | `{ "data": { "id": "<ledger id>", "status": "sent" } }` | `Ok`, `Status` `sent`, `Id` | `sent` |
+| `200` | `{ "data": { "id": null, "status": "muted" } }` | `Ok`, `Status` `muted` | `muted` |
+| `404` | problem, `identityCode` `NoticeNotLinked`, `status` `not_linked` | `Ok`, `Status` `not_linked` | `not_linked` |
+| `400` · `409` · `429` · `502` · `503` | problem, `identityCode` `NoticeInvalid` · `IdempotencyKeyReused` or `NoticeInProgress` · `NoticeRateLimited` · `NoticeRefused` (with `reason`) · `NoticeUnavailable`; `Retry-After` where a retry may pass | `Fail`, the code in `identityCode` metadata, the wait in `retryAfter` | `failed` |
+| `401` · `403` | no token · a token without the scope, a person's token, or one acting for a person | `Fail`, `identityCode` `http_401` / `http_403` | `failed` |
+
+- Setup at the instance: `Identity:Notices:Audience` names an `Identity:Server:Resources` entry listing
+  `identity.notices.send`; each sending client gets `client_credentials`, that resource and the scope. No audience, no route.
+  Resource scopes take `{service}.{action}` or `{service}.{area}.{action}`.
+- Body rules: `sub` a uuid; `text` in Telegram's HTML subset (checked before sending), at most 4,096 characters as sent; at
+  most 8 link buttons, each `https` or `http`, labels at most 64; no callback buttons of the app's own; `idempotencyKey`
+  1–128 printable ASCII; `culture` at most 16 characters, for the bot's own words on the notice.
+- One key sends at most once per app for `Identity:Notices:IdempotencyWindow` (7 days): a repeat answers the first
+  outcome (`sent` with the same id, or `muted`), another body under it `409`. A `not_linked` or failed send gives the key
+  back, so a retry may send. A send cut off before its outcome is recorded leaves the key pending for a minute; a retry
+  after that sends again.
+- Pace: `Identity:Notices:PermitLimit` per `Window` per app (600 a minute), then 25 notices a second for the bot and one a
+  second per chat, waiting up to `MaxPaceWait` (5 s) for a turn, else `429`; Telegram's own `429` passes on. Per instance.
+- Opt-out: each notice carries a mute button that mutes that app's notices for the person; `/stop` to the bot mutes every
+  app's; a bare `/start` lifts the person's mutes. Codes and the bot's security notices never read a mute.
+- An app notice stays in the chat (no cleanup) and replaces no earlier one; pressing its mute button drops its buttons, the
+  links included. Deleting the account drops its keys, mutes and the notices' ledger rows.
+
 ## Forms map
 
 | Form | Implementation today | Wire |
 |---|---|---|
 | 1 | Module services over the consumer's `DbContext` | in process |
-| 2/3 | Client: OIDC sign-in against an instance | OIDC (`/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/endsession`, discovery, JWKS) served by Server; no broker wire yet |
+| 2/3 | Client: OIDC sign-in against an instance; `IdentityServiceNoticeBroker` | OIDC (`/connect/authorize`, `/connect/token`, `/connect/userinfo`, `/connect/endsession`, discovery, JWKS) served by Server; `POST /api/identity/v1/notices` |
 | fe | `@wow-two-beta/fe/auth` strategies in the fe sdk (default paths `/api/identity/*`); `fe-identity` holds the account client and the sign-in and password components the hosted pages render | the host's session routes |

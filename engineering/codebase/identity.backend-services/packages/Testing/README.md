@@ -1,7 +1,7 @@
 # WoW2.Sdk.Beta.Be.Identity.Testing
 
-The Identity test kit. Today it holds the fake token issuer; fakes over the contract, personas, the OTP code sink and the
-broker conformance bases land once the contract's brokers exist. It references the contract, `WoW2.Sdk.Beta.Be.Identity.Auth`
+The Identity test kit: the fake token issuer, and for app notices a fake broker and the broker's conformance suite;
+personas, the OTP code sink and the other brokers' fakes and suites land with those brokers. It references the contract, `WoW2.Sdk.Beta.Be.Identity.Auth`
 and `WoW2.Sdk.Beta.Be.Testing`.
 
 ```bash
@@ -51,3 +51,19 @@ var response = await tokens.PostAsync("https://fake-issuer.test/connect/token", 
 ```
 
 The handler has no registry: any client may ask for any resource and scope, a client secret isn't checked, an omitted `scope` grants none, and an exchanged token keeps every permission. A failure answers `400` with `{ "error": … }`, under the same error codes as Identity.
+
+## App notices
+
+`FakeAppNoticeBroker` stands in for `IAppNoticeBroker` with no instance and no bot, under the contract's rules (the
+idempotency key's included, Telegram's HTML not checked):
+
+```csharp
+var notices = new FakeAppNoticeBroker().Link(linkedSub).Mute(mutedSub);
+services.AddSingleton<IAppNoticeBroker>(notices);
+// … run the job …
+notices.Sent.Should().ContainSingle(n => n.Subject == linkedSub);      // a sub never linked reads not_linked
+notices.FailNext(error);                                                // the next send fails with error
+```
+
+`AppNoticeBrokerConformance` holds the broker's cases; `Identity.Tests.Conformance` runs it against the Module, the Client
+over the service, and this fake. A subclass gives the broker and arranges linked, unlinked and muted people.

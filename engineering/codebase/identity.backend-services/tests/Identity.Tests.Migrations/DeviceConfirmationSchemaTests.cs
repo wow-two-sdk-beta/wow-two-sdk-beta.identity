@@ -44,11 +44,11 @@ public sealed class DeviceConfirmationSchemaTests(MigratorPostgresFixture fixtur
             await insert.ExecuteNonQueryAsync();
         }
 
-        (await runner.RollbackAsync(targetOrdinal: 10)).ValueOrThrow().Should().Equal("012-device-confirmation-request", "011-device-confirmations");
+        (await runner.RollbackAsync(targetOrdinal: 10)).ValueOrThrow().Should().Equal("013-app-notices", "012-device-confirmation-request", "011-device-confirmations");
         foreach (var table in SchemaShape.DeviceConfirmationTables)
             (await migrator.HasTableAsync(IdentitySchemaTests.Schema, table)).Should().BeFalse();
 
-        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("011-device-confirmations", "012-device-confirmation-request");
+        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("011-device-confirmations", "012-device-confirmation-request", "013-app-notices");
         foreach (var table in SchemaShape.DeviceConfirmationTables)
             (await migrator.HasTableAsync(IdentitySchemaTests.Schema, table)).Should().BeTrue();
 
@@ -63,7 +63,7 @@ public sealed class DeviceConfirmationSchemaTests(MigratorPostgresFixture fixtur
         await using var migrator = IdentitySchemaTests.CreateMigrator(fixture);
         var runner = migrator.RunnerFor(IdentityDatabaseOptions.MigrationSetName);
         (await migrator.ApplyAllAsync()).ValueOrThrow();
-        (await runner.RollbackAsync(targetOrdinal: 11)).ValueOrThrow().Should().Equal("012-device-confirmation-request");
+        (await runner.RollbackAsync(targetOrdinal: 11)).ValueOrThrow().Should().Equal("013-app-notices", "012-device-confirmation-request");
         await using (var connection = await migrator.OpenConnectionAsync())
         {
             await using var insert = new NpgsqlCommand(
@@ -77,7 +77,7 @@ public sealed class DeviceConfirmationSchemaTests(MigratorPostgresFixture fixtur
             await insert.ExecuteNonQueryAsync();
         }
 
-        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("012-device-confirmation-request");
+        (await migrator.ApplyAllAsync()).ValueOrThrow().Single().Applied.Should().Equal("012-device-confirmation-request", "013-app-notices");
 
         await using var check = await migrator.OpenConnectionAsync();
         await using var read = new NpgsqlCommand("select is_cookie_client from identity.identity_device_confirmations", (NpgsqlConnection)check);

@@ -339,6 +339,12 @@ public sealed partial class ConfigCheckVerbTests
         ["Identity:Lockout:DefaultLockout"] = "00:05:00",
         ["Identity:Lockout:IsEnabledForNewUsers"] = "true",
         ["Identity:Telegram:WebhookUrl"] = "https://id.example.test/api/telegram/webhook",
+        ["Identity:Notices:Audience"] = "https://id.example.test/api/identity/",
+        ["Identity:Notices:PermitLimit"] = "600",
+        ["Identity:Notices:Window"] = "00:01:00",
+        ["Identity:Notices:IdempotencyWindow"] = "7.00:00:00",
+        ["Identity:Notices:MaxPaceWait"] = "00:00:05",
+        ["Identity:Notices:LocalClientId"] = "app",
     };
 
     private static string Base64Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');

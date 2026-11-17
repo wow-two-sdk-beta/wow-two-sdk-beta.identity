@@ -11,7 +11,7 @@ namespace WoW.Two.Sdk.Beta.Be.Identity.OidcServer;
 /// <summary>
 /// Checks <see cref="OidcServerOptions"/> at boot: positive lifetimes, a local sign-in path, clients that are confidential
 /// with unique ids and exact absolute redirect URIs (HTTPS, or HTTP on a loopback host, no fragment), resources with a
-/// canonical URI and <c>{service}.{action}</c> scopes, and service grants that name only registered resources and the
+/// canonical URI and <c>{service}.{action}</c> or <c>{service}.{area}.{action}</c> scopes, and service grants that name only registered resources and the
 /// scopes those understand; a deployed boot also needs a pinned issuer.
 /// </summary>
 /// <param name="services">The root provider, to tell a local run from a deployed boot; null checks only the options.</param>
@@ -101,7 +101,7 @@ internal sealed partial class OidcServerOptionsValidator(IServiceProvider? servi
             yield return $"{label} has a PermissionNamespace that is blank or holds ':'.";
 
         foreach (var scope in resource.Scopes.Where(scope => !ScopeName().IsMatch(scope)))
-            yield return $"{label} lists the scope '{scope}', which is not {{service}}.{{action}} in lowercase.";
+            yield return $"{label} lists the scope '{scope}', which is not {{service}}.{{action}} or {{service}}.{{area}}.{{action}} in lowercase.";
     }
 
     private static IEnumerable<string> CheckClient(OidcClientOptions client, IReadOnlyList<OidcResourceOptions> resources)
@@ -232,7 +232,7 @@ internal sealed partial class OidcServerOptionsValidator(IServiceProvider? servi
     private static bool IsAllowedScheme(Uri uri)
         => uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback);
 
-    [GeneratedRegex("^[a-z][a-z0-9-]*\\.[a-z][a-z0-9-]*$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*){1,2}$", RegexOptions.CultureInvariant)]
     private static partial Regex ScopeName();
 
     [GeneratedRegex("^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$", RegexOptions.CultureInvariant)]

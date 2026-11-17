@@ -93,7 +93,7 @@ session that made it:
 
 Spec, claims and refusals: [service tokens](../../../../../../product/features/service-tokens.md). `OidcServiceTokenGrants` serves both grants.
 
-- `Identity:Server:Resources` is the registry: a name, the URI that becomes the only `aud`, the `{service}.{action}` scopes
+- `Identity:Server:Resources` is the registry: a name, the URI that becomes the only `aud`, the `{service}.{action}` scopes (or `{service}.{area}.{action}`, such as `identity.notices.send`)
   and an optional permission namespace. OpenIddict validates `resource` and the client's permission; `aud` comes from here.
 - A client names what it may do: `Grants`, `Resources` (as itself), `ExchangeResources` (for a person), `Scopes`, and
   optionally `OrganizationId`. Empty `Grants` means the code flow alone, as every client had before.
@@ -103,7 +103,7 @@ Spec, claims and refusals: [service tokens](../../../../../../product/features/s
 - A client authenticates with `ClientSecret`, or with `JsonWebKeySet` instead (`private_key_jwt`, public keys only). The
   assertion's `aud` is the issuer and its `typ` is `client-authentication+jwt`, as OpenIddict 7 requires.
 - A boot refuses a resource URI not written as `Uri.AbsoluteUri` (`https://files.example/`, with its slash), a scope that
-  is not `{service}.{action}`, a client whose grants, resources and scopes disagree, and a lifetime above 10 minutes.
+  is not `{service}.{action}` or `{service}.{area}.{action}`, a client whose grants, resources and scopes disagree, and a lifetime above 10 minutes.
 
 ## Signals
 

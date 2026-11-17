@@ -42,6 +42,10 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.AddPhoneDone] = "Your phone number is now on your account. Go back to the account page.",
                 [TelegramBotMessageKeyConstants.AddPhoneTaken] = "This number belongs to another account.",
                 [TelegramBotMessageKeyConstants.AddPhoneFailed] = "This link can no longer add a phone. Start again from your account page.",
+                [TelegramBotMessageKeyConstants.MuteNoticesButton] = "Mute these notices",
+                [TelegramBotMessageKeyConstants.NoticesMuted] = "Muted. Send /start to get notices again.",
+                [TelegramBotMessageKeyConstants.NoticesStopped] = "You won't get app notices here anymore. Codes and security alerts still come. Send /start to get notices again.",
+                [TelegramBotMessageKeyConstants.NoticesResumed] = "App notices are on again.",
             },
             ["ru"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -78,6 +82,10 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.AddPhoneDone] = "Ваш номер телефона добавлен в аккаунт. Вернитесь на страницу аккаунта.",
                 [TelegramBotMessageKeyConstants.AddPhoneTaken] = "Этот номер принадлежит другому аккаунту.",
                 [TelegramBotMessageKeyConstants.AddPhoneFailed] = "Эта ссылка больше не может добавить номер. Начните заново со страницы аккаунта.",
+                [TelegramBotMessageKeyConstants.MuteNoticesButton] = "Отключить эти уведомления",
+                [TelegramBotMessageKeyConstants.NoticesMuted] = "Уведомления отключены. Отправьте /start, чтобы снова их получать.",
+                [TelegramBotMessageKeyConstants.NoticesStopped] = "Вы больше не будете получать здесь уведомления приложений. Коды и оповещения безопасности по-прежнему приходят. Отправьте /start, чтобы снова получать уведомления.",
+                [TelegramBotMessageKeyConstants.NoticesResumed] = "Уведомления приложений снова включены.",
             },
             ["uz"] = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -114,6 +122,10 @@ internal static class TelegramBotMessageConstants
                 [TelegramBotMessageKeyConstants.AddPhoneDone] = "Telefon raqamingiz akkauntingizga qo'shildi. Akkaunt sahifasiga qayting.",
                 [TelegramBotMessageKeyConstants.AddPhoneTaken] = "Bu raqam boshqa akkauntga tegishli.",
                 [TelegramBotMessageKeyConstants.AddPhoneFailed] = "Bu havola endi raqam qo'sha olmaydi. Akkaunt sahifasidan qaytadan boshlang.",
+                [TelegramBotMessageKeyConstants.MuteNoticesButton] = "Bu bildirishnomalarni o'chirish",
+                [TelegramBotMessageKeyConstants.NoticesMuted] = "O'chirildi. Bildirishnomalarni yana olish uchun /start yuboring.",
+                [TelegramBotMessageKeyConstants.NoticesStopped] = "Endi bu yerda ilovalar bildirishnomalarini olmaysiz. Kodlar va xavfsizlik xabarlari kelaveradi. Bildirishnomalarni yana olish uchun /start yuboring.",
+                [TelegramBotMessageKeyConstants.NoticesResumed] = "Ilovalar bildirishnomalari yana yoqildi.",
             },
         };
 }

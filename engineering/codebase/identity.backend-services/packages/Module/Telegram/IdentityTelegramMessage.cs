@@ -31,6 +31,9 @@ public sealed class IdentityTelegramMessage
     /// <summary>When the bot sent it (UTC).</summary>
     public DateTimeOffset SentAt { get; set; }
 
-    /// <summary>When the sweep cleans it up (UTC): a code's expiry, a notice's lifetime, or at once once superseded.</summary>
-    public DateTimeOffset DeleteAt { get; set; }
+    /// <summary>
+    /// When the sweep cleans it up (UTC): a code's expiry, a notice's lifetime, or at once once superseded; null for a kept
+    /// notice (<see cref="TelegramNotice.IsKept"/>), which stays in the chat and is never due.
+    /// </summary>
+    public DateTimeOffset? DeleteAt { get; set; }
 }

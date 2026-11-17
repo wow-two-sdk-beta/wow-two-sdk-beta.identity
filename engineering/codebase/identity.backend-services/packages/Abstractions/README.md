@@ -2,7 +2,9 @@
 
 The Identity contract: `IdentityErrorCodeConstants` and their ru/uz texts (`IdentityErrorTextConstants`), the
 organization claim types and readers (`OrganizationClaimTypeConstants`, `OrganizationClaimsPrincipalExtensions`), the
-`amr` values a sign-in records (`AuthenticationMethodConstants`) and the session claim `sid` (`SessionClaimTypeConstants`). It references the kernel `WoW2.Sdk.Beta.Be.Abstractions`
+`amr` values a sign-in records (`AuthenticationMethodConstants`), the session claim `sid` (`SessionClaimTypeConstants`),
+and the first broker, `IAppNoticeBroker` (`Notices/`: an app's notice to a person through the instance's Telegram bot, its
+body, delivery, statuses, codes and limits). It references the kernel `WoW2.Sdk.Beta.Be.Abstractions`
 only. A product's Domain and Application projects reference this package; its composition root picks an
 implementation:
 
@@ -13,4 +15,5 @@ implementation:
 dotnet add package WoW2.Sdk.Beta.Be.Identity.Abstractions --prerelease
 ```
 
-Namespaces are the ones these types had in the be sdk (`WoW.Two.Sdk.Beta.Be.Identity.Core`, `…Core.Organizations`).
+Namespaces are the ones these types had in the be sdk (`WoW.Two.Sdk.Beta.Be.Identity.Core`, `…Core.Organizations`);
+app notices are `WoW.Two.Sdk.Beta.Be.Identity.Notices`.

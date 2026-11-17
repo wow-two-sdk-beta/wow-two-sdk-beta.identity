@@ -8,6 +8,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Otp;
+using WoW.Two.Sdk.Beta.Be.Identity.Notices;
 using WoW.Two.Sdk.Beta.Be.Identity.Telegram;
 
 namespace WoW.Two.Sdk.Beta.Be.Identity.Tests.BotModes;
@@ -83,6 +84,7 @@ internal sealed class TelegramTestHost : IDisposable
             collection.AddSingleton<ITelegramBotClient>(scripted);
         collection.AddSingleton<ITelegramLinkRepository>(links);
         collection.AddSingleton<ITelegramMessageLedger>(ledger);
+        collection.AddSingleton<IAppNoticeRepository>(new InMemoryAppNoticeRepository());
         collection.AddSingleton<IUserRepository>(users);
         if (time is not null)
             collection.AddSingleton(time);

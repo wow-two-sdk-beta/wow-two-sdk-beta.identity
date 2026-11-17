@@ -93,6 +93,18 @@ public static class TelegramBotMessageKeyConstants
     /// <summary>Stands in for <c>{device}</c> or <c>{network}</c> when the request named none.</summary>
     public const string UnknownDevice = "unknown-device";
 
+    /// <summary>The label of the button on each app notice that mutes the app's notices.</summary>
+    public const string MuteNoticesButton = "mute-notices-button";
+
+    /// <summary>The presser's toast once an app notice's mute button muted the app.</summary>
+    public const string NoticesMuted = "notices-muted";
+
+    /// <summary>The answer to <c>/stop</c>: every app's notices are muted; codes and security notices still come.</summary>
+    public const string NoticesStopped = "notices-stopped";
+
+    /// <summary>The answer to a bare <c>/start</c> that lifted the person's mutes.</summary>
+    public const string NoticesResumed = "notices-resumed";
+
     /// <summary>Asks for the contact that adds or changes one's own phone.</summary>
     public const string AddPhoneSharePrompt = "add-phone-share-prompt";
 

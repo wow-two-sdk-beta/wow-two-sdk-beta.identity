@@ -63,6 +63,14 @@ public sealed class EfTelegramMessageLedger(IdentityDbContext context) : ITelegr
     }
 
     /// <inheritdoc />
+    public async Task RemoveKeptAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var kept = Messages.Where(m => m.UserId == userId && m.DeleteAt == null);
+        await Callbacks.Where(c => kept.Any(m => m.Id == c.MessageRecordId)).ExecuteDeleteAsync(cancellationToken);
+        await kept.ExecuteDeleteAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<TelegramCallbackRecord?> FindCallbackAsync(string tokenHash, CancellationToken cancellationToken = default)
     {
         var callback = await Callbacks.AsNoTracking().FirstOrDefaultAsync(c => c.TokenHash == tokenHash, cancellationToken);

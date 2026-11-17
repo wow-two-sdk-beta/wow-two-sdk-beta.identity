@@ -37,6 +37,14 @@ public interface ITelegramMessageLedger
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     Task RemoveAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Drops the account's kept notices (<see cref="TelegramNotice.IsKept"/>) and their buttons, once the account is deleted:
+    /// the messages stay in their chats, and their buttons stop working. Notices waiting for the sweep stay for it.
+    /// </summary>
+    /// <param name="userId">The account the notices are about.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task RemoveKeptAsync(Guid userId, CancellationToken cancellationToken = default);
+
     /// <summary>The button with this token digest and the message it is on, or null when either is gone.</summary>
     /// <param name="tokenHash">The hex SHA-256 of the button's callback data.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
