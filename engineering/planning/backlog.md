@@ -19,6 +19,14 @@ Shape: wow-two-ws/conventions/planning/version-track/version-track.md
 | Second factors and step-up | partial: TOTP, passkeys, recovery codes exist | [second-factors.md](../../product/features/second-factors.md) |
 | Passwords | partial: Argon2id and breached check exist; policies planned | [passwords.md](../../product/features/passwords.md) |
 
+## Specced next
+
+ChatGPT builds these in the pull order of wow-two-ws `system/sessions/events-integration/tasks/tasks.md`; each row's spec is its id in the named file there. Delete a row when it ships, with any older row it covers.
+
+| Item | Type | Notes |
+|---|---|---|
+| I01 Identity sends app notices to a linked Telegram account | feature | spec in `tasks-platform.md` |
+
 ## P1 — Ocharo slice
 
 | Item | Type | Notes |
