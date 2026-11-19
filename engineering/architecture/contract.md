@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Contract
 
-*Last updated: 2026-11-17*
+*Last updated: 2026-11-20*
 
 > One broker per capability, the same in every form. Rules: wow-two-ws/conventions/development/capability-forms.md
 > § Contract. Target shape: [integration modes](../research/identity-analysis-2026-10/t4-integration-modes.md) (T4)
@@ -157,11 +157,26 @@ registered. Sign-in by phone maps apart, with `MapPhoneSignInEndpoints`.
 
 ### Service account deletion
 
-`DELETE /api/service/people/{personId}` accepts a person UUID. The route is enabled by `Identity:AccountDeletion:ClientId`
-and `Identity:AccountDeletion:Audience`. Register this confidential client for client credentials with the dedicated HTTPS
-resource as its audience and the `accounts.delete` scope. The route checks the issuer, audience, active token entry, scope,
-and exact client identity. It revokes the person's sessions and uses the personal-data deletion service to erase the account.
-An absent account also returns `204`, so callers can retry a request after a lost response.
+`DELETE /api/service/people/{personId}` accepts a person UUID. The route is enabled by `Identity:AccountDeletion:Audience` and
+one entry per deletion client under `Identity:AccountDeletion:Clients:{deletionClientId}:ProductClientIds`, the sign-in
+clients its product owns; a boot with an audience and no entry, an entry with a blank product client, or entries without an
+audience refuses to start. Register each deletion client as a confidential client for client credentials with the dedicated
+HTTPS resource as its audience and the `accounts.delete` scope. The route checks the issuer, audience, active token entry,
+scope, and exact client identity; a client not listed under `Clients` answers `403`.
+
+A deletion client reaches only its own product's people, so a leaked deletion secret erases no other product's person:
+
+| # | The person | Answer |
+|---|---|---|
+| 1 | never authorized any of the caller's `ProductClientIds` | `404` problem, `identityCode` `PersonNotFound` (a missing person answers alike) |
+| 2 | holds an organization role or a console permission (an instance role) | `409` problem, `identityCode` `PersonHoldsAccess` |
+| 3 | also holds authorizations for clients outside the caller's product | the caller's authorizations and tokens are revoked, the person stays: `200` `{"erased":false}` |
+| 4 | otherwise | the person's sessions end and the personal-data deletion service erases the account: `204` |
+
+Authorizations of every status count, so a retry after a lost response meets the same answer: an erased person's retry is
+`204` again, a kept person's is `200` again. Every call writes one `identity_sign_in_log` row: `method` `service_account_deletion`,
+`client_id` the caller, `user_id` the person, `result` `erased`, `kept`, `not_found` or `blocked`, and `reason`
+`other_products`, `not_product_person`, `organization_role` or `console_permission` where one applies; the rows stay for the log's retention.
 
 ### App notices
 

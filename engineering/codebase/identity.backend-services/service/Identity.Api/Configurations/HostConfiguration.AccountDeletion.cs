@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Identity.Api.AccountDeletion;
 using Identity.Api.Settings;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
@@ -15,14 +16,27 @@ public static partial class HostConfiguration
 {
     private const string AccountDeletionPolicy = "identity-service-account-delete";
     private const string AccountDeletionScope = "accounts.delete";
-    private const string AccountDeletionService = "identity-service-personal-data";
 
+    /// <summary>
+    /// Hosts <c>DELETE /api/service/people/{personId}</c> for the products' deletion clients: a client-credentials token whose
+    /// audience is <c>Identity:AccountDeletion:Audience</c>, whose scope is <c>accounts.delete</c> and whose client is a key of
+    /// <c>Identity:AccountDeletion:Clients</c>, each naming the sign-in clients its product owns in <c>ProductClientIds</c>.
+    /// </summary>
+    /// <remarks>
+    ///   - no audience maps no route; a client not listed answers <c>403</c>
+    ///   - <c>404</c> when the person never authorized a client of the caller's product; <c>409</c> when the person holds an
+    ///     organization role or an instance role; <c>200</c> <c>{ "erased": false }</c> when the person also uses another
+    ///     product's client (the caller's authorizations and tokens are revoked, the person stays); otherwise <c>204</c>, also
+    ///     for a retry of an erased person
+    ///   - every call writes a sign-in log row (<see cref="ServiceDeletionAuditConstants"/>)
+    /// </remarks>
     private static WebApplicationBuilder AddAccountDeletion(this WebApplicationBuilder builder)
     {
         builder.Services.AddValidatedSettings<AccountDeletionSettings>(builder.Configuration, AccountDeletionSettings.SectionName,
             rules => rules.ValidateSetting(nameof(AccountDeletionSettings.Audience), "deletion-client",
-                ValidDeletionClient, "Account deletion requires a client ID and a dedicated HTTPS audience."));
-        builder.Services.AddKeyedScoped<UserPersonalDataService>(AccountDeletionService);
+                ValidDeletionClients, "Account deletion requires a dedicated HTTPS audience and, for each deletion client, the product clients it owns."));
+        builder.Services.AddKeyedScoped<UserPersonalDataService>(ServiceAccountDeletionService.PersonalDataKey);
+        builder.Services.AddScoped<ServiceAccountDeletionService>();
         builder.Services.AddOpenIddict().AddValidation(options =>
         {
             options.UseLocalServer();
@@ -38,25 +52,30 @@ public static partial class HostConfiguration
             options.AddPolicy(AccountDeletionPolicy, policy => policy
                 .AddAuthenticationSchemes(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)
                 .RequireAuthenticatedUser()
-                .RequireAssertion(context => settings.ClientId is { } clientId && CanDeleteAccount(context.User, clientId))));
+                .RequireAssertion(context => CanDeleteAccount(context.User, settings))));
         return builder;
     }
 
-    private static bool ValidDeletionClient(AccountDeletionSettings settings)
+    private static bool ValidDeletionClients(AccountDeletionSettings settings)
     {
-        if (settings.ClientId is null && settings.Audience is null)
-            return true;
+        if (settings.Audience is null)
+            return settings.Clients.Count == 0;
 
-        return !string.IsNullOrWhiteSpace(settings.ClientId) && settings.Audience is { IsAbsoluteUri: true } audience
+        return settings.Audience is { IsAbsoluteUri: true } audience
             && audience.Scheme == Uri.UriSchemeHttps && string.IsNullOrEmpty(audience.UserInfo)
-            && string.IsNullOrEmpty(audience.Fragment) && string.IsNullOrEmpty(audience.Query);
+            && string.IsNullOrEmpty(audience.Fragment) && string.IsNullOrEmpty(audience.Query)
+            && settings.Clients.Count > 0
+            && settings.Clients.All(pair => !string.IsNullOrWhiteSpace(pair.Key)
+                && pair.Value is { ProductClientIds.Length: > 0 }
+                && pair.Value.ProductClientIds.All(id => !string.IsNullOrWhiteSpace(id)));
     }
 
-    private static bool CanDeleteAccount(ClaimsPrincipal principal, string clientId)
+    private static bool CanDeleteAccount(ClaimsPrincipal principal, AccountDeletionSettings settings)
     {
         return principal.HasScope(AccountDeletionScope)
+            && principal.GetClaim(OpenIddictConstants.Claims.ClientId) is { Length: > 0 } clientId
+            && settings.Clients.ContainsKey(clientId)
             && principal.GetClaim(OpenIddictConstants.Claims.Subject) == clientId
-            && principal.GetClaim(OpenIddictConstants.Claims.ClientId) == clientId
             && principal.FindFirst("sid") is null && principal.FindFirst("act") is null;
     }
 
@@ -70,12 +89,19 @@ public static partial class HostConfiguration
         return app;
     }
 
-    private static async Task<IResult> DeleteAccountForServiceAsync(Guid personId, UserAccountService accounts,
-        [FromKeyedServices(AccountDeletionService)] UserPersonalDataService personalData, CancellationToken cancellationToken)
+    private static async Task<IResult> DeleteAccountForServiceAsync(Guid personId, ClaimsPrincipal principal,
+        ServiceAccountDeletionService deletion, CancellationToken cancellationToken)
     {
-        if (await accounts.FindByIdAsync(personId, cancellationToken) is { } person)
-            await personalData.DeleteAsync(person, cancellationToken);
-
-        return Results.NoContent();
+        var caller = principal.GetClaim(OpenIddictConstants.Claims.ClientId)!;
+        return await deletion.DeleteAsync(caller, personId, cancellationToken) switch
+        {
+            ServiceDeletionOutcome.NotThisProductsPerson => DeletionProblem(StatusCodes.Status404NotFound, "No such person for this client's product.", "PersonNotFound"),
+            ServiceDeletionOutcome.HoldsAccess => DeletionProblem(StatusCodes.Status409Conflict, "The person holds an organization role or a console permission.", "PersonHoldsAccess"),
+            ServiceDeletionOutcome.Kept => Results.Ok(new { erased = false }),
+            _ => Results.NoContent(),
+        };
     }
+
+    private static IResult DeletionProblem(int status, string detail, string code)
+        => Results.Problem(detail: detail, statusCode: status, extensions: new Dictionary<string, object?> { ["identityCode"] = code });
 }

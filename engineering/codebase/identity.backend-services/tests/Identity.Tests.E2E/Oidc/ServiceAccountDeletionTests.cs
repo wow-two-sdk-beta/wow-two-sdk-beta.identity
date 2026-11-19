@@ -6,7 +6,10 @@ using AwesomeAssertions;
 
 namespace Identity.Tests.E2E.Oidc;
 
-/// <summary>Exercises the deletion route through the real signer, service credentials, and stored sessions.</summary>
+/// <summary>
+/// Exercises the deletion route through the real signer, service credentials, and stored sessions; its limits to the caller's
+/// product and its audit rows have their own tests (<see cref="ServiceAccountDeletionLimitTests"/>).
+/// </summary>
 public sealed class ServiceAccountDeletionTests
 {
     private const string Audience = "https://localhost/api/service/people";
@@ -25,8 +28,8 @@ public sealed class ServiceAccountDeletionTests
         await using var server = new OidcHost(new Dictionary<string, string?>
         {
             ["Identity:Server:Issuer"] = "https://localhost/",
-            ["Identity:AccountDeletion:ClientId"] = Deleter,
             ["Identity:AccountDeletion:Audience"] = Audience,
+            [$"Identity:AccountDeletion:Clients:{Deleter}:ProductClientIds:0"] = OidcHost.ClientId,
             ["Identity:Server:Resources:0:Name"] = "account-deletion",
             ["Identity:Server:Resources:0:Uri"] = Audience,
             ["Identity:Server:Resources:0:Scopes:0"] = DeleteScope,
