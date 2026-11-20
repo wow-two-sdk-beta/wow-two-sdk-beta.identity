@@ -1,6 +1,6 @@
 # wow-two-sdk-beta.identity — Backlog
 
-*Last updated: 2026-11-17*
+*Last updated: 2026-11-21*
 
 Every unbuilt item, grouped; top of each group = next. Shipped work lives in [`version-track/`](version-track/).
 Shape: wow-two-ws/conventions/planning/version-track/version-track.md
@@ -85,3 +85,5 @@ ChatGPT builds these in the pull order of wow-two-ws `system/sessions/events-int
 | prune ended sessions | engineering | delete revoked and expired `identity_sessions` rows past a window, as the sign-in log does |
 | database ring in the be sdk | engineering | move the certificate-wrapped database ring from Server to core, so every product gets it |
 | sign-in log partitions | engineering | monthly partitions once the volume asks for them |
+| quote the `Off` choices in `deploy.yml` | fix | `Identity:SignUp:Profile:DisplayName` and `:Picture` declare `values: [Off, Optional, Required]` and `default: Off`; YAML reads `Off` as `false`, so a fresh target renders `false` and `config check` refuses it (haven-scfd #16, 2026-11-21: `identity-prod` set both to `Optional` to deploy) |
+| `generate` on the certificate keys | engineering | `Identity:Server:Keys:Signing:0`, `Encryption:0` and `Identity:DataProtection:Certificates:0` are required with no `generate` (`deploy.yml:113-115`), so a fresh standalone target needs `keys generate` by hand and its vault holds no expiry; add `generate: { command: [dotnet, Identity.Api.dll, keys, generate, --role, …] }` as Ocharo's pin does (haven-scfd #16, 2026-11-21) |
