@@ -579,7 +579,12 @@ public sealed class IdentityDbContext : AppDbContextBase
 
             entity.FindPrimaryKey()?.SetName($"pk_{table}");
             foreach (var index in entity.GetIndexes().Where(index => index.FindAnnotation(RelationalAnnotationNames.Name) is null))
-                index.SetDatabaseName($"ix_{table}_{string.Join('_', index.Properties.Select(property => property.GetColumnName()))}");
+            {
+                var columns = index.Properties.Select(property =>
+                    property is IReadOnlyProperty scalar ? scalar.GetColumnName() : property.Name);
+
+                index.SetDatabaseName($"ix_{table}_{string.Join('_', columns)}");
+            }
         }
     }
 }

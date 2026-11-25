@@ -8,7 +8,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- The core pin; it is also each package's nuspec floor on WoW2.Sdk.Beta.Be and the kernel. -->
-    <BackendSdkVersion>10.0.112-beta</BackendSdkVersion>
+    <BackendSdkVersion>11.0.1-beta</BackendSdkVersion>
   </PropertyGroup>
 
   <!-- be sdk: one family, bumped together. The kernel (Result, AppError, IEvent) is the only package the contract takes. -->
@@ -27,9 +27,9 @@
     OIDC tables without the server.
   -->
   <ItemGroup Label="Auth">
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
-    <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.14.0" />
-    <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.14.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
+    <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.19.2" />
   </ItemGroup>
 
   <ItemGroup Label="Module">
@@ -45,7 +45,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Client">
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="11.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Server">
@@ -69,15 +69,15 @@
     <PackageVersion Include="AspNet.Security.OAuth.Vkontakte" Version="10.0.0" />
     <PackageVersion Include="AspNet.Security.OAuth.Yandex" Version="10.0.0" />
     <PackageVersion Include="Google.Apis.Auth" Version="1.75.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.Facebook" Version="10.0.3" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.3" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.Facebook" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.Google" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="11.0.0" />
   </ItemGroup>
 
   <!-- Tests. -->
   <ItemGroup>
     <PackageVersion Include="AwesomeAssertions" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="9.1.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageVersion Include="xunit" Version="2.9.2" />

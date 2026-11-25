@@ -40,7 +40,7 @@ for project in "${projects[@]}"; do
   grep -Fq '<license type="expression">MIT</license>' <<< "$nuspec" || fail "$id: license is not MIT"
   grep -Fq "commit=\"$commit\"" <<< "$nuspec" || fail "$id: repository commit is not $commit"
   grep -Fxq 'README.md' <<< "$files" || fail "$id: README.md not packed"
-  grep -Fxq "lib/net10.0/$assembly.dll" <<< "$files" || fail "$id: lib/net10.0/$assembly.dll not packed"
+  grep -Fxq "lib/net11.0/$assembly.dll" <<< "$files" || fail "$id: lib/net11.0/$assembly.dll not packed"
 
   sdk=$(grep -oE 'dependency id="WoW2\.Sdk\.Beta\.Be(\.Abstractions|\.Testing[A-Za-z.]*)?" version="[^"]+"' <<< "$nuspec" || true)
   [ -n "$sdk" ] || fail "$id: no be sdk dependency"

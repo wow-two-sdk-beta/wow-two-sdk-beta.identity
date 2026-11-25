@@ -25,7 +25,7 @@ RUN pnpm build
 
 # ---- Stage 2: publish the .NET service with its packages (the pages arrive from stage 1) ----
 # Stays in global.json's 10.0.3xx band; the floating 10.0 tag moved to 10.0.4xx, which the pin refuses.
-FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
 ARG TARGETARCH
 WORKDIR /src
 # packages/ and service/ build together: the service takes the domain's packages by ProjectReference.
@@ -40,7 +40,7 @@ RUN case "$TARGETARCH" in amd64) rid=linux-x64 ;; arm64) rid=linux-arm64 ;; *) e
        -p:BuildSpa=false -p:SourceRevisionId="$VCS_REF"
 
 # ---- Stage 3: runtime ----
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS final
 # libfontconfig1 (with libfreetype6) is what SkiaSharp's Linux native library loads; profile pictures decode through it.
 RUN apt-get update && apt-get install -y --no-install-recommends curl libfontconfig1 \
     && rm -rf /var/lib/apt/lists/*

@@ -27,7 +27,7 @@ cat > "$consumer/Consumer.csproj" <<XML
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -66,4 +66,4 @@ CS
 # No HTTP cache: a core version published minutes ago must resolve, not a cached index that predates it.
 dotnet restore "$consumer/Consumer.csproj" --packages "$consumer/packages" --no-http-cache -v quiet
 dotnet build "$consumer/Consumer.csproj" --no-restore -nologo -v quiet
-dotnet "$consumer/bin/Debug/net10.0/Consumer.dll"
+dotnet "$consumer/bin/Debug/net11.0/Consumer.dll"
