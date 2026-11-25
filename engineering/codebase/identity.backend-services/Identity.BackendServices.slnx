@@ -9,6 +9,9 @@
     <Project Path="packages/Testing/WoW.Two.Sdk.Beta.Be.Identity.Testing.csproj" />
   </Folder>
   <Folder Name="/Services/">
+    <Project Path="service/Identity.Application/Identity.Application.csproj" />
+    <Project Path="service/Identity.Infrastructure/Identity.Infrastructure.csproj" />
+    <Project Path="service/Identity.Persistence/Identity.Persistence.csproj" />
     <Project Path="service/Identity.Api/Identity.Api.csproj" />
   </Folder>
   <Folder Name="/Tests/">

@@ -1,3 +1,8 @@
+using Identity.Application.Console.Queries;
+using Identity.Infrastructure.Console.QueryHandlers;
+using WoW.Two.Sdk.Beta.Be.Foundation.Validation;
+using WoW.Two.Sdk.Beta.Be.Mediator;
+using WoW.Two.Sdk.Beta.Be.Mediator.Validation;
 using Identity.Api.Console.Authorization;
 using Identity.Api.Settings;
 using Microsoft.AspNetCore.Authorization;
@@ -215,6 +220,10 @@ public static partial class HostConfiguration
     /// <summary>Registers controllers on the SDK wire contract.</summary>
     private static WebApplicationBuilder AddControllers(this WebApplicationBuilder builder)
     {
+        builder.Services
+            .AddMediator(typeof(GetConsoleSessionQueryHandler).Assembly)
+            .AddFluentValidatorsFromAssemblies(typeof(GetConsoleSessionQuery).Assembly)
+            .AddMediatorValidatingInterceptor();
         builder.Services.AddControllersWithSdkJson();
         return builder;
     }

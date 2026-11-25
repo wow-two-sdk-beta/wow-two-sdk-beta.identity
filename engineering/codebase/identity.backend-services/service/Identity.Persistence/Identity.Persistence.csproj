@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../Identity.Application/Identity.Application.csproj" />
+    <ProjectReference Include="../../packages/Module/WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
+  </ItemGroup>
+</Project>

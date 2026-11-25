@@ -1,4 +1,4 @@
-namespace Identity.Api.Settings;
+namespace Identity.Infrastructure.AccountDeletion.Settings;
 
 /// <summary>
 /// Names the service clients allowed to delete accounts remotely, the products each one owns, and the route's dedicated

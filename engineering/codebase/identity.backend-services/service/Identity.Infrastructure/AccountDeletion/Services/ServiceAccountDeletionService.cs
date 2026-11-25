@@ -1,12 +1,15 @@
 using System.Globalization;
-using Identity.Api.Settings;
-using Microsoft.EntityFrameworkCore;
+using Identity.Application.AccountDeletion.Models;
+using Identity.Application.AccountDeletion.Repositories;
+using Identity.Infrastructure.AccountDeletion.Constants;
+using Identity.Infrastructure.AccountDeletion.Settings;
+using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.PersonalData;
 using WoW.Two.Sdk.Beta.Be.Identity.Core.SignInLog;
 
-namespace Identity.Api.AccountDeletion;
+namespace Identity.Infrastructure.AccountDeletion.Services;
 
 /// <summary>
 /// Decides one call of the service deletion route and writes its audit row. A deletion client reaches only a person who
@@ -25,7 +28,7 @@ namespace Identity.Api.AccountDeletion;
 /// a person who once signed in to another product is never erased for being a product's person.
 /// </remarks>
 /// <param name="settings">The deletion clients and the products they own.</param>
-/// <param name="context">The identity context, for organization and instance roles.</param>
+/// <param name="access">Reads organization memberships and instance role assignments.</param>
 /// <param name="accounts">Finds the person.</param>
 /// <param name="personalData">Erases the person.</param>
 /// <param name="applications">OpenIddict's application manager, to name a client by an authorization.</param>
@@ -34,7 +37,7 @@ namespace Identity.Api.AccountDeletion;
 /// <param name="signInLog">The log the audit rows go to.</param>
 public sealed class ServiceAccountDeletionService(
     AccountDeletionSettings settings,
-    IdentityDbContext context,
+    IAccountAccessRepository access,
     UserAccountService accounts,
     [FromKeyedServices(ServiceAccountDeletionService.PersonalDataKey)] UserPersonalDataService personalData,
     IOpenIddictApplicationManager applications,
@@ -74,10 +77,10 @@ public sealed class ServiceAccountDeletionService(
         if (await accounts.FindByIdAsync(personId, cancellationToken) is not { } person)
             return (ServiceDeletionOutcome.Erased, ServiceDeletionAuditConstants.Erased, null);
 
-        if (await context.Set<IdentityMembership>().AsNoTracking().AnyAsync(row => row.UserId == personId, cancellationToken))
+        if (await access.HasOrganizationRoleAsync(personId, cancellationToken))
             return (ServiceDeletionOutcome.HoldsAccess, ServiceDeletionAuditConstants.Blocked, ServiceDeletionAuditConstants.OrganizationRole);
 
-        if (await context.Set<IdentityUserRole>().AsNoTracking().AnyAsync(row => row.UserId == personId, cancellationToken))
+        if (await access.HasInstanceRoleAsync(personId, cancellationToken))
             return (ServiceDeletionOutcome.HoldsAccess, ServiceDeletionAuditConstants.Blocked, ServiceDeletionAuditConstants.ConsolePermission);
 
         if (grants.Count > own.Count)

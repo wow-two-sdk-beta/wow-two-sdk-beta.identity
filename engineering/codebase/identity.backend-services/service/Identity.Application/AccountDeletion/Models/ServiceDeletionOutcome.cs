@@ -1,4 +1,4 @@
-namespace Identity.Api.AccountDeletion;
+namespace Identity.Application.AccountDeletion.Models;
 
 /// <summary>How one call of the service deletion route ended, in the order its branches are decided.</summary>
 public enum ServiceDeletionOutcome

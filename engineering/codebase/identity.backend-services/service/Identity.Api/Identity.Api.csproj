@@ -10,6 +10,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Identity.Persistence/Identity.Persistence.csproj" />
+    <ProjectReference Include="../Identity.Infrastructure/Identity.Infrastructure.csproj" />
+    <ProjectReference Include="../Identity.Application/Identity.Application.csproj" />
     <ProjectReference Include="..\..\packages\Module\WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
     <ProjectReference Include="..\..\packages\Server\WoW.Two.Sdk.Beta.Be.Identity.Server.csproj" />
     <ProjectReference Include="..\..\packages\Providers\WoW.Two.Sdk.Beta.Be.Identity.Providers.csproj" />

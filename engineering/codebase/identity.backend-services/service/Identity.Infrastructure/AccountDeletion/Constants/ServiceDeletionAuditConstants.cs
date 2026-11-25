@@ -1,4 +1,4 @@
-namespace Identity.Api.AccountDeletion;
+namespace Identity.Infrastructure.AccountDeletion.Constants;
 
 /// <summary>
 /// Names what the service deletion route writes to the sign-in log: one row per call, with the caller's client id in

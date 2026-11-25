@@ -1,6 +1,13 @@
 using System.Security.Claims;
-using Identity.Api.AccountDeletion;
-using Identity.Api.Settings;
+using Identity.Application.AccountDeletion.Commands;
+using Identity.Application.AccountDeletion.Models;
+using Identity.Application.AccountDeletion.Repositories;
+using Identity.Infrastructure.AccountDeletion.Constants;
+using Identity.Infrastructure.AccountDeletion.Services;
+using Identity.Infrastructure.AccountDeletion.Settings;
+using Identity.Persistence.AccountDeletion.Repositories;
+using WoW.Two.Sdk.Beta.Be.Mediator;
+using WoW.Two.Sdk.Beta.Be.Web.ExceptionHandling.Factories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
@@ -37,6 +44,7 @@ public static partial class HostConfiguration
                 ValidDeletionClients, "Account deletion requires a dedicated HTTPS audience and, for each deletion client, the product clients it owns."));
         builder.Services.AddKeyedScoped<UserPersonalDataService>(ServiceAccountDeletionService.PersonalDataKey);
         builder.Services.AddScoped<ServiceAccountDeletionService>();
+        builder.Services.AddScoped<IAccountAccessRepository, AccountAccessRepository>();
         builder.Services.AddOpenIddict().AddValidation(options =>
         {
             options.UseLocalServer();
@@ -90,16 +98,18 @@ public static partial class HostConfiguration
     }
 
     private static async Task<IResult> DeleteAccountForServiceAsync(Guid personId, ClaimsPrincipal principal,
-        ServiceAccountDeletionService deletion, CancellationToken cancellationToken)
+        ISender sender, CancellationToken cancellationToken)
     {
         var caller = principal.GetClaim(OpenIddictConstants.Claims.ClientId)!;
-        return await deletion.DeleteAsync(caller, personId, cancellationToken) switch
+        var result = await sender.SendAsync(new DeleteServiceAccountCommand(caller, personId), cancellationToken);
+
+        return result.Match<IResult>(success => success.Data switch
         {
             ServiceDeletionOutcome.NotThisProductsPerson => DeletionProblem(StatusCodes.Status404NotFound, "No such person for this client's product.", "PersonNotFound"),
             ServiceDeletionOutcome.HoldsAccess => DeletionProblem(StatusCodes.Status409Conflict, "The person holds an organization role or a console permission.", "PersonHoldsAccess"),
             ServiceDeletionOutcome.Kept => Results.Ok(new { erased = false }),
             _ => Results.NoContent(),
-        };
+        }, failure => throw failure.Error.ToException());
     }
 
     private static IResult DeletionProblem(int status, string detail, string code)

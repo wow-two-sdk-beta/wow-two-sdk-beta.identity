@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="OpenIddict.Abstractions" />
+    <ProjectReference Include="../Identity.Application/Identity.Application.csproj" />
+    <ProjectReference Include="../../packages/Module/WoW.Two.Sdk.Beta.Be.Identity.Module.csproj" />
+  </ItemGroup>
+</Project>

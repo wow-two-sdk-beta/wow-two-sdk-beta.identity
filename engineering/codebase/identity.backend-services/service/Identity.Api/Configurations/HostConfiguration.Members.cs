@@ -1,4 +1,7 @@
 using System.Security.Claims;
+using Identity.Application.Members.Queries;
+using WoW.Two.Sdk.Beta.Be.Mediator;
+using WoW.Two.Sdk.Beta.Be.Mediator.Result;
 using Identity.Api.Settings;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
@@ -75,19 +78,14 @@ public static partial class HostConfiguration
         return app;
     }
 
-    private static async Task<IResult> ListMembersAsync(Guid organizationId, string? role, ClaimsPrincipal principal, IMemberBroker members, CancellationToken cancellationToken)
+    private static async Task<IResult> ListMembersAsync(Guid organizationId, string? role, ClaimsPrincipal principal, ISender sender, CancellationToken cancellationToken)
     {
-        // A client bound to one organization reads only that one; another answers as an unknown one would.
-        if (principal.GetClaim(OrganizationClaimTypeConstants.Id) is { Length: > 0 } bound
-            && !(Guid.TryParse(bound, out var boundId) && boundId == organizationId))
-        {
-            return MemberProblem(StatusCodes.Status404NotFound, "No such organization.", IdentityErrorCodeConstants.OrganizationNotFound);
-        }
+        var query = new GetOrganizationMembersQuery(organizationId, role, principal.GetClaim(OrganizationClaimTypeConstants.Id));
+        var result = await sender.SendAsync(query, cancellationToken);
+        if (result is AppResult<IReadOnlyList<MemberModel>>.Success success)
+            return Results.Ok(ApiResponse<IReadOnlyList<MemberModel>>.Ok(success.Data));
 
-        var result = await members.ListAsync(organizationId, role, cancellationToken);
-        if (!result.IsFailure(out var error, out var listed))
-            return Results.Ok(ApiResponse<IReadOnlyList<MemberModel>>.Ok(listed!));
-
+        var error = ((AppResult<IReadOnlyList<MemberModel>>.Failure)result).Error;
         var code = error.Metadata?.TryGetValue(MemberConstants.CodeMetadataKey, out var value) == true ? value as string : null;
         return error.Type switch
         {

@@ -1,4 +1,7 @@
 using System.Security.Claims;
+using Identity.Application.Notices.Commands;
+using WoW.Two.Sdk.Beta.Be.Mediator;
+using WoW.Two.Sdk.Beta.Be.Mediator.Result;
 using Identity.Api.Settings;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
@@ -77,12 +80,14 @@ public static partial class HostConfiguration
         return app;
     }
 
-    private static async Task<IResult> SendAppNoticeAsync(AppNotice notice, ClaimsPrincipal principal, AppNoticeService notices, HttpContext http, CancellationToken cancellationToken)
+    private static async Task<IResult> SendAppNoticeAsync(AppNotice notice, ClaimsPrincipal principal, ISender sender, HttpContext http, CancellationToken cancellationToken)
     {
-        var result = await notices.SendAsync(principal.GetClaim(OpenIddictConstants.Claims.ClientId)!, notice, cancellationToken);
-        if (result.IsFailure(out var error, out var delivery))
-            return NoticeProblem(error, http);
+        var command = new SendAppNoticeCommand(principal.GetClaim(OpenIddictConstants.Claims.ClientId)!, notice);
+        var result = await sender.SendAsync(command, cancellationToken);
+        if (result is AppResult<AppNoticeDelivery>.Failure failure)
+            return NoticeProblem(failure.Error, http);
 
+        var delivery = ((AppResult<AppNoticeDelivery>.Success)result).Data;
         return delivery.Status switch
         {
             AppNoticeStatusConstants.Sent => Results.Json(ApiResponse<AppNoticeDelivery>.Ok(delivery), statusCode: StatusCodes.Status202Accepted),

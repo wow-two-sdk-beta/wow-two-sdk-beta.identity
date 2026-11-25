@@ -1,4 +1,4 @@
-namespace Identity.Api.Console;
+namespace Identity.Application.Console.Constants;
 
 /// <summary>Holds the console's own refusal codes, read from the problem's <c>identityCode</c> beside the catalog's.</summary>
 public static class ConsoleErrorCodeConstants

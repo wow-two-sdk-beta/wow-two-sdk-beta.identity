@@ -1,11 +1,13 @@
+using Identity.Application.Console.Commands;
+using Identity.Application.Console.Models;
+using Identity.Application.Console.Queries;
+using WoW.Two.Sdk.Beta.Be.Mediator;
 using Identity.Api.Configurations;
 using Identity.Api.Console.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WoW.Two.Sdk.Beta.Be.Foundation.Errors;
 using WoW.Two.Sdk.Beta.Be.Identity.Core;
-using WoW.Two.Sdk.Beta.Be.Identity.Core.Organizations;
-using WoW.Two.Sdk.Beta.Be.Identity.Core.Roles;
 using WoW.Two.Sdk.Beta.Be.Web.Contracts;
 using WoW.Two.Sdk.Beta.Be.Web.ExceptionHandling.Factories;
 
@@ -18,18 +20,10 @@ namespace Identity.Api.Console.Controllers;
 /// memberships are read from the store on every request, never from the cookie, so a grant or revoke counts from the
 /// next request.
 /// </summary>
-/// <param name="accounts">Finds the signed-in person.</param>
-/// <param name="core">The claim type the person's id travels under.</param>
-/// <param name="instanceRoles">The person's instance roles, read live.</param>
-/// <param name="organizations">The person's memberships, and the organizations an admin creates.</param>
 [ApiController]
 [Route("api/console")]
 [Authorize]
-public sealed class ConsoleController(
-    UserAccountService accounts,
-    IdentityCoreOptions core,
-    InstanceRoleService instanceRoles,
-    OrganizationService organizations) : ControllerBase
+public sealed class ConsoleController(ISender sender, IdentityCoreOptions core) : ControllerBase
 {
     /// <summary>
     /// Reports the signed-in person: <c>401</c> without a sign-in, <c>403</c> for a person who neither holds an instance
@@ -44,26 +38,15 @@ public sealed class ConsoleController(
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Session(CancellationToken cancellationToken)
     {
-        if (await CallerAsync(cancellationToken) is not { } user)
-            return Unauthorized();
+        var result = await sender.SendAsync(new GetConsoleSessionQuery(CallerId()), cancellationToken);
 
-        var roles = await instanceRoles.GetAsync(user, cancellationToken);
-        IReadOnlyList<ConsoleOrganizationDto> managed = [.. (await organizations.ListForUserAsync(user, cancellationToken))
-            .Where(membership => membership.Role is OrganizationRoleConstants.Owner or OrganizationRoleConstants.Admin)
-            .OrderBy(membership => membership.JoinedAt)
-            .Select(membership => new ConsoleOrganizationDto
-            {
-                Id = membership.OrganizationId.ToString("D"),
-                Name = membership.Name,
-                Slug = membership.Slug,
-                Role = membership.Role,
-            })];
-        if (roles.Count == 0 && managed.Count == 0)
-            return Forbid();
-
-        var name = new[] { user.DisplayName, user.PhoneNumber, user.UserName }.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? user.Id.ToString("D");
-        var session = new ConsoleSessionDto { UserId = user.Id.ToString("D"), Name = name.Trim(), Roles = roles, Organizations = managed };
-        return Ok(ApiResponse<ConsoleSessionDto>.Ok(session));
+        return result.Match<IActionResult>(success => Ok(ApiResponse<ConsoleSessionDto>.Ok(new ConsoleSessionDto
+        {
+            UserId = success.Data.UserId.ToString("D"),
+            Name = success.Data.Name,
+            Roles = success.Data.Roles,
+            Organizations = success.Data.Organizations.Select(ToDto).ToArray(),
+        })), failure => AnswerFailure(failure.Error));
     }
 
     /// <summary>
@@ -88,44 +71,29 @@ public sealed class ConsoleController(
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateOrganization([FromBody] CreateOrganizationApiRequest request, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        if (await CallerAsync(cancellationToken) is not { } user)
-            return Unauthorized();
+        var command = new CreateConsoleOrganizationCommand(CallerId(), request.Id, request.Name, request.Slug);
+        var result = await sender.SendAsync(command, cancellationToken);
 
-        var id = request.Id ?? Guid.Empty;
-        if (id != Guid.Empty && await organizations.FindByIdAsync(id, cancellationToken) is { } holder)
-            throw Coded(AppErrorType.Conflict, $"Organization {id} already exists, with the handle '{holder.Slug}'.", ConsoleErrorCodeConstants.DuplicateOrganizationId).ToException();
-
-        var organization = new IdentityOrganization { Id = id, Name = request.Name ?? string.Empty, Slug = request.Slug ?? string.Empty };
-        var created = await organizations.CreateAsync(organization, user, cancellationToken);
-        if (!created.IsSuccess)
-        {
-            var refusal = created.Errors[0];
-            var type = refusal.Code == IdentityErrorCodeConstants.DuplicateOrganizationSlug ? AppErrorType.Conflict : AppErrorType.Validation;
-            throw Coded(type, refusal.Description, refusal.Code).ToException();
-        }
-
-        var dto = new ConsoleOrganizationDto
-        {
-            Id = organization.Id.ToString("D"),
-            Name = organization.Name,
-            Slug = organization.Slug,
-            Role = await organizations.GetRoleAsync(organization, user, cancellationToken) ?? OrganizationRoleConstants.Owner,
-        };
-        return StatusCode(StatusCodes.Status201Created, ApiResponse<ConsoleOrganizationDto>.Ok(dto));
+        return result.Match<IActionResult>(
+            success => StatusCode(StatusCodes.Status201Created, ApiResponse<ConsoleOrganizationDto>.Ok(ToDto(success.Data))),
+            failure => AnswerFailure(failure.Error));
     }
 
-    /// <summary>The signed-in person, or null when the cookie names nobody who still exists.</summary>
-    private async Task<IdentityUser?> CallerAsync(CancellationToken cancellationToken)
-        => Guid.TryParse(User.FindFirst(core.Claims.UserIdClaimType)?.Value, out var userId)
-            ? await accounts.FindByIdAsync(userId, cancellationToken)
-            : null;
+    private Guid? CallerId() =>
+        Guid.TryParse(User.FindFirst(core.Claims.UserIdClaimType)?.Value, out var id) ? id : null;
 
-    /// <summary>An error whose code a client reads from the problem's <c>identityCode</c> extension, beside the message key translation uses, as the account API codes them.</summary>
-    private static AppError Coded(AppErrorType type, string message, string code)
+    private IActionResult AnswerFailure(AppError error) => error.Type switch
     {
-        var metadata = new Dictionary<string, object?>(StringComparer.Ordinal) { ["messageKey"] = code, ["identityCode"] = code };
-        metadata[AppErrorProblemDetailsFactory.ExtensionsMetadataKey] = new Dictionary<string, object?>(StringComparer.Ordinal) { ["identityCode"] = code };
-        return AppError.Of(type, message, metadata);
-    }
+        AppErrorType.Unauthorized => Unauthorized(),
+        AppErrorType.Forbidden => Forbid(),
+        _ => throw error.ToException(),
+    };
+
+    private static ConsoleOrganizationDto ToDto(ConsoleOrganization organization) => new()
+    {
+        Id = organization.Id.ToString("D"),
+        Name = organization.Name,
+        Slug = organization.Slug,
+        Role = organization.Role,
+    };
 }
